@@ -2533,22 +2533,23 @@ function renderReport(){
   if(typeof window._rptKpi==='undefined')window._rptKpi='';
 
   if(typeof window._rptDept==='undefined')window._rptDept='';
-  const ks_all=filt();
+  /* Use allK() so report filters are independent of the global dept filter */
+  const ks_all=allK().filter(k=>F.year==='all'||k.yr===parseInt(F.year));
   /* Dept filter options */
   const deptOpts='<option value=""'+(window._rptDept===''?' selected':'')+'>All Departments</option>'+
     Object.keys(DM).map(d=>'<option value="'+d+'"'+(window._rptDept===d?' selected':'')+'>'+DM[d].en+'</option>').join('');
-  /* Filter KPIs by dept first */
+  /* Filter KPIs by selected report dept */
   const ks_dept=window._rptDept?ks_all.filter(k=>k.dept===window._rptDept):ks_all;
-  /* Then build KPI opts from dept-filtered list */
+  /* Build KPI options filtered by selected dept */
   const kpiOpts='<option value=""'+(window._rptKpi===''?' selected':'')+'>— All KPIs —</option>'+
     ks_dept.map(k=>'<option value="'+k.id+'"'+(window._rptKpi===k.id?' selected':'')+'>'+k.id+' — '+k.nameEn+'</option>').join('');
-  /* Final KPI set */
-  const ks_base=ks_dept;
+  /* Final KPI set: dept filtered + optional single KPI */
   const ks=window._rptKpi?ks_dept.filter(k=>k.id===window._rptKpi):ks_dept;
 
   const k1=ks.length===1?ks[0]:null;
-  const dm=F.dept!=='all'?DM[F.dept]:null;
-  const deptFull=dm?(dm.en+' Department'):'All Departments';
+  /* deptFull from report's own dept filter */
+  const rptDm=window._rptDept?DM[window._rptDept]:null;
+  const deptFull=rptDm?(rptDm.en+' Department'):'All Departments';
   const metKs=ks.filter(k=>ok(k)===true);
   const missKs=ks.filter(k=>ok(k)===false);
   const total=ks.length;
@@ -2849,6 +2850,15 @@ function renderReport(){
 }
 
 function rptStartEdit(id){
+  if(!window._adminActive){
+    /* Show a brief tooltip: admin only */
+    const wrap=document.getElementById(id+'-w');
+    if(wrap){
+      wrap.style.outline='2px solid #DC2626';wrap.style.borderRadius='6px';
+      setTimeout(()=>{wrap.style.outline='none';},900);
+    }
+    return;
+  }
   const p=document.getElementById(id);
   const wrap=document.getElementById(id+'-w');
   if(!p||!wrap||wrap.dataset.editing)return;
@@ -4304,6 +4314,7 @@ function doPin(){
   const ih=hashPin(inp);
   if(ih===ST.pinHash){
     _failCount=0;
+    window._adminActive=true;
     closOv('lockOv');
     document.getElementById('pinI').value='';
     eEl.textContent='';
@@ -4463,7 +4474,10 @@ function clearAudit(){ST.audit=[];sLS(ST);loadAuditLog();toast('Audit log cleare
 /* ══════════════════════════════════════════
    MISC
 ══════════════════════════════════════════ */
-function closOv(id){document.getElementById(id).classList.remove('open')}
+function closOv(id){
+  document.getElementById(id).classList.remove('open');
+  if(id==='adminOv')window._adminActive=false;
+}
 document.querySelectorAll('.overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open')}));
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
 function updateClock(){document.getElementById('clockEl').textContent=new Date().toLocaleTimeString(lang==='ar'?'ar-SA':'en-GB',{hour:'2-digit',minute:'2-digit'});}
