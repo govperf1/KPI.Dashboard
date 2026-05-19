@@ -153,10 +153,10 @@ body{
    TOPBAR — Premium Glassmorphism Institutional Header
 ═══════════════════════════════════════════════════════════════ */
 .topbar{
-  background:var(--glass-dark);
-  backdrop-filter:blur(28px) saturate(180%) brightness(0.95);
-  -webkit-backdrop-filter:blur(28px) saturate(180%) brightness(0.95);
-  border-bottom:1px solid rgba(0,163,196,0.22);
+  background:#152538;
+  backdrop-filter:none;
+  -webkit-backdrop-filter:none;
+  border-bottom:2px solid #0195af;
   padding:0 28px;
   display:flex;align-items:center;gap:16px;
   height:62px;flex-shrink:0;z-index:100;
@@ -185,8 +185,8 @@ body{
 }
 
 .tb-brand{display:flex;align-items:center;gap:14px;flex-shrink:0}
-.tb-logo{height:46px;flex-shrink:0;display:flex;align-items:center;position:relative}
-.tb-logo img{height:100%;width:auto;object-fit:contain;mix-blend-mode:screen;filter:brightness(1.10) contrast(1.05)}
+.tb-logo{height:52px;flex-shrink:0;display:flex;align-items:center;position:relative}
+.tb-logo img{height:100%;width:auto;object-fit:contain}
 /* Neon glow ring under logo */
 .tb-logo::after{
   content:'';position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);
@@ -195,10 +195,10 @@ body{
   filter:blur(2px);
 }
 .tb-identity{display:flex;flex-direction:column;gap:2px}
-.tb-org{font-size:13.5px;font-weight:700;color:rgba(255,255,255,0.97);letter-spacing:.005em;line-height:1.3}
+.tb-org{color:#fff;font-size:13.5px;font-weight:700;color:rgba(255,255,255,0.97);letter-spacing:.005em;line-height:1.3}
 .tb-div,.tb-sub{font-size:var(--text-xs);color:rgba(1,149,175,0.68);margin-top:1px;font-weight:500;letter-spacing:.05em;text-transform:uppercase}
 .tb-name{font-size:13px;font-weight:700;color:rgba(255,255,255,0.96);letter-spacing:.01em;line-height:1.30}
-.tb-vline,.tb-rule{width:1px;height:28px;background:linear-gradient(180deg,transparent,rgba(255,255,255,0.12),transparent);flex-shrink:0;margin:0 4px}
+.tb-vline,.tb-rule{background:rgba(255,255,255,.12);width:1px;height:28px;background:linear-gradient(180deg,transparent,rgba(255,255,255,0.12),transparent);flex-shrink:0;margin:0 4px}
 .tb-sep{width:1px;height:22px;background:rgba(255,255,255,0.09);flex-shrink:0}
 .tb-space{flex:1;min-width:0}
 
@@ -825,16 +825,16 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
    FOOTBAR — QUMC Institutional Footer
 ═══════════════════════════════════════════════════════════════ */
 .footbar{
-  height:38px;
-  background:linear-gradient(180deg,#FFFFFF 0%,#F8FAFB 100%);
-  border-top:1px solid var(--border);
+  height:42px;
+  background:#152538;
+  border-top:2px solid #0195af;
   display:flex;align-items:center;
-  padding:0 24px;flex-shrink:0;gap:12px;
-  box-shadow:0 -1px 4px rgba(12,35,64,0.04);
+  padding:0 28px;flex-shrink:0;gap:12px;
+  position:sticky;bottom:0;z-index:50;
 }
 .footbar-logo{height:22px;display:flex;align-items:center}
-.footbar-logo img{height:100%;width:auto;object-fit:contain;opacity:.55;filter:grayscale(20%)}
-.footbar-sep{width:1px;height:14px;background:var(--border-m);flex-shrink:0}
+.footbar-logo img{height:100%;width:auto;object-fit:contain;opacity:.80}
+.footbar-sep{width:1px;height:14px;background:rgba(255,255,255,.18);flex-shrink:0;margin:0 4px}
 .fb-t{font-size:9px;color:var(--t3);font-weight:600;letter-spacing:.04em}
 .live-dot{width:6px;height:6px;border-radius:50%;background:var(--met);flex-shrink:0;animation:live-pulse 2.5s ease infinite}
 @keyframes live-pulse{0%,100%{opacity:.28}50%{opacity:1}}
@@ -968,6 +968,17 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 .rpt-ok{background:rgba(5,150,105,.10);color:#059669;font-size:9px;font-weight:800;padding:3px 9px;border-radius:20px}
 .rpt-miss{background:rgba(220,38,38,.09);color:#DC2626;font-size:9px;font-weight:800;padding:3px 9px;border-radius:20px}
 .rpt-foot{display:flex;justify-content:space-between;font-size:9px;color:var(--t3);margin-top:16px;padding-top:10px;border-top:1px solid var(--border)}
+
+/* ══ Report edit button ══ */
+.rpt-ep{position:relative;padding-right:2px}
+.rpt-edit-btn{position:absolute;top:0;right:0;display:inline-flex;align-items:center;gap:3px;padding:3px 10px;background:linear-gradient(135deg,#0195af,#007A96);border:none;border-radius:20px;color:#fff;font-size:9px;font-weight:700;cursor:pointer;font-family:inherit;opacity:0;transition:opacity .2s,transform .15s;box-shadow:0 2px 8px rgba(1,149,175,.32);letter-spacing:.02em;white-space:nowrap}
+.rpt-ep:hover .rpt-edit-btn{opacity:1;transform:translateY(-1px)}
+.rpt-edit-btn.done-btn{background:linear-gradient(135deg,#06845A,#059669)!important;box-shadow:0 2px 8px rgba(6,132,90,.32)!important}
+
+/* ── Footbar text ── */
+.footbar-info{display:flex;align-items:center;gap:8px;flex:1}
+.footbar-title{font-size:10px;font-weight:700;color:#fff;white-space:nowrap}
+.footbar-sub{font-size:9px;color:rgba(255,255,255,.70);white-space:nowrap}
 </style>
 
 </head>
@@ -980,7 +991,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
     <div class="tb-logo"><img id="logoImg" src="" alt="QUMC"></div>
     <div class="tb-identity">
       <div class="tb-org">Qassim University Medical City</div>
-      <div class="tb-div" data-en="Facilities &amp; Safety Administration — Governance &amp; Performance" data-ar="إدارة المرافق والسلامة — الحوكمة والأداء">Facilities &amp; Safety — Governance &amp; Performance</div>
+      <div class="tb-div" data-en="Facilities &amp; Safety Division — Governance &amp; Performance" data-ar="إدارة المرافق والسلامة — الحوكمة والأداء">Facilities &amp; Safety — Governance &amp; Performance</div>
     </div>
   </div>
   <!-- Separator -->
@@ -993,37 +1004,29 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
       Excel
     </button>
-    <button class="tb-btn" onclick="switchTab('report',document.querySelector('.tab:last-child'));renderReportAndShow?renderReportAndShow():renderReport();" style="background:#152538;color:#fff;border-color:#152538;display:flex;align-items:center;gap:5px;font-weight:700">
+    <button class="tb-btn" onclick="document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));var rp=document.getElementById('page-report');if(rp){rp.classList.add('on');}if(typeof renderReport==='function')renderReport();" style="background:#152538;color:#fff;border-color:#152538;display:flex;align-items:center;gap:5px;font-weight:700">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-      Report
-    </button>
-    <button class="tb-btn" onclick="exportWordDoc()" style="background:#2B579A;color:#fff;border-color:#2B579A;display:flex;align-items:center;gap:5px;font-weight:700">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
-      Word
-    </button>
-    <button class="tb-btn" onclick="(function(){document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));var rt=document.querySelector('.tab[onclick*=report]');if(rt)rt.classList.add('on');document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));var rp=document.getElementById('page-report');if(rp)rp.classList.add('on');if(typeof renderReport==='function')renderReport();})()" style="background:#152538;color:#fff;border-color:#152538;display:flex;align-items:center;gap:5px;font-weight:700">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
       Report
     </button>
     <div style="position:relative;display:inline-block">
       <button class="tb-btn" onclick="toggleExportMenu(event)" style="background:#1A2847;color:#fff;border-color:#1A2847">
-        📤 Export ▾
+         Export ▾
       </button>
       <div id="exportMenuDrop" style="display:none;position:fixed;background:#fff;border:1px solid var(--border2);border-radius:10px;box-shadow:0 8px 24px rgba(26,40,71,.16);padding:6px;z-index:9999;min-width:210px;right:80px;top:56px">
         <div style="font-size:9px;font-weight:700;color:var(--t3);padding:6px 10px 4px;text-transform:uppercase;letter-spacing:.06em">Select Page to Export</div>
-        <div onclick="doExportPage('exec')" class="export-menu-item">📊 Executive Command</div>
-        <div onclick="doExportPage('dept')" class="export-menu-item">🏢 Departments</div>
-        <div onclick="doExportPage('registry')" class="export-menu-item">📋 KPI Registry</div>
-        <div onclick="doExportPage('acc')" class="export-menu-item">⚡ Accountability</div>
+        <div onclick="doExportPage('exec')" class="export-menu-item"> Executive Command</div>
+        <div onclick="doExportPage('dept')" class="export-menu-item"> Departments</div>
+        <div onclick="doExportPage('registry')" class="export-menu-item"> KPI Registry</div>
+        <div onclick="doExportPage('acc')" class="export-menu-item"> Accountability</div>
         <div style="height:1px;background:var(--border);margin:4px 0"></div>
-        <div onclick="doExportPage('all')" class="export-menu-item" style="color:var(--teal);font-weight:700">📄 All Pages</div>
+        <div onclick="doExportPage('all')" class="export-menu-item" style="color:var(--teal);font-weight:700"> All Pages</div>
         <div style="height:1px;background:var(--border);margin:4px 0"></div>
-        <div onclick="renderReportAndShow()" class="export-menu-item" style="color:#00A3C4;font-weight:700">📋 Report</div>
+        <div onclick="document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));var rp=document.getElementById('page-report');if(rp)rp.classList.add('on');if(typeof renderReport==='function')renderReport();" class="export-menu-item" style="color:#00A3C4;font-weight:700"> Report</div>
       </div>
     </div>
     <div class="tb-vline"></div>
-    <button class="tb-btn" id="langBtn" onclick="toggleLang()">🌐 عربي</button>
-    <button class="tb-btn" onclick="openLock()">🔐</button>
+    <button class="tb-btn" id="langBtn" onclick="toggleLang()"> عربي</button>
+    <button class="tb-btn" onclick="openLock()"></button>
   </div>
 </div>
 
@@ -1050,17 +1053,17 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
   <div class="tb-vline" style="height:14px"></div>
   <span class="fs-lbl" data-en="Status" data-ar="الحالة">Status</span>
   <button class="fb on" data-filter="status" data-val="all" onclick="setF('status','all',this)" data-en="All" data-ar="الكل">All</button>
-  <button class="fb" data-filter="status" data-val="achieved" onclick="setF('status','achieved',this)" data-en="✓ Met" data-ar="✓ محقق">✓ Met</button>
-  <button class="fb" data-filter="status" data-val="missed" onclick="setF('status','missed',this)" data-en="✕ Missed" data-ar="✕ لم يتحقق">✕ Missed</button>
+  <button class="fb" data-filter="status" data-val="achieved" onclick="setF('status','achieved',this)" data-en=" Met" data-ar=" محقق"> Met</button>
+  <button class="fb" data-filter="status" data-val="missed" onclick="setF('status','missed',this)" data-en=" Missed" data-ar=" لم يتحقق"> Missed</button>
   <button class="fs-reset" onclick="resetFilters()" data-en="↺ Reset" data-ar="↺ إعادة">↺ Reset</button>
 </div>
 
 <!-- ═══ TABS ════════════════════════════════════════ -->
 <div class="tabnav">
-  <div class="tab on" onclick="switchTab('exec',this)">📊 <span data-en="Executive Command" data-ar="القيادة التنفيذية">Executive Command</span></div>
-  <div class="tab" onclick="switchTab('dept',this)">🏢 <span data-en="Departments" data-ar="الأقسام">Departments</span></div>
-  <div class="tab" onclick="switchTab('registry',this)">📋 <span data-en="KPI Registry" data-ar="سجل المؤشرات">KPI Registry</span></div>
-  <div class="tab" onclick="switchTab('accountability',this)">⚡ <span data-en="Accountability" data-ar="المساءلة">Accountability</span> <span class="tab-badge" id="accBadge" style="display:none">0</span></div>
+  <div class="tab on" onclick="switchTab('exec',this)"> <span data-en="Executive Command" data-ar="القيادة التنفيذية">Executive Command</span></div>
+  <div class="tab" onclick="switchTab('dept',this)"> <span data-en="Departments" data-ar="الأقسام">Departments</span></div>
+  <div class="tab" onclick="switchTab('registry',this)"> <span data-en="KPI Registry" data-ar="سجل المؤشرات">KPI Registry</span></div>
+  <div class="tab" onclick="switchTab('accountability',this)"> <span data-en="Accountability" data-ar="المساءلة">Accountability</span> <span class="tab-badge" id="accBadge" style="display:none">0</span></div>
 
 </div>
 
@@ -1080,7 +1083,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
     <div class="footbar-info">
       <span class="footbar-title" data-en="KPI Performance Command Center" data-ar="مركز قيادة مؤشرات الأداء">KPI Performance Command Center</span>
       <span class="footbar-sep">·</span>
-      <span class="footbar-sub" data-en="Governance &amp; Performance Dept — Facilities &amp; Safety Administration" data-ar="قسم الحوكمة والأداء — إدارة المرافق والسلامة">Governance &amp; Performance — Facilities &amp; Safety</span>
+      <span class="footbar-sub" data-en="Governance &amp; Performance Dept — Facilities &amp; Safety Division" data-ar="قسم الحوكمة والأداء — إدارة المرافق والسلامة">Governance &amp; Performance — Facilities &amp; Safety</span>
     </div>
   </div>
   <div class="footbar-r">
@@ -1101,32 +1104,32 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 <div class="overlay" id="exportModal" style="display:none;align-items:center;justify-content:center">
   <div class="modal" style="max-width:360px;width:90%">
     <div class="modal-hdr" style="padding:14px 18px;border-bottom:1px solid var(--border)">
-      <span style="font-weight:800;color:var(--t1);font-size:13px">📤 Export to PDF</span>
-      <button class="modal-close" onclick="closeExportPDF()" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--t3)">✕</button>
+      <span style="font-weight:800;color:var(--t1);font-size:13px"> Export to PDF</span>
+      <button class="modal-close" onclick="closeExportPDF()" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--t3)"></button>
     </div>
     <div style="padding:18px 18px 16px">
       <div style="margin-bottom:14px">
         <label style="display:block;font-size:10.5px;font-weight:700;color:var(--t2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Page to Export</label>
         <select id="pdfPageSel" class="msel" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:7px;background:var(--card);color:var(--t1);font-size:12px;font-family:inherit">
-          <option value="exec">📊 Executive Command</option>
-          <option value="dept">🏢 Departments</option>
-          <option value="registry">📋 KPI Registry</option>
-          <option value="acc">⚡ Accountability</option>
+          <option value="exec"> Executive Command</option>
+          <option value="dept"> Departments</option>
+          <option value="registry"> KPI Registry</option>
+          <option value="acc"> Accountability</option>
         </select>
       </div>
       <div style="margin-bottom:16px">
         <label style="display:block;font-size:10.5px;font-weight:700;color:var(--t2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Orientation</label>
         <select id="pdfOrient" class="msel" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:7px;background:var(--card);color:var(--t1);font-size:12px;font-family:inherit">
           <option value="landscape">⬜ Landscape (Recommended)</option>
-          <option value="portrait">📄 Portrait</option>
+          <option value="portrait"> Portrait</option>
         </select>
       </div>
       <div style="background:var(--teal-dim);border:1px solid var(--border2);border-radius:7px;padding:10px 12px;margin-bottom:16px;font-size:10px;color:var(--t2);line-height:1.5">
-        💡 Opens browser print dialog.<br>Select <b>"Save as PDF"</b> from the destination list.
+         Opens browser print dialog.<br>Select <b>"Save as PDF"</b> from the destination list.
       </div>
       <div style="display:flex;gap:8px">
         <button onclick="closeExportPDF()" style="flex:1;padding:10px;background:var(--t4);border:none;border-radius:7px;font-family:inherit;font-size:11px;cursor:pointer;color:var(--t2);font-weight:600">Cancel</button>
-        <button onclick="doExportPDF()" style="flex:2;padding:10px;background:#1A2847;color:#fff;border:none;border-radius:7px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px">📥 Download PDF</button>
+        <button onclick="doExportPDF()" style="flex:2;padding:10px;background:#1A2847;color:#fff;border:none;border-radius:7px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px"> Download PDF</button>
       </div>
     </div>
   </div>
@@ -1139,7 +1142,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
         <div class="mhd-t" id="pciTitle">KPI Breakdown</div>
         <div style="font-size:10px;color:var(--t3);margin-top:2px" id="pciSub"></div>
       </div>
-      <button class="mx" onclick="closePCI()">✕</button>
+      <button class="mx" onclick="closePCI()"></button>
     </div>
     <div style="padding:16px">
       <!-- Quarter tabs -->
@@ -1160,7 +1163,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
       </div>
       <!-- Info note -->
       <div id="pciNote" style="font-size:10px;color:var(--t3);text-align:center;padding:6px 0;display:flex;align-items:center;justify-content:center;gap:6px">
-        <span>🔐</span>
+        <span></span>
         <span data-en="Enter data via Admin Panel → Edit KPI" data-ar="أدخل البيانات من لوحة المسؤول ← تعديل مؤشر">Enter data via Admin Panel → Edit KPI</span>
       </div>
       <button onclick="closePCI()" style="width:100%;margin-top:12px;padding:10px;background:var(--ink);color:#fff;border:none;border-radius:9px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer">Close</button>
@@ -1172,11 +1175,11 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 <div class="overlay" id="lockOv">
   <div class="modal" style="max-width:340px">
     <div class="mhd">
-      <span class="mhd-t" data-en="🔐 Admin Access" data-ar="🔐 وصول المسؤول">🔐 Admin Access</span>
-      <button class="mx" onclick="closOv('lockOv')">✕</button>
+      <span class="mhd-t" data-en=" Admin Access" data-ar=" وصول المسؤول"> Admin Access</span>
+      <button class="mx" onclick="closOv('lockOv')"></button>
     </div>
     <div style="padding:24px;text-align:center">
-      <div style="font-size:36px;margin-bottom:10px">🏥</div>
+      <div style="font-size:36px;margin-bottom:10px"></div>
       <p style="font-size:11px;color:var(--t3);margin-bottom:18px;line-height:1.6" data-en="Governance &amp; Performance Department — Qassim University Medical City" data-ar="قسم الحوكمة والأداء — المدينة الطبية جامعة القصيم">Governance &amp; Performance Department</p>
       <div style="text-align:left;margin-bottom:14px">
         <label style="font-size:10px;font-weight:700;color:var(--t2);display:block;margin-bottom:6px">Administrator PIN</label>
@@ -1189,7 +1192,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
       <p style="font-size:9px;color:var(--t3);margin-bottom:18px" data-en="All admin actions are timestamped and logged." data-ar="جميع إجراءات المسؤول تُسجَّل بالتوقيت.">All admin actions are timestamped and logged.</p>
       <div style="display:flex;gap:8px">
         <button onclick="closOv('lockOv')" class="mbt" style="flex:1">Cancel</button>
-        <button onclick="doPin()" class="mbt primary" style="flex:2">🔓 Unlock</button>
+        <button onclick="doPin()" class="mbt primary" style="flex:2"> Unlock</button>
       </div>
     </div>
   </div>
@@ -1201,19 +1204,19 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
     <!-- Header -->
     <div class="mhd">
       <div>
-        <div class="mhd-t">⚙️ Admin Control Panel</div>
-        <div id="defWarn" style="display:none;margin-top:5px;font-size:10px;color:#B06000;background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;padding:4px 10px">⚠️ Default PIN active — change immediately in Security tab.</div>
+        <div class="mhd-t"> Admin Control Panel</div>
+        <div id="defWarn" style="display:none;margin-top:5px;font-size:10px;color:#B06000;background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;padding:4px 10px"> Default PIN active — change immediately in Security tab.</div>
       </div>
-      <button class="mx" onclick="closOv('adminOv')">✕</button>
+      <button class="mx" onclick="closOv('adminOv')"></button>
     </div>
 
     <!-- Tab Strip -->
     <div class="atabs" id="adminTabs">
-      <button class="atb on" onclick="swAt('edit',this)">✏️ Edit KPI</button>
-      <button class="atb" onclick="swAt('add',this)">➕ Add KPI</button>
-      <button class="atb" onclick="swAt('gap',this)">📝 Gap Analysis</button>
-      <button class="atb" onclick="swAt('security',this)">🔒 Security</button>
-      <button class="atb" onclick="swAt('auditlog',this)">📜 Audit Log</button>
+      <button class="atb on" onclick="swAt('edit',this)"> Edit KPI</button>
+      <button class="atb" onclick="swAt('add',this)"> Add KPI</button>
+      <button class="atb" onclick="swAt('gap',this)"> Gap Analysis</button>
+      <button class="atb" onclick="swAt('security',this)"> Security</button>
+      <button class="atb" onclick="swAt('auditlog',this)"> Audit Log</button>
     </div>
 
     <!-- Scrollable body -->
@@ -1260,13 +1263,13 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
         </div>
         <!-- Quarterly Table -->
         <div>
-          <div class="af-sec-lbl">📊 Quarterly Results</div>
+          <div class="af-sec-lbl"> Quarterly Results</div>
           <table class="pci-table">
             <thead><tr>
               <th style="width:42px;text-align:left;padding-left:12px">QTR</th>
-              <th style="color:#93C5FD">📋 Planned</th>
-              <th style="color:#6EE7B7">✓ Complete</th>
-              <th style="color:#FCA5A5">✕ Incomplete</th>
+              <th style="color:#93C5FD"> Planned</th>
+              <th style="color:#6EE7B7"> Complete</th>
+              <th style="color:#FCA5A5"> Incomplete</th>
               <th style="color:#67E8F9;width:100px">Result</th>
             </tr></thead>
             <tbody>
@@ -1373,13 +1376,13 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
         </div>
         <!-- Quarterly Table -->
         <div>
-          <div class="af-sec-lbl">📊 Quarterly Values</div>
+          <div class="af-sec-lbl"> Quarterly Values</div>
           <table class="pci-table">
             <thead><tr>
               <th style="width:42px;text-align:left;padding-left:12px">QTR</th>
-              <th style="color:#93C5FD">📋 Planned</th>
-              <th style="color:#6EE7B7">✓ Complete</th>
-              <th style="color:#FCA5A5">✕ Incomplete</th>
+              <th style="color:#93C5FD"> Planned</th>
+              <th style="color:#6EE7B7"> Complete</th>
+              <th style="color:#FCA5A5"> Incomplete</th>
               <th style="color:#67E8F9;width:100px">Result</th>
             </tr></thead>
             <tbody>
@@ -1406,18 +1409,17 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
         <!-- Priority + Status -->
         <div class="af-grid2">
           <div class="af-field">
-            <label class="af-lbl">🎯 Priority</label>
+            <label class="af-lbl"> Priority</label>
             <select class="af-sel" id="actPri">
-              <option value="critical">🔴 Critical</option>
-              <option value="high">🟠 High</option>
-              <option value="medium" selected>🟡 Medium</option>
-              <option value="low">🟢 Low</option>
+              <option value="critical"> Critical</option>
+              <option value="high"> High</option>
+              <option value="medium" selected> Medium</option>
+              <option value="low"> Low</option>
             </select>
           </div>
           <div class="af-field">
-            <label class="af-lbl">📋 Action Status</label>
+            <label class="af-lbl"> Action Status</label>
             <select class="af-sel" id="actStatus">
-              <option value="open">Open — Not Started</option>
               <option value="in-progress">In Progress</option>
               <option value="closed">Closed — Completed</option>
             </select>
@@ -1426,39 +1428,39 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
         <!-- Owner + Date -->
         <div class="af-grid2">
           <div class="af-field">
-            <label class="af-lbl">👤 Responsible Person</label>
+            <label class="af-lbl"> Responsible Person</label>
             <input type="text" class="af-inp" id="gOwner" placeholder="e.g. Director of Maintenance">
           </div>
           <div class="af-field">
-            <label class="af-lbl">📅 Expected Closure Date</label>
+            <label class="af-lbl"> Expected Closure Date</label>
             <input type="date" class="af-inp" id="gDue" dir="ltr" style="direction:ltr">
           </div>
         </div>
         <!-- At Risk -->
         <label style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(196,43,43,.06);border:1px solid rgba(196,43,43,.20);border-radius:9px;cursor:pointer;user-select:none">
           <input type="checkbox" id="gAtRisk" style="width:16px;height:16px;accent-color:var(--missed);cursor:pointer;flex-shrink:0">
-          <span style="font-size:11px;font-weight:700;color:var(--missed)">⚠ At Risk — Flag this KPI for immediate escalation</span>
+          <span style="font-size:11px;font-weight:700;color:var(--missed)"> At Risk — Flag this KPI for immediate escalation</span>
         </label>
         <!-- Bilingual text areas -->
         <div class="af-sec-lbl" style="margin-top:4px">Root Cause &amp; Gap Reasons</div>
         <div class="af-grid2">
           <div class="af-field" dir="rtl">
-            <label class="af-lbl" style="text-align:right">🇸🇦 أسباب الفجوة</label>
+            <label class="af-lbl" style="text-align:right"> أسباب الفجوة</label>
             <textarea class="af-txt" id="gA" placeholder="أسباب عدم التحقيق…" dir="rtl" rows="4"></textarea>
           </div>
           <div class="af-field">
-            <label class="af-lbl">🇬🇧 Root Cause / Gap Reasons</label>
+            <label class="af-lbl"> Root Cause / Gap Reasons</label>
             <textarea class="af-txt" id="gE" placeholder="Root causes for non-achievement…" rows="4"></textarea>
           </div>
         </div>
         <div class="af-sec-lbl">Corrective Actions</div>
         <div class="af-grid2">
           <div class="af-field" dir="rtl">
-            <label class="af-lbl" style="text-align:right">🇸🇦 الإجراءات التصحيحية</label>
+            <label class="af-lbl" style="text-align:right"> الإجراءات التصحيحية</label>
             <textarea class="af-txt" id="aA" placeholder="الإجراءات المتخذة…" dir="rtl" rows="4"></textarea>
           </div>
           <div class="af-field">
-            <label class="af-lbl">🇬🇧 Corrective Actions</label>
+            <label class="af-lbl"> Corrective Actions</label>
             <textarea class="af-txt" id="aE" placeholder="Actions taken or planned…" rows="4"></textarea>
           </div>
         </div>
@@ -1470,7 +1472,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
       <div class="ap" id="ap-security">
         <!-- Change PIN -->
         <div style="background:var(--card-2);border:1px solid var(--border);border-radius:12px;padding:20px 22px;margin-bottom:16px">
-          <div class="af-sec-lbl" style="margin-bottom:14px">🔑 Change Administrator PIN</div>
+          <div class="af-sec-lbl" style="margin-bottom:14px"> Change Administrator PIN</div>
           <div class="af-grid2">
             <div class="af-field">
               <label class="af-lbl">New PIN (4–6 digits)</label>
@@ -1481,12 +1483,12 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
               <input type="password" class="af-inp" id="newPin2" maxlength="6" placeholder="Repeat PIN" inputmode="numeric">
             </div>
           </div>
-          <button onclick="changePin()" class="af-btn-primary" style="margin-top:6px">🔒 Update PIN</button>
-          <p style="margin:10px 0 0;font-size:10px;color:var(--t3);line-height:1.6">⚡ All admin actions are timestamped and logged. Changing your PIN will require re-login.</p>
+          <button onclick="changePin()" class="af-btn-primary" style="margin-top:6px"> Update PIN</button>
+          <p style="margin:10px 0 0;font-size:10px;color:var(--t3);line-height:1.6"> All admin actions are timestamped and logged. Changing your PIN will require re-login.</p>
         </div>
         <!-- Backup & Restore -->
         <div style="background:var(--card-2);border:1px solid var(--border);border-radius:12px;padding:20px 22px">
-          <div class="af-sec-lbl" style="margin-bottom:14px">💾 Encrypted Backup &amp; Restore</div>
+          <div class="af-sec-lbl" style="margin-bottom:14px"> Encrypted Backup &amp; Restore</div>
           <div class="af-grid2">
             <button onclick="exportSnapshot()" class="af-btn-primary" style="width:100%;justify-content:center">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -1510,7 +1512,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
             <div style="font-size:13px;font-weight:700;color:var(--ink)">Audit Trail</div>
             <div style="font-size:10px;color:var(--t3);margin-top:2px">Last 50 admin actions — timestamped</div>
           </div>
-          <button onclick="clearAudit()" class="af-btn-danger">🗑 Clear Log</button>
+          <button onclick="clearAudit()" class="af-btn-danger"> Clear Log</button>
         </div>
         <div id="auditLogList" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:10px"></div>
       </div>
@@ -1519,7 +1521,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 
     <!-- Footer buttons -->
     <div class="mfoot">
-      <button class="af-btn-primary" onclick="saveAdmin()">💾 Save Changes</button>
+      <button class="af-btn-primary" onclick="saveAdmin()"> Save Changes</button>
       <button class="af-btn-secondary" onclick="closOv('adminOv')">Close</button>
     </div>
   </div>
@@ -1528,7 +1530,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 <!-- GAP VIEW -->
 <div class="overlay" id="gapOv">
   <div class="modal" style="max-width:520px">
-    <div class="mhd"><span class="mhd-t" id="gapT">Gap Analysis</span><button class="mx" onclick="closOv('gapOv')">✕</button></div>
+    <div class="mhd"><span class="mhd-t" id="gapT">Gap Analysis</span><button class="mx" onclick="closOv('gapOv')"></button></div>
     <div class="mbody" id="gapB"></div>
   </div>
 </div>
@@ -1537,10 +1539,10 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 <div class="overlay" id="rptOv">
   <div class="modal" style="max-width:880px">
     <div class="mhd">
-      <span class="mhd-t" data-en="📄 KPI Performance Report" data-ar="📄 تقرير مؤشرات الأداء">📄 KPI Performance Report</span>
+      <span class="mhd-t" data-en=" KPI Performance Report" data-ar=" تقرير مؤشرات الأداء"> KPI Performance Report</span>
       <div style="display:flex;gap:7px;align-items:center">
-        <button class="btn-teal" style="padding:5px 12px;font-size:10px" onclick="window.print()">🖨 Print / PDF</button>
-        <button class="mx" onclick="closOv('rptOv')">✕</button>
+        <button class="btn-teal" style="padding:5px 12px;font-size:10px" onclick="window.print()"> Print / PDF</button>
+        <button class="mx" onclick="closOv('rptOv')"></button>
       </div>
     </div>
     <div class="mbody rpt" id="rptB" style="padding:0"></div>
@@ -1653,7 +1655,7 @@ function _buildExcelXLSX(){
         yoyQ!=null?(yoyQ>=0?'+':'')+yoyQ+'%':'—',
         annYoY!=null?(annYoY>=0?'+':'')+annYoY+'%':'—',
         'T'+(k.tier||3),
-        a===null?'Pending':a?'✓ Met':'✕ Missed'
+        a===null?'Pending':a?' Met':' Missed'
       ]);
     });
   });
@@ -1661,7 +1663,7 @@ function _buildExcelXLSX(){
   /* ── Sheet 2: Gap Analysis ── */
   const sh2=[];
   sh2.push(['Gap Analysis — Missed KPIs Corrective Action Register']);
-  sh2.push(['Qassim University Medical City — Facilities & Safety Administration']);
+  sh2.push(['Qassim University Medical City — Facilities & Safety Division']);
   sh2.push([]);
   sh2.push(['Code','KPI Name','Dept','Result','Gap','Priority','Action Status','Root Cause / Gap Reasons (EN)','Corrective Actions (EN)']);
 
@@ -1698,7 +1700,7 @@ function _buildExcelXLSX(){
 
   /* Download as .xlsx */
   XLSX.writeFile(wb,'KPI_Report_'+F.year+'_'+new Date().toISOString().slice(0,10)+'.xlsx');
-  toast(lang==='ar'?'✅ تم تحميل Excel — شيتان: KPI Report + Gap Analysis':'✅ Excel downloaded — 2 sheets: KPI Report + Gap Analysis');
+  toast(lang==='ar'?' تم تحميل Excel — شيتان: KPI Report + Gap Analysis':' Excel downloaded — 2 sheets: KPI Report + Gap Analysis');
 }
 /* ── Simple HTML-table Excel (100% browser compatible) ── */
 function _buildExcelSimple(){
@@ -1720,8 +1722,8 @@ function _buildExcelSimple(){
     return td(v.toFixed(1)+'%',ok2?'#DCFCE7':'#FEE2E2',ok2?'#166534':'#991B1B','text-align:center;font-weight:bold');
   };
   const statusCell=(a,odd)=>{
-    if(a===true)return td('✓ Met','#ECFDF5','#06845A','text-align:center;font-weight:bold');
-    if(a===false)return td('✕ Missed','#FEF2F2','#C42B2B','text-align:center;font-weight:bold');
+    if(a===true)return td(' Met','#ECFDF5','#06845A','text-align:center;font-weight:bold');
+    if(a===false)return td(' Missed','#FEF2F2','#C42B2B','text-align:center;font-weight:bold');
     return td('Pending','#F8FAFC','#94A3B8','text-align:center');
   };
 
@@ -1732,7 +1734,7 @@ function _buildExcelSimple(){
 
   /* Title */
   t1+=`<tr><td colspan="14" bgcolor="#152538" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:16pt;font-weight:bold;padding:14px 18px;border:none">
-    Qassim University Medical City — Facilities &amp; Safety Administration
+    Qassim University Medical City — Facilities &amp; Safety Division
   </td></tr>`;
   t1+=`<tr><td colspan="14" bgcolor="#1E3356" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:10pt;font-weight:bold;padding:7px 18px;border:none">
     KPI Performance Report · Governance &amp; Performance Department
@@ -1825,10 +1827,10 @@ function _buildExcelSimple(){
   ═══════════════════════════════ */
   let t2=`<table style="border-collapse:collapse;width:100%">`;
   t2+=`<tr><td colspan="9" bgcolor="#7F1D1D" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:14pt;font-weight:bold;padding:14px 18px;border:none">
-    ⚠ Gap Analysis — Missed KPIs Corrective Action Register
+     Gap Analysis — Missed KPIs Corrective Action Register
   </td></tr>`;
   t2+=`<tr><td colspan="9" bgcolor="#991B1B" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:9.5pt;font-weight:bold;padding:7px 18px;border:none">
-    Qassim University Medical City · Facilities &amp; Safety Administration · ${today} · Period: ${period}
+    Qassim University Medical City · Facilities &amp; Safety Division · ${today} · Period: ${period}
   </td></tr>`;
   t2+=`<tr><td colspan="9" style="padding:5px;border:none"></td></tr>`;
 
@@ -1871,7 +1873,7 @@ function _buildExcelSimple(){
     });
   } else {
     t2+=`<tr><td colspan="9" bgcolor="#ECFDF5" style="color:#06845A;font-family:Calibri,Arial;font-size:11pt;font-weight:bold;padding:16px;text-align:center;border:1px solid #A7F3D0">
-      🎉 All KPIs Met Their Targets — No gap analysis required for this period.
+       All KPIs Met Their Targets — No gap analysis required for this period.
     </td></tr>`;
   }
   t2+=`</table>`;
@@ -1909,7 +1911,7 @@ ${t2}
   a.download='QUMC_KPI_Report_'+(F.year==='all'?'All':F.year)+'_'+new Date().toISOString().slice(0,10)+'.xls';
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),1000);
-  toast(lang==='ar'?'✅ تم تحميل Excel (2 شيتات مع الألوان)':'✅ Premium Excel downloaded — KPI Report + Gap Analysis');
+  toast(lang==='ar'?' تم تحميل Excel (2 شيتات مع الألوان)':' Premium Excel downloaded — KPI Report + Gap Analysis');
 }
 
 async function _buildExcel(){
@@ -1985,7 +1987,7 @@ async function _buildExcel(){
         yoyQ!=null?(yoyQ>=0?'+':'')+yoyQ+'%':'—',
         annYoY!=null?(annYoY>=0?'+':'')+annYoY+'%':'—',
         'T'+(k.tier||3),
-        a===null?'Pending':a?'✓ Met':'✕ Missed'
+        a===null?'Pending':a?' Met':' Missed'
       ]);
       row.height=17;
       row.eachCell(cell=>{cell.fill=mkFill(WHITE);cell.font=mkFont(10,false,DARK);cell.alignment={vertical:'middle'};cell.border=allBorders;});
@@ -2006,29 +2008,89 @@ async function _buildExcel(){
     });
   });
 
-  /* ── Gap Analysis Sheet ── */
+  /* ── Gap Analysis Sheet — matches image style ── */
   const missKs=filt().filter(k=>ok(k)===false);
-  if(missKs.length){
+  {
     const ws2=wb.addWorksheet('Gap Analysis',{properties:{tabColor:{argb:'FFB91C1C'}}});
-    ws2.columns=[{width:12},{width:38},{width:14},{width:8},{width:8},{width:50},{width:50},{width:20},{width:14},{width:12}];
-    ws2.getRow(1).height=22;
-    const gapHdrs=['Code','KPI Name (EN)','Department','Target','Actual','Gap Reason (EN)','Corrective Action (EN)','Owner','Due Date','Status'];
-    const ghRow=ws2.addRow(gapHdrs);
-    ghRow.eachCell(cell=>{cell.fill=mkFill(RED);cell.font=mkFont(10,true,WHITE);cell.alignment={horizontal:'center',vertical:'middle'};cell.border=allBorders;});
-    ghRow.height=20;
-    missKs.forEach((k,i)=>{
-      const v=qv(k);
-      const gd=(ST?.gaps||{})[k.id]||{};
-      const ac=(ST?.actions||{})[k.id]||{};
-      const bg=i%2===0?WHITE:OW;
-      const row=ws2.addRow([k.id,k.nameEn,DM[k.dept].en,k.target+'%',v!==null?v.toFixed(1)+'%':'—',
-        gd.gapEn||'Not documented',gd.actEn||'Not documented',ac.owner||gd.owner||'—',ac.dueDate||gd.dueDate||'—',ac.status||'Open']);
-      row.height=16;
-      row.eachCell(cell=>{cell.fill=mkFill(bg);cell.font=mkFont(10,false,DARK);cell.alignment={vertical:'middle'};cell.border=allBorders;});
-      /* Color actual cell red since missed */
-      const actCell=row.getCell(5);
-      actCell.fill=mkFill(LRED);actCell.font=mkFont(10,true,'FF7F1D1D');actCell.alignment={horizontal:'center'};
+    /* Title row */
+    ws2.mergeCells('A1:I1');
+    const titleRow=ws2.getRow(1);
+    titleRow.getCell(1).value='Gap Analysis — Missed KPIs Corrective Action Register';
+    titleRow.getCell(1).font={name:'Calibri',size:13,bold:true,color:{argb:'FFFFFFFF'}};
+    titleRow.getCell(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF7B0D0D'}};
+    titleRow.getCell(1).alignment={horizontal:'center',vertical:'middle'};
+    titleRow.height=28;
+    /* Subtitle row */
+    ws2.mergeCells('A2:I2');
+    const subRow=ws2.getRow(2);
+    const subPeriod=(typeof F!=='undefined'&&F.year!=='all'?F.year:'2026')+(typeof F!=='undefined'&&!F.qtr.includes('all')?' ('+F.qtr.map(q=>q.toUpperCase()).join(', ')+')':'(Q1)');
+    subRow.getCell(1).value='Qassim University Medical City  Facilities & Safety Division  '+new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})+'  Period: '+subPeriod;
+    subRow.getCell(1).font={name:'Calibri',size:10,bold:false,color:{argb:'FFFFFFFF'}};
+    subRow.getCell(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF9B1C1C'}};
+    subRow.getCell(1).alignment={horizontal:'center',vertical:'middle'};
+    subRow.height=18;
+    /* Empty row */
+    ws2.getRow(3).height=6;
+    /* Header row */
+    ws2.columns=[{width:10},{width:38},{width:8},{width:9},{width:9},{width:9},{width:12},{width:10},{width:42}];
+    const hdr=['Code','KPI Name','Dept','Target','Result','Gap','Priority','Status','Root Cause & Corrective Action'];
+    const hdrRow=ws2.addRow(hdr);
+    hdrRow.height=22;
+    hdrRow.eachCell((cell,ci)=>{
+      cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF5A0000'}};
+      cell.font={name:'Calibri',size:10,bold:true,color:{argb:'FFFFFFFF'}};
+      cell.alignment={horizontal:'center',vertical:'middle',wrapText:false};
+      cell.border={top:{style:'thin',color:{argb:'FFDD4444'}},bottom:{style:'medium',color:{argb:'FFDD4444'}},left:{style:'thin',color:{argb:'FF7B0D0D'}},right:{style:'thin',color:{argb:'FF7B0D0D'}}};
     });
+    /* Data rows */
+    if(missKs.length){
+      missKs.forEach((k,i)=>{
+        const v=qv(k);
+        const tgt=k.target;
+        const gap=v!==null?(v-tgt).toFixed(1):'—';
+        const gapStr=v!==null?(v>=tgt?'+'+gap:gap)+'%':'—';
+        const gd=(ST?.gaps||{})[k.id]||{};
+        const ac=(ST?.actions||{})[k.id]||{};
+        const priority=(k.tier||3)===1?'High':'Medium';
+        const bgColor=i%2===0?'FFFFFFFF':'FFFFF8F8';
+        const row=ws2.addRow([
+          k.id,
+          k.nameEn,
+          DM[k.dept]?.abbr||k.dept,
+          tgt+'%',
+          v!==null?v.toFixed(1)+'%':'—',
+          gapStr,
+          priority,
+          ac.status||'Open',
+          gd.gapEn||ac.action||'Not documented'
+        ]);
+        row.height=18;
+        row.eachCell((cell,ci)=>{
+          cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:bgColor}};
+          cell.font={name:'Calibri',size:10,bold:ci===1,color:{argb:'FF1A1A1A'}};
+          cell.alignment={horizontal:ci<=1?'center':'left',vertical:'middle',wrapText:ci===9};
+          cell.border={top:{style:'thin',color:{argb:'FFE2E8F0'}},bottom:{style:'thin',color:{argb:'FFE2E8F0'}},left:{style:'thin',color:{argb:'FFCCCCCC'}},right:{style:'thin',color:{argb:'FFCCCCCC'}}};
+        });
+        /* Code cell — colored like image */
+        const codeCell=row.getCell(1);
+        codeCell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFF0F0'}};
+        codeCell.font={name:'Calibri',size:10,bold:true,color:{argb:'FFB91C1C'}};
+        codeCell.alignment={horizontal:'center',vertical:'middle'};
+        /* Result cell — red since below target */
+        const resCell=row.getCell(5);
+        resCell.font={name:'Calibri',size:10,bold:true,color:{argb:'FF991B1B'}};
+        /* Gap cell — red */
+        const gapCell=row.getCell(6);
+        gapCell.font={name:'Calibri',size:10,bold:true,color:{argb:'FF991B1B'}};
+        /* Priority cell */
+        const priCell=row.getCell(7);
+        priCell.font={name:'Calibri',size:10,bold:true,color:{argb:priority==='High'?'FF991B1B':'FFB45309'}};
+      });
+    }else{
+      const noRow=ws2.addRow(['','No missed KPIs in selected period','','','','','','','']);
+      noRow.getCell(2).font={name:'Calibri',size:10,italic:true,color:{argb:'FF64748B'}};
+      noRow.height=18;
+    }
   }
 
   /* Download */
@@ -2039,7 +2101,7 @@ async function _buildExcel(){
   a.href=url;a.download=`KPI_Report_${F.year}_${new Date().toISOString().slice(0,10)}.xlsx`;
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),1000);
-  toast(lang==='ar'?'✅ تم تحميل ملف Excel':'✅ Excel downloaded successfully');
+  toast(lang==='ar'?' تم تحميل ملف Excel':' Excel downloaded successfully');
 }
 
 /* ══════════════════════════════════════════
@@ -2057,7 +2119,7 @@ async function generateWordDoc(){
     });
   }
   toast(lang==='ar'?'⏳ جاري إنشاء التقرير...':'⏳ Building report...');
-  try{await _buildWordDoc();}catch(e){console.error(e);toast('❌ Word error: '+e.message);}
+  try{await _buildWordDoc();}catch(e){console.error(e);toast(' Word error: '+e.message);}
 }
 async function _buildWordDoc(){
   const {Document,Packer,Paragraph,TextRun,Table,TableRow,TableCell,
@@ -2115,7 +2177,7 @@ async function _buildWordDoc(){
     const ov=[
       ['KPI Code',k.id],['KPI Name',k.nameEn],['KPI Name (AR)',k.nameAr],['Department',dm.en],
       ['Annual Target',k.target+'%'],['KPI Result',v!==null?v.toFixed(1)+'%':'Pending'],
-      ['Status',a===null?'Pending':a?'✓ Met — Target Achieved':'✕ Not Met — Below Target'],
+      ['Status',a===null?'Pending':a?' Met — Target Achieved':' Not Met — Below Target'],
       ['Risk Tier',`T${k.tier||3} — ${TIERS[k.tier||3]?.en||'Operational'}`],
       ['Year',String(k.yr)],['YoY (vs Prior Year Q1)',k.yoy!==null&&v!==null?(v-k.yoy>=0?'▲ +':' ▼ ')+(v-k.yoy).toFixed(1)+'%':'N/A']
     ];
@@ -2233,7 +2295,7 @@ async function _buildWordDoc(){
   const fname=isSingle?`${ks[0].id}_KPI_Report_${now.toISOString().slice(0,10)}.docx`:`KPI_Report_${F.year}_${now.toISOString().slice(0,10)}.docx`;
   a.download=fname;document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),1000);
-  toast(lang==='ar'?`✅ تم تحميل: ${fname}`:`✅ Downloaded: ${fname}`);
+  toast(lang==='ar'?` تم تحميل: ${fname}`:` Downloaded: ${fname}`);
 }
 /* ══ PCI BREAKDOWN — Read-Only View (data entered via Admin Panel) ══ */
 let _pciKpiId=null, _pciQ=null;
@@ -2269,9 +2331,9 @@ function switchPCIQ(q,btn){
     </div>`;
   const boxes=document.getElementById('pciBoxes');
   if(boxes){boxes.innerHTML=
-    mkBox('📋','Planned',  pl,'rgba(100,116,139,.08)','#64748B','rgba(100,116,139,.22)')
-   +mkBox('✓', 'Complete', co,'rgba(5,150,105,.09)',  '#059669','rgba(5,150,105,.22)')
-   +mkBox('✕', 'Incomplete',ic,'rgba(220,38,38,.09)', '#DC2626','rgba(220,38,38,.22)');
+    mkBox('','Planned',  pl,'rgba(100,116,139,.08)','#64748B','rgba(100,116,139,.22)')
+   +mkBox('', 'Complete', co,'rgba(5,150,105,.09)',  '#059669','rgba(5,150,105,.22)')
+   +mkBox('', 'Incomplete',ic,'rgba(220,38,38,.09)', '#DC2626','rgba(220,38,38,.22)');
   }
   /* Result bar */
   const pct=pl>0?Math.min(100,+(co/pl*100).toFixed(1)):null;
@@ -2293,12 +2355,22 @@ function closePCI(){const m=document.getElementById('pciModal');if(!m)return;m.c
 /* ══ PCI helper for admin forms — colored result vs target ══ */
 function calcAdminPCI(q,prefix){
   const Q=q.toUpperCase();
-  const pl=parseFloat(document.getElementById(prefix+Q+'_pl')?.value)||0;
-  const co=parseFloat(document.getElementById(prefix+Q+'_co')?.value)||0;
-  /* FIX 1: Auto-calc Incomplete = Planned - Complete */
+  const plEl=document.getElementById(prefix+Q+'_pl');
+  const coEl=document.getElementById(prefix+Q+'_co');
+  const plRaw=plEl?.value??'';
+  const coRaw=coEl?.value??'';
+  const pl=parseFloat(plRaw)||0;
+  const co=parseFloat(coRaw)||0;
   const icEl2=document.getElementById(prefix+Q+'_ic');
-  if(icEl2)icEl2.value=Math.max(0,pl-co)||'';
   const resEl=document.getElementById(prefix+Q+'_res');
+  /* Only show Incomplete and Result when BOTH Planned AND Complete are filled */
+  const bothFilled=plRaw.trim()!==''&&coRaw.trim()!=='';
+  if(!bothFilled){
+    if(icEl2)icEl2.value='';
+    if(resEl){resEl.textContent='—';resEl.style.color='var(--t3)';resEl.style.fontSize='13px';}
+    return;
+  }
+  if(icEl2)icEl2.value=Math.max(0,pl-co)||'';
   if(pl<=0){
     if(resEl){resEl.textContent='—';resEl.style.color='var(--t3)';resEl.style.fontSize='13px';}
     return;
@@ -2309,7 +2381,7 @@ function calcAdminPCI(q,prefix){
   const tgt=tgtEl?parseFloat(tgtEl.value)||0:0;
   const isMet=tgt>0?pct>=tgt:pct>0;
   if(resEl){
-    resEl.textContent=pct+'%';
+    resEl.textContent=(isMet?'✓ ':'✗ ')+pct+'%';
     resEl.style.color=isMet?'#059669':'#DC2626';
     resEl.style.fontSize='14px';
     resEl.style.fontWeight='800';
@@ -2336,25 +2408,25 @@ function emptyStateExec(dept,status){
   const allMissed=evaled.length>0&&metCount===0;
   let ico,title,sub;
   if(status==='missed'&&allMet){
-    ico='🎉';
+    ico='';
     title=lang==='ar'?'جميع المؤشرات محققة!':'All KPIs Are Met!';
     sub=lang==='ar'
       ?`جميع الـ ${evaled.length} مؤشرات لقسم ${deptName}${yr}${qtr}حققت أهدافها. لا توجد مؤشرات Missed لعرضها — هذا إنجاز ممتاز!`
       :`All ${evaled.length} KPIs for ${deptName}${yr}${qtr}have achieved their targets. There are no Missed KPIs — this is excellent performance!`;
   }else if(status==='met'&&allMissed){
-    ico='📊';
+    ico='';
     title=lang==='ar'?'لا توجد مؤشرات محققة في هذه الفترة':'No KPIs Met Target in This Period';
     sub=lang==='ar'
       ?`جميع مؤشرات ${deptName}${yr}${qtr}لم تحقق أهدافها. راجع قسم المؤشرات المفقودة.`
       :`All KPIs for ${deptName}${yr}${qtr}are below target. Review the Missed KPIs section.`;
   }else if(evaled.length===0){
-    ico='📭';
+    ico='';
     title=lang==='ar'?'لا توجد بيانات لهذه الفترة':'No Data Available';
     sub=lang==='ar'
       ?`لم يتم إدخال نتائج مؤشرات لقسم ${deptName}${yr}${qtr}بعد.`
       :`No KPI results have been recorded for ${deptName}${yr}${qtr}yet.`;
   }else{
-    ico='🔍';
+    ico='';
     title=lang==='ar'?'لا توجد نتائج مطابقة':'No Matching Results';
     sub=lang==='ar'
       ?`لا توجد مؤشرات تطابق الفلتر المحدد لقسم ${deptName}${yr}${qtr}.`
@@ -2364,7 +2436,7 @@ function emptyStateExec(dept,status){
     <div style="font-size:50px;margin-bottom:16px;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.10))">${ico}</div>
     <div style="font-size:16px;font-weight:800;color:var(--ink);margin-bottom:8px;letter-spacing:-.01em">${title}</div>
     <div style="font-size:11.5px;color:var(--t3);max-width:400px;margin:0 auto;line-height:1.65">${sub}</div>
-    ${status==='missed'&&allMet?`<div style="margin-top:20px;display:inline-flex;align-items:center;gap:7px;background:rgba(5,150,105,0.09);border:1px solid rgba(5,150,105,0.16);border-radius:24px;padding:8px 18px;font-size:11px;font-weight:700;color:var(--green)">✓ ${metCount} ${lang==='ar'?'مؤشر محقق بالكامل':'KPIs fully achieved'}</div>`:''}
+    ${status==='missed'&&allMet?`<div style="margin-top:20px;display:inline-flex;align-items:center;gap:7px;background:rgba(5,150,105,0.09);border:1px solid rgba(5,150,105,0.16);border-radius:24px;padding:8px 18px;font-size:11px;font-weight:700;color:var(--green)"> ${metCount} ${lang==='ar'?'مؤشر محقق بالكامل':'KPIs fully achieved'}</div>`:''}
   </div>`;
 }
 
@@ -2442,7 +2514,7 @@ async function doExportPage(pageSel){
 @media print{.topbar,.filter-strip,.tabnav,.footbar,.overlay{display:none!important}.page{display:none!important}#${cfg.id}{display:block!important}body,html{height:auto!important;overflow:visible!important;background:#fff!important}.dashwrap{overflow:visible!important;height:auto!important}.gg{grid-auto-rows:auto!important}.card{break-inside:avoid;background:#fff!important;border:1px solid #ccc!important}@page{size:landscape;margin:8mm}}`;
   }
   document.head.appendChild(s);
-  setTimeout(()=>{window.print();setTimeout(()=>{const ps=document.getElementById('pdf-print-style');if(ps)ps.remove();toast('✅ Done');},2500);},300);
+  setTimeout(()=>{window.print();setTimeout(()=>{const ps=document.getElementById('pdf-print-style');if(ps)ps.remove();toast(' Done');},2500);},300);
 }
 async function doExportPDF(){doExportPage('exec');}
 /* Sync hash — works on file:// and HTTPS, no async needed */
@@ -2489,7 +2561,7 @@ function renderReport(){
     const id='ep'+(++_eid);
     return `<div class="rpt-ep" id="${id}-w" style="position:relative;${style}">
       <p id="${id}" style="font-size:12px;color:#334155;line-height:1.85;margin:0;min-height:20px">${txt}</p>
-      <button class="rpt-edit-btn" onclick="rptStartEdit('${id}')" title="Edit paragraph">✏️</button>
+      <button class="rpt-edit-btn" onclick="rptStartEdit('${id}')" title="Edit paragraph"></button>
     </div>`;
   };
 
@@ -2499,7 +2571,7 @@ function renderReport(){
     <td style="padding:9px 14px;text-align:center;font-weight:700;color:#1E40AF;border:1px solid #E2E8F0">${kpiTarget}%</td>
     <td style="padding:9px 14px;text-align:center;font-weight:800;background:${v===null?'#F8FAFC':ok2?'#DCFCE7':'#FEE2E2'};color:${v===null?'#CBD5E1':ok2?'#166534':'#991B1B'};border:1px solid #E2E8F0">${v!==null?v+'%':'N/A'}</td>
     <td style="padding:9px 14px;text-align:center;border:1px solid #E2E8F0">
-      <span style="padding:3px 12px;border-radius:20px;font-size:10px;font-weight:700;background:${v===null?'#F8FAFC':ok2?'#ECFDF5':'#FEF2F2'};color:${v===null?'#94A3B8':ok2?'#06845A':'#C42B2B'}">${v===null?'Pending':ok2?'✓ Met':'✕ Below Target'}</span>
+      <span style="padding:3px 12px;border-radius:20px;font-size:10px;font-weight:700;background:${v===null?'#F8FAFC':ok2?'#ECFDF5':'#FEF2F2'};color:${v===null?'#94A3B8':ok2?'#06845A':'#C42B2B'}">${v===null?'Pending':ok2?' Met':' Below Target'}</span>
     </td>
   </tr>`;};
 
@@ -2515,7 +2587,7 @@ function renderReport(){
     ...kfParts.map(([v,q])=>`The KPI ${v>=kpiTarget?`<strong>target was achieved</strong> in ${q}.`:`<strong>target was not achieved in ${q}</strong>, falling short by ${kpiTarget-v}%.`}`),
     metKs.length&&missKs.length?`${metKs.length} KPI${metKs.length>1?'s':''} achieved target; ${missKs.length} require corrective action.`:
     missKs.length?`${missKs.length} KPI${missKs.length>1?'s':''} require immediate corrective action.`:
-    '✓ All monitored KPIs achieved target in the selected period.',
+    ' All monitored KPIs achieved target in the selected period.',
     kfParts.length>=2?(kfParts[kfParts.length-1][0]||0)>(kfParts[0][0]||0)?'Progressive improvement is noted across the reporting period.':'Performance stability is noted with room for further improvement.':''
   ].filter(Boolean).map(l=>`• ${l}`).join('<br>');
 
@@ -2557,9 +2629,9 @@ function renderReport(){
         <h1 style="margin:0 0 4px;font-size:19px;font-weight:900;color:#fff;line-height:1.25">${kpiNameShort}</h1>
         <h2 style="margin:0 0 12px;font-size:12px;font-weight:400;color:rgba(255,255,255,.62)">${deptFull}</h2>
         <div style="display:flex;gap:14px;flex-wrap:wrap">
-          <span style="font-size:10px;font-weight:600;color:#0195af">📅 ${dateStr}</span>
+          <span style="font-size:10px;font-weight:600;color:#0195af">${dateStr}</span>
           <span style="color:rgba(255,255,255,.25)">·</span>
-          <span style="font-size:10px;font-weight:600;color:#0195af">📊 ${period}</span>
+          <span style="font-size:10px;font-weight:600;color:#0195af">${period}</span>
           <span style="color:rgba(255,255,255,.25)">·</span>
           <span style="font-size:10px;font-weight:600;color:#0195af">Target: ${kpiTarget}%</span>
         </div>
@@ -2601,7 +2673,7 @@ function renderReport(){
           <tbody>
             <tr><td style="padding:10px 14px;background:#F8FAFC;font-weight:700;font-size:11px;color:#475569;border-bottom:1px solid #E2E8F0;width:32%">KPI Name</td><td style="padding:10px 14px;font-size:12px;color:#152538;font-weight:600;border-bottom:1px solid #E2E8F0">${kpiNameFull}</td></tr>
             <tr><td style="padding:10px 14px;background:#F8FAFC;font-weight:700;font-size:11px;color:#475569;border-bottom:1px solid #E2E8F0">Annual Target</td><td style="padding:10px 14px;font-size:12px;color:#1E40AF;font-weight:700;border-bottom:1px solid #E2E8F0">${kpiTarget}%</td></tr>
-            <tr><td style="padding:10px 14px;background:#F8FAFC;font-weight:700;font-size:11px;color:#475569;border-bottom:1px solid #E2E8F0">KPI Result</td><td style="padding:10px 14px;font-size:12px;font-weight:700;border-bottom:1px solid #E2E8F0;color:${isMet?'#06845A':'#C42B2B'}">${kpiResult!==null?kpiResult+'%':'N/A'} — ${kpiResult===null?'Pending':isMet?'✓ Achieved':'✕ Below Target'}</td></tr>
+            <tr><td style="padding:10px 14px;background:#F8FAFC;font-weight:700;font-size:11px;color:#475569;border-bottom:1px solid #E2E8F0">KPI Result</td><td style="padding:10px 14px;font-size:12px;font-weight:700;border-bottom:1px solid #E2E8F0;color:${isMet?'#06845A':'#C42B2B'}">${kpiResult!==null?kpiResult+'%':'N/A'} — ${kpiResult===null?'Pending':isMet?' Achieved':' Below Target'}</td></tr>
             <tr><td style="padding:10px 14px;background:#F8FAFC;font-weight:700;font-size:11px;color:#475569">Department</td><td style="padding:10px 14px;font-size:12px;color:#334155">${deptFull}</td></tr>
           </tbody>
         </table>
@@ -2679,10 +2751,10 @@ function renderReport(){
       ${SH('7','Key Performance Enablers')}
       <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:22px;break-inside:avoid">
         ${[
-          {n:1,i:'🚀',t:'Enhanced Emergency Response Procedures',d:'Clear escalation protocols and response procedures were established and communicated across all shift teams.'},
-          {n:2,i:'👥',t:'Manpower Allocation',d:'Better allocation of manpower during critical situations ensured faster deployment and reduced response times.'},
-          {n:3,i:'📊',t:'Management Follow-up & Escalation',d:'Increased management oversight and real-time escalation channels supported early issue detection and resolution.'},
-          {n:4,i:'📱',t:'Improved Communication Mechanisms',d:'Enhanced internal communication and reporting mechanisms streamlined coordination across departments.'}
+          {n:1,i:'',t:'Enhanced Emergency Response Procedures',d:'Clear escalation protocols and response procedures were established and communicated across all shift teams.'},
+          {n:2,i:'',t:'Manpower Allocation',d:'Better allocation of manpower during critical situations ensured faster deployment and reduced response times.'},
+          {n:3,i:'',t:'Management Follow-up & Escalation',d:'Increased management oversight and real-time escalation channels supported early issue detection and resolution.'},
+          {n:4,i:'',t:'Improved Communication Mechanisms',d:'Enhanced internal communication and reporting mechanisms streamlined coordination across departments.'}
         ].map(e=>`<div style="display:flex;gap:12px;padding:11px 15px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:9px;align-items:flex-start">
           <div style="width:26px;height:26px;background:#152538;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;flex-shrink:0">${e.n}</div>
           <p style="margin:0;font-size:11.5px;color:#334155;line-height:1.65"><strong style="color:#152538">${e.t}</strong><br>${e.d}</p>
@@ -2703,14 +2775,17 @@ function renderReport(){
       </div>
 
       <!-- Footer -->
-      <div style="border-top:2px solid #E2E8F0;padding-top:14px;margin-top:22px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-        <div>
-          <p style="margin:0;font-size:10px;font-weight:700;color:#152538">Qassim University Medical City</p>
-          <p style="margin:2px 0 0;font-size:9px;color:#94A3B8">Facilities & Safety Administration · Governance & Performance Department</p>
+      <div style="margin-top:28px;background:#152538;border-radius:10px;padding:14px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:14px">
+          <div style="width:3px;height:32px;background:#0195af;border-radius:2px;flex-shrink:0"></div>
+          <div>
+            <p style="margin:0;font-size:10px;font-weight:800;color:#fff">Qassim University Medical City</p>
+            <p style="margin:2px 0 0;font-size:8.5px;color:rgba(255,255,255,.50)">Facilities &amp; Safety Division · Governance &amp; Performance Department</p>
+          </div>
         </div>
         <div style="text-align:right">
-          <p style="margin:0;font-size:9px;color:#94A3B8">Generated: ${dateStr}</p>
-          <p style="margin:2px 0 0;font-size:9px;color:#CBD5E1">CONFIDENTIAL — For Internal Use Only</p>
+          <p style="margin:0;font-size:8.5px;color:rgba(255,255,255,.55)">Generated: ${dateStr}</p>
+          <p style="margin:3px 0 0;display:inline-flex;align-items:center;gap:5px;padding:2px 10px;background:rgba(1,149,175,.15);border:1px solid rgba(1,149,175,.25);border-radius:20px;font-size:8px;font-weight:700;color:#0195af;letter-spacing:.06em;text-transform:uppercase">CONFIDENTIAL · Internal Use Only</p>
         </div>
       </div>
     </div>
@@ -2766,8 +2841,10 @@ function rptStartEdit(id){
   if(editBtn)editBtn.style.display='none';
   const doneBtn=document.createElement('button');
   doneBtn.className='rpt-edit-btn';
-  doneBtn.style.cssText='position:absolute;top:0;right:0;display:flex;align-items:center;gap:4px;padding:3px 9px;background:#06845A;border:none;border-radius:6px;color:#fff;font-size:9.5px;font-weight:700;cursor:pointer;font-family:inherit;opacity:1';
-  doneBtn.textContent='✓ Done';
+  doneBtn.className='rpt-edit-btn done-btn';
+  doneBtn.style.opacity='1';
+  doneBtn.style.transform='none';
+  doneBtn.textContent=' Done';
   doneBtn.onclick=()=>rptDoneEdit(id);
   wrap.appendChild(doneBtn);
   wrap.style.opacity='1';
@@ -2786,7 +2863,7 @@ function rptDoneEdit(id){
   const editBtn=document.createElement('button');
   editBtn.className='rpt-edit-btn';
   editBtn.style.cssText='position:absolute;top:0;right:0;display:flex;align-items:center;gap:4px;padding:3px 8px;background:rgba(0,163,196,.10);border:1px solid rgba(0,163,196,.25);border-radius:6px;color:#00A3C4;font-size:9.5px;font-weight:700;cursor:pointer;font-family:inherit;opacity:0;transition:opacity .2s';
-  editBtn.innerHTML='✏️ Edit';
+  editBtn.innerHTML=' Edit';
   editBtn.onclick=()=>rptStartEdit(id);
   wrap.appendChild(editBtn);
   wrap.addEventListener('mouseenter',()=>editBtn.style.opacity='1');
@@ -3005,7 +3082,7 @@ function _drawDonut(achieved,gap,target){
 }
 function exportWordDoc(){
   const doc=document.getElementById('reportDoc');
-  if(!doc){toast('⚠ Open the Report tab first');return;}
+  if(!doc){toast(' Open the Report tab first');return;}
   const today=new Date(),ds=today.toISOString().slice(0,10);
   const deptLabel=F.dept==='all'?'All_Depts':F.dept.toUpperCase();
   const wordHTML=`<!DOCTYPE html><html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><title>QUMC KPI Report — ${deptLabel}</title><!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>90</w:Zoom></w:WordDocument></xml><![endif]--><style>@page{size:A4 portrait;margin:15mm 18mm}body{font-family:'Calibri',sans-serif;font-size:11pt;color:#1E293B;margin:0;padding:0}table{width:100%;border-collapse:collapse;font-size:9.5pt}th{background:#152538;color:#fff;padding:7pt 9pt;text-align:center;font-weight:bold;font-size:9pt}td{padding:5.5pt 8pt;border:0.5pt solid #E2E8F0;vertical-align:middle}h1,h2{font-family:'Calibri',sans-serif}.met-cell{background:#ECFDF5;color:#166534;font-weight:bold;text-align:center}.miss-cell{background:#FEE2E2;color:#991B1B;font-weight:bold;text-align:center}
@@ -3020,7 +3097,7 @@ function exportWordDoc(){
   a.download='QUMC_KPI_Report_'+deptLabel+'_'+ds+'.doc';
   document.body.appendChild(a);a.click();document.body.removeChild(a);
   setTimeout(()=>URL.revokeObjectURL(url),1000);
-  toast(lang==='ar'?'✅ تم تحميل تقرير Word':'✅ Word report downloaded');
+  toast(lang==='ar'?' تم تحميل تقرير Word':' Word report downloaded');
 }
 
 
@@ -3045,9 +3122,9 @@ async function exportSnapshot(){
     a.href=URL.createObjectURL(new Blob([payload],{type:'application/octet-stream'}));
     a.download='QUMC_Backup_'+new Date().toISOString().slice(0,10)+'.qumc';
     a.click();
-    toast(lang==='ar'?'✅ تم حفظ النسخة الاحتياطية المشفرة':'✅ Encrypted backup saved');
+    toast(lang==='ar'?' تم حفظ النسخة الاحتياطية المشفرة':' Encrypted backup saved');
     addAudit('BACKUP_EXPORT','Encrypted backup exported');sLS(ST);
-  }catch(e){toast('❌ Backup failed: '+e.message);}
+  }catch(e){toast(' Backup failed: '+e.message);}
 }
 
 async function importSnapshot(){
@@ -3064,12 +3141,12 @@ async function importSnapshot(){
       const decrypted=await crypto.subtle.decrypt({name:'AES-GCM',iv:new Uint8Array(iv)},
         km,new Uint8Array(data));
       const restored=JSON.parse(new TextDecoder().decode(decrypted));
-      if(confirm(lang==='ar'?'⚠ سيتم استبدال البيانات الحالية. هل أنت متأكد؟':'⚠ This will replace current data. Are you sure?')){
+      if(confirm(lang==='ar'?' سيتم استبدال البيانات الحالية. هل أنت متأكد؟':' This will replace current data. Are you sure?')){
         Object.assign(ST,restored);sLS(ST);renderCurrent();
-        toast(lang==='ar'?'✅ تمت استعادة النسخة الاحتياطية':'✅ Backup restored');
+        toast(lang==='ar'?' تمت استعادة النسخة الاحتياطية':' Backup restored');
         addAudit('BACKUP_IMPORT','Backup restored from encrypted file');sLS(ST);
       }
-    }catch(e){toast('❌ '+(lang==='ar'?'فشل فك التشفير — رمز خاطئ؟':'Decryption failed — wrong PIN?'));}
+    }catch(e){toast(' '+(lang==='ar'?'فشل فك التشفير — رمز خاطئ؟':'Decryption failed — wrong PIN?'));}
   };
   inp.click();
 }
@@ -3096,8 +3173,8 @@ function sLS(d){
   catch(e){
     if(e.name==='QuotaExceededError'||e.code===22||e.code===1014){
       alert(typeof lang!=='undefined'&&lang==='ar'
-        ?'⚠ التخزين ممتلئ. قم بتصدير نسخة احتياطية فوراً قبل فقدان البيانات.'
-        :'⚠ Storage full. Export a backup immediately before data loss.');
+        ?' التخزين ممتلئ. قم بتصدير نسخة احتياطية فوراً قبل فقدان البيانات.'
+        :' Storage full. Export a backup immediately before data loss.');
     }
   }
 }
@@ -3166,18 +3243,18 @@ function emptyState(ctx){
       const dept=dn?` for ${dn}`:'';
       const per=period?` in ${period}`:'';
       return lang==='ar'
-        ?`🎉 جميع مؤشرات${dn?' '+dn:''} محققة${period?' خلال '+period:''}!<br>لا توجد مؤشرات Missed لعرضها — حُقِّق كل هدف.`
-        :`🎉 All KPIs${dept} Are Met${per}!<br>No missed KPIs to display — every target has been achieved.`;
+        ?` جميع مؤشرات${dn?' '+dn:''} محققة${period?' خلال '+period:''}!<br>لا توجد مؤشرات Missed لعرضها — حُقِّق كل هدف.`
+        :` All KPIs${dept} Are Met${per}!<br>No missed KPIs to display — every target has been achieved.`;
     }
   }
   if(ctx==='kpis'){
     const evalAll=allK().filter(k=>ok(k)!==null);
     const metAll=evalAll.length>0&&evalAll.every(k=>ok(k)===true);
     if(metAll&&F.status==='missed')
-      return lang==='ar'?'🎉 جميع الأهداف محققة! لا توجد مؤشرات Missed.':'🎉 All Targets Achieved! No missed KPIs.';
+      return lang==='ar'?' جميع الأهداف محققة! لا توجد مؤشرات Missed.':' All Targets Achieved! No missed KPIs.';
     return lang==='ar'
-      ?'🔍 لا توجد مؤشرات تطابق الفلتر المحدد.<br>جرب تغيير السنة أو الربع أو الحالة.'
-      :'🔍 No KPIs match the selected filter.<br>Try adjusting the year, quarter, or status.';
+      ?' لا توجد مؤشرات تطابق الفلتر المحدد.<br>جرب تغيير السنة أو الربع أو الحالة.'
+      :' No KPIs match the selected filter.<br>Try adjusting the year, quarter, or status.';
   }
   return lang==='ar'?'لا توجد بيانات للفترة المحددة.':'No data for the selected period.';
 }
@@ -3361,31 +3438,31 @@ function renderExec(){
 <div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none">
   <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;align-items:stretch">
 <div style="background:var(--card);border-radius:12px;padding:14px 16px;box-shadow:0 1px 6px rgba(10,22,40,.06);border:1px solid var(--border);border-top:3px solid #009AB4;display:flex;flex-direction:column;gap:6px">
-  <div style="font-size:8px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#009AB4;padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.06);margin-bottom:2px">📊 ${lang==='ar'?'إجمالي المؤشرات':'Total KPIs'}</div>
+  <div style="font-size:8px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#009AB4;padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.06);margin-bottom:2px"> ${lang==='ar'?'إجمالي المؤشرات':'Total KPIs'}</div>
   <div style="font-size:42px;font-weight:800;font-family:var(--mono);letter-spacing:-.04em;line-height:1;color:#009AB4">${total}</div>
   <div style="font-size:10px;color:var(--t2);font-weight:500">${lang==='ar'?'مؤشر نشط':'Active Indicators'}</div>
   <div style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap"><span class="pill-ok">${nOk} Met</span>${miss?`<span class="pill-miss">${miss} Missed</span>`:''}</div>
 </div>
 <div style="background:var(--card);border-radius:12px;padding:14px 16px;box-shadow:0 1px 6px rgba(10,22,40,.06);border:1px solid var(--border);border-top:3px solid #059669;display:flex;flex-direction:column;gap:6px">
-  <div style="font-size:8px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#059669;padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.06);margin-bottom:2px">✓ ${lang==='ar'?'محقق':'Met'}</div>
+  <div style="font-size:8px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#059669;padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.06);margin-bottom:2px"> ${lang==='ar'?'محقق':'Met'}</div>
   <div style="font-size:42px;font-weight:800;font-family:var(--mono);letter-spacing:-.04em;line-height:1;color:#059669">${nOk}</div>
   <div style="font-size:10px;color:var(--t2);font-weight:500">${lang==='ar'?'من '+total+' مؤشر':'Out of '+total+' KPIs'}</div>
-  <span class="d-up mdelta" style="width:fit-content">✓ ${nOk}/${total}</span>
+  <span class="d-up mdelta" style="width:fit-content"> ${nOk}/${total}</span>
 </div>
 <div style="background:var(--card);border-radius:12px;padding:14px 16px;box-shadow:0 1px 6px rgba(10,22,40,.06);border:1px solid var(--border);border-top:3px solid ${miss>0?"#DC2626":"#059669"};display:flex;flex-direction:column;gap:6px">
-  <div style="font-size:8px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:${miss>0?"#DC2626":"#059669"};padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.06);margin-bottom:2px">✕ ${lang==='ar'?'دون الهدف':'Missed'}</div>
+  <div style="font-size:8px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:${miss>0?"#DC2626":"#059669"};padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.06);margin-bottom:2px"> ${lang==='ar'?'دون الهدف':'Missed'}</div>
   <div style="font-size:42px;font-weight:800;font-family:var(--mono);letter-spacing:-.04em;line-height:1;color:${miss>0?"#DC2626":"#059669"}">${miss}</div>
   <div style="font-size:10px;color:var(--t2);font-weight:500">${lang==='ar'?'مؤشر دون الهدف':'KPIs Below Target'}</div>
-  ${miss?`<div style="margin-top:2px">${missKpis.filter(k=>(k.tier||3)===1).length?`<span class="tier-b t1">⚠ ${missKpis.filter(k=>(k.tier||3)===1).length} Patient Safety</span>`:''}</div>`:`<span class="d-up mdelta" style="width:fit-content">✓ All Met</span>`}
+  ${miss?`<div style="margin-top:2px">${missKpis.filter(k=>(k.tier||3)===1).length?`<span class="tier-b t1"> ${missKpis.filter(k=>(k.tier||3)===1).length} Patient Safety</span>`:''}</div>`:`<span class="d-up mdelta" style="width:fit-content"> All Met</span>`}
 </div>
 <div style="background:var(--card);border-radius:12px;padding:14px 16px;box-shadow:0 1px 6px rgba(10,22,40,.06);border:1px solid var(--border);border-top:3px solid ${yoyDelta!==null&&parseFloat(yoyDelta)>=0?"#059669":yoyDelta!==null?"#DC2626":"#94a3b8"};display:flex;flex-direction:column;gap:6px">
-  <div style="font-size:8px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:${yoyDelta!==null&&parseFloat(yoyDelta)>=0?"#059669":yoyDelta!==null?"#DC2626":"#94a3b8"};padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.06);margin-bottom:2px">📈 ${lang==='ar'?'YoY (Q1)':'YoY (Q1)'}</div>
+  <div style="font-size:8px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:${yoyDelta!==null&&parseFloat(yoyDelta)>=0?"#059669":yoyDelta!==null?"#DC2626":"#94a3b8"};padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.06);margin-bottom:2px"> ${lang==='ar'?'YoY (Q1)':'YoY (Q1)'}</div>
   <div style="font-size:42px;font-weight:800;font-family:var(--mono);letter-spacing:-.04em;line-height:1;color:${yoyDelta!==null&&parseFloat(yoyDelta)>=0?"#059669":yoyDelta!==null?"#DC2626":"#94a3b8"}">${yoyDelta!==null?(parseFloat(yoyDelta)>=0?'+':'')+yoyDelta+'%':'—'}</div>
   <div style="font-size:10px;color:var(--t2);font-weight:500">${lang==='ar'?'Q1 الحالي vs Q1 السابق':'Q1 Current vs Q1 Prior'}</div>
   ${yoyDelta!==null?`<span class="${parseFloat(yoyDelta)>=0?'d-up':'d-dn'} mdelta" style="width:fit-content">${parseFloat(yoyDelta)>=0?'▲ Improved':'▼ Declined'}</span>`:`<span class="d-fl mdelta" style="width:fit-content">N/A</span>`}
 </div>
 <div style="background:var(--card);border-radius:12px;padding:14px 16px;box-shadow:0 1px 6px rgba(10,22,40,.06);border:1px solid var(--border);border-top:3px solid ${annYoYDelta!==null&&parseFloat(annYoYDelta)>=0?"#059669":annYoYDelta!==null?"#DC2626":"#94a3b8"};display:flex;flex-direction:column;gap:6px">
-  <div style="font-size:8px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:${annYoYDelta!==null&&parseFloat(annYoYDelta)>=0?"#059669":annYoYDelta!==null?"#DC2626":"#94a3b8"};padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.06);margin-bottom:2px">📅 ${lang==='ar'?'Annual YoY':'Annual YoY'}</div>
+  <div style="font-size:8px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:${annYoYDelta!==null&&parseFloat(annYoYDelta)>=0?"#059669":annYoYDelta!==null?"#DC2626":"#94a3b8"};padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.06);margin-bottom:2px"> ${lang==='ar'?'Annual YoY':'Annual YoY'}</div>
   <div style="font-size:42px;font-weight:800;font-family:var(--mono);letter-spacing:-.04em;line-height:1;color:${annYoYDelta!==null&&parseFloat(annYoYDelta)>=0?"#059669":annYoYDelta!==null?"#DC2626":"#94a3b8"}">${annYoYDelta!==null?(parseFloat(annYoYDelta)>=0?'+':'')+annYoYDelta+'%':'—'}</div>
   <div style="font-size:10px;color:var(--t2);font-weight:500">${lang==='ar'?'متوسط السنة vs السابقة':'Annual Avg vs Prior Year'}</div>
   ${annYoYDelta!==null?`<span class="${parseFloat(annYoYDelta)>=0?'d-up':'d-dn'} mdelta" style="width:fit-content">${parseFloat(annYoYDelta)>=0?'▲ Improved':'▼ Declined'}</span>`:`<span class="d-fl mdelta" style="width:fit-content">N/A</span>`}
@@ -3406,7 +3483,7 @@ function renderExec(){
 
 <!-- Executive Intelligence — below KPI cards -->
 <div class="card c12 intel-card">
-  <div class="ch" style="color:var(--teal)">✨ ${lang==='ar'?'مركز المعلومات التنفيذية':'Executive Intelligence'}
+  <div class="ch" style="color:var(--teal)"> ${lang==='ar'?'مركز المعلومات التنفيذية':'Executive Intelligence'}
     <div class="ch-r" id="intelUpdateTime" style="font-size:8.5px"></div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:0" id="intelPanel">
@@ -3417,7 +3494,7 @@ function renderExec(){
 <!-- DEPT SUMMARY is now embedded within the KPI cards section below -->
 <!-- RAG MATRIX -->
 <div class="card c12">
-  <div class="ch">📊 ${lang==='ar'?'مصفوفة RAG':'RAG Status Matrix'}
+  <div class="ch"> ${lang==='ar'?'مصفوفة RAG':'RAG Status Matrix'}
     <div class="ch-r" style="display:flex;gap:5px">
       <span style="display:inline-flex;align-items:center;gap:2px;font-size:8px"><span style="width:10px;height:10px;border-radius:2px;background:${BC[2]};display:inline-block"></span>Met</span>
       <span style="display:inline-flex;align-items:center;gap:2px;font-size:8px"><span style="width:10px;height:10px;border-radius:2px;background:${BC[1]};display:inline-block"></span>Missed</span>
@@ -3429,15 +3506,15 @@ function renderExec(){
 
 <!-- CHARTS ROW -->
 <div class="card c5">
-  <div class="ch">📊 ${lang==='ar'?'الأداء الربعي':'Quarterly Achievement'}</div>
+  <div class="ch"> ${lang==='ar'?'الأداء الربعي':'Quarterly Achievement'}</div>
   <div class="cb"><div class="cw" style="height:110px"><canvas id="cBar"></canvas></div></div>
 </div>
 <div class="card c4">
-  <div class="ch">📈 ${lang==='ar'?'الاتجاه الربعي حسب القسم':'Quarterly Trend by Department'}</div>
+  <div class="ch"> ${lang==='ar'?'الاتجاه الربعي حسب القسم':'Quarterly Trend by Department'}</div>
   <div class="cb"><div class="cw" style="height:110px"><canvas id="cExecML"></canvas></div></div>
 </div>
 <div class="card c3">
-  <div class="ch">🎯 ${lang==='ar'?'مستويات المخاطر':'Risk Tiers'}</div>
+  <div class="ch"> ${lang==='ar'?'مستويات المخاطر':'Risk Tiers'}</div>
   <div class="cb" style="padding:4px 11px 10px">
     ${[1,2,3].map(t=>{const tk=ks.filter(k=>(k.tier||3)===t);const tm=tk.filter(k=>ok(k)===false).length;const to=tk.filter(k=>ok(k)===true).length;return`<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border)">
       <span class="tier-b ${t===1?'t1':t===2?'t2b':'t3b'}">T${t}</span>
@@ -3453,7 +3530,7 @@ function renderExec(){
 <!-- Individual KPI Trend Analysis (from Departments page) -->
 <div class="card c12">
   <div class="ch" style="border-bottom:1px solid var(--border)">
-    <span style="font-weight:800">📈 ${lang==='ar'?'تحليل الاتجاه الفردي لكل مؤشر — الهدف + YoY':'Individual KPI Trend Analysis — Quarterly + Target + YoY'}</span>
+    <span style="font-weight:800"> ${lang==='ar'?'تحليل الاتجاه الفردي لكل مؤشر — الهدف + YoY':'Individual KPI Trend Analysis — Quarterly + Target + YoY'}</span>
     <div class="ch-r">${lang==='ar'?'Q1\'25 → Q4\'25 → Q1\'26 لكل مؤشر':'Q1\'25 → Q4\'25 → Q1\'26 per KPI'}</div>
   </div>
   <div class="cb sc" style="padding:10px">
@@ -3559,7 +3636,7 @@ function renderExecKpiCards(ks){
         <div style="height:2px;background:${s.miss>0?'var(--red)':'var(--green)'};border-radius:99px;margin-bottom:8px"></div>
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px">
           <div style="background:var(--t4);border-radius:6px;padding:8px 4px;text-align:center"><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--t1);line-height:1">${s.tot}</div><div style="font-size:8px;font-weight:700;color:var(--t3);margin-top:3px;text-transform:uppercase">KPIs</div></div>
-          <div style="background:var(--green-dim);border-radius:6px;padding:8px 4px;text-align:center;border:1px solid rgba(26,122,74,.18)"><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--green);line-height:1">${s.met}</div><div style="font-size:8px;font-weight:700;color:var(--green);margin-top:3px;text-transform:uppercase">✓ Met</div></div>
+          <div style="background:var(--green-dim);border-radius:6px;padding:8px 4px;text-align:center;border:1px solid rgba(26,122,74,.18)"><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--green);line-height:1">${s.met}</div><div style="font-size:8px;font-weight:700;color:var(--green);margin-top:3px;text-transform:uppercase"> Met</div></div>
           <div style="background:${s.miss>0?'var(--red-dim)':'var(--t4)'};border-radius:6px;padding:8px 4px;text-align:center;border:1px solid ${s.miss>0?'rgba(185,28,28,.18)':'transparent'}"><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:${s.miss>0?'var(--red)':'var(--t3)'};line-height:1">${s.miss}</div><div style="font-size:8px;font-weight:700;color:${s.miss>0?'var(--red)':'var(--t3)'};margin-top:3px;text-transform:uppercase">\u2715 Missed</div></div>
         </div>
       </div>`;
@@ -3575,9 +3652,9 @@ function renderExecKpiCards(ks){
       <div style="height:2px;background:${nMiss>0?'var(--red)':'var(--green)'};border-radius:99px;margin-bottom:10px"></div>
       <div style="display:grid;grid-template-columns:repeat(3,auto) 1fr;gap:8px;align-items:center;margin-bottom:${isAllYr?'12px':'8px'}">
         <div style="background:var(--t4);border-radius:7px;padding:8px 16px;text-align:center;min-width:80px"><div style="font-size:26px;font-weight:800;font-family:var(--mono);color:var(--t1);line-height:1">${t}</div><div style="font-size:8.5px;font-weight:700;color:var(--t3);margin-top:3px;text-transform:uppercase">KPIs</div></div>
-        <div style="background:var(--green-dim);border-radius:7px;padding:8px 16px;text-align:center;min-width:80px;border:1px solid rgba(26,122,74,.18)"><div style="font-size:26px;font-weight:800;font-family:var(--mono);color:var(--green);line-height:1">${nOk}</div><div style="font-size:8.5px;font-weight:700;color:var(--green);margin-top:3px;text-transform:uppercase">✓ Met</div></div>
+        <div style="background:var(--green-dim);border-radius:7px;padding:8px 16px;text-align:center;min-width:80px;border:1px solid rgba(26,122,74,.18)"><div style="font-size:26px;font-weight:800;font-family:var(--mono);color:var(--green);line-height:1">${nOk}</div><div style="font-size:8.5px;font-weight:700;color:var(--green);margin-top:3px;text-transform:uppercase"> Met</div></div>
         <div style="background:${nMiss>0?'var(--red-dim)':'var(--t4)'};border-radius:7px;padding:8px 16px;text-align:center;min-width:80px;border:1px solid ${nMiss>0?'rgba(220,38,38,.18)':'transparent'}"><div style="font-size:26px;font-weight:800;font-family:var(--mono);color:${nMiss>0?'var(--red)':'var(--t3)'};line-height:1">${nMiss}</div><div style="font-size:8.5px;font-weight:700;color:${nMiss>0?'var(--red)':'var(--t3)'};margin-top:3px;text-transform:uppercase">\u2715 Missed</div></div>
-        <div>${hasT1Miss?`<span style="font-size:9px;font-weight:700;color:var(--red);background:var(--red-dim);border-radius:4px;padding:4px 10px">⚠ Patient Safety KPI Missed</span>`:''}</div>
+        <div>${hasT1Miss?`<span style="font-size:9px;font-weight:700;color:var(--red);background:var(--red-dim);border-radius:4px;padding:4px 10px"> Patient Safety KPI Missed</span>`:''}</div>
       </div>
       ${isAllYr?``:''}
     </div>`;
@@ -3601,8 +3678,8 @@ function renderExecKpiCards(ks){
           /* Year stat boxes */
           html+=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:12px">
             <div style="background:var(--t4);border-radius:6px;padding:8px 4px;text-align:center"><div style="font-size:20px;font-weight:800;font-family:var(--mono);color:var(--t1);line-height:1">${sy.tot}</div><div style="font-size:8px;font-weight:700;color:var(--t3);margin-top:3px;text-transform:uppercase">KPIs</div></div>
-            <div style="background:var(--green-dim);border-radius:6px;padding:8px 4px;text-align:center;border:1px solid rgba(26,122,74,.18)"><div style="font-size:20px;font-weight:800;font-family:var(--mono);color:var(--green);line-height:1">${sy.met}</div><div style="font-size:8px;font-weight:700;color:var(--green);margin-top:3px;text-transform:uppercase">✓ Met</div></div>
-            <div style="background:${sy.miss>0?'var(--red-dim)':'var(--t4)'};border-radius:6px;padding:8px 4px;text-align:center;border:1px solid ${sy.miss>0?'rgba(185,28,28,.18)':'transparent'}"><div style="font-size:20px;font-weight:800;font-family:var(--mono);color:${sy.miss>0?'var(--red)':'var(--t3)'};line-height:1">${sy.miss}</div><div style="font-size:8px;font-weight:700;color:${sy.miss>0?'var(--red)':'var(--t3)'};margin-top:3px;text-transform:uppercase">✕ Missed</div></div>
+            <div style="background:var(--green-dim);border-radius:6px;padding:8px 4px;text-align:center;border:1px solid rgba(26,122,74,.18)"><div style="font-size:20px;font-weight:800;font-family:var(--mono);color:var(--green);line-height:1">${sy.met}</div><div style="font-size:8px;font-weight:700;color:var(--green);margin-top:3px;text-transform:uppercase"> Met</div></div>
+            <div style="background:${sy.miss>0?'var(--red-dim)':'var(--t4)'};border-radius:6px;padding:8px 4px;text-align:center;border:1px solid ${sy.miss>0?'rgba(185,28,28,.18)':'transparent'}"><div style="font-size:20px;font-weight:800;font-family:var(--mono);color:${sy.miss>0?'var(--red)':'var(--t3)'};line-height:1">${sy.miss}</div><div style="font-size:8px;font-weight:700;color:${sy.miss>0?'var(--red)':'var(--t3)'};margin-top:3px;text-transform:uppercase"> Missed</div></div>
           </div>`;
           /* KPI cards stacked vertically in this column */
           const sorted=[...dky.filter(k=>ok(k)===false).sort((a,b)=>(a.tier||3)-(b.tier||3)),...dky.filter(k=>ok(k)===true),...dky.filter(k=>ok(k)===null)];
@@ -3626,19 +3703,19 @@ function renderExecKpiCards(ks){
 
 /* ══ Intel risks + Recommendations ══ */
 function buildIntelRisks(missKpis,repKpis){
-  if(!missKpis.length&&!repKpis.length)return`<div class="intel-sec"><div class="intel-sec-t">✅ ${lang==='ar'?'الوضع التشغيلي':'Operational Status'}</div><div class="intel-item ok"><div class="intel-item-name">${lang==='ar'?'جميع المؤشرات محققة':'All KPIs On Target'}</div></div></div>`;
-  let h=`<div class="intel-sec"><div class="intel-sec-t">⚠ ${lang==='ar'?'المخاطر الحرجة':'Critical Risks'}</div>`;
+  if(!missKpis.length&&!repKpis.length)return`<div class="intel-sec"><div class="intel-sec-t"> ${lang==='ar'?'الوضع التشغيلي':'Operational Status'}</div><div class="intel-item ok"><div class="intel-item-name">${lang==='ar'?'جميع المؤشرات محققة':'All KPIs On Target'}</div></div></div>`;
+  let h=`<div class="intel-sec"><div class="intel-sec-t"> ${lang==='ar'?'المخاطر الحرجة':'Critical Risks'}</div>`;
   missKpis.slice(0,4).forEach(k=>{const v=qv(k);const rc=getRepeat(k);h+=`<div class="intel-item" style="margin-bottom:4px"><div class="intel-item-name">${k.id} <span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span>${rc>=2?` <span class="repeat-b">↩${rc}x</span>`:''}</div><div class="intel-item-d">${lang==='ar'?k.nameAr:k.nameEn} — ${(v||0).toFixed(1)}% / ${k.target}%</div></div>`;});
   h+='</div>';
   if(repKpis.length){h+=`<div class="intel-sec"><div class="intel-sec-t">↩ ${lang==='ar'?'إخفاق متكرر':'Repeat Misses'}</div>`;repKpis.forEach(k=>{const rc=getRepeat(k);h+=`<div class="intel-item warn" style="margin-bottom:4px"><div class="intel-item-name">${k.id}: ${lang==='ar'?`${rc} أرباع متتالية`:`${rc} consecutive qtrs`}</div><div class="intel-item-d">${lang==='ar'?k.nameAr:k.nameEn}</div></div>`;});h+='</div>';}
   /* Recommendations section */
-  h+=`<div class="intel-sec"><div class="intel-sec-t">💡 ${lang==='ar'?'التوصيات':'Recommendations'}</div>`;
+  h+=`<div class="intel-sec"><div class="intel-sec-t"> ${lang==='ar'?'التوصيات':'Recommendations'}</div>`;
   if(missKpis.filter(k=>(k.tier||3)===1).length)
-    h+=`<div class="intel-item" style="border-color:var(--red)"><div class="intel-item-name">${lang==='ar'?'🔴 أولوية عاجلة':'🔴 Urgent Action'}</div><div class="intel-item-d">${lang==='ar'?'مراجعة فورية لمؤشرات T1 (سلامة المريض)':'Immediate review of T1 Patient Safety KPIs'}</div></div>`;
+    h+=`<div class="intel-item" style="border-color:var(--red)"><div class="intel-item-name">${lang==='ar'?' أولوية عاجلة':' Urgent Action'}</div><div class="intel-item-d">${lang==='ar'?'مراجعة فورية لمؤشرات T1 (سلامة المريض)':'Immediate review of T1 Patient Safety KPIs'}</div></div>`;
   if(repKpis.length)
-    h+=`<div class="intel-item warn"><div class="intel-item-name">${lang==='ar'?'📋 تحليل جذري':'📋 Root Cause Analysis'}</div><div class="intel-item-d">${lang==='ar'?`${repKpis.length} مؤشرات بإخفاق متكرر تستلزم مراجعة منهجية`:`${repKpis.length} repeat-miss KPI(s) require systematic review`}</div></div>`;
-  missKpis.forEach(k=>{const gd=(ST.gaps||{})[k.id]||{};if(!gd.gapEn&&!gd.gapAr)h+=`<div class="intel-item warn"><div class="intel-item-name">${lang==='ar'?'📝 تحليل فجوة مطلوب':'📝 Gap Analysis Needed'}: ${k.id}</div><div class="intel-item-d">${lang==='ar'?'لم يتم توثيق تحليل الفجوة بعد':'Gap analysis not yet documented'}</div></div>`;});
-  h+=missKpis.length===0?`<div class="intel-item ok"><div class="intel-item-name">${lang==='ar'?'✅ الأداء ممتاز':'✅ Excellent Performance'}</div><div class="intel-item-d">${lang==='ar'?'حافظ على مستوى الأداء الحالي':'Maintain current performance levels'}</div></div>`:'';
+    h+=`<div class="intel-item warn"><div class="intel-item-name">${lang==='ar'?' تحليل جذري':' Root Cause Analysis'}</div><div class="intel-item-d">${lang==='ar'?`${repKpis.length} مؤشرات بإخفاق متكرر تستلزم مراجعة منهجية`:`${repKpis.length} repeat-miss KPI(s) require systematic review`}</div></div>`;
+  missKpis.forEach(k=>{const gd=(ST.gaps||{})[k.id]||{};if(!gd.gapEn&&!gd.gapAr)h+=`<div class="intel-item warn"><div class="intel-item-name">${lang==='ar'?' تحليل فجوة مطلوب':' Gap Analysis Needed'}: ${k.id}</div><div class="intel-item-d">${lang==='ar'?'لم يتم توثيق تحليل الفجوة بعد':'Gap analysis not yet documented'}</div></div>`;});
+  h+=missKpis.length===0?`<div class="intel-item ok"><div class="intel-item-name">${lang==='ar'?' الأداء ممتاز':' Excellent Performance'}</div><div class="intel-item-d">${lang==='ar'?'حافظ على مستوى الأداء الحالي':'Maintain current performance levels'}</div></div>`:'';
   h+='</div>';
   return h;
 }
@@ -3695,14 +3772,14 @@ function renderRAG(ks){
         </div>
         <div style="padding:6px 6px;display:flex;flex-direction:column;justify-content:center;overflow:hidden">
           <div style="font-size:9.5px;color:var(--t1);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lang==='ar'?k.nameAr:k.nameEn}</div>
-          <div style="font-size:7.5px;color:var(--t3);margin-top:1px">${(k.tier||3)===1?'🔴 T1':(k.tier||3)===2?'🟡 T2':'⚪ T3'}</div>
+          <div style="font-size:7.5px;color:var(--t3);margin-top:1px">${(k.tier||3)===1?' T1':(k.tier||3)===2?' T2':'⚪ T3'}</div>
         </div>
         <div style="padding:6px 4px;font-size:8.5px;font-weight:700;color:${DM[k.dept].color};text-align:center;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--border)">${DM[k.dept].abbr}</div>
         ${sh25?q25s.map(v=>cell(v)).join(''):''}
         ${sh26?cell(q26v):''}
         <div style="padding:6px 5px;font-size:9px;font-family:var(--mono);text-align:center;font-weight:800;background:${avgVal!==null?BC[pb(avgVal,k.target)]:'transparent'};color:${avgVal!==null?(pb(avgVal,k.target)===1?'#7f1d1d':pb(avgVal,k.target)===2?'#065f46':'var(--t1)'):'var(--t3)'};border-right:1px solid var(--border)">${avgVal!==null?avgVal+'%':'\u2014'}</div>
         ${showYoY?`<div style="padding:6px 5px;font-size:9px;font-family:var(--mono);text-align:center;font-weight:700;color:${yoyColor};border-right:1px solid var(--border)">${yoyStr}</div>`:''}
-        <div style="padding:6px 5px;display:flex;align-items:center;justify-content:center"><span class="${a===null?'pill-pend':a?'pill-ok':'pill-miss'}" style="font-size:8px">${a===null?'\u2014':a?'\u2713 Met':'✕ Missed'}</span></div>
+        <div style="padding:6px 5px;display:flex;align-items:center;justify-content:center"><span class="${a===null?'pill-pend':a?'pill-ok':'pill-miss'}" style="font-size:8px">${a===null?'\u2014':a?'\u2713 Met':' Missed'}</span></div>
       </div>`;
     });
   });
@@ -3745,16 +3822,16 @@ function renderDept(){
       </div>
       <div style="background:var(--green-dim);border-radius:8px;padding:14px 22px;text-align:center;border:1.5px solid rgba(22,163,74,0.2);min-width:90px">
         <div style="font-size:40px;font-weight:800;font-family:var(--mono);color:var(--green);line-height:1">${nOk}</div>
-        <div style="font-size:10px;font-weight:700;color:var(--green);margin-top:5px;text-transform:uppercase">✓ Met</div>
+        <div style="font-size:10px;font-weight:700;color:var(--green);margin-top:5px;text-transform:uppercase"> Met</div>
       </div>
       <div style="background:${nMiss>0?'var(--red-dim)':'var(--t4)'};border-radius:8px;padding:14px 22px;text-align:center;border:1.5px solid ${nMiss>0?'rgba(220,38,38,0.2)':'transparent'};min-width:90px">
         <div style="font-size:40px;font-weight:800;font-family:var(--mono);color:${nMiss>0?'var(--red)':'var(--t3)'};line-height:1">${nMiss}</div>
-        <div style="font-size:10px;font-weight:700;color:${nMiss>0?'var(--red)':'var(--t3)'};margin-top:5px;text-transform:uppercase">✕ Missed</div>
+        <div style="font-size:10px;font-weight:700;color:${nMiss>0?'var(--red)':'var(--t3)'};margin-top:5px;text-transform:uppercase"> Missed</div>
       </div>
       <div style="padding-left:10px">
-        ${t1m>0?`<div style="background:var(--red-dim);border-radius:6px;padding:8px 12px;font-size:10.5px;color:var(--red);font-weight:700;margin-bottom:8px">⚠ ${t1m} Tier 1 Patient Safety KPI${t1m>1?'s':''} Missed</div>`:''}
-        ${nMiss===0&&t>0?`<div style="color:var(--green);font-size:12px;font-weight:700;margin-bottom:6px">✓ ${lang==='ar'?'جميع المؤشرات محققة لهذا القسم':'All KPIs Met for this department'}</div>`:''}
-        <ul class="kpi-list" style="">${dk.map(k=>{const v=qv(k),a=ok(k),c=kc(k);return`<li class="kpi-row"><div class="kpi-dot" style="background:${c}"></div><div class="kpi-name" style="font-size:10px">${k.id} — ${lang==='ar'?k.nameAr:k.nameEn}</div><div class="kpi-val" style="color:${c};font-size:11px">${v!==null?v.toFixed(1)+'%':'\u2014'}</div><span class="${a?'pill-ok':'pill-miss'}" style="font-size:8px">${a===null?'\u2014':a?'\u2713 Met':'✕ Missed'}</span></li>`;}).join('')}</ul>
+        ${t1m>0?`<div style="background:var(--red-dim);border-radius:6px;padding:8px 12px;font-size:10.5px;color:var(--red);font-weight:700;margin-bottom:8px"> ${t1m} Tier 1 Patient Safety KPI${t1m>1?'s':''} Missed</div>`:''}
+        ${nMiss===0&&t>0?`<div style="color:var(--green);font-size:12px;font-weight:700;margin-bottom:6px"> ${lang==='ar'?'جميع المؤشرات محققة لهذا القسم':'All KPIs Met for this department'}</div>`:''}
+        <ul class="kpi-list" style="">${dk.map(k=>{const v=qv(k),a=ok(k),c=kc(k);return`<li class="kpi-row"><div class="kpi-dot" style="background:${c}"></div><div class="kpi-name" style="font-size:10px">${k.id} — ${lang==='ar'?k.nameAr:k.nameEn}</div><div class="kpi-val" style="color:${c};font-size:11px">${v!==null?v.toFixed(1)+'%':'\u2014'}</div><span class="${a?'pill-ok':'pill-miss'}" style="font-size:8px">${a===null?'\u2014':a?'\u2713 Met':' Missed'}</span></li>`;}).join('')}</ul>
       </div>
     </div>
   </div>
@@ -3770,7 +3847,7 @@ function renderDept(){
   </div>
 </div>
 <div class="card c12">
-  <div class="ch" style="border-bottom:1px solid var(--border);padding-bottom:10px">📊 ${lang==='ar'?'الأداء الربعي لكل مؤشر — Q1\'25 → Q1\'26':'Quarterly Performance per KPI — Q1\'25 → Q1\'26'}</div>
+  <div class="ch" style="border-bottom:1px solid var(--border);padding-bottom:10px"> ${lang==='ar'?'الأداء الربعي لكل مؤشر — Q1\'25 → Q1\'26':'Quarterly Performance per KPI — Q1\'25 → Q1\'26'}</div>
   <div class="cb sc" style="padding:10px">
     <div id="kpiBarChartGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px"></div>
   </div>
@@ -3778,7 +3855,7 @@ function renderDept(){
 
 <!-- ROW 3: Individual KPI Trend Analysis -->
 <div class="card c12">
-  <div class="ch" style="border-bottom:1px solid var(--border);padding-bottom:10px">📈 ${lang==='ar'?'تحليل الاتجاه الفردي لكل مؤشر':'Individual KPI Trend Analysis — Quarterly + Target + YoY'}</div>
+  <div class="ch" style="border-bottom:1px solid var(--border);padding-bottom:10px"> ${lang==='ar'?'تحليل الاتجاه الفردي لكل مؤشر':'Individual KPI Trend Analysis — Quarterly + Target + YoY'}</div>
   <div class="cb" style="padding:10px">
     <div id="deptKpiTrends" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px"></div>
   </div>
@@ -3825,7 +3902,7 @@ function renderExecKpiTrends(ks){
         <span style="font-size:8px;font-weight:700;color:${dm.color};background:${dm.color}18;padding:1px 5px;border-radius:3px">${dm.abbr}</span>
         <span class="tier-b ${g.tier===1?'t1':g.tier===2?'t2b':'t3b'}">T${g.tier}</span>
         ${arrow?`<span style="font-size:9px;font-weight:700;color:${arrow.startsWith('▲')?'var(--green)':'var(--red)'}">${arrow}</span>`:''}
-        <span style="margin-left:auto" class="${isM===null?'pill-pend':isM?'pill-ok':'pill-miss'}">${isM===null?'\u2014':isM?'\u2713 Met':'✕ Missed'}</span>
+        <span style="margin-left:auto" class="${isM===null?'pill-pend':isM?'pill-ok':'pill-miss'}">${isM===null?'\u2014':isM?'\u2713 Met':' Missed'}</span>
       </div>
       <div style="font-size:11px;font-weight:600;color:var(--t1);margin-bottom:10px;line-height:1.35;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${lang==='ar'?g.nameAr:g.nameEn}</div>
       <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px">
@@ -3883,7 +3960,7 @@ function renderKpiBarCharts(k25,k26){
       <div style="display:flex;align-items:center;gap:5px;margin-bottom:6px;flex-wrap:wrap">
         <span style="font-size:9px;font-family:var(--mono);font-weight:800;color:var(--teal)">${g.ids.join(' / ')}</span>
         <span class="tier-b ${g.tier===1?'t1':g.tier===2?'t2b':'t3b'}">T${g.tier}</span>
-        <span style="margin-left:auto" class="${isM===null?'pill-pend':isM?'pill-ok':'pill-miss'}">${isM===null?'\u2014':isM?'\u2713 Met':'✕ Missed'}</span>
+        <span style="margin-left:auto" class="${isM===null?'pill-pend':isM?'pill-ok':'pill-miss'}">${isM===null?'\u2014':isM?'\u2713 Met':' Missed'}</span>
       </div>
       <div style="font-size:11px;font-weight:600;color:var(--t1);margin-bottom:6px;line-height:1.35">${lang==='ar'?g.nameAr:g.nameEn}</div>
       <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px">
@@ -3937,7 +4014,7 @@ function renderDeptKpiCards(dk){
         <span style="font-size:10.5px;font-family:var(--mono);font-weight:900;color:var(--teal)">${k.id}</span>
         <span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span>
         ${rc>=2?`<span class="repeat-b">↩${rc}x</span>`:''}
-        <span style="margin-left:auto;font-size:8.5px;font-weight:800;padding:2px 6px;border-radius:4px;background:${isMissed?'var(--red-dim)':a===true?'var(--green-dim)':'var(--t4)'};color:${isMissed?'var(--red)':a===true?'var(--green)':'var(--t3)'}">${a===null?'\u2014':a?'\u2713 Met':'✕ Missed'}</span>
+        <span style="margin-left:auto;font-size:8.5px;font-weight:800;padding:2px 6px;border-radius:4px;background:${isMissed?'var(--red-dim)':a===true?'var(--green-dim)':'var(--t4)'};color:${isMissed?'var(--red)':a===true?'var(--green)':'var(--t3)'}">${a===null?'\u2014':a?'\u2713 Met':' Missed'}</span>
       </div>
       <div style="font-size:11.5px;font-weight:600;color:var(--t1);line-height:1.4;margin-bottom:8px;height:32px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${lang==='ar'?k.nameAr:k.nameEn}</div>
       <div onclick="event.stopPropagation();openKpiPCI('${k.id}')" style="font-size:38px;font-weight:800;font-family:var(--mono);color:${c};line-height:1;margin-bottom:8px;letter-spacing:-.02em;cursor:pointer;transition:opacity .15s" onmouseover="this.style.opacity='.7'" onmouseout="this.style.opacity='1'">${v!==null?v.toFixed(1)+'%':'\u2014'}<span style="font-size:10px;color:var(--t3);margin-left:4px;font-family:var(--font)">▼</span></div>
@@ -3946,7 +4023,7 @@ function renderDeptKpiCards(dk){
         <span>Target: ${k.op==='='?'=':'≥'}${k.target}%</span>
         ${k.yoy!==undefined&&k.yoy!==null&&v!==null?`<span style="color:${v>=k.yoy?'var(--green)':'var(--red)'}">vs PY: ${v>=k.yoy?'▲':'▼'}${Math.abs(v-k.yoy).toFixed(1)}%</span>`:''}
       </div>
-      ${gd.owner||ac.owner?`<div style="font-size:8.5px;color:var(--t3);margin-top:4px">👤 ${gd.owner||ac.owner}</div>`:''}
+      ${gd.owner||ac.owner?`<div style="font-size:8.5px;color:var(--t3);margin-top:4px"> ${gd.owner||ac.owner}</div>`:''}
       <div style="flex:1"></div>
       ${isMissed
         ?`<button onclick="event.stopPropagation();openGap('${k.id}')" style="width:100%;padding:5px 0;background:var(--red-dim);color:var(--red);border:1px solid rgba(220,38,38,.22);border-radius:6px;font-size:9px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;margin-top:6px" onmouseover="this.style.background='var(--red)';this.style.color='#fff'" onmouseout="this.style.background='var(--red-dim)';this.style.color='var(--red)'">⚑ View Gap Analysis</button>`
@@ -4016,7 +4093,7 @@ function renderDeptKpiTrends(allDk){
   });
 
   const groups=Object.values(nameMap);
-  if(!groups.length){el.innerHTML=`<div class="empty-s"><div class="empty-ico">📭</div><div class="empty-txt">${emptyState('kpis')}</div></div>`;return;}
+  if(!groups.length){el.innerHTML=`<div class="empty-s"><div class="empty-ico"></div><div class="empty-txt">${emptyState('kpis')}</div></div>`;return;}
 
   const trendLabels=["Q1'25","Q2'25","Q3'25","Q4'25","Q1'26"];
 
@@ -4042,7 +4119,7 @@ function renderDeptKpiTrends(allDk){
         <span style="font-size:9px;font-family:var(--mono);font-weight:800;color:var(--teal)">${idStr}</span>
         <span class="tier-b ${g.tier===1?'t1':g.tier===2?'t2b':'t3b'}">T${g.tier}</span>
         ${arrow?`<span style="font-size:9px;font-weight:700;color:${arrow.startsWith('▲')?'var(--green)':'var(--red)'}">${arrow}</span>`:''}
-        <span style="margin-left:auto" class="${isM===null?'pill-pend':isM?'pill-ok':'pill-miss'}">${isM===null?'\u2014':isM?'\u2713 Met':'✕ Missed'}</span>
+        <span style="margin-left:auto" class="${isM===null?'pill-pend':isM?'pill-ok':'pill-miss'}">${isM===null?'\u2014':isM?'\u2713 Met':' Missed'}</span>
       </div>
       <div style="font-size:11px;font-weight:600;color:var(--t1);margin-bottom:10px;line-height:1.35">${lang==='ar'?g.nameAr:g.nameEn}</div>
       <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:8px">
@@ -4126,13 +4203,13 @@ function renderRegistry(){
         <div style="font-size:9.5px;font-family:var(--mono);color:${yC};font-weight:700;padding:0 4px">${yStr}</div>
         <span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span>
         <span class="${a===null?'pill-pend':a?'pill-ok':'pill-miss'}" style="font-size:9px${isMissed?';cursor:pointer;':''}">
-          ${a===null?'\u2014':a?'\u2713 Met':'✕ Missed'}
+          ${a===null?'\u2014':a?'\u2713 Met':' Missed'}
           ${isMissed?'<span style="font-size:8px;opacity:.7;margin-left:3px">↗</span>':''}
         </span>
       </div>`;
     });
   });
-  g.innerHTML=`<div class="card c12 r4"><div class="ch">📋 ${lang==='ar'?'سجل المؤشرات الكامل — انقر على مؤشر لعرض التفاصيل':'Complete KPI Registry — Click any KPI for details'}<div class="ch-r">${ks.length} ${lang==='ar'?'مؤشر':'KPIs'}</div></div><div class="cb sc" style="padding:4px 10px 10px">${tbl}</div></div>`;
+  g.innerHTML=`<div class="card c12 r4"><div class="ch"> ${lang==='ar'?'سجل المؤشرات الكامل — انقر على مؤشر لعرض التفاصيل':'Complete KPI Registry — Click any KPI for details'}<div class="ch-r">${ks.length} ${lang==='ar'?'مؤشر':'KPIs'}</div></div><div class="cb sc" style="padding:4px 10px 10px">${tbl}</div></div>`;
 }
 
 /* ══════════════════════════════════════════
@@ -4146,21 +4223,21 @@ function renderAcc(){
   const repKpis=allK().filter(k=>getRepeat(k)>=2);
   const g=document.getElementById('accGrid');
   g.innerHTML=`
-<div class="card c4"><div class="ch">🔴 ${lang==='ar'?'مفتوح':'Open'}</div><div class="cb"><div class="mbig" style="color:var(--red)">${openC}</div><div class="mlbl">${lang==='ar'?'إجراءات تصحيحية معلقة':'Corrective Actions Pending'}</div></div></div>
-<div class="card c4"><div class="ch">🟡 ${lang==='ar'?'جاري التنفيذ':'In Progress'}</div><div class="cb"><div class="mbig" style="color:var(--amber)">${progC}</div><div class="mlbl">${lang==='ar'?'إجراءات تحت التنفيذ':'Actions Being Implemented'}</div></div></div>
-<div class="card c4"><div class="ch">✅ ${lang==='ar'?'مكتمل':'Completed'}</div><div class="cb"><div class="mbig" style="color:var(--green)">${doneC}</div><div class="mlbl">${lang==='ar'?'إجراءات مكتملة':'Actions Completed'}</div></div></div>
+<div class="card c4"><div class="ch"> ${lang==='ar'?'مفتوح':'Open'}</div><div class="cb"><div class="mbig" style="color:var(--red)">${openC}</div><div class="mlbl">${lang==='ar'?'إجراءات تصحيحية معلقة':'Corrective Actions Pending'}</div></div></div>
+<div class="card c4"><div class="ch"> ${lang==='ar'?'جاري التنفيذ':'In Progress'}</div><div class="cb"><div class="mbig" style="color:var(--amber)">${progC}</div><div class="mlbl">${lang==='ar'?'إجراءات تحت التنفيذ':'Actions Being Implemented'}</div></div></div>
+<div class="card c4"><div class="ch"> ${lang==='ar'?'مكتمل':'Completed'}</div><div class="cb"><div class="mbig" style="color:var(--green)">${doneC}</div><div class="mlbl">${lang==='ar'?'إجراءات مكتملة':'Actions Completed'}</div></div></div>
 <div class="card c12 r3">
-  <div class="ch">⚡ ${lang==='ar'?'سجل المساءلة والإجراءات التصحيحية':'Accountability & Corrective Action Register'}
+  <div class="ch"> ${lang==='ar'?'سجل المساءلة والإجراءات التصحيحية':'Accountability & Corrective Action Register'}
     <div class="ch-r" style="color:var(--orange)">${lang==='ar'?'مرتب حسب مستوى المخاطر والتكرار':'Sorted by risk tier & repeat count'}</div>
   </div>
   <div class="cb sc" style="padding:4px 11px 11px">
-    ${!missKpis.length?`<div class="empty-s"><div class="empty-ico">🎉</div><div class="empty-txt">${emptyState('missed')}</div></div>`:accTable(missKpis)}
+    ${!missKpis.length?`<div class="empty-s"><div class="empty-ico"></div><div class="empty-txt">${emptyState('missed')}</div></div>`:accTable(missKpis)}
   </div>
 </div>
 <div class="card c12">
   <div class="ch">↩ ${lang==='ar'?'الإخفاق المتكرر — مؤشرات الخطر المزمن':'Repeat Miss Alert — Chronic Underperformance'}</div>
   <div class="cb sc" style="padding:4px 11px 11px">
-    ${!repKpis.length?`<div class="empty-s"><div class="empty-ico">✅</div><div class="empty-txt">${lang==='ar'?'لا توجد مؤشرات بإخفاق متكرر':'No repeat miss KPIs detected'}</div></div>`:
+    ${!repKpis.length?`<div class="empty-s"><div class="empty-ico"></div><div class="empty-txt">${lang==='ar'?'لا توجد مؤشرات بإخفاق متكرر':'No repeat miss KPIs detected'}</div></div>`:
     `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px">${repKpis.map(k=>{const rc=getRepeat(k),v=qv(k);return`<div style="background:rgba(251,146,60,.08);border:1px solid rgba(251,146,60,.2);border-radius:6px;padding:10px"><div style="display:flex;gap:4px;align-items:center;margin-bottom:5px"><span class="repeat-b">↩ ${rc}x</span><span style="font-size:9.5px;font-family:var(--mono);font-weight:700;color:var(--teal)">${k.id}</span><span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span></div><div style="font-size:11px;color:var(--t2);line-height:1.4;margin-bottom:5px">${lang==='ar'?k.nameAr:k.nameEn}</div><div style="font-size:9px;color:var(--orange)">${lang==='ar'?`إخفاق ${rc} أرباع متتالية — يستلزم مراجعة جذرية.`:`Missed ${rc} consecutive quarters — systematic review required.`}</div></div>`;}).join('')}</div>`}
   </div>
 </div>`;
@@ -4185,7 +4262,7 @@ function accTable(ks){
       <td style="font-size:10.5px">${ac.owner||`<span style="color:var(--t3);font-size:9px">${lang==='ar'?'غير محدد':'Unassigned'}</span>`}</td>
       <td style="font-size:10.5px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(lang==='ar'?gd.actAr:gd.actEn)||`<span style="color:var(--t3);font-size:9px">${lang==='ar'?'لم يدخل':'Not entered'}</span>`}</td>
       <td>${ac.priority?`<span style="font-size:9px;font-weight:700;color:${pc[ac.priority]||'var(--t3)'}">${pt[ac.priority]||ac.priority}</span>`:'\u2014'}</td>
-      <td style="font-size:10px;font-family:var(--mono);color:${overdue?'var(--red)':'var(--t2)'}">${ac.dueDate||'\u2014'}${overdue?' ⚠':''}</td>
+      <td style="font-size:10px;font-family:var(--mono);color:${overdue?'var(--red)':'var(--t2)'}">${ac.dueDate||'\u2014'}${overdue?' ':''}</td>
       <td><span class="acc-s ${sc}">${st}</span></td>
       <td><button style="background:var(--teal-dim);color:var(--teal);border:1px solid rgba(0,196,180,.2);border-radius:3px;font-size:9px;font-weight:700;padding:3px 7px;cursor:pointer;font-family:inherit;white-space:nowrap" onclick="openGap('${k.id}')">${lang==='ar'?'تفاصيل':'Details'}</button></td>
     </tr>`;
@@ -4223,31 +4300,31 @@ async function fetchAI(){
     const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
     const d=await r.json();const t=d.content?.[0]?.text||'';
     if(el&&t){
-      el.innerHTML=`<div class="intel-sec"><div class="intel-sec-t">✨ ${lang==='ar'?'التحليل التنفيذي':'Executive Analysis'}</div><div class="ai-txt">${t.replace(/\n/g,'<br>')}</div></div>${buildIntelRisks(missKpis,repKpis)}`;
+      el.innerHTML=`<div class="intel-sec"><div class="intel-sec-t"> ${lang==='ar'?'التحليل التنفيذي':'Executive Analysis'}</div><div class="ai-txt">${t.replace(/\n/g,'<br>')}</div></div>${buildIntelRisks(missKpis,repKpis)}`;
     } else if(el)el.innerHTML=buildFallback(rate,missKpis,repKpis);
   } catch(e){if(el)el.innerHTML=buildFallback(rate,missKpis,repKpis);}
 }
 function buildIntelRisks(missKpis,repKpis){
   let h='';
   if(!missKpis.length&&!repKpis.length){
-    h+=`<div class="intel-sec"><div class="intel-sec-t">✅ ${lang==='ar'?'الوضع التشغيلي':'Status'}</div><div class="intel-item ok"><div class="intel-item-name">${lang==='ar'?'جميع المؤشرات محققة':'All KPIs Met'}</div></div></div>`;
+    h+=`<div class="intel-sec"><div class="intel-sec-t"> ${lang==='ar'?'الوضع التشغيلي':'Status'}</div><div class="intel-item ok"><div class="intel-item-name">${lang==='ar'?'جميع المؤشرات محققة':'All KPIs Met'}</div></div></div>`;
   } else {
-    h+=`<div class="intel-sec"><div class="intel-sec-t">⚠ ${lang==='ar'?'مخاطر حرجة':'Critical Risks'}</div>`;
+    h+=`<div class="intel-sec"><div class="intel-sec-t"> ${lang==='ar'?'مخاطر حرجة':'Critical Risks'}</div>`;
     missKpis.slice(0,4).forEach(k=>{const v=qv(k);const rc=getRepeat(k);h+=`<div class="intel-item" style="margin-bottom:4px"><div class="intel-item-name">${k.id} <span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span>${rc>=2?` <span class="repeat-b">↩${rc}x</span>`:''}</div><div class="intel-item-d">${lang==='ar'?k.nameAr:k.nameEn} — ${(v||0).toFixed(1)}% / ${k.target}%</div></div>`;});h+='</div>';
     if(repKpis.length){h+=`<div class="intel-sec"><div class="intel-sec-t">↩ ${lang==='ar'?'إخفاق متكرر':'Repeat Misses'}</div>`;repKpis.forEach(k=>{const rc=getRepeat(k);h+=`<div class="intel-item warn" style="margin-bottom:4px"><div class="intel-item-name">${k.id}: ${rc} ${lang==='ar'?'أرباع':'quarters'}</div><div class="intel-item-d">${lang==='ar'?k.nameAr:k.nameEn}</div></div>`;});h+='</div>';}
   }
   /* ── Recommendations section ── */
   const recs=[];
   if(missKpis.filter(k=>(k.tier||3)===1).length>0)
-    recs.push(lang==='ar'?'🔴 أولوية فورية: معالجة مؤشرات سلامة المريض (T1) — يُوجب التدخل التنفيذي المباشر':'🔴 Immediate: Address Tier 1 Patient Safety KPIs — requires executive escalation');
+    recs.push(lang==='ar'?' أولوية فورية: معالجة مؤشرات سلامة المريض (T1) — يُوجب التدخل التنفيذي المباشر':' Immediate: Address Tier 1 Patient Safety KPIs — requires executive escalation');
   if(repKpis.length>0)
-    recs.push(lang==='ar'?`🔁 إخفاق متكرر: مراجعة جذرية لـ ${repKpis.length} مؤشر بإخفاق متتالٍ — تحليل الأسباب الجذرية مطلوب`:`🔁 Chronic underperformance in ${repKpis.length} KPI(s) — Root cause analysis required`);
+    recs.push(lang==='ar'?` إخفاق متكرر: مراجعة جذرية لـ ${repKpis.length} مؤشر بإخفاق متتالٍ — تحليل الأسباب الجذرية مطلوب`:` Chronic underperformance in ${repKpis.length} KPI(s) — Root cause analysis required`);
   if(missKpis.length>0&&missKpis.every(k=>!(ST.gaps||{})[k.id]?.gapEn))
-    recs.push(lang==='ar'?'📝 تحليل الفجوة غير مكتمل — يُرجى إدخال أسباب وإجراءات لكل مؤشر غير محقق':'📝 Gap analysis incomplete — Enter root causes & actions for all Missed KPIs');
+    recs.push(lang==='ar'?' تحليل الفجوة غير مكتمل — يُرجى إدخال أسباب وإجراءات لكل مؤشر غير محقق':' Gap analysis incomplete — Enter root causes & actions for all Missed KPIs');
   if(missKpis.length===0)
-    recs.push(lang==='ar'?'✅ الأداء ممتاز — استمر في مراقبة مستوى الأهداف ومشاركة أفضل الممارسات':'✅ Excellent performance — Sustain targets and share best practices across departments');
+    recs.push(lang==='ar'?' الأداء ممتاز — استمر في مراقبة مستوى الأهداف ومشاركة أفضل الممارسات':' Excellent performance — Sustain targets and share best practices across departments');
   if(recs.length>0){
-    h+=`<div class="intel-sec"><div class="intel-sec-t">💡 ${lang==='ar'?'التوصيات':'Recommendations'}</div>`;
+    h+=`<div class="intel-sec"><div class="intel-sec-t"> ${lang==='ar'?'التوصيات':'Recommendations'}</div>`;
     recs.forEach(r=>{h+=`<div style="font-size:10px;color:var(--t1);line-height:1.6;padding:4px 0;border-bottom:1px solid var(--border)">${r}</div>`;});
     h+='</div>';
   }
@@ -4255,7 +4332,7 @@ function buildIntelRisks(missKpis,repKpis){
 }
 function buildFallback(rate,missKpis,repKpis){
   const w=missKpis[0];
-  return`<div class="intel-sec"><div class="intel-sec-t">📊 ${lang==='ar'?'ملخص':'Summary'}</div><div class="ai-txt">${lang==='ar'?`معدل إنجاز الإدارة ${rate}%. ${w?`المؤشر ${w.id} (${w.nameAr}) يُمثل أعلى فجوة عن الهدف.`:''}`:`Division achieved ${rate}%. ${w?`KPI ${w.id} (${w.nameEn}) shows the highest gap from target.`:''}`}</div></div>${buildIntelRisks(missKpis,repKpis)}`;
+  return`<div class="intel-sec"><div class="intel-sec-t"> ${lang==='ar'?'ملخص':'Summary'}</div><div class="ai-txt">${lang==='ar'?`معدل إنجاز الإدارة ${rate}%. ${w?`المؤشر ${w.id} (${w.nameAr}) يُمثل أعلى فجوة عن الهدف.`:''}`:`Division achieved ${rate}%. ${w?`KPI ${w.id} (${w.nameEn}) shows the highest gap from target.`:''}`}</div></div>${buildIntelRisks(missKpis,repKpis)}`;
 }
 
 /* ══════════════════════════════════════════
@@ -4277,20 +4354,20 @@ function openGap(id){
     <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">
       <span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">Tier ${k.tier||3}: ${lang==='ar'?TIERS[k.tier||3].ar:TIERS[k.tier||3].en}</span>
       ${rc>=2?`<span class="repeat-b">↩ ${rc} ${lang==='ar'?'أرباع متتالية':'consecutive quarters'}</span>`:''}
-      ${ac.owner?`<span style="font-size:10px;color:var(--t2)">👤 ${ac.owner}</span>`:''}
+      ${ac.owner?`<span style="font-size:10px;color:var(--t2)"> ${ac.owner}</span>`:''}
     </div>
     <div style="background:var(--red-dim);border-left:2px solid var(--red);border-radius:6px;padding:10px;margin-bottom:8px">
-      <div style="font-size:9.5px;font-weight:800;color:var(--red);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em">⚠ ${lang==='ar'?'أسباب الفجوة':'Root Cause / Gap Reasons'}</div>
+      <div style="font-size:9.5px;font-weight:800;color:var(--red);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em"> ${lang==='ar'?'أسباب الفجوة':'Root Cause / Gap Reasons'}</div>
       <div style="font-size:11.5px;color:var(--t2);line-height:1.7">${(lang==='ar'?gd.gapAr:gd.gapEn)||na}</div>
     </div>
     <div style="background:rgba(52,211,153,.06);border-left:2px solid var(--green);border-radius:6px;padding:10px;margin-bottom:8px">
-      <div style="font-size:9.5px;font-weight:800;color:var(--green);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em">✅ ${lang==='ar'?'الإجراءات التصحيحية':'Corrective Actions'}</div>
+      <div style="font-size:9.5px;font-weight:800;color:var(--green);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em"> ${lang==='ar'?'الإجراءات التصحيحية':'Corrective Actions'}</div>
       <div style="font-size:11.5px;color:var(--t2);line-height:1.7">${(lang==='ar'?gd.actAr:gd.actEn)||(lang==='ar'?'لم تُدخل بعد.':'Not entered yet.')}</div>
     </div>
     ${ac.status||ac.dueDate?`<div style="background:rgba(251,191,36,.08);border-left:2px solid var(--amber);border-radius:6px;padding:10px">
-      <div style="font-size:9.5px;font-weight:800;color:var(--amber);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em">📋 ${lang==='ar'?'المساءلة':'Accountability'}</div>
+      <div style="font-size:9.5px;font-weight:800;color:var(--amber);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em"> ${lang==='ar'?'المساءلة':'Accountability'}</div>
       ${ac.status?`<div style="font-size:11px;color:var(--t2);margin-bottom:4px">${lang==='ar'?'الحالة':'Status'}: <strong>${ac.status}</strong></div>`:''}
-      ${ac.dueDate?`<div style="font-size:11px;color:${new Date(ac.dueDate)<new Date()?'var(--red)':'var(--t2)'}">${lang==='ar'?'الموعد':'Due'}: <strong>${ac.dueDate}</strong>${new Date(ac.dueDate)<new Date()?' ⚠ '+(lang==='ar'?'متأخر':'Overdue'):''}</div>`:''}
+      ${ac.dueDate?`<div style="font-size:11px;color:${new Date(ac.dueDate)<new Date()?'var(--red)':'var(--t2)'}">${lang==='ar'?'الموعد':'Due'}: <strong>${ac.dueDate}</strong>${new Date(ac.dueDate)<new Date()?'  '+(lang==='ar'?'متأخر':'Overdue'):''}</div>`:''}
     </div>`:''}
   `;
   document.getElementById('gapOv').classList.add('open');
@@ -4306,7 +4383,7 @@ function openReport(){
   const hs=lang==='ar'?['الكود','المؤشر','القسم','الهدف','Q1','Q2','Q3','Q4','النتيجة','YoY','المخاطر','الحالة']:['Code','KPI Name','Dept','Target','Q1','Q2','Q3','Q4','Result','YoY','Risk','Status'];
   let rows='',gapSec='';
   ks.forEach(k=>{const v=qv(k),a=ok(k);const yr=k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?((k.q1-k.yoy>=0?'+':'')+(k.q1-k.yoy).toFixed(1)+'%'):'—';
-    rows+=`<tr><td><b>${k.id}</b><br><small style="color:#94a3b8">T${k.tier||3}</small></td><td>${lang==='ar'?k.nameAr:k.nameEn}</td><td>${lang==='ar'?DM[k.dept].ar:DM[k.dept].en}</td><td>${k.op==='='?'=':'≥'}${k.target}%</td>${[1,2,3,4].map(i=>`<td>${k['q'+i]!=null?k['q'+i].toFixed(1)+'%':'—'}</td>`).join('')}<td style="font-weight:700;color:${a===null?'#64748b':a?'#065f46':'#7f1d1d'}">${f2(v)}</td><td>${yr}</td><td>${lang==='ar'?TIERS[k.tier||3].ar:TIERS[k.tier||3].en}</td><td><span class="${a===true?'rpt-ok':'rpt-miss'}" style="${a===null?'background:#f1f5f9;color:#64748b':''}">${a===null?'—':a?'✓ Met':'✕ Missed'}</span></td></tr>`;
+    rows+=`<tr><td><b>${k.id}</b><br><small style="color:#94a3b8">T${k.tier||3}</small></td><td>${lang==='ar'?k.nameAr:k.nameEn}</td><td>${lang==='ar'?DM[k.dept].ar:DM[k.dept].en}</td><td>${k.op==='='?'=':'≥'}${k.target}%</td>${[1,2,3,4].map(i=>`<td>${k['q'+i]!=null?k['q'+i].toFixed(1)+'%':'—'}</td>`).join('')}<td style="font-weight:700;color:${a===null?'#64748b':a?'#065f46':'#7f1d1d'}">${f2(v)}</td><td>${yr}</td><td>${lang==='ar'?TIERS[k.tier||3].ar:TIERS[k.tier||3].en}</td><td><span class="${a===true?'rpt-ok':'rpt-miss'}" style="${a===null?'background:#f1f5f9;color:#64748b':''}">${a===null?'—':a?' Met':' Missed'}</span></td></tr>`;
   });
   ks.filter(k=>ok(k)===false).forEach(k=>{const v=qv(k),g=(k.target-v).toFixed(2);const gd=(ST.gaps||{})[k.id]||{};const ac=(ST.actions||{})[k.id]||{};const rc=getRepeat(k);
     gapSec+=`<div class="rpt-box warn"><div class="rpt-box-t">${k.id} — ${lang==='ar'?k.nameAr:k.nameEn}</div><p style="margin-bottom:4px"><b>${lang==='ar'?'الفجوة:':'Gap:'}</b> -${g}% | <b>${lang==='ar'?'المخاطر:':'Risk:'}</b> ${lang==='ar'?TIERS[k.tier||3].ar:TIERS[k.tier||3].en}${rc>=2?` | <b>${lang==='ar'?'تكرار:':'Repeat:'}</b> ${rc}x`:''}</p><p><b>${lang==='ar'?'الأسباب:':'Reasons:'}</b> ${(lang==='ar'?gd.gapAr:gd.gapEn)||(lang==='ar'?'لم تُدخل':'Not entered')}</p><p><b>${lang==='ar'?'الإجراءات:':'Actions:'}</b> ${(lang==='ar'?gd.actAr:gd.actEn)||(lang==='ar'?'لم تُدخل':'Not entered')}</p>${ac.owner?`<p><b>${lang==='ar'?'المسؤول:':'Owner:'}</b> ${ac.owner} | <b>${lang==='ar'?'الحالة:':'Status:'}</b> ${ac.status||'—'} | <b>${lang==='ar'?'الموعد:':'Due:'}</b> ${ac.dueDate||'—'}</p>`:''}</div>`;
@@ -4317,7 +4394,7 @@ function openReport(){
     <div class="rpt-ttl">${lang==='ar'?'تقرير مؤشرات الأداء الرئيسية':'KPI Performance Report'}</div>
     <div class="rpt-sub">${lang==='ar'?'قسم الحوكمة والأداء — إدارة المرافق والسلامة':'Governance & Performance Dept — Facilities & Safety Division'}</div>
     <div class="rpt-sec">1. ${lang==='ar'?'الملخص التنفيذي':'Executive Summary'}</div>
-    <div class="rpt-kv"><div class="rpt-kv-i"><div class="rpt-kv-l">${lang==='ar'?'إجمالي':'Total'}</div><div class="rpt-kv-v" style="color:#1a7a6a">${ks.length}</div></div><div class="rpt-kv-i"><div class="rpt-kv-l">✓ Met</div><div class="rpt-kv-v" style="color:#065f46">${nOk}</div></div><div class="rpt-kv-i"><div class="rpt-kv-l">✕ Missed</div><div class="rpt-kv-v" style="color:#7f1d1d">${miss}</div></div></div>
+    <div class="rpt-kv"><div class="rpt-kv-i"><div class="rpt-kv-l">${lang==='ar'?'إجمالي':'Total'}</div><div class="rpt-kv-v" style="color:#1a7a6a">${ks.length}</div></div><div class="rpt-kv-i"><div class="rpt-kv-l"> Met</div><div class="rpt-kv-v" style="color:#065f46">${nOk}</div></div><div class="rpt-kv-i"><div class="rpt-kv-l"> Missed</div><div class="rpt-kv-v" style="color:#7f1d1d">${miss}</div></div></div>
     <div class="rpt-sec">2. ${lang==='ar'?'تفاصيل المؤشرات':'KPI Detail Table'}</div>
     <table class="rpt-tbl"><thead><tr>${hs.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
     ${gapSec?`<div class="rpt-sec">3. ${lang==='ar'?'تحليل الفجوات والإجراءات':'Gap Analysis & Corrective Actions'}</div>${gapSec}`:''}
@@ -4341,7 +4418,7 @@ function openLock(){document.getElementById('lockOv').classList.add('open')}
 function doPin(){
   const eEl=document.getElementById('pinE');
   if(_failCount>=MAX_FAILS){
-    eEl.textContent=lang==='ar'?'🔒 النظام مقفل. أعد تحميل الصفحة.':'🔒 Locked. Reload page to retry.';
+    eEl.textContent=lang==='ar'?' النظام مقفل. أعد تحميل الصفحة.':' Locked. Reload page to retry.';
     return;
   }
   const inp=document.getElementById('pinI').value;
@@ -4362,7 +4439,7 @@ function doPin(){
     const rem=MAX_FAILS-_failCount;
     eEl.textContent=rem>0
       ?(lang==='ar'?`رمز غير صحيح (${_failCount}/${MAX_FAILS})`:`Incorrect PIN (${_failCount}/${MAX_FAILS})`)
-      :(lang==='ar'?'🔒 النظام مقفل. أعد تحميل الصفحة.':'🔒 Locked. Reload page.');
+      :(lang==='ar'?' النظام مقفل. أعد تحميل الصفحة.':' Locked. Reload page.');
     document.getElementById('pinI').value='';
     addAudit('LOGIN_FAIL',`Failed attempt ${_failCount}/${MAX_FAILS}`);sLS(ST);
   }
@@ -4377,7 +4454,7 @@ function resetAdminTimer(){
     const aOv=document.getElementById('adminOv');
     if(aOv&&aOv.classList.contains('open')){
       closOv('adminOv');
-      toast(lang==='ar'?'🔒 انتهت الجلسة — أعد إدخال الرمز':'🔒 Session expired — re-enter PIN');
+      toast(lang==='ar'?' انتهت الجلسة — أعد إدخال الرمز':' Session expired — re-enter PIN');
       addAudit('SESSION_TIMEOUT','Admin session expired after 5 min');sLS(ST);
     }
   },5*60*1000);
@@ -4395,7 +4472,7 @@ function changePin(){
   ST.pinHash=hashPin(p1);ST.pinDefault=false;sLS(ST);
   document.getElementById('newPin1').value='';document.getElementById('newPin2').value='';
   document.getElementById('defWarn').style.display='none';
-  addAudit('PIN_CHANGE','PIN changed');toast(lang==='ar'?'✅ تم تغيير الرمز':'✅ PIN changed successfully');
+  addAudit('PIN_CHANGE','PIN changed');toast(lang==='ar'?' تم تغيير الرمز':' PIN changed successfully');
 }
 function popAdminSels(){
   ['eSel','gS','actSel'].forEach(sid=>{
@@ -4434,7 +4511,7 @@ function popGapSel(){
   const ar=document.getElementById('eKpiNameAR');if(ar)ar.textContent=k.nameAr;
   const meta=document.getElementById('eKpiMeta');if(meta){
     const v=qv(k),a=ok(k);
-    meta.innerHTML=`<span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span><span style="font-size:9px;color:var(--t3)">${DM[k.dept]?.en||k.dept} · ${k.yr}</span><span class="${a===null?'pill-pend':a?'pill-ok':'pill-miss'}" style="font-size:8.5px">${a===null?'Pending':a?'✓ Met':'✕ Missed'}</span>${v!==null?`<span style="font-size:10px;font-weight:700;color:${v>=k.target?'var(--green)':'var(--red)'};background:${v>=k.target?'var(--green-dim)':'var(--red-dim)'};padding:2px 7px;border-radius:4px">${v.toFixed(1)}% / ${k.target}%</span>`:''}`;
+    meta.innerHTML=`<span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span><span style="font-size:9px;color:var(--t3)">${DM[k.dept]?.en||k.dept} · ${k.yr}</span><span class="${a===null?'pill-pend':a?'pill-ok':'pill-miss'}" style="font-size:8.5px">${a===null?'Pending':a?' Met':' Missed'}</span>${v!==null?`<span style="font-size:10px;font-weight:700;color:${v>=k.target?'var(--green)':'var(--red)'};background:${v>=k.target?'var(--green-dim)':'var(--red-dim)'};padding:2px 7px;border-radius:4px">${v.toFixed(1)}% / ${k.target}%</span>`:''}`;
   }
 }
 function loadGD(){
@@ -4478,8 +4555,8 @@ function saveAdmin(){
     const ic=parseFloat(document.getElementById('eAd'+Q+'_ic')?.value)||0;
     if(pl>0&&(co+ic)>pl){
       const msg=lang==='ar'
-        ?('⚠ '+Q+': المجموع ('+(co+ic)+') يتجاوز المخطط ('+pl+')')
-        :('⚠ '+Q+': Total ('+(co+ic)+') exceeds planned ('+pl+')');
+        ?(' '+Q+': المجموع ('+(co+ic)+') يتجاوز المخطط ('+pl+')')
+        :(' '+Q+': Total ('+(co+ic)+') exceeds planned ('+pl+')');
       toast(msg);
       pciValid=false;
     }
@@ -4499,7 +4576,7 @@ function saveAdmin(){
   else if(ap==='ap-gap'){const id=document.getElementById('gS').value;if(!id){toast('Select a KPI');return;}if(!ST.gaps)ST.gaps={};const atRisk=document.getElementById('gAtRisk')?.checked||false;ST.gaps[id]={gapAr:document.getElementById('gA').value,actAr:document.getElementById('aA').value,gapEn:document.getElementById('gE').value,actEn:document.getElementById('aE').value,owner:document.getElementById('gOwner').value,dueDate:document.getElementById('gDue').value,status:document.getElementById('actStatus').value,priority:document.getElementById('actPri').value,atRisk};if(!ST.actions)ST.actions={};ST.actions[id]={...ST.actions[id],owner:document.getElementById('gOwner').value,status:document.getElementById('actStatus').value,dueDate:document.getElementById('gDue').value,priority:document.getElementById('actPri').value,atRisk};action='GAP_EDIT';detail=`Gap for ${id} (${atRisk?'AT RISK':''})`;}
   else if(ap==='ap-actions'||ap==='ap-security'||ap==='ap-auditlog')return;
   if(action)addAudit(action,detail);
-  sLS(ST);toast(lang==='ar'?'✅ تم الحفظ':'✅ Saved');updateBadge();renderCurrent();
+  sLS(ST);toast(lang==='ar'?' تم الحفظ':' Saved');updateBadge();renderCurrent();
 }
 function addAudit(action,detail){if(!ST.audit)ST.audit=[];ST.audit.unshift({ts:new Date().toISOString(),action,detail});ST.audit=ST.audit.slice(0,50);sLS(ST);}
 function loadAuditLog(){const el=document.getElementById('auditLogList');if(!el)return;const log=ST.audit||[];if(!log.length){el.innerHTML=`<div style="font-size:11px;color:var(--t3);text-align:center;padding:20px">No log entries yet</div>`;return;}el.innerHTML=log.map((e,i)=>{const d=new Date(e.ts);return`<div style="display:flex;align-items:flex-start;gap:12px;padding:9px 14px;border-bottom:1px solid var(--border);background:${i%2===0?'#fff':'var(--card-2)'}"><span style="font-size:9px;color:var(--t3);font-family:var(--mono);white-space:nowrap;padding-top:1px;min-width:120px">${d.toLocaleDateString()} ${d.toLocaleTimeString()}</span><span style="font-size:10.5px;font-weight:700;color:var(--ink);flex-shrink:0">${e.action}</span><span style="font-size:10px;color:var(--t2);flex:1">${e.detail}</span></div>`;}).join('');}
@@ -4544,25 +4621,25 @@ window.addEventListener('storage',e=>{
 </div>
 <div id="aiWin" style="display:none;position:fixed;bottom:96px;right:28px;z-index:9989;width:385px;max-height:585px;border-radius:18px;background:#fff;box-shadow:0 22px 70px rgba(13,31,60,.22);border:1px solid rgba(0,163,196,.13);overflow:hidden;flex-direction:column">
   <div style="background:linear-gradient(135deg,#152538,#1E3356);padding:15px 18px 13px;display:flex;align-items:center;gap:12px;flex-shrink:0">
-    <div style="width:40px;height:40px;border-radius:12px;background:rgba(0,163,196,.2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">🤖</div>
+    <div style="width:40px;height:40px;border-radius:12px;background:rgba(0,163,196,.2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0"></div>
     <div style="flex:1"><div style="font-size:13px;font-weight:800;color:#fff">QUMC AI Assistant</div><div style="font-size:9.5px;color:rgba(1,149,175,.70);margin-top:1px">محلل بيانات ذكي · Smart KPI Analyst</div></div>
     <div style="display:flex;align-items:center;gap:5px"><div style="width:7px;height:7px;border-radius:50%;background:#34D399;box-shadow:0 0 6px #34D399"></div><span style="font-size:9px;color:rgba(255,255,255,.50)">Live</span></div>
-    <button onclick="aiToggle()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.75);cursor:pointer;font-size:17px;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-left:4px;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.2)'" onmouseout="this.style.background='rgba(255,255,255,.1)'">✕</button>
+    <button onclick="aiToggle()" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.75);cursor:pointer;font-size:17px;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-left:4px;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,.2)'" onmouseout="this.style.background='rgba(255,255,255,.1)'"></button>
   </div>
   <div id="aiSugg" style="padding:10px 14px 9px;background:#F8FAFC;border-bottom:1px solid rgba(0,163,196,.09);flex-shrink:0">
     <div style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.08em;text-transform:uppercase;margin-bottom:7px">اقتراحات سريعة</div>
     <div style="display:flex;flex-wrap:wrap;gap:6px">
-      <button onclick="aiAsk('الأداء العام')" class="ai-chip">📊 الأداء العام</button>
-      <button onclick="aiAsk('المؤشرات غير المحققة')" class="ai-chip">⚠️ غير المحققة</button>
-      <button onclick="aiAsk('مقارنة الأقسام')" class="ai-chip">🏆 مقارنة</button>
-      <button onclick="aiAsk('توصيات لتحسين الأداء')" class="ai-chip">💡 توصيات</button>
-      <button onclick="aiAsk('الأداء الربعي')" class="ai-chip">📅 ربعي</button>
+      <button onclick="aiAsk('الأداء العام')" class="ai-chip"> الأداء العام</button>
+      <button onclick="aiAsk('المؤشرات غير المحققة')" class="ai-chip"> غير المحققة</button>
+      <button onclick="aiAsk('مقارنة الأقسام')" class="ai-chip"> مقارنة</button>
+      <button onclick="aiAsk('توصيات لتحسين الأداء')" class="ai-chip"> توصيات</button>
+      <button onclick="aiAsk('الأداء الربعي')" class="ai-chip"> ربعي</button>
     </div>
   </div>
   <div id="aiMsgs" style="flex:1;overflow-y:auto;padding:14px 13px;display:flex;flex-direction:column;gap:11px;min-height:190px;max-height:310px;background:#fff">
     <div style="display:flex;gap:9px;align-items:flex-start">
-      <div style="width:30px;height:30px;border-radius:10px;background:linear-gradient(135deg,#152538,#00A3C4);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">🤖</div>
-      <div style="background:#F0F9FF;border:1px solid #BFDBFE;border-radius:4px 14px 14px 14px;padding:11px 13px;font-size:12px;color:#1E293B;line-height:1.70;max-width:87%">مرحباً! أنا مساعدك الذكي لتحليل بيانات <strong>QUMC KPI Dashboard</strong>.<br>اسألني عن الأداء، الأقسام، المؤشرات، أو اطلب توصيات 📊</div>
+      <div style="width:30px;height:30px;border-radius:10px;background:linear-gradient(135deg,#152538,#00A3C4);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0"></div>
+      <div style="background:#F0F9FF;border:1px solid #BFDBFE;border-radius:4px 14px 14px 14px;padding:11px 13px;font-size:12px;color:#1E293B;line-height:1.70;max-width:87%">مرحباً! أنا مساعدك الذكي لتحليل بيانات <strong>QUMC KPI Dashboard</strong>.<br>اسألني عن الأداء، الأقسام، المؤشرات، أو اطلب توصيات </div>
     </div>
   </div>
   <div style="padding:11px 13px;border-top:1px solid rgba(0,163,196,.10);background:#FAFBFC;display:flex;gap:8px;align-items:flex-end;flex-shrink:0">
@@ -4596,7 +4673,7 @@ function aiAddMsg(txt,role){
   wrap.style.cssText='display:flex;gap:9px;align-items:flex-start;'+(isUser?'flex-direction:row-reverse':'');
   const av=document.createElement('div');
   av.style.cssText='width:30px;height:30px;border-radius:10px;background:'+(isUser?'#152538':'linear-gradient(135deg,#152538,#00A3C4)')+';display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0';
-  av.textContent=isUser?'👤':'🤖';
+  av.textContent=isUser?'':'';
   const bub=document.createElement('div');
   bub.style.cssText='max-width:87%;padding:11px 13px;border-radius:'+(isUser?'14px 4px 14px 14px':'4px 14px 14px 14px')+';font-size:12px;line-height:1.70;color:'+(isUser?'#fff':'#1E293B')+';background:'+(isUser?'linear-gradient(135deg,#152538,#1E3356)':'#F0F9FF')+';border:1px solid '+(isUser?'transparent':'#BFDBFE');
   if(isLoad){
@@ -4635,18 +4712,18 @@ function aiAnalyze(q){
   const lastQ=qD.filter(x=>x.has).pop();
 
   if(/مرحب|هلا|hello|hi\b|hey\b/i.test(q))
-    return 'مرحباً! 👋\n\n**الوضع الراهن:**\n📊 '+total+' مؤشر | ✅ '+metKs.length+' محقق | ❌ '+missKs.length+' غير محقق\n📈 متوسط: **'+(avg||'N/A')+'%** | تحقيق: **'+rate+'%**\n\nاسألني عن أي شيء!';
+    return 'مرحباً! \n\n**الوضع الراهن:**\n '+total+' مؤشر |  '+metKs.length+' محقق |  '+missKs.length+' غير محقق\n متوسط: **'+(avg||'N/A')+'%** | تحقيق: **'+rate+'%**\n\nاسألني عن أي شيء!';
 
   if(/ملخص|اجمال|overview|summary/i.test(q)){
-    const dl=dS.map(d=>'• **'+d.abbr+'**: '+(d.avg||'N/A')+'% | '+d.met+'✅ '+d.miss+'❌').join('\n');
-    return '📊 **ملخص الأداء**\n\n'+total+' مؤشر | ✅ '+metKs.length+' ('+rate+'%) | ❌ '+missKs.length+' | ⏳ '+pendKs.length+'\nمتوسط: **'+(avg||'N/A')+'%**\n\n**الأقسام:**\n'+(dl||'لا بيانات');
+    const dl=dS.map(d=>'• **'+d.abbr+'**: '+(d.avg||'N/A')+'% | '+d.met+' '+d.miss+'').join('\n');
+    return ' **ملخص الأداء**\n\n'+total+' مؤشر |  '+metKs.length+' ('+rate+'%) |  '+missKs.length+' | ⏳ '+pendKs.length+'\nمتوسط: **'+(avg||'N/A')+'%**\n\n**الأقسام:**\n'+(dl||'لا بيانات');
   }
 
   if(/صيانة|maintenance|mnt/i.test(q)){
     const d=dS.find(x=>x.d==='maintenance');
     if(!d)return 'لا بيانات لقسم الصيانة في الفلتر الحالي.';
     const mk=missKs.filter(k=>k.dept==='maintenance');
-    return '🔧 **الصيانة (MNT)**\n\n'+d.total+' مؤشر | ✅ '+d.met+' | ❌ '+d.miss+'\nمتوسط: **'+(d.avg||'N/A')+'%** | تحقيق: **'+d.rate+'%**\n\n'+(mk.length?'**المتعثرة:**\n'+mk.map(k=>'• '+k.id+': '+(safeQv(k)||'N/A')+'% (هدف: '+k.target+'%)').join('\n'):'✅ جميع مؤشرات الصيانة محققة!');
+    return ' **الصيانة (MNT)**\n\n'+d.total+' مؤشر |  '+d.met+' |  '+d.miss+'\nمتوسط: **'+(d.avg||'N/A')+'%** | تحقيق: **'+d.rate+'%**\n\n'+(mk.length?'**المتعثرة:**\n'+mk.map(k=>'• '+k.id+': '+(safeQv(k)||'N/A')+'% (هدف: '+k.target+'%)').join('\n'):' جميع مؤشرات الصيانة محققة!');
   }
 
   if(/سلامة|safety|saf/i.test(q)){
@@ -4654,66 +4731,66 @@ function aiAnalyze(q){
     if(!d)return 'لا بيانات لقسم السلامة في الفلتر الحالي.';
     const mk=missKs.filter(k=>k.dept==='safety');
     const t1m=mk.filter(k=>(k.tier||3)===1);
-    return '🦺 **السلامة (SAF)**\n\n'+d.total+' مؤشر | ✅ '+d.met+' | ❌ '+d.miss+'\nمتوسط: **'+(d.avg||'N/A')+'%**'+(t1m.length?'\n🚨 '+t1m.length+' مؤشر سلامة مرضى غير محقق!':'')+'\n\n'+(mk.length?'**المتعثرة:**\n'+mk.map(k=>'• '+k.id+': '+(safeQv(k)||'N/A')+'%').join('\n'):'✅ كل مؤشرات السلامة محققة!');
+    return ' **السلامة (SAF)**\n\n'+d.total+' مؤشر |  '+d.met+' |  '+d.miss+'\nمتوسط: **'+(d.avg||'N/A')+'%**'+(t1m.length?'\n '+t1m.length+' مؤشر سلامة مرضى غير محقق!':'')+'\n\n'+(mk.length?'**المتعثرة:**\n'+mk.map(k=>'• '+k.id+': '+(safeQv(k)||'N/A')+'%').join('\n'):' كل مؤشرات السلامة محققة!');
   }
 
   if(/نظافة|housekeeping|hk/i.test(q)){
     const d=dS.find(x=>x.d==='housekeeping');
     if(!d)return 'لا بيانات لقسم النظافة.';
     const mk=missKs.filter(k=>k.dept==='housekeeping');
-    return '🧹 **النظافة (HK)**\n\n'+d.total+' مؤشر | ✅ '+d.met+' | ❌ '+d.miss+'\nمتوسط: **'+(d.avg||'N/A')+'%**\n\n'+(mk.length?'**المتعثرة:**\n'+mk.map(k=>'• '+k.id+': '+(safeQv(k)||'N/A')+'%').join('\n'):'✅ كل مؤشرات النظافة محققة!');
+    return ' **النظافة (HK)**\n\n'+d.total+' مؤشر |  '+d.met+' |  '+d.miss+'\nمتوسط: **'+(d.avg||'N/A')+'%**\n\n'+(mk.length?'**المتعثرة:**\n'+mk.map(k=>'• '+k.id+': '+(safeQv(k)||'N/A')+'%').join('\n'):' كل مؤشرات النظافة محققة!');
   }
 
   if(/مشاريع|projects|pmd/i.test(q)){
     const d=dS.find(x=>x.d==='projects');
     if(!d)return 'لا بيانات لقسم المشاريع.';
     const mk=missKs.filter(k=>k.dept==='projects');
-    return '🏗️ **المشاريع (PMD)**\n\n'+d.total+' مؤشر | ✅ '+d.met+' | ❌ '+d.miss+'\nمتوسط: **'+(d.avg||'N/A')+'%**\n\n'+(mk.length?'**المتعثرة:**\n'+mk.map(k=>'• '+k.id+': '+(safeQv(k)||'N/A')+'%').join('\n'):'✅ كل مؤشرات المشاريع محققة!');
+    return ' **المشاريع (PMD)**\n\n'+d.total+' مؤشر |  '+d.met+' |  '+d.miss+'\nمتوسط: **'+(d.avg||'N/A')+'%**\n\n'+(mk.length?'**المتعثرة:**\n'+mk.map(k=>'• '+k.id+': '+(safeQv(k)||'N/A')+'%').join('\n'):' كل مؤشرات المشاريع محققة!');
   }
 
   if(/غير محقق|missed|ما حقق|below/i.test(q)){
-    if(!missKs.length)return '🎉 جميع المؤشرات محققة في الفلتر الحالي!';
-    return '⚠️ **غير المحققة ('+missKs.length+')**\n\n'+missKs.map(k=>{const v=safeQv(k);const g=v!=null?(k.target-v).toFixed(1):null;const dp=DMs[k.dept];return '• **'+k.id+'** ('+(dp?dp.abbr:k.dept)+'): '+(v!=null?v+'%':'N/A')+' من '+k.target+'%'+(g?'  —  فجوة: -'+g+'%':'')+((k.tier||3)===1?' 🔴':'');}).join('\n')+'\n\n💡 راجع خطط العمل التصحيحية لهذه المؤشرات.';
+    if(!missKs.length)return ' جميع المؤشرات محققة في الفلتر الحالي!';
+    return ' **غير المحققة ('+missKs.length+')**\n\n'+missKs.map(k=>{const v=safeQv(k);const g=v!=null?(k.target-v).toFixed(1):null;const dp=DMs[k.dept];return '• **'+k.id+'** ('+(dp?dp.abbr:k.dept)+'): '+(v!=null?v+'%':'N/A')+' من '+k.target+'%'+(g?'  —  فجوة: -'+g+'%':'')+((k.tier||3)===1?' ':'');}).join('\n')+'\n\n راجع خطط العمل التصحيحية لهذه المؤشرات.';
   }
 
   if(/محقق|achieved|ناجح|met/i.test(q)){
     if(!metKs.length)return 'لا توجد مؤشرات محققة في الفلتر الحالي.';
-    return '✅ **المحققة ('+metKs.length+')**\n\n'+metKs.slice(0,8).map(k=>'• **'+k.id+'**: '+(safeQv(k)||'N/A')+'% ✓ (هدف: '+k.target+'%)').join('\n')+(metKs.length>8?'\n... و'+(metKs.length-8)+' آخرين':'')+'\n\n📈 نسبة التحقيق: **'+rate+'%**';
+    return ' **المحققة ('+metKs.length+')**\n\n'+metKs.slice(0,8).map(k=>'• **'+k.id+'**: '+(safeQv(k)||'N/A')+'%  (هدف: '+k.target+'%)').join('\n')+(metKs.length>8?'\n... و'+(metKs.length-8)+' آخرين':'')+'\n\n نسبة التحقيق: **'+rate+'%**';
   }
 
   if(/مقارن|compare|افضل|أفضل|أسوأ|اسوأ/i.test(q)){
     const s=[...dS].sort((a,b)=>(b.avg||0)-(a.avg||0));
     if(!s.length)return 'لا بيانات كافية للمقارنة.';
-    return '📊 **مقارنة الأقسام**\n\n'+s.map((d,i)=>''+['🥇','🥈','🥉','4️⃣'][i]+' **'+d.abbr+'**: '+(d.avg||'N/A')+'% | تحقيق '+d.rate+'% | '+d.met+'✅ '+d.miss+'❌').join('\n')+'\n\n🏆 الأفضل: **'+s[0].abbr+'** | ⚠️ يحتاج تحسين: **'+s[s.length-1].abbr+'**';
+    return ' **مقارنة الأقسام**\n\n'+s.map((d,i)=>''+['','','',''][i]+' **'+d.abbr+'**: '+(d.avg||'N/A')+'% | تحقيق '+d.rate+'% | '+d.met+' '+d.miss+'').join('\n')+'\n\n الأفضل: **'+s[0].abbr+'** |  يحتاج تحسين: **'+s[s.length-1].abbr+'**';
   }
 
   if(/ربع|quarter|q[1-4]/i.test(q)){
     const qq=qD.filter(x=>x.has);
     if(!qq.length)return 'لا بيانات ربعية في الفلتر الحالي.';
-    const trend=qq.length>=2?(qq[qq.length-1].avg||0)>(qq[0].avg||0)?'📈 اتجاه تصاعدي':'📉 اتجاه تنازلي':'';
-    return '📅 **الأداء الربعي**\n\n'+qq.map(x=>'• **'+x.q+'**: '+(x.avg||'N/A')+'% | '+x.met+'✅ '+x.miss+'❌').join('\n')+(trend?'\n\n'+trend:'')+(lastQ?'\n\n🎯 آخر ربع مسجل: **'+lastQ.q+'** ('+(lastQ.avg||'N/A')+'%)':'');
+    const trend=qq.length>=2?(qq[qq.length-1].avg||0)>(qq[0].avg||0)?' اتجاه تصاعدي':' اتجاه تنازلي':'';
+    return ' **الأداء الربعي**\n\n'+qq.map(x=>'• **'+x.q+'**: '+(x.avg||'N/A')+'% | '+x.met+' '+x.miss+'').join('\n')+(trend?'\n\n'+trend:'')+(lastQ?'\n\n آخر ربع مسجل: **'+lastQ.q+'** ('+(lastQ.avg||'N/A')+'%)':'');
   }
 
   if(/توصي|recommend|تحسين|ماذا|ايش|improve/i.test(q)){
     const r=[];
-    if(missKs.length)r.push('🎯 معالجة **'+missKs.length+'** مؤشر غير محقق بخطط تصحيحية');
+    if(missKs.length)r.push(' معالجة **'+missKs.length+'** مؤشر غير محقق بخطط تصحيحية');
     const t1m=missKs.filter(k=>(k.tier||3)===1);
-    if(t1m.length)r.push('🚨 تصعيد **'+t1m.length+'** مؤشر سلامة مرضى فوراً للقيادة');
-    if(pendKs.length)r.push('📝 إكمال إدخال بيانات **'+pendKs.length+'** مؤشر معلق');
+    if(t1m.length)r.push(' تصعيد **'+t1m.length+'** مؤشر سلامة مرضى فوراً للقيادة');
+    if(pendKs.length)r.push(' إكمال إدخال بيانات **'+pendKs.length+'** مؤشر معلق');
     const wd=[...dS].sort((a,b)=>(a.rate||0)-(b.rate||0))[0];
-    if(wd&&wd.rate<70)r.push('🏢 تركيز الجهود على **'+wd.abbr+'** (تحقيق '+wd.rate+'% فقط)');
-    r.push('📅 جدولة اجتماعات مراجعة شهرية للأداء');
-    r.push('📊 تحديث بيانات المؤشرات دورياً لدقة التقارير');
-    return '💡 **التوصيات الذكية**\n\n'+r.map((x,i)=>(i+1)+'. '+x).join('\n');
+    if(wd&&wd.rate<70)r.push(' تركيز الجهود على **'+wd.abbr+'** (تحقيق '+wd.rate+'% فقط)');
+    r.push(' جدولة اجتماعات مراجعة شهرية للأداء');
+    r.push(' تحديث بيانات المؤشرات دورياً لدقة التقارير');
+    return ' **التوصيات الذكية**\n\n'+r.map((x,i)=>(i+1)+'. '+x).join('\n');
   }
 
   if(/tier|t1|سلامة مريض|patient safety/i.test(q)){
     const t1=ks.filter(k=>(k.tier||3)===1);
     const t1m=t1.filter(k=>safeOk(k)===false);
-    return '🏥 **مؤشرات سلامة المرضى (Tier 1)**\n\n'+t1.length+' مؤشر | '+t1m.length+' غير محقق\n\n'+t1.map(k=>'• '+k.id+': '+(safeQv(k)||'N/A')+'% '+(safeOk(k)===true?'✅':safeOk(k)===false?'❌':'⏳')).join('\n')+(t1m.length?'\n\n🚨 **تحذير:** يستلزم تصعيداً فورياً!':'\n\n✅ كل مؤشرات سلامة المرضى محققة.');
+    return ' **مؤشرات سلامة المرضى (Tier 1)**\n\n'+t1.length+' مؤشر | '+t1m.length+' غير محقق\n\n'+t1.map(k=>'• '+k.id+': '+(safeQv(k)||'N/A')+'% '+(safeOk(k)===true?'':safeOk(k)===false?'':'⏳')).join('\n')+(t1m.length?'\n\n **تحذير:** يستلزم تصعيداً فورياً!':'\n\n كل مؤشرات سلامة المرضى محققة.');
   }
 
-  return '🤖 **تحليل سريع**\n\nأداء: **'+(avg||'N/A')+'%** | تحقيق: **'+rate+'%** ('+metKs.length+'/'+total+')\n\n'+ks.slice(0,6).map(k=>'• **'+k.id+'**: '+(safeQv(k)||'N/A')+'% '+(safeOk(k)===true?'✅':safeOk(k)===false?'❌':'⏳')).join('\n')+(ks.length>6?'\n... و'+(ks.length-6)+' آخرين':'')+'\n\nاسألني عن: قسم معين · غير المحققة · مقارنة · ربعي · توصيات';
+  return ' **تحليل سريع**\n\nأداء: **'+(avg||'N/A')+'%** | تحقيق: **'+rate+'%** ('+metKs.length+'/'+total+')\n\n'+ks.slice(0,6).map(k=>'• **'+k.id+'**: '+(safeQv(k)||'N/A')+'% '+(safeOk(k)===true?'':safeOk(k)===false?'':'⏳')).join('\n')+(ks.length>6?'\n... و'+(ks.length-6)+' آخرين':'')+'\n\nاسألني عن: قسم معين · غير المحققة · مقارنة · ربعي · توصيات';
 }
 function aiSend(){
   const inp=document.getElementById('aiInp');
