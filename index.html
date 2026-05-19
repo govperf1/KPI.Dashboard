@@ -2362,11 +2362,39 @@ function calcAdminPCI(q,prefix){
   let co=parseFloat(coRaw)||0;
   /* Validate: Complete cannot exceed Planned */
   if(coEl&&plRaw.trim()!==''&&co>pl){
-    co=pl;
-    coEl.value=pl;
+    /* Clear the invalid value */
+    co=0;
+    coEl.value='';
     coEl.style.borderColor='#EF4444';
-    coEl.style.background='rgba(239,68,68,.06)';
-    setTimeout(()=>{coEl.style.borderColor='';coEl.style.background='';},1200);
+    coEl.style.background='rgba(239,68,68,.08)';
+    coEl.style.boxShadow='0 0 0 3px rgba(239,68,68,.15)';
+    /* Show error tooltip above the field */
+    const errId='pci-err-'+prefix+Q;
+    let errEl=document.getElementById(errId);
+    if(!errEl){
+      errEl=document.createElement('div');
+      errEl.id=errId;
+      errEl.style.cssText='position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:#DC2626;color:#fff;font-size:9px;font-weight:700;padding:4px 10px;border-radius:6px;white-space:nowrap;pointer-events:none;z-index:999;box-shadow:0 2px 8px rgba(220,38,38,.35)';
+      errEl.innerHTML='Max: '+(pl>0?pl:'enter Planned first');
+      coEl.parentNode.style.position='relative';
+      coEl.parentNode.appendChild(errEl);
+    }else{
+      errEl.innerHTML='Max: '+(pl>0?pl:'enter Planned first');
+      errEl.style.display='block';
+    }
+    /* Remove error when user focuses and types again */
+    const clearErr=()=>{
+      coEl.style.borderColor='';coEl.style.background='';coEl.style.boxShadow='';
+      const e=document.getElementById(errId);if(e)e.style.display='none';
+      coEl.removeEventListener('input',clearErr);
+    };
+    coEl.addEventListener('input',clearErr);
+    return;
+  }else if(coEl){
+    /* Valid: clear any existing error */
+    coEl.style.borderColor='';coEl.style.background='';coEl.style.boxShadow='';
+    const errEl2=document.getElementById('pci-err-'+prefix+Q);
+    if(errEl2)errEl2.style.display='none';
   }
   const icEl2=document.getElementById(prefix+Q+'_ic');
   const resEl=document.getElementById(prefix+Q+'_res');
@@ -2624,12 +2652,12 @@ function renderReport(){
   <div class="rpt-topbar" style="display:flex;align-items:center;gap:10px;padding:14px 20px;background:var(--bg);flex-wrap:wrap">
     <div style="display:flex;align-items:center;gap:8px">
       <label style="font-size:10px;font-weight:700;color:var(--t2);white-space:nowrap">Department:</label>
-      <select class="msel" style="min-width:160px;height:34px;font-size:11px" onchange="window._rptDept=this.value;window._rptKpi='';renderReportDebounced()">${deptOpts}</select>
+      <select class="msel" style="min-width:160px;height:34px;font-size:11px" onchange="window._rptDept=this.value;window._rptKpi='';renderReport()">${deptOpts}</select>
     </div>
     <div style="width:1px;height:22px;background:var(--border)"></div>
     <div style="display:flex;align-items:center;gap:8px">
       <label style="font-size:10px;font-weight:700;color:var(--t2);white-space:nowrap">KPI:</label>
-      <select class="msel" style="min-width:200px;height:34px;font-size:11px" onchange="window._rptKpi=this.value;renderReportDebounced()">${kpiOpts}</select>
+      <select class="msel" style="min-width:200px;height:34px;font-size:11px" onchange="window._rptKpi=this.value;renderReport()">${kpiOpts}</select>
     </div>
     <div style="width:1px;height:22px;background:var(--border)"></div>
     <button onclick="window.print()" style="display:flex;align-items:center;gap:6px;padding:7px 18px;background:#C42B2B;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;box-shadow:0 2px 10px rgba(196,43,43,.28)">
