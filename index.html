@@ -3622,13 +3622,27 @@ function renderExec(){
   </div>
 </div>
 
-<!-- Executive Intelligence — below KPI cards -->
-<div class="card c12 intel-card">
-  <div class="ch" style="color:var(--teal)">✨ ${lang==='ar'?'مركز المعلومات التنفيذية':'Executive Intelligence'}
-    <div class="ch-r" id="intelUpdateTime" style="font-size:8.5px"></div>
-  </div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0" id="intelPanel">
-    <div class="ai-dots" style="grid-column:1/-1"><div class="ai-dot"></div><div class="ai-dot"></div><div class="ai-dot"></div></div>
+<!-- Executive Intelligence Panel -->
+<div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none">
+  <div style="background:#fff;border:1.5px solid #E2E8F0;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(10,22,48,.08)">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #F0F4F8;background:#FAFBFC">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:28px;height:28px;border-radius:8px;background:rgba(1,149,175,.12);display:flex;align-items:center;justify-content:center">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+        </div>
+        <span style="font-size:11px;font-weight:800;color:#152538;letter-spacing:.03em">${lang==='ar'?'مركز المعلومات التنفيذية':'Executive Intelligence'}</span>
+      </div>
+      <span id="intelUpdateTime" style="font-size:9px;color:#94A3B8"></span>
+    </div>
+    <!-- Content grid -->
+    <div id="intelPanel" style="display:grid;grid-template-columns:1fr 1fr;gap:0">
+      <div style="grid-column:1/-1;padding:14px 20px;display:flex;align-items:center;gap:8px">
+        <div style="width:7px;height:7px;border-radius:50%;background:#0195af;animation:ai-dot 1.4s infinite"></div>
+        <div style="width:7px;height:7px;border-radius:50%;background:#0195af;animation:ai-dot 1.4s .47s infinite"></div>
+        <div style="width:7px;height:7px;border-radius:50%;background:#0195af;animation:ai-dot 1.4s .93s infinite"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -3683,7 +3697,27 @@ function renderExec(){
     /* Render individual KPI cards */
     renderExecKpiCards(ks);
     renderRAG(ks);
-    /* Bar chart */
+    /* Bar chart — uses current filter, shows year in labels */
+    dch('cBar');
+    requestAnimationFrame(()=>{
+      const _bKs=filt();
+      const _yrs=[...new Set(_bKs.map(k=>k.yr))].sort();
+      const _showAll=_yrs.length>1;
+      /* Build labels: Q1'25 Q2'25... or Q1 Q2... */
+      const _qL=_showAll
+        ?_yrs.flatMap(yr=>['Q1','Q2','Q3','Q4'].map(q=>q+"'"+(String(yr).slice(2))))
+        :['Q1','Q2','Q3','Q4'];
+      const _metD=_showAll
+        ?_yrs.flatMap(yr=>['q1','q2','q3','q4'].map((_,i)=>_bKs.filter(k=>k.yr===yr&&k['q'+(i+1)]!==null&&k['q'+(i+1)]>=k.target).length))
+        :['q1','q2','q3','q4'].map((_,i)=>_bKs.filter(k=>k['q'+(i+1)]!==null&&k['q'+(i+1)]>=k.target).length);
+      const _misD=_showAll
+        ?_yrs.flatMap(yr=>['q1','q2','q3','q4'].map((_,i)=>_bKs.filter(k=>k.yr===yr&&k['q'+(i+1)]!==null&&k['q'+(i+1)]<k.target).length))
+        :['q1','q2','q3','q4'].map((_,i)=>_bKs.filter(k=>k['q'+(i+1)]!==null&&k['q'+(i+1)]<k.target).length);
+      CH['cBar']=mkChart('cBar',{type:'bar',data:{labels:_qL,datasets:[
+        {label:'Met',data:_metD,backgroundColor:'rgba(22,163,74,.65)',borderRadius:3,stack:'s'},
+        {label:'Missed',data:_misD,backgroundColor:'rgba(220,38,38,.60)',borderRadius:3,stack:'s'}
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:9},boxWidth:8,padding:6}}},scales:{y:{stacked:true,ticks:{stepSize:1,font:{size:9}},grid:{color:'rgba(20,35,80,.06)'}},x:{stacked:true,ticks:{font:{size:9}},grid:{display:false}}}}});
+    });/* Bar chart */
     dch('cBar');
     requestAnimationFrame(()=>{
       const qL=['Q1','Q2','Q3','Q4'];
@@ -3710,7 +3744,10 @@ function renderExec(){
     fetchAI();
 
     /* Draw executive summary mini trend chart */
-    setTimeout(()=>updateExecTrend('2025'),120);
+    setTimeout(()=>{
+      const _sel=document.getElementById('trendYrSel');
+      updateExecTrend(_sel?_sel.value:'2025');
+    },200);
   },30);
 }
 
@@ -3845,21 +3882,48 @@ function renderExecKpiCards(ks){
 
 /* ══ Intel risks + Recommendations ══ */
 function buildIntelRisks(missKpis,repKpis){
-  if(!missKpis.length&&!repKpis.length)return`<div class="intel-sec"><div class="intel-sec-t">✅ ${lang==='ar'?'الوضع التشغيلي':'Operational Status'}</div><div class="intel-item ok"><div class="intel-item-name">${lang==='ar'?'جميع المؤشرات محققة':'All KPIs On Target'}</div></div></div>`;
-  let h=`<div class="intel-sec"><div class="intel-sec-t">⚠ ${lang==='ar'?'المخاطر الحرجة':'Critical Risks'}</div>`;
-  missKpis.slice(0,4).forEach(k=>{const v=qv(k);const rc=getRepeat(k);h+=`<div class="intel-item" style="margin-bottom:4px"><div class="intel-item-name">${k.id} <span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span>${rc>=2?` <span class="repeat-b">↩${rc}x</span>`:''}</div><div class="intel-item-d">${lang==='ar'?k.nameAr:k.nameEn} — ${(v||0).toFixed(1)}% / ${k.target}%</div></div>`;});
-  h+='</div>';
-  if(repKpis.length){h+=`<div class="intel-sec"><div class="intel-sec-t">↩ ${lang==='ar'?'إخفاق متكرر':'Repeat Misses'}</div>`;repKpis.forEach(k=>{const rc=getRepeat(k);h+=`<div class="intel-item warn" style="margin-bottom:4px"><div class="intel-item-name">${k.id}: ${lang==='ar'?`${rc} أرباع متتالية`:`${rc} consecutive qtrs`}</div><div class="intel-item-d">${lang==='ar'?k.nameAr:k.nameEn}</div></div>`;});h+='</div>';}
-  /* Recommendations section */
-  h+=`<div class="intel-sec"><div class="intel-sec-t">💡 ${lang==='ar'?'التوصيات':'Recommendations'}</div>`;
-  if(missKpis.filter(k=>(k.tier||3)===1).length)
-    h+=`<div class="intel-item" style="border-color:var(--red)"><div class="intel-item-name">${lang==='ar'?'🔴 أولوية عاجلة':'🔴 Urgent Action'}</div><div class="intel-item-d">${lang==='ar'?'مراجعة فورية لمؤشرات T1 (سلامة المريض)':'Immediate review of T1 Patient Safety KPIs'}</div></div>`;
-  if(repKpis.length)
-    h+=`<div class="intel-item warn"><div class="intel-item-name">${lang==='ar'?'📋 تحليل جذري':'📋 Root Cause Analysis'}</div><div class="intel-item-d">${lang==='ar'?`${repKpis.length} مؤشرات بإخفاق متكرر تستلزم مراجعة منهجية`:`${repKpis.length} repeat-miss KPI(s) require systematic review`}</div></div>`;
-  missKpis.forEach(k=>{const gd=(ST.gaps||{})[k.id]||{};if(!gd.gapEn&&!gd.gapAr)h+=`<div class="intel-item warn"><div class="intel-item-name">${lang==='ar'?'📝 تحليل فجوة مطلوب':'📝 Gap Analysis Needed'}: ${k.id}</div><div class="intel-item-d">${lang==='ar'?'لم يتم توثيق تحليل الفجوة بعد':'Gap analysis not yet documented'}</div></div>`;});
-  h+=missKpis.length===0?`<div class="intel-item ok"><div class="intel-item-name">${lang==='ar'?'✅ الأداء ممتاز':'✅ Excellent Performance'}</div><div class="intel-item-d">${lang==='ar'?'حافظ على مستوى الأداء الحالي':'Maintain current performance levels'}</div></div>`:'';
-  h+='</div>';
-  return h;
+  if(!missKpis.length&&!repKpis.length){
+    return`<div style="grid-column:1/-1;padding:16px 20px;display:flex;align-items:center;gap:12px">
+      <div style="width:36px;height:36px;border-radius:10px;background:#ECFDF5;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div>
+        <div style="font-size:11.5px;font-weight:700;color:#16A34A">${lang==='ar'?'جميع المؤشرات محققة':'All KPIs On Track'}</div>
+        <div style="font-size:10.5px;color:#64748B;margin-top:2px">${lang==='ar'?'لا توجد مخاطر تنفيذية حالياً':'No operational risks detected at this time'}</div>
+      </div>
+    </div>`;
+  }
+  const mkCard=(k,type)=>{
+    const v=qv(k);
+    const isMiss=type==='miss';
+    const icon=isMiss
+      ?`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`
+      :`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
+    const gap=v!==null?(k.target-v).toFixed(1):null;
+    return`<div style="display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-bottom:1px solid #F8FAFC;transition:background .15s" onmouseover="this.style.background='#F8FAFC'" onmouseout="this.style.background=''">
+      <div style="width:26px;height:26px;border-radius:8px;background:${isMiss?'rgba(220,38,38,.08)':'rgba(217,119,6,.08)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">${icon}</div>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:2px">
+          <div style="font-size:10.5px;font-weight:700;color:#152538;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px">${k.nameEn}</div>
+          <span style="font-size:9px;font-weight:800;padding:2px 8px;border-radius:20px;background:${isMiss?'rgba(220,38,38,.10)':'rgba(217,119,6,.10)'};color:${isMiss?'#DC2626':'#D97706'};white-space:nowrap">${isMiss?(v!==null?v.toFixed(1)+'%':'—'):'Reported'}</span>
+        </div>
+        <div style="font-size:9.5px;color:#94A3B8">${k.id} · ${DM[k.dept]?.en||k.dept}${gap&&isMiss?` · Gap: <span style="color:#DC2626;font-weight:600">-${gap}%</span>`:''}</div>
+        ${!isMiss&&repKpis.find(r=>r.id===k.id)?.note?`<div style="font-size:9px;color:#D97706;margin-top:2px">${repKpis.find(r=>r.id===k.id).note}</div>`:''}
+      </div>
+    </div>`;
+  };
+  const missHTML=missKpis.map(k=>mkCard(k,'miss')).join('');
+  const repHTML=repKpis.map(k=>mkCard(k,'rep')).join('');
+  const col=(title,icon,color,content,count)=>`
+    <div style="border-right:1px solid #F0F4F8">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 16px 8px;background:#FAFBFC;border-bottom:1px solid #F0F4F8">
+        <span style="font-size:9px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:${color}">${title}</span>
+        <span style="background:${color}18;color:${color};font-size:9px;font-weight:800;padding:1px 7px;border-radius:20px">${count}</span>
+      </div>
+      ${content||`<div style="padding:16px;font-size:10px;color:#94A3B8;text-align:center">None</div>`}
+    </div>`;
+  return col(lang==='ar'?'مؤشرات متعثرة':'Below Target','⚠','#DC2626',missHTML,missKpis.length)
+       +col(lang==='ar'?'تطورات مُبلَّغة':'Reported Issues','↑','#D97706',repHTML,repKpis.length);
 }
 
 function renderRAG(ks){
@@ -3940,13 +4004,14 @@ function renderDept(){
   const tierColor={1:'#DC2626',2:'#D97706',3:'#64748B'};
   const tierLabel={1:'T1',2:'T2',3:'T3'};
 
-  const deptHTML=activeDepts.map(dept=>{
+  const deptBlocks={};
+  activeDepts.forEach(dept=>{
     const dm=DM[dept];
     const dk=filt().filter(k=>k.dept===dept);
     const met=dk.filter(k=>ok(k)===true);
     const missed=dk.filter(k=>ok(k)===false);
     const hasCrit=missed.some(k=>(k.tier||3)===1);
-    const deptColor={maintenance:'#0195af',safety:'#DC2626',housekeeping:'#16A34A',projects:'#7C3AED'}[dept]||'#152538';
+    const deptColor={maintenance:'#0195af',safety:'#DC2626',housekeeping:'#16A34A',projects:'#D97706'}[dept]||'#152538';
 
     /* Per-KPI cards */
     const kpiCards=dk.map(k=>{
@@ -3986,7 +4051,7 @@ function renderDept(){
       </div>`;
     }).join('');
 
-    return`
+    deptBlocks[dept]=`
     <!-- ═══ ${dm.en.toUpperCase()} ═══ -->
     <div style="background:#fff;border-radius:14px;border:1px solid #E8EDF4;box-shadow:0 1px 6px rgba(10,22,48,.06);overflow:hidden;margin-bottom:16px">
       <!-- Dept Header -->
@@ -4011,9 +4076,16 @@ function renderDept(){
         ${kpiCards||'<div style="color:#94A3B8;font-size:11px;padding:8px">No KPIs for current filter</div>'}
       </div>
     </div>`;
-  }).join('');
+  });
 
-  el.innerHTML=`<div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none">${deptHTML}</div>`;
+  /* Pair depts 2 per row with gap */
+  let _pairedHTML='';
+  for(let _i=0;_i<activeDepts.length;_i+=2){
+    const _l=deptBlocks[activeDepts[_i]]||'';
+    const _r=_i+1<activeDepts.length?(deptBlocks[activeDepts[_i+1]]||''):'';
+    _pairedHTML+=`<div style="display:grid;grid-template-columns:${_r?'1fr 1fr':'1fr'};gap:18px;margin-bottom:16px">${_l}${_r}</div>`;
+  }
+  el.innerHTML=`<div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none">${_pairedHTML}</div>`;
 }
 
 
