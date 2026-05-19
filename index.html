@@ -2359,7 +2359,15 @@ function calcAdminPCI(q,prefix){
   const plRaw=plEl?.value??'';
   const coRaw=coEl?.value??'';
   const pl=parseFloat(plRaw)||0;
-  const co=parseFloat(coRaw)||0;
+  let co=parseFloat(coRaw)||0;
+  /* Validate: Complete cannot exceed Planned */
+  if(coEl&&plRaw.trim()!==''&&co>pl){
+    co=pl;
+    coEl.value=pl;
+    coEl.style.borderColor='#EF4444';
+    coEl.style.background='rgba(239,68,68,.06)';
+    setTimeout(()=>{coEl.style.borderColor='';coEl.style.background='';},1200);
+  }
   const icEl2=document.getElementById(prefix+Q+'_ic');
   const resEl=document.getElementById(prefix+Q+'_res');
   /* Only show Incomplete and Result when BOTH Planned AND Complete are filled */
@@ -2524,10 +2532,19 @@ function renderReport(){
   const el=document.getElementById('page-report');if(!el)return;
   if(typeof window._rptKpi==='undefined')window._rptKpi='';
 
-  const ks_base=filt();
-  const kpiOpts='<option value="">— All KPIs —</option>'+
-    ks_base.map(k=>`<option value="${k.id}"${window._rptKpi===k.id?' selected':''}>${k.id} — ${k.nameEn}</option>`).join('');
-  const ks=window._rptKpi?ks_base.filter(k=>k.id===window._rptKpi):ks_base;
+  if(typeof window._rptDept==='undefined')window._rptDept='';
+  const ks_all=filt();
+  /* Dept filter options */
+  const deptOpts='<option value=""'+(window._rptDept===''?' selected':'')+'>All Departments</option>'+
+    Object.keys(DM).map(d=>'<option value="'+d+'"'+(window._rptDept===d?' selected':'')+'>'+DM[d].en+'</option>').join('');
+  /* Filter KPIs by dept first */
+  const ks_dept=window._rptDept?ks_all.filter(k=>k.dept===window._rptDept):ks_all;
+  /* Then build KPI opts from dept-filtered list */
+  const kpiOpts='<option value=""'+(window._rptKpi===''?' selected':'')+'>— All KPIs —</option>'+
+    ks_dept.map(k=>'<option value="'+k.id+'"'+(window._rptKpi===k.id?' selected':'')+'>'+k.id+' — '+k.nameEn+'</option>').join('');
+  /* Final KPI set */
+  const ks_base=ks_dept;
+  const ks=window._rptKpi?ks_dept.filter(k=>k.id===window._rptKpi):ks_dept;
 
   const k1=ks.length===1?ks[0]:null;
   const dm=F.dept!=='all'?DM[F.dept]:null;
@@ -2605,8 +2622,13 @@ function renderReport(){
   <!-- Toolbar -->
   <div class="rpt-topbar" style="display:flex;align-items:center;gap:10px;padding:14px 20px;background:var(--bg);flex-wrap:wrap">
     <div style="display:flex;align-items:center;gap:8px">
-      <label style="font-size:10px;font-weight:700;color:var(--t2);white-space:nowrap">KPI Filter:</label>
-      <select class="msel" style="min-width:210px;height:34px;font-size:11px" onchange="window._rptKpi=this.value;renderReport()">${kpiOpts}</select>
+      <label style="font-size:10px;font-weight:700;color:var(--t2);white-space:nowrap">Department:</label>
+      <select class="msel" style="min-width:160px;height:34px;font-size:11px" onchange="window._rptDept=this.value;window._rptKpi='';renderReportDebounced()">${deptOpts}</select>
+    </div>
+    <div style="width:1px;height:22px;background:var(--border)"></div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <label style="font-size:10px;font-weight:700;color:var(--t2);white-space:nowrap">KPI:</label>
+      <select class="msel" style="min-width:200px;height:34px;font-size:11px" onchange="window._rptKpi=this.value;renderReportDebounced()">${kpiOpts}</select>
     </div>
     <div style="width:1px;height:22px;background:var(--border)"></div>
     <button onclick="window.print()" style="display:flex;align-items:center;gap:6px;padding:7px 18px;background:#C42B2B;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700;box-shadow:0 2px 10px rgba(196,43,43,.28)">
@@ -2798,7 +2820,7 @@ function renderReport(){
 
   /* Charts */
   setTimeout(()=>{
-    ['rptBarChart','rptLineChart','rptDonut'].forEach(id=>{if(CH[id]){CH[id].destroy();delete CH[id];}});
+    requestAnimationFrame(()=>{['rptBarChart','rptLineChart','rptDonut'].forEach(id=>{if(CH[id]){CH[id].destroy();delete CH[id];}});
     const qVals=[q1v,q2v,q3v,q4v];
     let lq=0;qVals.forEach((v,i)=>{if(v!==null)lq=i+1;});
     const aL=['Q1','Q2','Q3','Q4'].slice(0,lq||4);
@@ -2822,7 +2844,8 @@ function renderReport(){
 
     const ach=kpiResult||0,gap=kpiResult!==null?Math.max(0,kpiTarget-kpiResult):0;
     CH['rptDonut']=mkChart('rptDonut',{type:'doughnut',data:{labels:['Achieved','Gap','Pending'],datasets:[{data:[ach,gap,Math.max(0,100-ach-gap)],backgroundColor:['rgba(22,163,74,.80)','rgba(220,38,38,.70)','rgba(203,213,225,.50)'],borderColor:['#16A34A','#DC2626','#CBD5E1'],borderWidth:2,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:true,cutout:'62%',plugins:{legend:{position:'bottom',labels:{font:{size:10},boxWidth:10,padding:8}},tooltip:{callbacks:{label:c=>c.label+': '+c.parsed+'%'}}}}});
-  },80);
+    });
+  },120);
 }
 
 function rptStartEdit(id){
