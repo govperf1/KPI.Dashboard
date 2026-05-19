@@ -2356,75 +2356,61 @@ function calcAdminPCI(q,prefix){
   const Q=q.toUpperCase();
   const plEl=document.getElementById(prefix+Q+'_pl');
   const coEl=document.getElementById(prefix+Q+'_co');
+  const icEl=document.getElementById(prefix+Q+'_ic');
+  const resEl=document.getElementById(prefix+Q+'_res');
+  const errId='pci-err-'+prefix+Q;
+
+  const clearAll=()=>{
+    if(icEl){icEl.value='';}
+    if(resEl){resEl.textContent='—';resEl.style.color='var(--t3)';resEl.style.fontSize='13px';resEl.style.background='';resEl.style.padding='';}
+  };
+  const clearError=()=>{
+    if(coEl){coEl.style.borderColor='';coEl.style.background='';coEl.style.boxShadow='';}
+    const e=document.getElementById(errId);if(e)e.style.display='none';
+  };
+  const showError=(msg)=>{
+    if(coEl){coEl.value='';coEl.style.borderColor='#EF4444';coEl.style.background='rgba(239,68,68,.08)';coEl.style.boxShadow='0 0 0 3px rgba(239,68,68,.15)';}
+    clearAll();
+    let errEl=document.getElementById(errId);
+    if(!errEl){
+      errEl=document.createElement('div');errEl.id=errId;
+      errEl.style.cssText='position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:#DC2626;color:#fff;font-size:9px;font-weight:700;padding:4px 10px;border-radius:6px;white-space:nowrap;pointer-events:none;z-index:999;box-shadow:0 2px 8px rgba(220,38,38,.35)';
+      if(coEl){coEl.parentNode.style.position='relative';coEl.parentNode.appendChild(errEl);}
+    }
+    errEl.textContent=msg;errEl.style.display='block';
+    const onNext=()=>{clearError();if(coEl)coEl.removeEventListener('input',onNext);};
+    if(coEl)coEl.addEventListener('input',onNext);
+  };
+
   const plRaw=plEl?.value??'';
   const coRaw=coEl?.value??'';
   const pl=parseFloat(plRaw)||0;
-  let co=parseFloat(coRaw)||0;
-  /* Validate: Complete cannot exceed Planned */
-  if(coEl&&plRaw.trim()!==''&&co>pl){
-    /* Clear the invalid value */
-    co=0;
-    coEl.value='';
-    coEl.style.borderColor='#EF4444';
-    coEl.style.background='rgba(239,68,68,.08)';
-    coEl.style.boxShadow='0 0 0 3px rgba(239,68,68,.15)';
-    /* Show error tooltip above the field */
-    const errId='pci-err-'+prefix+Q;
-    let errEl=document.getElementById(errId);
-    if(!errEl){
-      errEl=document.createElement('div');
-      errEl.id=errId;
-      errEl.style.cssText='position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:#DC2626;color:#fff;font-size:9px;font-weight:700;padding:4px 10px;border-radius:6px;white-space:nowrap;pointer-events:none;z-index:999;box-shadow:0 2px 8px rgba(220,38,38,.35)';
-      errEl.innerHTML='Max: '+(pl>0?pl:'enter Planned first');
-      coEl.parentNode.style.position='relative';
-      coEl.parentNode.appendChild(errEl);
-    }else{
-      errEl.innerHTML='Max: '+(pl>0?pl:'enter Planned first');
-      errEl.style.display='block';
-    }
-    /* Remove error when user focuses and types again */
-    const clearErr=()=>{
-      coEl.style.borderColor='';coEl.style.background='';coEl.style.boxShadow='';
-      const e=document.getElementById(errId);if(e)e.style.display='none';
-      coEl.removeEventListener('input',clearErr);
-    };
-    coEl.addEventListener('input',clearErr);
-    return;
-  }else if(coEl){
-    /* Valid: clear any existing error */
-    coEl.style.borderColor='';coEl.style.background='';coEl.style.boxShadow='';
-    const errEl2=document.getElementById('pci-err-'+prefix+Q);
-    if(errEl2)errEl2.style.display='none';
-  }
-  const icEl2=document.getElementById(prefix+Q+'_ic');
-  const resEl=document.getElementById(prefix+Q+'_res');
-  /* Only show Incomplete and Result when BOTH Planned AND Complete are filled */
-  const bothFilled=plRaw.trim()!==''&&coRaw.trim()!=='';
-  if(!bothFilled){
-    if(icEl2)icEl2.value='';
-    if(resEl){resEl.textContent='—';resEl.style.color='var(--t3)';resEl.style.fontSize='13px';}
-    return;
-  }
-  if(icEl2)icEl2.value=Math.max(0,pl-co)||'';
-  if(pl<=0){
-    if(resEl){resEl.textContent='—';resEl.style.color='var(--t3)';resEl.style.fontSize='13px';}
-    return;
-  }
-  const pct=+(co/pl*100).toFixed(1);
-  /* Read target from the form */
+  const co=parseFloat(coRaw)||0;
+
+  /* Must have both fields filled */
+  if(plRaw.trim()===''||coRaw.trim()===''){clearAll();clearError();return;}
+
+  /* Complete must be ≤ Planned */
+  if(co>pl){showError('Max allowed: '+pl);return;}
+
+  /* Valid - clear any error */
+  clearError();
+
+  /* Incomplete = Planned - Complete */
+  if(icEl)icEl.value=Math.max(0,pl-co)||'';
+
+  /* Result % */
+  const pct=pl>0?+(co/pl*100).toFixed(1):0;
   const tgtEl=document.getElementById(prefix==='eAd'?'eTg':'aTg');
   const tgt=tgtEl?parseFloat(tgtEl.value)||0:0;
   const isMet=tgt>0?pct>=tgt:pct>0;
   if(resEl){
     resEl.textContent=(isMet?'✓ ':'✗ ')+pct+'%';
     resEl.style.color=isMet?'#059669':'#DC2626';
-    resEl.style.fontSize='14px';
-    resEl.style.fontWeight='800';
-    resEl.style.padding='2px 6px';
-    resEl.style.borderRadius='5px';
+    resEl.style.fontSize='14px';resEl.style.fontWeight='800';
+    resEl.style.padding='2px 6px';resEl.style.borderRadius='5px';
     resEl.style.background=isMet?'rgba(5,150,105,.10)':'rgba(220,38,38,.10)';
   }
-  /* Auto-fill the % Result input */
   const inp=document.getElementById((prefix==='eAd'?'e':'a')+Q);
   if(inp)inp.value=pct;
 }
@@ -2488,7 +2474,7 @@ function closeExportPDF(){const m=document.getElementById('exportMenuDrop');if(m
 async function doExportPage(pageSel){
   const m=document.getElementById('exportMenuDrop');if(m)m.style.display='none';
   const pageMap={exec:{id:'page-exec',keys:['executive','تنفيذي']},dept:{id:'page-dept',keys:['department','أقسام']},registry:{id:'page-registry',keys:['registry','سجل']},acc:{id:'page-accountability',keys:['account','مساءل']},report:{id:'page-report',keys:['report','تقرير']}};
-  toast('⏳ Preparing export...');
+  
   const old=document.getElementById('pdf-print-style');if(old)old.remove();
   const s=document.createElement('style');s.id='pdf-print-style';
   if(pageSel==='all'){
@@ -2549,7 +2535,7 @@ async function doExportPage(pageSel){
 @media print{.topbar,.filter-strip,.tabnav,.footbar,.overlay{display:none!important}.page{display:none!important}#${cfg.id}{display:block!important}body,html{height:auto!important;overflow:visible!important;background:#fff!important}.dashwrap{overflow:visible!important;height:auto!important}.gg{grid-auto-rows:auto!important}.card{break-inside:avoid;background:#fff!important;border:1px solid #ccc!important}@page{size:landscape;margin:8mm}}`;
   }
   document.head.appendChild(s);
-  setTimeout(()=>{window.print();setTimeout(()=>{const ps=document.getElementById('pdf-print-style');if(ps)ps.remove();toast(' Done');},2500);},300);
+  setTimeout(()=>{window.print();setTimeout(()=>{const ps=document.getElementById('pdf-print-style');if(ps)ps.remove();},2500);},300);
 }
 async function doExportPDF(){doExportPage('exec');}
 /* Sync hash — works on file:// and HTTPS, no async needed */
@@ -2575,6 +2561,7 @@ function renderReport(){
   const ks=window._rptKpi?ks_dept.filter(k=>k.id===window._rptKpi):ks_dept;
 
   const k1=ks.length===1?ks[0]:null;
+  const kpiYear=k1?String(k1.yr):(F.year!=='all'?String(F.year):'2025');
   /* deptFull from report's own dept filter */
   const rptDm=window._rptDept?DM[window._rptDept]:null;
   const deptFull=rptDm?(rptDm.en+' Department'):'All Departments';
@@ -2729,7 +2716,7 @@ function renderReport(){
         </table>
       </div>
       <div style="margin-bottom:22px">
-        ${EP(`The KPI result ${isMet?'demonstrates that the department successfully achieved the annual target, reflecting strong operational performance and effective process management.':'shows that the department did not meet the annual target, indicating opportunities for improvement in ${k1?k1.nameEn:"key operational areas"} and execution.'}`)}
+        ${EP(`The KPI result ${isMet?'demonstrates that the department successfully achieved the annual target, reflecting strong operational performance and effective process management.':'shows that the department did not meet the annual target, indicating opportunities for improvement in key operational areas and execution.'}`)}
       </div>
 
       ${SH('3','Quarterly Performance Results')}
@@ -2742,12 +2729,14 @@ function renderReport(){
             <th style="padding:10px 14px;text-align:center;font-size:9px;font-weight:700;color:#0195af">ACTUAL RESULT</th>
             <th style="padding:10px 14px;text-align:center;font-size:9px;font-weight:700;color:rgba(255,255,255,.85)">STATUS</th>
           </tr></thead>
-          <tbody>${QR('Q1 2025',q1v)}${QR('Q2 2025',q2v)}${QR('Q3 2025',q3v)}${QR('Q4 2025',q4v)}</tbody>
+          <tbody>${QR('Q1 '+kpiYear,q1v)}${QR('Q2 '+kpiYear,q2v)}${QR('Q3 '+kpiYear,q3v)}${QR('Q4 '+kpiYear,q4v)}</tbody>
         </table>
       </div>
       <div style="margin-bottom:22px">
+        <div style="background:rgba(1,149,175,.05);border:1px solid rgba(1,149,175,.18);border-radius:9px;padding:12px 15px;margin-bottom:6px">
         <p style="font-size:11px;font-weight:700;color:#152538;margin:0 0 6px">Analysis:</p>
         ${EP(qBullets||'No quarterly data available for the selected period.')}
+      </div>
       </div>
 
       ${SH('4','Target vs Actual KPI (Quarterly)')}
@@ -2758,8 +2747,10 @@ function renderReport(){
         <canvas id="rptBarChart" style="width:100%;max-height:220px"></canvas>
       </div>
       <div style="margin-bottom:22px">
+        <div style="background:rgba(22,163,74,.05);border:1px solid rgba(22,163,74,.18);border-radius:9px;padding:12px 15px;margin-bottom:6px">
         <p style="font-size:11px;font-weight:700;color:#152538;margin:0 0 6px">Key Findings:</p>
         ${EP(kfLines||'Insufficient data for findings analysis.')}
+      </div>
       </div>
 
       ${SH('5','Annual KPI Trend (Q1–Q4)')}
@@ -2770,11 +2761,13 @@ function renderReport(){
         <canvas id="rptLineChart" style="width:100%;max-height:200px"></canvas>
       </div>
       <div style="margin-bottom:22px">
+        <div style="background:rgba(100,116,139,.06);border:1px solid rgba(100,116,139,.18);border-radius:9px;padding:12px 15px;margin-bottom:6px">
         <p style="font-size:11px;font-weight:700;color:#152538;margin:0 0 6px">Interpretation:</p>
         ${EP([
           'Performance remained relatively '+([[q1v,q2v,q3v,q4v].filter(v=>v!==null).reduce((a,b,i,arr)=>a+(b-arr[0]),0)].map(d=>Math.abs(d)<10?'stable':'variable')[0])+' across the reporting period.',
           isMet?'The department maintained performance above the target threshold.':'Further corrective action is needed to achieve full target compliance.'
         ].join(' '))}
+      </div>
       </div>
 
       ${SH('6','KPI Achievement Distribution')}
@@ -2835,7 +2828,7 @@ function renderReport(){
         </div>
         <div style="text-align:right">
           <p style="margin:0;font-size:8.5px;color:rgba(255,255,255,.55)">Generated: ${dateStr}</p>
-          <p style="margin:3px 0 0;display:inline-flex;align-items:center;gap:5px;padding:2px 10px;background:rgba(1,149,175,.15);border:1px solid rgba(1,149,175,.25);border-radius:20px;font-size:8px;font-weight:700;color:#0195af;letter-spacing:.06em;text-transform:uppercase">CONFIDENTIAL · Internal Use Only</p>
+          <p style="margin:3px 0 0;display:inline-flex;align-items:center;gap:5px;padding:2px 10px;background:rgba(1,149,175,.15);border:1px solid rgba(1,149,175,.25);border-radius:20px;font-size:8px;font-weight:700;color:#0195af;letter-spacing:.06em;text-transform:uppercase">CONFIDENTIAL</p>
         </div>
       </div>
     </div>
@@ -3500,7 +3493,7 @@ function renderExec(){
   <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px">
 
     <!-- Card 1: Total KPIs -->
-    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 1px 6px rgba(10,22,48,.07);border:1px solid #E8EDF4;cursor:pointer" onclick="switchTab('registry',document.querySelectorAll('.tab')[2])">
+    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 14px rgba(10,22,48,.10);border:1.5px solid #E2E8F0;cursor:pointer" onclick="switchTab('registry',document.querySelectorAll('.tab')[2])">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
         <div style="width:32px;height:32px;border-radius:9px;background:rgba(21,37,56,.08);display:flex;align-items:center;justify-content:center">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#152538" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
@@ -3516,7 +3509,7 @@ function renderExec(){
     </div>
 
     <!-- Card 2: Met -->
-    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 1px 6px rgba(10,22,48,.07);border:1px solid #E8EDF4">
+    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 14px rgba(10,22,48,.10);border:1.5px solid #E2E8F0">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
         <div style="width:32px;height:32px;border-radius:50%;background:#22C55E;display:flex;align-items:center;justify-content:center">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
@@ -3526,15 +3519,13 @@ function renderExec(){
       <div style="font-size:46px;font-weight:800;color:#16A34A;font-family:monospace;line-height:1;margin-bottom:4px">${nOk}</div>
       <div style="font-size:10.5px;color:#64748B;margin-bottom:14px">Out of ${total} KPIs</div>
       <div>
-        <div style="height:7px;background:#E5E7EB;border-radius:10px;overflow:hidden;margin-bottom:5px">
-          <div style="width:${total?+(nOk/total*100).toFixed(1):0}%;height:100%;background:linear-gradient(90deg,#16A34A,#22C55E);border-radius:10px"></div>
-        </div>
-        <span style="font-size:11px;font-weight:700;color:#16A34A">${total?+(nOk/total*100).toFixed(1):0}%</span>
+        <span style="font-size:18px;font-weight:800;color:#16A34A">${total?+(nOk/total*100).toFixed(1):0}%</span>
+        <span style="font-size:10px;color:#86EFAC;margin-left:4px">of total</span>
       </div>
     </div>
 
     <!-- Card 3: Missed -->
-    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 1px 6px rgba(10,22,48,.07);border:1px solid #E8EDF4">
+    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 14px rgba(10,22,48,.10);border:1.5px solid #E2E8F0">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
         <div style="width:32px;height:32px;border-radius:50%;background:#EF4444;display:flex;align-items:center;justify-content:center">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -3544,15 +3535,13 @@ function renderExec(){
       <div style="font-size:46px;font-weight:800;color:#DC2626;font-family:monospace;line-height:1;margin-bottom:4px">${miss}</div>
       <div style="font-size:10.5px;color:#64748B;margin-bottom:14px">KPIs Below Target</div>
       <div>
-        <div style="height:7px;background:#E5E7EB;border-radius:10px;overflow:hidden;margin-bottom:5px">
-          <div style="width:${total?+(miss/total*100).toFixed(1):0}%;height:100%;background:linear-gradient(90deg,#DC2626,#EF4444);border-radius:10px"></div>
-        </div>
-        <span style="font-size:11px;font-weight:700;color:#DC2626">${total?+(miss/total*100).toFixed(1):0}%</span>
+        <span style="font-size:18px;font-weight:800;color:#DC2626">${total?+(miss/total*100).toFixed(1):0}%</span>
+        <span style="font-size:10px;color:#FCA5A5;margin-left:4px">of total</span>
       </div>
     </div>
 
     <!-- Card 4: YOY Q1 -->
-    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 1px 6px rgba(10,22,48,.07);border:1px solid #E8EDF4">
+    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 14px rgba(10,22,48,.10);border:1.5px solid #E2E8F0">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
         <div style="width:32px;height:32px;border-radius:9px;background:rgba(1,149,175,.10);display:flex;align-items:center;justify-content:center">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2.2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
@@ -3570,7 +3559,7 @@ function renderExec(){
     </div>
 
     <!-- Card 5: Annual YOY -->
-    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 1px 6px rgba(10,22,48,.07);border:1px solid #E8EDF4">
+    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 14px rgba(10,22,48,.10);border:1.5px solid #E2E8F0">
       <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
         <div style="width:32px;height:32px;border-radius:9px;background:rgba(239,68,68,.10);display:flex;align-items:center;justify-content:center">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2.2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -3621,42 +3610,6 @@ function renderExec(){
   </div>
 </div>
 
-
-<!-- ROW 1: Metric Summary -->
-<div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none">
-  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;align-items:stretch">
-<div style="background:var(--card);border-radius:12px;padding:14px 16px;box-shadow:0 1px 6px rgba(10,22,40,.06);border:1px solid var(--border);border-top:3px solid #009AB4;display:flex;flex-direction:column;gap:6px">
-  <div style="font-size:8px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#009AB4;padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.06);margin-bottom:2px">📊 ${lang==='ar'?'إجمالي المؤشرات':'Total KPIs'}</div>
-  <div style="font-size:42px;font-weight:800;font-family:var(--mono);letter-spacing:-.04em;line-height:1;color:#009AB4">${total}</div>
-  <div style="font-size:10px;color:var(--t2);font-weight:500">${lang==='ar'?'مؤشر نشط':'Active Indicators'}</div>
-  <div style="display:flex;gap:5px;margin-top:4px;flex-wrap:wrap"><span class="pill-ok">${nOk} Met</span>${miss?`<span class="pill-miss">${miss} Missed</span>`:''}</div>
-</div>
-<div style="background:var(--card);border-radius:12px;padding:14px 16px;box-shadow:0 1px 6px rgba(10,22,40,.06);border:1px solid var(--border);border-top:3px solid #059669;display:flex;flex-direction:column;gap:6px">
-  <div style="font-size:8px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#059669;padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.06);margin-bottom:2px">✓ ${lang==='ar'?'محقق':'Met'}</div>
-  <div style="font-size:42px;font-weight:800;font-family:var(--mono);letter-spacing:-.04em;line-height:1;color:#059669">${nOk}</div>
-  <div style="font-size:10px;color:var(--t2);font-weight:500">${lang==='ar'?'من '+total+' مؤشر':'Out of '+total+' KPIs'}</div>
-  <span class="d-up mdelta" style="width:fit-content">✓ ${nOk}/${total}</span>
-</div>
-<div style="background:var(--card);border-radius:12px;padding:14px 16px;box-shadow:0 1px 6px rgba(10,22,40,.06);border:1px solid var(--border);border-top:3px solid ${miss>0?"#DC2626":"#059669"};display:flex;flex-direction:column;gap:6px">
-  <div style="font-size:8px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:${miss>0?"#DC2626":"#059669"};padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.06);margin-bottom:2px">✕ ${lang==='ar'?'دون الهدف':'Missed'}</div>
-  <div style="font-size:42px;font-weight:800;font-family:var(--mono);letter-spacing:-.04em;line-height:1;color:${miss>0?"#DC2626":"#059669"}">${miss}</div>
-  <div style="font-size:10px;color:var(--t2);font-weight:500">${lang==='ar'?'مؤشر دون الهدف':'KPIs Below Target'}</div>
-  ${miss?`<div style="margin-top:2px">${missKpis.filter(k=>(k.tier||3)===1).length?`<span class="tier-b t1">⚠ ${missKpis.filter(k=>(k.tier||3)===1).length} Patient Safety</span>`:''}</div>`:`<span class="d-up mdelta" style="width:fit-content">✓ All Met</span>`}
-</div>
-<div style="background:var(--card);border-radius:12px;padding:14px 16px;box-shadow:0 1px 6px rgba(10,22,40,.06);border:1px solid var(--border);border-top:3px solid ${yoyDelta!==null&&parseFloat(yoyDelta)>=0?"#059669":yoyDelta!==null?"#DC2626":"#94a3b8"};display:flex;flex-direction:column;gap:6px">
-  <div style="font-size:8px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:${yoyDelta!==null&&parseFloat(yoyDelta)>=0?"#059669":yoyDelta!==null?"#DC2626":"#94a3b8"};padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.06);margin-bottom:2px">📈 ${lang==='ar'?'YoY (Q1)':'YoY (Q1)'}</div>
-  <div style="font-size:42px;font-weight:800;font-family:var(--mono);letter-spacing:-.04em;line-height:1;color:${yoyDelta!==null&&parseFloat(yoyDelta)>=0?"#059669":yoyDelta!==null?"#DC2626":"#94a3b8"}">${yoyDelta!==null?(parseFloat(yoyDelta)>=0?'+':'')+yoyDelta+'%':'—'}</div>
-  <div style="font-size:10px;color:var(--t2);font-weight:500">${lang==='ar'?'Q1 الحالي vs Q1 السابق':'Q1 Current vs Q1 Prior'}</div>
-  ${yoyDelta!==null?`<span class="${parseFloat(yoyDelta)>=0?'d-up':'d-dn'} mdelta" style="width:fit-content">${parseFloat(yoyDelta)>=0?'▲ Improved':'▼ Declined'}</span>`:`<span class="d-fl mdelta" style="width:fit-content">N/A</span>`}
-</div>
-<div style="background:var(--card);border-radius:12px;padding:14px 16px;box-shadow:0 1px 6px rgba(10,22,40,.06);border:1px solid var(--border);border-top:3px solid ${annYoYDelta!==null&&parseFloat(annYoYDelta)>=0?"#059669":annYoYDelta!==null?"#DC2626":"#94a3b8"};display:flex;flex-direction:column;gap:6px">
-  <div style="font-size:8px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:${annYoYDelta!==null&&parseFloat(annYoYDelta)>=0?"#059669":annYoYDelta!==null?"#DC2626":"#94a3b8"};padding-bottom:8px;border-bottom:1px solid rgba(0,0,0,.06);margin-bottom:2px">📅 ${lang==='ar'?'Annual YoY':'Annual YoY'}</div>
-  <div style="font-size:42px;font-weight:800;font-family:var(--mono);letter-spacing:-.04em;line-height:1;color:${annYoYDelta!==null&&parseFloat(annYoYDelta)>=0?"#059669":annYoYDelta!==null?"#DC2626":"#94a3b8"}">${annYoYDelta!==null?(parseFloat(annYoYDelta)>=0?'+':'')+annYoYDelta+'%':'—'}</div>
-  <div style="font-size:10px;color:var(--t2);font-weight:500">${lang==='ar'?'متوسط السنة vs السابقة':'Annual Avg vs Prior Year'}</div>
-  ${annYoYDelta!==null?`<span class="${parseFloat(annYoYDelta)>=0?'d-up':'d-dn'} mdelta" style="width:fit-content">${parseFloat(annYoYDelta)>=0?'▲ Improved':'▼ Declined'}</span>`:`<span class="d-fl mdelta" style="width:fit-content">N/A</span>`}
-</div>
-  </div>
-</div>
 
 <!-- ROW 2-3: Individual KPI Cards — full width now -->
 <div class="card c12">
@@ -3755,34 +3708,9 @@ function renderExec(){
     /* Individual KPI Trend Analysis in exec page */
     renderExecKpiTrends(ks);
     fetchAI();
+
     /* Draw executive summary mini trend chart */
-    const _cv=document.getElementById('execSumChart');
-    if(_cv){
-      _cv.width=_cv.offsetWidth||240;
-      const _ctx=_cv.getContext('2d');
-      const _W=_cv.width,_H=_cv.height;
-      const _ks=filt();
-      const _pts=['q1','q2','q3','q4'].map(q=>{const v=_ks.map(k=>k[q]).filter(x=>x!==null);return v.length?+(v.reduce((a,b)=>a+b)/v.length).toFixed(1):null;}).filter(v=>v!==null);
-      if(_pts.length>=2){
-        const _mn=Math.min(..._pts)-4,_mx=Math.max(..._pts)+4,_rng=_mx-_mn||1;
-        const _xs=_pts.map((_,i)=>Math.round(10+i*(_W-20)/(_pts.length-1)));
-        const _ys=_pts.map(v=>Math.round(4+(1-(v-_mn)/_rng)*(_H-8)));
-        _ctx.clearRect(0,0,_W,_H);
-        /* Area fill */
-        _ctx.beginPath();_ctx.moveTo(_xs[0],_H);
-        _xs.forEach((x,i)=>_ctx.lineTo(x,_ys[i]));
-        _ctx.lineTo(_xs[_xs.length-1],_H);_ctx.closePath();
-        const _g=_ctx.createLinearGradient(0,0,0,_H);
-        _g.addColorStop(0,'rgba(1,149,175,.35)');_g.addColorStop(1,'rgba(1,149,175,.01)');
-        _ctx.fillStyle=_g;_ctx.fill();
-        /* Line */
-        _ctx.beginPath();_ctx.moveTo(_xs[0],_ys[0]);
-        _xs.forEach((x,i)=>{if(i>0){const cx=(_xs[i-1]+x)/2;_ctx.bezierCurveTo(cx,_ys[i-1],cx,_ys[i],x,_ys[i]);}});
-        _ctx.strokeStyle='#0195af';_ctx.lineWidth=2;_ctx.stroke();
-        /* Dots */
-        _xs.forEach((x,i)=>{_ctx.beginPath();_ctx.arc(x,_ys[i],3.5,0,Math.PI*2);_ctx.fillStyle='#0195af';_ctx.fill();_ctx.strokeStyle='rgba(255,255,255,.25)';_ctx.lineWidth=1.5;_ctx.stroke();});
-      }
-    }
+    setTimeout(()=>updateExecTrend('2025'),120);
   },30);
 }
 
@@ -4814,4 +4742,35 @@ function aiSend(){
 </script>
 
 </body>
-</html>
+</html
+function updateExecTrend(yr){
+  const cv=document.getElementById('execSumChart');
+  if(!cv)return;
+  cv.width=cv.offsetWidth||240;
+  const ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height;
+  const allKs=allK().filter(k=>k.yr===parseInt(yr));
+  const pts=['q1','q2','q3','q4'].map(q=>{
+    const v=allKs.map(k=>k[q]).filter(x=>x!==null);
+    return v.length?+(v.reduce((a,b)=>a+b)/v.length).toFixed(1):null;
+  }).filter(v=>v!==null);
+  ctx.clearRect(0,0,W,H);
+  if(pts.length<2){
+    ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='9px sans-serif';ctx.textAlign='center';
+    ctx.fillText('No data for '+yr,W/2,H/2);return;
+  }
+  const mn=Math.min(...pts)-4,mx=Math.max(...pts)+4,rng=mx-mn||1;
+  const xs=pts.map((_,i)=>Math.round(10+i*(W-20)/(pts.length-1)));
+  const ys=pts.map(v=>Math.round(4+(1-(v-mn)/rng)*(H-8)));
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'rgba(1,149,175,.35)');g.addColorStop(1,'rgba(1,149,175,.01)');
+  ctx.beginPath();ctx.moveTo(xs[0],H);
+  xs.forEach((x,i)=>ctx.lineTo(x,ys[i]));
+  ctx.lineTo(xs[xs.length-1],H);ctx.closePath();
+  ctx.fillStyle=g;ctx.fill();
+  ctx.beginPath();ctx.moveTo(xs[0],ys[0]);
+  xs.forEach((x,i)=>{if(i>0){const cx=(xs[i-1]+x)/2;ctx.bezierCurveTo(cx,ys[i-1],cx,ys[i],x,ys[i]);}});
+  ctx.strokeStyle='#0195af';ctx.lineWidth=2;ctx.stroke();
+  xs.forEach((x,i)=>{ctx.beginPath();ctx.arc(x,ys[i],3.5,0,Math.PI*2);ctx.fillStyle='#0195af';ctx.fill();ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1.5;ctx.stroke();});
+}
+>
