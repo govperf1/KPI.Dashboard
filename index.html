@@ -3488,95 +3488,273 @@ function renderExec(){
   const g=document.getElementById('execGrid');
   g.innerHTML=`
 
-<!-- ═══ NEW: 5 STAT CARDS + EXECUTIVE SUMMARY ═══ -->
-<div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:10px">
+<!-- ═══ STAT CARDS ═══ -->
+<div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:12px">
   <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px">
 
-    <!-- Card 1: Total KPIs -->
-    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 14px rgba(10,22,48,.10);border:1.5px solid #E2E8F0;cursor:pointer" onclick="switchTab('registry',document.querySelectorAll('.tab')[2])">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
-        <div style="width:32px;height:32px;border-radius:9px;background:rgba(21,37,56,.08);display:flex;align-items:center;justify-content:center">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#152538" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+    <!-- TOTAL KPIs -->
+    <div style="background:#fff;border-radius:16px;padding:20px 18px 16px;box-shadow:0 2px 14px rgba(10,22,48,.09);border:1.5px solid #E2E8F0;position:relative;overflow:hidden;cursor:pointer" onclick="switchTab('registry',document.querySelectorAll('.tab')[2])">
+      <div style="position:absolute;top:0;right:0;width:70px;height:70px;border-radius:0 16px 0 70px;background:rgba(21,37,56,.04)"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+        <div style="width:38px;height:38px;border-radius:11px;background:rgba(21,37,56,.08);display:flex;align-items:center;justify-content:center">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#152538" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
         </div>
-        <span style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#152538">TOTAL KPIs</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.07em;text-transform:uppercase">Total</span>
       </div>
-      <div style="font-size:46px;font-weight:800;color:#152538;font-family:monospace;line-height:1;margin-bottom:4px">${total}</div>
-      <div style="font-size:10.5px;color:#64748B;margin-bottom:14px">Active Indicators</div>
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:10px;color:#0195af;font-weight:700">View All KPIs →</span>
-        <svg width="72" height="28" viewBox="0 0 72 28" fill="none"><polyline points="4,20 14,14 24,16 34,10 44,12 54,6 68,10" stroke="#152538" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity=".5"/><circle cx="68" cy="10" r="2.5" fill="#152538" opacity=".6"/></svg>
+      <div style="font-size:52px;font-weight:900;color:#152538;font-family:monospace;line-height:1;margin-bottom:2px">${total}</div>
+      <div style="font-size:10px;font-weight:600;color:#64748B;margin-bottom:14px">KPI Indicators</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #F1F5F9">
+        <span style="font-size:10px;font-weight:700;color:#0195af">View all →</span>
+        <span style="font-size:9.5px;color:#94A3B8">${evaluated.length} evaluated</span>
       </div>
     </div>
 
-    <!-- Card 2: Met -->
-    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 14px rgba(10,22,48,.10);border:1.5px solid #E2E8F0">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
-        <div style="width:32px;height:32px;border-radius:50%;background:#22C55E;display:flex;align-items:center;justify-content:center">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+    <!-- MET -->
+    <div style="background:#fff;border-radius:16px;padding:20px 18px 16px;box-shadow:0 2px 14px rgba(10,22,48,.09);border:1.5px solid #E2E8F0;position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;right:0;width:70px;height:70px;border-radius:0 16px 0 70px;background:rgba(22,163,74,.05)"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+        <div style="width:38px;height:38px;border-radius:50%;background:#22C55E;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(34,197,94,.30)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
-        <span style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#152538">MET</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.07em;text-transform:uppercase">Met</span>
       </div>
-      <div style="font-size:46px;font-weight:800;color:#16A34A;font-family:monospace;line-height:1;margin-bottom:4px">${nOk}</div>
-      <div style="font-size:10.5px;color:#64748B;margin-bottom:14px">Out of ${total} KPIs</div>
-      <div>
-        <span style="font-size:18px;font-weight:800;color:#16A34A">${total?+(nOk/total*100).toFixed(1):0}%</span>
-        <span style="font-size:10px;color:#86EFAC;margin-left:4px">of total</span>
+      <div style="font-size:52px;font-weight:900;color:#16A34A;font-family:monospace;line-height:1;margin-bottom:2px">${nOk}</div>
+      <div style="font-size:10px;font-weight:600;color:#64748B;margin-bottom:14px">KPIs on target</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #F1F5F9">
+        <span style="font-size:15px;font-weight:800;color:#16A34A">${total?+(nOk/total*100).toFixed(1):0}%</span>
+        <span style="font-size:9px;padding:2px 8px;border-radius:20px;background:#DCFCE7;color:#16A34A;font-weight:700">Success rate</span>
       </div>
     </div>
 
-    <!-- Card 3: Missed -->
-    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 14px rgba(10,22,48,.10);border:1.5px solid #E2E8F0">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
-        <div style="width:32px;height:32px;border-radius:50%;background:#EF4444;display:flex;align-items:center;justify-content:center">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    <!-- MISSED -->
+    <div style="background:#fff;border-radius:16px;padding:20px 18px 16px;box-shadow:0 2px 14px rgba(10,22,48,.09);border:1.5px solid #E2E8F0;position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;right:0;width:70px;height:70px;border-radius:0 16px 0 70px;background:rgba(239,68,68,.05)"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+        <div style="width:38px;height:38px;border-radius:50%;background:#EF4444;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(239,68,68,.30)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </div>
-        <span style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#152538">MISSED</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.07em;text-transform:uppercase">Missed</span>
       </div>
-      <div style="font-size:46px;font-weight:800;color:#DC2626;font-family:monospace;line-height:1;margin-bottom:4px">${miss}</div>
-      <div style="font-size:10.5px;color:#64748B;margin-bottom:14px">KPIs Below Target</div>
-      <div>
-        <span style="font-size:18px;font-weight:800;color:#DC2626">${total?+(miss/total*100).toFixed(1):0}%</span>
-        <span style="font-size:10px;color:#FCA5A5;margin-left:4px">of total</span>
+      <div style="font-size:52px;font-weight:900;color:#DC2626;font-family:monospace;line-height:1;margin-bottom:2px">${miss}</div>
+      <div style="font-size:10px;font-weight:600;color:#64748B;margin-bottom:14px">Below target</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #F1F5F9">
+        <span style="font-size:15px;font-weight:800;color:#DC2626">${total?+(miss/total*100).toFixed(1):0}%</span>
+        <span style="font-size:9px;padding:2px 8px;border-radius:20px;background:#FEE2E2;color:#DC2626;font-weight:700">Gap rate</span>
       </div>
     </div>
 
-    <!-- Card 4: YOY Q1 -->
-    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 14px rgba(10,22,48,.10);border:1.5px solid #E2E8F0">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
-        <div style="width:32px;height:32px;border-radius:9px;background:rgba(1,149,175,.10);display:flex;align-items:center;justify-content:center">
+    <!-- YOY Q1 -->
+    <div style="background:#fff;border-radius:16px;padding:20px 18px 16px;box-shadow:0 2px 14px rgba(10,22,48,.09);border:1.5px solid #E2E8F0;position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;right:0;width:70px;height:70px;border-radius:0 16px 0 70px;background:rgba(1,149,175,.05)"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+        <div style="width:38px;height:38px;border-radius:11px;background:rgba(1,149,175,.12);display:flex;align-items:center;justify-content:center">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2.2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
         </div>
-        <span style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#152538">YOY (Q1)</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.07em;text-transform:uppercase">YOY Q1</span>
       </div>
-      <div style="font-size:38px;font-weight:800;font-family:monospace;line-height:1;margin-bottom:4px;color:${yoyDelta===null?'#64748B':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}">${yoyDelta===null?'N/A':(parseFloat(yoyDelta)>=0?'+':'')+yoyDelta+'%'}</div>
-      <div style="font-size:10.5px;color:#64748B;margin-bottom:12px">Q1 Current vs Q1 Prior</div>
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="padding:3px 10px;border-radius:20px;font-size:9.5px;font-weight:700;background:${yoyDelta===null?'#F1F5F9':parseFloat(yoyDelta)>=0?'#DCFCE7':'#FEE2E2'};color:${yoyDelta===null?'#64748B':parseFloat(yoyDelta)>=0?'#15803D':'#DC2626'}">
-          ${yoyDelta===null?'No data':parseFloat(yoyDelta)>=0?'✓ Improved':'✗ Declined'}
-        </span>
-        <svg width="64" height="26" viewBox="0 0 64 26" fill="none"><polyline points="4,20 14,12 24,15 34,8 44,11 58,5" stroke="#0195af" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="58" cy="5" r="2.5" fill="#0195af"/></svg>
+      <div style="font-size:42px;font-weight:900;font-family:monospace;line-height:1;margin-bottom:2px;color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}">${yoyDelta===null?'N/A':(parseFloat(yoyDelta)>=0?'+':'')+yoyDelta+'%'}</div>
+      <div style="font-size:10px;font-weight:600;color:#64748B;margin-bottom:14px">Q1 vs prior year Q1</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #F1F5F9">
+        <span style="font-size:9px;padding:2px 10px;border-radius:20px;font-weight:700;background:${yoyDelta===null?'#F8FAFC':parseFloat(yoyDelta)>=0?'#DCFCE7':'#FEE2E2'};color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}">${yoyDelta===null?'No data':parseFloat(yoyDelta)>=0?'Improved':'Declined'}</span>
+        <svg width="54" height="22" viewBox="0 0 54 22" fill="none"><polyline points="3,16 12,9 21,12 30,5 39,8 51,3" stroke="#0195af" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="51" cy="3" r="2.5" fill="#0195af"/></svg>
       </div>
     </div>
 
-    <!-- Card 5: Annual YOY -->
-    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 14px rgba(10,22,48,.10);border:1.5px solid #E2E8F0">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
-        <div style="width:32px;height:32px;border-radius:9px;background:rgba(239,68,68,.10);display:flex;align-items:center;justify-content:center">
+    <!-- ANNUAL YOY -->
+    <div style="background:#fff;border-radius:16px;padding:20px 18px 16px;box-shadow:0 2px 14px rgba(10,22,48,.09);border:1.5px solid #E2E8F0;position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;right:0;width:70px;height:70px;border-radius:0 16px 0 70px;background:rgba(239,68,68,.05)"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+        <div style="width:38px;height:38px;border-radius:11px;background:rgba(239,68,68,.10);display:flex;align-items:center;justify-content:center">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2.2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         </div>
-        <span style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#152538">ANNUAL YOY</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.07em;text-transform:uppercase">Annual YOY</span>
       </div>
-      <div style="font-size:38px;font-weight:800;font-family:monospace;line-height:1;margin-bottom:4px;color:${annYoYDelta===null?'#64748B':parseFloat(String(annYoYDelta))>=0?'#16A34A':'#DC2626'}">${annYoYDelta===null?'N/A':(parseFloat(String(annYoYDelta))>=0?'+':'')+annYoYDelta+'%'}</div>
-      <div style="font-size:10.5px;color:#64748B;margin-bottom:12px">Annual Avg vs Prior Year</div>
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="padding:3px 10px;border-radius:20px;font-size:9.5px;font-weight:700;background:${annYoYDelta===null?'#F1F5F9':parseFloat(String(annYoYDelta))>=0?'#DCFCE7':'#FEE2E2'};color:${annYoYDelta===null?'#64748B':parseFloat(String(annYoYDelta))>=0?'#15803D':'#DC2626'}">
-          ${annYoYDelta===null?'No data':parseFloat(String(annYoYDelta))>=0?'✓ Improved':'✗ Declined'}
-        </span>
-        <svg width="64" height="26" viewBox="0 0 64 26" fill="none"><polyline points="4,8 14,16 24,12 34,18 44,14 58,20" stroke="#EF4444" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="58" cy="20" r="2.5" fill="#EF4444"/></svg>
+      <div style="font-size:42px;font-weight:900;font-family:monospace;line-height:1;margin-bottom:2px;color:${annYoYDelta===null?'#94A3B8':parseFloat(String(annYoYDelta))>=0?'#16A34A':'#DC2626'}">${annYoYDelta===null?'N/A':(parseFloat(String(annYoYDelta))>=0?'+':'')+annYoYDelta+'%'}</div>
+      <div style="font-size:10px;font-weight:600;color:#64748B;margin-bottom:14px">Annual avg vs prior year</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #F1F5F9">
+        <span style="font-size:9px;padding:2px 10px;border-radius:20px;font-weight:700;background:${annYoYDelta===null?'#F8FAFC':parseFloat(String(annYoYDelta))>=0?'#DCFCE7':'#FEE2E2'};color:${annYoYDelta===null?'#94A3B8':parseFloat(String(annYoYDelta))>=0?'#16A34A':'#DC2626'}">${annYoYDelta===null?'No data':parseFloat(String(annYoYDelta))>=0?'Improved':'Declined'}</span>
+        <svg width="54" height="22" viewBox="0 0 54 22" fill="none"><polyline points="3,5 12,12 21,9 30,16 39,12 51,18" stroke="#EF4444" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="51" cy="18" r="2.5" fill="#EF4444"/></svg>
       </div>
     </div>
   </div>
 </div>
+
+
+<!-- ═══ EXECUTIVE SUMMARY BAR (Image 1 style) ═══ -->
+<div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:14px">
+  <div style="background:linear-gradient(135deg,#0D1B2A 0%,#152538 50%,#0D1B2A 100%);border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(13,27,42,.40)">
+    <!-- Header bar -->
+    <div style="padding:10px 24px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:8px">
+      <div style="width:6px;height:6px;border-radius:50%;background:#0195af;box-shadow:0 0 8px #0195af"></div>
+      <span style="font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.80)">EXECUTIVE SUMMARY</span>
+    </div>
+    <!-- Content -->
+    <div style="display:grid;grid-template-columns:1fr 1px 1fr 1px 1fr 1px 1fr 1px 320px;align-items:stretch">
+      <!-- Target Achieved -->
+      <div style="padding:18px 22px 16px">
+        <div style="font-size:9.5px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Target Achieved</div>
+        <div style="font-size:32px;font-weight:900;font-family:monospace;line-height:1;color:#fff">
+          <span style="color:#4ADE80">${nOk}</span><span style="color:rgba(255,255,255,.25);font-weight:400;font-size:24px"> / </span><span>${total}</span>
+        </div>
+        <div style="font-size:12px;font-weight:700;color:#4ADE80;margin-top:5px">${total?+(nOk/total*100).toFixed(1):0}%</div>
+      </div>
+      <div style="background:rgba(255,255,255,.08)"></div>
+      <!-- Missed KPIs -->
+      <div style="padding:18px 22px 16px">
+        <div style="font-size:9.5px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Missed KPIs</div>
+        <div style="font-size:32px;font-weight:900;font-family:monospace;line-height:1;color:#F87171">${miss}</div>
+        <div style="font-size:12px;font-weight:700;color:#F87171;margin-top:5px">${total?+(miss/total*100).toFixed(1):0}%</div>
+      </div>
+      <div style="background:rgba(255,255,255,.08)"></div>
+      <!-- Biggest Gap -->
+      <div style="padding:18px 22px 16px">
+        <div style="font-size:9.5px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Biggest Gap</div>
+        ${(()=>{const _mk=evaluated.filter(k=>ok(k)===false);if(!_mk.length)return'<span style="color:#4ADE80;font-size:28px;font-weight:900;font-family:monospace">None</span>';const _wk=_mk.reduce((a,b)=>(b.target-(qv(b)||0))>(a.target-(qv(a)||0))?b:a);const _v=qv(_wk);const _g=_v!==null?(_v-_wk.target).toFixed(1):null;return `<div style="font-size:30px;font-weight:900;font-family:monospace;color:#F87171;line-height:1">${_g!==null?_g+'%':'N/A'}</div><div style="font-size:9px;color:rgba(255,255,255,.45);margin-top:4px;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${_wk.nameEn}</div>`;})()}
+      </div>
+      <div style="background:rgba(255,255,255,.08)"></div>
+      <!-- Dept Requiring Attention -->
+      <div style="padding:18px 22px 16px">
+        <div style="font-size:9.5px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Dept. Requiring Attention</div>
+        ${(()=>{const _ds=Object.keys(DM).map(d=>{const dk=evaluated.filter(k=>k.dept===d);if(!dk.length)return null;const m=dk.filter(k=>ok(k)===true).length;return{d,abbr:DM[d].en,r:dk.length?m/dk.length:1};}).filter(Boolean).sort((a,b)=>a.r-b.r);if(!_ds.length)return'<span style="color:#4ADE80">All on track</span>';const _c={maintenance:'#0195af',safety:'#F87171',housekeeping:'#4ADE80',projects:'#FCD34D'};return `<div style="font-size:22px;font-weight:900;color:${_c[_ds[0].d]||'#fff'}">${_ds[0].abbr}</div><div style="font-size:10px;color:rgba(255,255,255,.45);margin-top:3px">${Math.round(_ds[0].r*100)}% achievement</div>`;})()}
+      </div>
+      <div style="background:rgba(255,255,255,.08)"></div>
+      <!-- Performance Trend -->
+      <div style="padding:16px 20px;display:flex;flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <span style="font-size:10px;font-weight:800;color:rgba(255,255,255,.80);letter-spacing:.05em">PERFORMANCE TREND</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="display:flex;align-items:center;gap:4px;font-size:9px;color:#0195af;font-weight:700"><svg width="16" height="8" viewBox="0 0 16 8"><line x1="0" y1="4" x2="12" y2="4" stroke="#0195af" stroke-width="2"/><circle cx="14" cy="4" r="2" fill="#0195af"/></svg>2026</span>
+            <span style="display:flex;align-items:center;gap:4px;font-size:9px;color:rgba(255,255,255,.50);font-weight:700"><svg width="16" height="8" viewBox="0 0 16 8"><line x1="0" y1="4" x2="12" y2="4" stroke="rgba(255,255,255,.5)" stroke-width="2" stroke-dasharray="3,2"/><circle cx="14" cy="4" r="2" fill="rgba(255,255,255,.5)"/></svg>2025</span>
+          </div>
+        </div>
+        <canvas id="execSumChart" style="flex:1;width:100%;min-height:60px"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+function renderExec(){
+  _clearCache();
+  const ks=filt();
+  const evaluated=ks.filter(k=>ok(k)!==null);
+  const total=evaluated.length,nOk=evaluated.filter(k=>ok(k)===true).length,miss=evaluated.filter(k=>ok(k)===false).length;
+  const k26y=allK().filter(k=>k.yr===2026&&k.yoy!==undefined&&k.q1!==null);
+  let yoyDelta=null;
+  if(k26y.length){const d=k26y.map(k=>k.q1-k.yoy).reduce((a,b)=>a+b)/k26y.length;yoyDelta=d.toFixed(1);}
+  /* Annual YoY: avg of ALL available 2026 quarters vs 2025 full-year avg
+     ─ When Q2'26 is added: k26All will automatically include it
+     ─ Formula: mean(avg per KPI for 2026) - mean(avg per KPI for 2025) */
+  const k25All=allK().filter(k=>k.yr===2025);
+  const k26All=allK().filter(k=>k.yr===2026);
+  let annYoYDelta=null;
+  if(k25All.length&&k26All.length){
+    const getAvg=arr=>arr.map(k=>{const vs=[k.q1,k.q2,k.q3,k.q4].filter(v=>v!==null);return vs.length?vs.reduce((a,b)=>a+b)/vs.length:null;}).filter(v=>v!==null);
+    const avg25=getAvg(k25All),avg26=getAvg(k26All);
+    if(avg25.length&&avg26.length){
+      const mean25=avg25.reduce((a,b)=>a+b)/avg25.length;
+      const mean26=avg26.reduce((a,b)=>a+b)/avg26.length;
+      annYoYDelta=(mean26-mean25).toFixed(1);
+    }
+  }
+  const missKpis=ks.filter(k=>ok(k)===false).sort((a,b)=>(a.tier||3)-(b.tier||3));
+  const depts=['maintenance','safety','housekeeping','projects'];
+  const k25=allK().filter(k=>k.yr===2025);
+  const avg=(arr,q)=>{const vs=arr.map(k=>k[q]).filter(v=>v!==null);return vs.length?+(vs.reduce((a,b)=>a+b)/vs.length).toFixed(1):null;};
+  const a25=['q1','q2','q3','q4'].map(q=>avg(k25,q));
+
+  const g=document.getElementById('execGrid');
+  g.innerHTML=`
+
+<!-- ═══ STAT CARDS ═══ -->
+<div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:12px">
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px">
+
+    <!-- TOTAL KPIs -->
+    <div style="background:#fff;border-radius:16px;padding:20px 18px 16px;box-shadow:0 2px 14px rgba(10,22,48,.09);border:1.5px solid #E2E8F0;position:relative;overflow:hidden;cursor:pointer" onclick="switchTab('registry',document.querySelectorAll('.tab')[2])">
+      <div style="position:absolute;top:0;right:0;width:70px;height:70px;border-radius:0 16px 0 70px;background:rgba(21,37,56,.04)"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+        <div style="width:38px;height:38px;border-radius:11px;background:rgba(21,37,56,.08);display:flex;align-items:center;justify-content:center">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#152538" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
+        </div>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.07em;text-transform:uppercase">Total</span>
+      </div>
+      <div style="font-size:52px;font-weight:900;color:#152538;font-family:monospace;line-height:1;margin-bottom:2px">${total}</div>
+      <div style="font-size:10px;font-weight:600;color:#64748B;margin-bottom:14px">KPI Indicators</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #F1F5F9">
+        <span style="font-size:10px;font-weight:700;color:#0195af">View all →</span>
+        <span style="font-size:9.5px;color:#94A3B8">${evaluated.length} evaluated</span>
+      </div>
+    </div>
+
+    <!-- MET -->
+    <div style="background:#fff;border-radius:16px;padding:20px 18px 16px;box-shadow:0 2px 14px rgba(10,22,48,.09);border:1.5px solid #E2E8F0;position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;right:0;width:70px;height:70px;border-radius:0 16px 0 70px;background:rgba(22,163,74,.05)"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+        <div style="width:38px;height:38px;border-radius:50%;background:#22C55E;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(34,197,94,.30)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.07em;text-transform:uppercase">Met</span>
+      </div>
+      <div style="font-size:52px;font-weight:900;color:#16A34A;font-family:monospace;line-height:1;margin-bottom:2px">${nOk}</div>
+      <div style="font-size:10px;font-weight:600;color:#64748B;margin-bottom:14px">KPIs on target</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #F1F5F9">
+        <span style="font-size:15px;font-weight:800;color:#16A34A">${total?+(nOk/total*100).toFixed(1):0}%</span>
+        <span style="font-size:9px;padding:2px 8px;border-radius:20px;background:#DCFCE7;color:#16A34A;font-weight:700">Success rate</span>
+      </div>
+    </div>
+
+    <!-- MISSED -->
+    <div style="background:#fff;border-radius:16px;padding:20px 18px 16px;box-shadow:0 2px 14px rgba(10,22,48,.09);border:1.5px solid #E2E8F0;position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;right:0;width:70px;height:70px;border-radius:0 16px 0 70px;background:rgba(239,68,68,.05)"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+        <div style="width:38px;height:38px;border-radius:50%;background:#EF4444;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(239,68,68,.30)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </div>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.07em;text-transform:uppercase">Missed</span>
+      </div>
+      <div style="font-size:52px;font-weight:900;color:#DC2626;font-family:monospace;line-height:1;margin-bottom:2px">${miss}</div>
+      <div style="font-size:10px;font-weight:600;color:#64748B;margin-bottom:14px">Below target</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #F1F5F9">
+        <span style="font-size:15px;font-weight:800;color:#DC2626">${total?+(miss/total*100).toFixed(1):0}%</span>
+        <span style="font-size:9px;padding:2px 8px;border-radius:20px;background:#FEE2E2;color:#DC2626;font-weight:700">Gap rate</span>
+      </div>
+    </div>
+
+    <!-- YOY Q1 -->
+    <div style="background:#fff;border-radius:16px;padding:20px 18px 16px;box-shadow:0 2px 14px rgba(10,22,48,.09);border:1.5px solid #E2E8F0;position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;right:0;width:70px;height:70px;border-radius:0 16px 0 70px;background:rgba(1,149,175,.05)"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+        <div style="width:38px;height:38px;border-radius:11px;background:rgba(1,149,175,.12);display:flex;align-items:center;justify-content:center">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2.2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        </div>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.07em;text-transform:uppercase">YOY Q1</span>
+      </div>
+      <div style="font-size:42px;font-weight:900;font-family:monospace;line-height:1;margin-bottom:2px;color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}">${yoyDelta===null?'N/A':(parseFloat(yoyDelta)>=0?'+':'')+yoyDelta+'%'}</div>
+      <div style="font-size:10px;font-weight:600;color:#64748B;margin-bottom:14px">Q1 vs prior year Q1</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #F1F5F9">
+        <span style="font-size:9px;padding:2px 10px;border-radius:20px;font-weight:700;background:${yoyDelta===null?'#F8FAFC':parseFloat(yoyDelta)>=0?'#DCFCE7':'#FEE2E2'};color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}">${yoyDelta===null?'No data':parseFloat(yoyDelta)>=0?'Improved':'Declined'}</span>
+        <svg width="54" height="22" viewBox="0 0 54 22" fill="none"><polyline points="3,16 12,9 21,12 30,5 39,8 51,3" stroke="#0195af" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="51" cy="3" r="2.5" fill="#0195af"/></svg>
+      </div>
+    </div>
+
+    <!-- ANNUAL YOY -->
+    <div style="background:#fff;border-radius:16px;padding:20px 18px 16px;box-shadow:0 2px 14px rgba(10,22,48,.09);border:1.5px solid #E2E8F0;position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;right:0;width:70px;height:70px;border-radius:0 16px 0 70px;background:rgba(239,68,68,.05)"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+        <div style="width:38px;height:38px;border-radius:11px;background:rgba(239,68,68,.10);display:flex;align-items:center;justify-content:center">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2.2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        </div>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.07em;text-transform:uppercase">Annual YOY</span>
+      </div>
+      <div style="font-size:42px;font-weight:900;font-family:monospace;line-height:1;margin-bottom:2px;color:${annYoYDelta===null?'#94A3B8':parseFloat(String(annYoYDelta))>=0?'#16A34A':'#DC2626'}">${annYoYDelta===null?'N/A':(parseFloat(String(annYoYDelta))>=0?'+':'')+annYoYDelta+'%'}</div>
+      <div style="font-size:10px;font-weight:600;color:#64748B;margin-bottom:14px">Annual avg vs prior year</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #F1F5F9">
+        <span style="font-size:9px;padding:2px 10px;border-radius:20px;font-weight:700;background:${annYoYDelta===null?'#F8FAFC':parseFloat(String(annYoYDelta))>=0?'#DCFCE7':'#FEE2E2'};color:${annYoYDelta===null?'#94A3B8':parseFloat(String(annYoYDelta))>=0?'#16A34A':'#DC2626'}">${annYoYDelta===null?'No data':parseFloat(String(annYoYDelta))>=0?'Improved':'Declined'}</span>
+        <svg width="54" height="22" viewBox="0 0 54 22" fill="none"><polyline points="3,5 12,12 21,9 30,16 39,12 51,18" stroke="#EF4444" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="51" cy="18" r="2.5" fill="#EF4444"/></svg>
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <!-- ═══ NEW: EXECUTIVE SUMMARY BAR ═══ -->
 <div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:14px">
@@ -3610,6 +3788,13 @@ function renderExec(){
   </div>
 </div>
 
+
+
+<!-- Dept Perf Cards placeholder -->
+<div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:8px">
+  <div style="font-size:10px;font-weight:800;color:#475569;letter-spacing:.09em;text-transform:uppercase;margin-bottom:12px">DETAILED KPI PERFORMANCE</div>
+  <div id="deptPerfGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px"></div>
+</div>
 
 <!-- ROW 2-3: Individual KPI Cards — full width now -->
 <div class="card c12">
@@ -3661,7 +3846,7 @@ function renderExec(){
 
 <!-- CHARTS ROW -->
 <div class="card c5">
-  <div class="ch">📊 ${lang==='ar'?'الأداء الربعي 2025':'2025 Quarterly Achievement'}</div>
+  <div class="ch">📊 ${lang==='ar'?'الإنجاز الربعي':'Quarterly Achievement'}</div>
   <div class="cb"><div class="cw" style="height:110px"><canvas id="cBar"></canvas></div></div>
 </div>
 <div class="card c4">
@@ -3741,13 +3926,14 @@ function renderExec(){
     });
     /* Individual KPI Trend Analysis in exec page */
     renderExecKpiTrends(ks);
+    buildDeptPerfCards(evaluated);
     fetchAI();
 
     /* Draw executive summary mini trend chart */
-    setTimeout(()=>{
+    [300,600,1000].forEach(t=>setTimeout(()=>{
       const _sel=document.getElementById('trendYrSel');
       updateExecTrend(_sel?_sel.value:'2025');
-    },200);
+    },t));
   },30);
 }
 
@@ -3922,8 +4108,8 @@ function buildIntelRisks(missKpis,repKpis){
       </div>
       ${content||`<div style="padding:16px;font-size:10px;color:#94A3B8;text-align:center">None</div>`}
     </div>`;
-  return col(lang==='ar'?'مؤشرات متعثرة':'Below Target','⚠','#DC2626',missHTML,missKpis.length)
-       +col(lang==='ar'?'تطورات مُبلَّغة':'Reported Issues','↑','#D97706',repHTML,repKpis.length);
+  return col(lang==='ar'?'مؤشرات متعثرة':'KPIs Below Target','⚠','#DC2626',missHTML,missKpis.length)
+       +col(lang==='ar'?'تطورات مُبلَّغة':'Reported Concerns','↑','#D97706',repHTML,repKpis.length);
 }
 
 function renderRAG(ks){
@@ -4058,7 +4244,7 @@ function renderDept(){
       <div style="padding:14px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #F0F4F8;background:#FAFBFC">
         <div style="display:flex;align-items:center;gap:10px;flex:1">
           <span style="font-size:11px;font-weight:900;color:${deptColor};background:${deptColor}18;padding:4px 12px;border-radius:20px;letter-spacing:.05em">${dm.abbr}</span>
-          <span style="font-size:12px;font-weight:700;color:#152538">${dm.en}</span>
+          <span style="font-size:12px;font-weight:700;color:#152538;padding-bottom:2px;border-bottom:2.5px solid ${deptColor}">${dm.en}</span>
           <span style="font-size:9.5px;color:#94A3B8">— click for detail</span>
         </div>
         <!-- Dept stats -->
@@ -4844,5 +5030,52 @@ function updateExecTrend(yr){
   xs.forEach((x,i)=>{if(i>0){const cx=(xs[i-1]+x)/2;ctx.bezierCurveTo(cx,ys[i-1],cx,ys[i],x,ys[i]);}});
   ctx.strokeStyle='#0195af';ctx.lineWidth=2;ctx.stroke();
   xs.forEach((x,i)=>{ctx.beginPath();ctx.arc(x,ys[i],3.5,0,Math.PI*2);ctx.fillStyle='#0195af';ctx.fill();ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1.5;ctx.stroke();});
+}
+
+function buildDeptPerfCards(evaluated){
+  const el=document.getElementById('deptPerfGrid');if(!el)return;
+  const depts=[
+    ['maintenance','#0195af','rgba(1,149,175,.10)','<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'],
+    ['safety',     '#DC2626','rgba(220,38,38,.10)', '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'],
+    ['housekeeping','#16A34A','rgba(22,163,74,.10)','<path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 0 0 1 1h3m10-11l2 2m-2-2v10a1 1 0 0 0-1 1h-3"/>'],
+    ['projects',   '#D97706','rgba(217,119,6,.10)', '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>']
+  ];
+  el.innerHTML=depts.map(([dept,color,bg,icon])=>{
+    const dk=evaluated.filter(k=>k.dept===dept);
+    if(!dk.length)return'';
+    const met=dk.filter(k=>ok(k)===true).length;
+    const missed=dk.filter(k=>ok(k)===false).length;
+    const pct=dk.length?+(met/dk.length*100).toFixed(1):0;
+    const dm=DM[dept];
+    const R=38,circ=2*Math.PI*R,dash=(circ*pct/100).toFixed(1),gap=(circ-circ*pct/100).toFixed(1);
+    return'<div style="background:#fff;border-radius:16px;padding:22px 24px 16px;box-shadow:0 2px 12px rgba(10,22,48,.07);border:1.5px solid #E8EDF4">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">'
+        +'<div style="width:36px;height:36px;border-radius:50%;background:'+bg+';display:flex;align-items:center;justify-content:center;flex-shrink:0">'
+          +'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="'+color+'" stroke-width="2">'+icon+'</svg>'
+        +'</div>'
+        +'<span style="font-size:15px;font-weight:800;color:'+color+'">'+dm.en+'</span>'
+      +'</div>'
+      +'<div style="display:flex;align-items:center;justify-content:space-between">'
+        +'<div style="display:flex;gap:22px">'
+          +'<div style="text-align:center"><div style="font-size:26px;font-weight:800;color:#152538;font-family:monospace;line-height:1">'+dk.length+'</div><div style="font-size:9.5px;font-weight:600;color:#94A3B8;margin-top:3px">KPIs</div></div>'
+          +'<div style="text-align:center"><div style="font-size:26px;font-weight:800;color:#16A34A;font-family:monospace;line-height:1">'+met+'</div><div style="font-size:9.5px;font-weight:600;color:#94A3B8;margin-top:3px">Met</div></div>'
+          +'<div style="text-align:center"><div style="font-size:26px;font-weight:800;color:#DC2626;font-family:monospace;line-height:1">'+missed+'</div><div style="font-size:9.5px;font-weight:600;color:#94A3B8;margin-top:3px">Missed</div></div>'
+        +'</div>'
+        +'<div style="position:relative;width:88px;height:88px;flex-shrink:0">'
+          +'<svg width="88" height="88" viewBox="0 0 88 88" style="transform:rotate(-90deg)">'
+            +'<circle cx="44" cy="44" r="'+R+'" fill="none" stroke="#E8EDF4" stroke-width="8"/>'
+            +'<circle cx="44" cy="44" r="'+R+'" fill="none" stroke="'+color+'" stroke-width="8" stroke-dasharray="'+dash+' '+gap+'" stroke-linecap="round"/>'
+          +'</svg>'
+          +'<div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">'
+            +'<div style="font-size:15px;font-weight:900;color:#152538;font-family:monospace;line-height:1">'+pct+'%</div>'
+            +'<div style="font-size:8.5px;font-weight:600;color:#94A3B8;margin-top:1px">Met</div>'
+          +'</div>'
+        +'</div>'
+      +'</div>'
+      +'<div style="margin-top:14px;padding-top:12px;border-top:1px solid #F1F5F9">'
+        +'<span onclick="setF(\'dept\',\''+dept+'\');switchTab(\'dept\',document.querySelectorAll(\'.tab\')[1])" style="font-size:10px;font-weight:700;color:#0195af;cursor:pointer">View Details →</span>'
+      +'</div>'
+    +'</div>';
+  }).join('');
 }
 >
