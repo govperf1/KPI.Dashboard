@@ -3632,7 +3632,7 @@ const g=document.getElementById('execGrid');
     <div class="ch-r">${ks.length} KPIs</div>
   </div>
   <div class="cb sc" style="padding:10px">
-    <div id="execKpiCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:10px;align-items:start"></div>
+    <div id="execKpiCards" style="width:100%"></div>
   </div>
 </div>
 
@@ -3769,144 +3769,97 @@ const g=document.getElementById('execGrid');
 /* ══ KPI cards grouped by department — with embedded dept summary ══ */
 function renderExecKpiCards(ks){
   const el=document.getElementById('execKpiCards');if(!el)return;
-  if(!ks.length){
-    el.innerHTML=emptyStateExec(F.dept,F.status);
-    return;
-  }
+  if(!ks.length){el.innerHTML=emptyStateExec(F.dept,F.status);return;}
   const depts=['maintenance','safety','housekeeping','projects'];
-  const isAllYr=F.year==='all';
   const canvases=[];
-  let html='';
 
+  /* ── KPI card builder ── */
   const mkCard=(k)=>{
-    const v=qv(k),a=ok(k),c=kc(k);
-    const cid='ekc_'+k.id.replace(/[-\.]/g,'_');
+    const v=qv(k),a=ok(k);
+    const isMissed=a===false,isMet=a===true;
+    const accentColor=isMissed?'#DC2626':isMet?'#16A34A':'#94A3B8';
+    const leftBar=isMissed?'#DC2626':isMet?'#16A34A':'#CBD5E1';
+    const bgColor=isMissed?'rgba(220,38,38,.02)':isMet?'rgba(22,163,74,.015)':'var(--card)';
+    const borderColor=isMissed?'rgba(220,38,38,.28)':isMet?'rgba(22,163,74,.22)':'var(--border)';
     const rc=getRepeat(k);
-    canvases.push({cid,k});
-    const isMissed=a===false;
-    const borderColor=isMissed?'rgba(196,43,43,.28)':a===true?'rgba(6,132,90,.22)':'var(--border)';
-    const leftBar=isMissed?'var(--missed)':a===true?'var(--met)':'#94a3b8';
-    return`<div class="kpi-perf-card ${isMissed?'missed':''}" style="background:var(--card);border:1.5px solid ${borderColor};border-left:4px solid ${leftBar};border-radius:var(--radius);padding:15px 14px 13px;box-shadow:var(--s-card);${isMissed?'cursor:pointer':'cursor:default'};display:flex;flex-direction:column" ${isMissed?`onclick="openGap('${k.id}')"`:''}">
-      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:8px">
-        <span style="font-size:11px;font-family:var(--mono);font-weight:900;color:var(--teal);letter-spacing:.02em">${k.id}</span>
+    const yStr=k.yoy!==undefined&&k.yoy!==null&&k.q1!==null
+      ?((k.q1-k.yoy>=0?'\u25b2':'\u25bc')+' '+(Math.abs(k.q1-k.yoy).toFixed(1))+'%'):'';
+    const yC=k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?(k.q1>=k.yoy?'#16A34A':'#DC2626'):'#94A3B8';
+    const pctBar=v!==null?Math.min(100,Math.max(0,Math.round(v/k.target*100))):0;
+    return`<div style="background:${bgColor};border:1.5px solid ${borderColor};border-left:4px solid ${leftBar};border-radius:10px;padding:14px 14px 12px;display:flex;flex-direction:column;gap:8px;box-sizing:border-box">
+      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
+        <span style="font-size:10px;font-weight:800;font-family:var(--mono);color:${accentColor}">${k.id}</span>
         <span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}" style="font-size:8px">T${k.tier||3}</span>
-        ${rc>=2?`<span class="repeat-b" style="font-size:7px">↩${rc}x</span>`:''}
-        <span style="margin-left:auto;font-size:9px;font-weight:700;padding:2px 8px;border-radius:99px;background:${isMissed?'rgba(196,43,43,.09)':a===true?'rgba(6,132,90,.09)':'var(--t4)'};color:${isMissed?'var(--missed)':a===true?'var(--met)':'var(--t3)'};border:1px solid ${isMissed?'rgba(185,28,28,.20)':a===true?'rgba(26,122,74,.20)':'var(--border)'}">${a===null?'\u2014':a?'\u2713 Met':'\u2715 Missed'}</span>
+        ${rc>=2?`<span class="repeat-b">\u21a9${rc}x</span>`:''}
+        <span class="${a===null?'pill-pend':a?'pill-ok':'pill-miss'}" style="font-size:9px;margin-left:auto">${a===null?'\u2014':a?'\u2713 Met':'\u2715 Missed'}</span>
       </div>
-      <div style="font-size:12.5px;font-weight:700;color:#1A2847;line-height:1.4;margin-bottom:8px;height:36px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">${lang==='ar'?k.nameAr:k.nameEn}</div>
-      <!-- Clickable big number → PCI modal -->
-      <div onclick="event.stopPropagation();openKpiPCI('${k.id}')"
-        style="font-size:42px;font-weight:800;font-family:var(--mono);color:${c};line-height:1;letter-spacing:-.02em;cursor:pointer;margin-bottom:8px;transition:opacity .15s"
-        onmouseover="this.style.opacity='.7'" onmouseout="this.style.opacity='1'">
-        ${v!==null?v.toFixed(1)+'%':'\u2014'}<span style="font-size:10px;color:var(--t3);margin-left:4px;font-family:var(--font)">▼</span>
+      <div style="font-size:11.5px;font-weight:700;color:var(--t1);line-height:1.35;min-height:32px">${lang==='ar'?k.nameAr:k.nameEn}</div>
+      <div style="font-size:34px;font-weight:900;color:${accentColor};font-family:var(--mono);line-height:1;letter-spacing:-.01em">${v!==null?v.toFixed(1)+'%':'\u2014'}</div>
+      <div style="height:5px;background:rgba(0,0,0,.08);border-radius:4px;overflow:hidden">
+        <div style="width:${pctBar}%;height:100%;background:${leftBar};border-radius:4px"></div>
       </div>
-      <canvas id="${cid}" class="bullet-c" style="margin-bottom:8px"></canvas>
-      <div style="display:flex;justify-content:space-between;font-size:9.5px;color:#94a3b8;font-weight:500;margin-bottom:0">
-        <span>Target: ${k.op==='='?'=':'≥'}${k.target}%</span>
-        ${k.yoy!==undefined&&k.yoy!==null&&v!==null?`<span style="color:${v>=k.yoy?'var(--met)':'var(--missed)'};font-weight:700">vs PY: ${v>=k.yoy?'\u25b2':'\u25bc'}${Math.abs(v-k.yoy).toFixed(1)}%</span>`:''}
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:9px">
+        <span style="color:var(--t3)">Target: ${k.op==='='?'=':'\u2265'}${k.target}%</span>
+        ${yStr?`<span style="color:${yC};font-weight:700">vs PY: ${yStr}</span>`:''}
       </div>
-      <!-- Spacer pushes gap button to bottom always, ensuring equal height -->
-      <div style="flex:1"></div>
-      ${isMissed
-        ?`<button onclick="event.stopPropagation();openGap('${k.id}')" style="width:100%;padding:5px 0;background:rgba(185,28,28,.08);color:#B91C1C;border:1px solid rgba(185,28,28,.20);border-radius:6px;font-size:9px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s;margin-top:6px" onmouseover="this.style.background='var(--missed)';this.style.color='#fff'" onmouseout="this.style.background='rgba(185,28,28,.08)';this.style.color='var(--missed)'">⚑ ${lang==='ar'?'عرض تحليل الفجوة':'View Gap Analysis'}</button>`
-        :`<div style="height:29px;margin-top:6px"></div>`}
+      ${isMissed?`<div onclick="openGap('${k.id}')" style="padding:6px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.18);border-radius:7px;font-size:9px;font-weight:700;color:#DC2626;cursor:pointer;text-align:center" onmouseover="this.style.background='rgba(220,38,38,.14)'" onmouseout="this.style.background='rgba(220,38,38,.07)'">\u00bb View Gap Analysis</div>`:''}
     </div>`;
   };
 
-  depts.forEach(d=>{
-    const dk=ks.filter(k=>k.dept===d);if(!dk.length)return;
+  /* ── Dept stat box ── */
+  const mkStat=(label,val,color)=>`<div style="flex:1;background:var(--bg);border-radius:8px;padding:8px 10px;text-align:center;border:1px solid var(--border);box-sizing:border-box">
+    <div style="font-size:20px;font-weight:900;color:${color};font-family:var(--mono);line-height:1">${val}</div>
+    <div style="font-size:8.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">${label}</div>
+  </div>`;
+
+  /* ── Build one dept section ── */
+  const mkDept=d=>{
+    const dk=ks.filter(k=>k.dept===d);if(!dk.length)return'';
     const dm=DM[d];
     const nOk=dk.filter(k=>ok(k)===true).length;
     const nMiss=dk.filter(k=>ok(k)===false).length;
-    const t=dk.filter(k=>ok(k)!==null).length;
-    const hasT1Miss=dk.filter(k=>ok(k)===false&&(k.tier||3)===1).length>0;
-    const stats=(arr)=>({tot:arr.filter(k=>ok(k)!==null).length,met:arr.filter(k=>ok(k)===true).length,miss:arr.filter(k=>ok(k)===false).length});
-    const dk25=dk.filter(k=>k.yr===2025),dk26=dk.filter(k=>k.yr===2026);
-    const s25=stats(dk25),s26=stats(dk26);
-    const yrBox=(yr,s)=>{
-      if(!s.tot)return'';
-      return`<div style="flex:1;min-width:180px;max-width:280px">
-        <div style="font-size:12px;font-weight:900;color:var(--teal);font-family:var(--mono);margin-bottom:4px;letter-spacing:.04em">${yr}</div>
-        <div style="height:2px;background:${s.miss>0?'var(--red)':'var(--green)'};border-radius:99px;margin-bottom:8px"></div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px">
-          <div style="background:var(--t4);border-radius:6px;padding:8px 4px;text-align:center"><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--t1);line-height:1">${s.tot}</div><div style="font-size:8px;font-weight:700;color:var(--t3);margin-top:3px;text-transform:uppercase">KPIs</div></div>
-          <div style="background:var(--green-dim);border-radius:6px;padding:8px 4px;text-align:center;border:1px solid rgba(26,122,74,.18)"><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--green);line-height:1">${s.met}</div><div style="font-size:8px;font-weight:700;color:var(--green);margin-top:3px;text-transform:uppercase">✓ Met</div></div>
-          <div style="background:${s.miss>0?'var(--red-dim)':'var(--t4)'};border-radius:6px;padding:8px 4px;text-align:center;border:1px solid ${s.miss>0?'rgba(185,28,28,.18)':'transparent'}"><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:${s.miss>0?'var(--red)':'var(--t3)'};line-height:1">${s.miss}</div><div style="font-size:8px;font-weight:700;color:${s.miss>0?'var(--red)':'var(--t3)'};margin-top:3px;text-transform:uppercase">\u2715 Missed</div></div>
+    const sorted=[...dk.filter(k=>ok(k)===false).sort((a,b)=>(a.tier||3)-(b.tier||3)),...dk.filter(k=>ok(k)===true),...dk.filter(k=>ok(k)===null)];
+    const cols=sorted.length<=2?'1fr 1fr':sorted.length===3?'1fr 1fr 1fr':'1fr 1fr';
+    return`<div style="display:flex;flex-direction:column;gap:12px;width:100%;min-width:0;box-sizing:border-box">
+      <!-- Dept header -->
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:4px;background:${dm.color};border-radius:2px;align-self:stretch;flex-shrink:0"></div>
+        <div>
+          <div style="display:flex;align-items:baseline;gap:7px">
+            <span style="font-size:18px;font-weight:900;color:${dm.color};font-family:var(--mono);letter-spacing:.04em">${dm.abbr}</span>
+            <span style="font-size:12px;font-weight:600;color:var(--t2)">${lang==='ar'?dm.ar:dm.en}</span>
+          </div>
         </div>
-      </div>`;
-    };
-
-    /* Dept header row */
-    if(html)html+='<!--DEPTSPLIT-->';
-    html+=`<div style="margin-top:0;cursor:pointer;padding:0 2px" onclick="drilldept('${d}')">
-      <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:5px">
-        <span style="font-size:16px;font-weight:900;color:${dm.color};letter-spacing:.05em;font-family:var(--mono)">${dm.abbr}</span>
-        <span style="font-size:11px;font-weight:600;color:var(--t2)">${lang==='ar'?dm.ar:dm.en}</span>
-        <span style="font-size:9px;color:var(--t3)">· ${lang==='ar'?'انقر للتفصيل':'click for detail'}</span>
       </div>
-      <div style="height:2px;background:${nMiss>0?'var(--red)':'var(--green)'};border-radius:99px;margin-bottom:10px"></div>
-      <div style="display:grid;grid-template-columns:repeat(3,auto) 1fr;gap:8px;align-items:center;margin-bottom:${isAllYr?'12px':'8px'}">
-        <div style="background:var(--t4);border-radius:7px;padding:8px 16px;text-align:center;min-width:80px"><div style="font-size:26px;font-weight:800;font-family:var(--mono);color:var(--t1);line-height:1">${t}</div><div style="font-size:8.5px;font-weight:700;color:var(--t3);margin-top:3px;text-transform:uppercase">KPIs</div></div>
-        <div style="background:var(--green-dim);border-radius:7px;padding:8px 16px;text-align:center;min-width:80px;border:1px solid rgba(26,122,74,.18)"><div style="font-size:26px;font-weight:800;font-family:var(--mono);color:var(--green);line-height:1">${nOk}</div><div style="font-size:8.5px;font-weight:700;color:var(--green);margin-top:3px;text-transform:uppercase">✓ Met</div></div>
-        <div style="background:${nMiss>0?'var(--red-dim)':'var(--t4)'};border-radius:7px;padding:8px 16px;text-align:center;min-width:80px;border:1px solid ${nMiss>0?'rgba(220,38,38,.18)':'transparent'}"><div style="font-size:26px;font-weight:800;font-family:var(--mono);color:${nMiss>0?'var(--red)':'var(--t3)'};line-height:1">${nMiss}</div><div style="font-size:8.5px;font-weight:700;color:${nMiss>0?'var(--red)':'var(--t3)'};margin-top:3px;text-transform:uppercase">\u2715 Missed</div></div>
-        <div>${hasT1Miss?`<span style="font-size:9px;font-weight:700;color:var(--red);background:var(--red-dim);border-radius:4px;padding:4px 10px">⚠ Patient Safety KPI Missed</span>`:''}</div>
+      <!-- Stat boxes -->
+      <div style="display:flex;gap:8px;width:100%">
+        ${mkStat('KPIs',dk.length,'var(--t1)')}
+        ${mkStat('\u2713 MET',nOk,'#16A34A')}
+        ${mkStat('\u2715 MISSED',nMiss,nMiss?'#DC2626':'var(--t3)')}
       </div>
-      ${isAllYr?``:''}
+      <!-- KPI cards grid -->
+      <div style="display:grid;grid-template-columns:${cols};gap:10px;width:100%">
+        ${sorted.map(k=>mkCard(k)).join('')}
+      </div>
     </div>`;
+  };
 
-    /* KPI cards — 2-column split (2025 left | 2026 right) when isAllYr, flat otherwise */
-    if(isAllYr&&(dk25.length||dk26.length)){
-      /* Outer 2-col split row */
-      html+=`<div style="grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:4px">`;
-      [2025,2026].forEach(yr=>{
-        const dky=dk.filter(k=>k.yr===yr);
-        const sy=stats(dky);
-        html+=`<div>`;
-        /* Year label + line */
-        html+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
-          <span style="font-size:11px;font-weight:800;color:var(--teal);font-family:var(--mono);letter-spacing:.05em">${yr}</span>
-          <div style="flex:1;height:1.5px;background:var(--border2);border-radius:99px"></div>
-        </div>`;
-        if(!dky.length){
-          html+=`<div style="text-align:center;padding:24px 10px;color:var(--t3);font-size:11px">No ${yr} KPIs</div>`;
-        }else{
-          /* Year stat boxes */
-          html+=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-bottom:12px">
-            <div style="background:var(--t4);border-radius:6px;padding:8px 4px;text-align:center"><div style="font-size:20px;font-weight:800;font-family:var(--mono);color:var(--t1);line-height:1">${sy.tot}</div><div style="font-size:8px;font-weight:700;color:var(--t3);margin-top:3px;text-transform:uppercase">KPIs</div></div>
-            <div style="background:var(--green-dim);border-radius:6px;padding:8px 4px;text-align:center;border:1px solid rgba(26,122,74,.18)"><div style="font-size:20px;font-weight:800;font-family:var(--mono);color:var(--green);line-height:1">${sy.met}</div><div style="font-size:8px;font-weight:700;color:var(--green);margin-top:3px;text-transform:uppercase">✓ Met</div></div>
-            <div style="background:${sy.miss>0?'var(--red-dim)':'var(--t4)'};border-radius:6px;padding:8px 4px;text-align:center;border:1px solid ${sy.miss>0?'rgba(185,28,28,.18)':'transparent'}"><div style="font-size:20px;font-weight:800;font-family:var(--mono);color:${sy.miss>0?'var(--red)':'var(--t3)'};line-height:1">${sy.miss}</div><div style="font-size:8px;font-weight:700;color:${sy.miss>0?'var(--red)':'var(--t3)'};margin-top:3px;text-transform:uppercase">✕ Missed</div></div>
-          </div>`;
-          /* KPI cards stacked vertically in this column */
-          const sorted=[...dky.filter(k=>ok(k)===false).sort((a,b)=>(a.tier||3)-(b.tier||3)),...dky.filter(k=>ok(k)===true),...dky.filter(k=>ok(k)===null)];
-          html+=`<div style="display:flex;flex-direction:column;gap:10px">`;
-          sorted.forEach(k=>html+=mkCard(k));
-          html+=`</div>`;
-        }
-        html+=`</div>`; /* close year col */
-      });
-      html+=`</div>`; /* close 2-col grid */
-    }else{
-      /* Single year or no year split */
-      const sorted=[...dk.filter(k=>ok(k)===false).sort((a,b)=>(a.tier||3)-(b.tier||3)),...dk.filter(k=>ok(k)===true),...dk.filter(k=>ok(k)===null)];
-      sorted.forEach(k=>html+=mkCard(k));
-    }
+  /* ── Outer 2×2 grid layout ── */
+  const pairs=[['maintenance','safety'],['housekeeping','projects']];
+  let out='';
+  pairs.forEach(([d1,d2],rowIdx)=>{
+    const s1=mkDept(d1), s2=mkDept(d2);
+    if(!s1&&!s2)return;
+    out+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:${rowIdx===0?'28px':'0'};padding-bottom:${rowIdx===0?'24px':'0'};${rowIdx===0?'border-bottom:1px solid var(--border2)':''};align-items:start">`;
+    out+=s1?s1:'<div></div>';
+    out+=s2?s2:'<div></div>';
+    out+='</div>';
   });
 
-  /* Wrap dept sections 2 per row */
-  const _secs=html.split('<!--DEPTSPLIT-->');
-  let _out='';
-  for(let _i=0;_i<_secs.length;_i+=2){
-    _out+='<div style="display:grid;grid-template-columns:1fr 1px 1fr;gap:0;margin-bottom:8px">'
-      +(_secs[_i]||'')
-      +'<div style="background:#E8EDF4;margin:12px 0"></div>'
-      +(_secs[_i+1]||'')
-      +'</div>';
-  }
-  el.innerHTML=_out||html;
-  setTimeout(()=>{canvases.forEach(({cid,k})=>{const v=qv(k);if(v!==null)drawBullet(cid,v,k.target);});},15);
+  el.innerHTML=out;
+  setTimeout(()=>{canvases.forEach(({cid,k})=>{const v=qv(k);if(v!==null)drawBullet&&drawBullet(cid,v,k.target);});},15);
 }
 
-/* ══ Intel risks + Recommendations ══ */
 function buildIntelRisks(missKpis,repKpis){
   if(!missKpis.length&&!repKpis.length){
     return`<div style="grid-column:1/-1;padding:16px 20px;display:flex;align-items:center;gap:12px">
@@ -3954,74 +3907,44 @@ function buildIntelRisks(missKpis,repKpis){
 
 function renderRAG(ks){
   const el=document.getElementById('ragMatrix');if(!el)return;
-  /* Dynamic columns based on year filter */
-  const yr=F.year==='all'?'all':parseInt(F.year);
-  const sh25=yr==='all'||yr===2025;
-  const sh26=yr==='all'||yr===2026;
-  const showYoY=sh25&&sh26;
-  /* Build column template */
-  const baseCols=['56px','1fr','44px'];
-  const q25cols=sh25?['48px','48px','48px','48px']:[];
-  const q26cols=sh26?['48px']:[];
-  const avgCol=['52px'];
-  const yoyCol=showYoY?['54px']:[];
-  const statusCol=['72px'];
-  const allCols=[...baseCols,...q25cols,...q26cols,...avgCol,...yoyCol,...statusCol];
-  const cols=allCols.join(' ');
-  /* Headers */
-  const hdrs=[lang==='ar'?'الكود':'Code',lang==='ar'?'اسم المؤشر':'KPI Name',lang==='ar'?'قسم':'Dept'];
-  if(sh25){hdrs.push("Q1'25","Q2'25","Q3'25","Q4'25");}
-  if(sh26){hdrs.push("Q1'26");}
-  hdrs.push('AVG');
-  if(showYoY)hdrs.push('YoY');
-  hdrs.push(lang==='ar'?'الحالة':'Status');
-  let h=`<div style="display:grid;grid-template-columns:${cols};gap:0;background:#1A2847;border-radius:6px 6px 0 0;overflow:hidden">
-    ${hdrs.map(x=>`<div style="padding:7px 6px;font-size:8.5px;font-weight:800;color:#fff;letter-spacing:.04em;text-transform:uppercase;border-right:1px solid rgba(255,255,255,.12)">${x}</div>`).join('')}
+  const cols='62px 1fr 65px 50px 55px 55px 55px 55px 58px 55px 48px 78px';
+  const hs=['Code','KPI Name','Dept','Target','Q1','Q2','Q3','Q4','Avg','YoY','Risk','Status'];
+  let tbl=`<div style="display:grid;grid-template-columns:${cols};gap:2px;padding:6px 2px;border-bottom:1px solid var(--border2);position:sticky;top:0;background:var(--card);z-index:1">
+    ${hs.map(x=>`<div style="font-size:9px;font-weight:700;color:var(--t3);letter-spacing:.06em;text-transform:uppercase;padding:0 4px">${x}</div>`).join('')}
   </div>`;
   const deps=['maintenance','safety','housekeeping','projects'];
   deps.forEach(d=>{
     const dk=ks.filter(k=>k.dept===d);if(!dk.length)return;
-    h+=`<div style="display:grid;grid-template-columns:${cols};background:${DM[d].color}15;border-bottom:1px solid ${DM[d].color}35;margin-top:8px">
-      <div style="grid-column:1/-1;padding:5px 8px;font-size:8.5px;font-weight:800;color:${DM[d].color};letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:6px">
-        <span style="width:8px;height:8px;border-radius:50%;background:${DM[d].color};flex-shrink:0"></span>
-        ${DM[d].abbr} — ${lang==='ar'?DM[d].ar:DM[d].en}
-      </div>
+    tbl+=`<div style="display:flex;align-items:center;gap:0;margin:6px 0 2px">
+      <div style="width:3px;height:28px;background:${DM[d].color};border-radius:2px;flex-shrink:0;margin-right:8px"></div>
+      <span style="font-size:10px;font-weight:800;color:${DM[d].color};text-transform:uppercase;letter-spacing:.08em">${DM[d].abbr}</span>
+      <span style="font-size:9px;font-weight:600;color:var(--t2);margin-left:6px">${lang==='ar'?DM[d].ar:DM[d].en}</span>
     </div>`;
-    dk.forEach((k,ki)=>{
-      const a=ok(k),rc=getRepeat(k);
-      const q25s=k.yr===2025?[k.q1,k.q2,k.q3,k.q4]:[null,null,null,null];
-      const q26v=k.yr===2026?k.q1:null;
-      const allVals=[k.q1,k.q2,k.q3,k.q4].filter(v=>v!==null);
-      const avgVal=allVals.length?+(allVals.reduce((a,b)=>a+b)/allVals.length).toFixed(1):null;
-      const yoyStr=showYoY&&k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?((k.q1-k.yoy>=0?'+':'')+(k.q1-k.yoy).toFixed(1)+'%'):'\u2014';
-      const yoyColor=showYoY&&k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?(k.q1>=k.yoy?'var(--green)':'var(--red)'):'var(--t3)';
-      const cell=v=>{const b=pb(v,k.target);return`<div style="padding:6px 5px;font-size:9px;font-family:var(--mono);text-align:center;font-weight:${b>1?700:400};background:${BC[b]};color:${b===1?'#7f1d1d':b===2?'#065f46':b===3?'#713f12':'var(--t3)'};border-right:1px solid var(--border)">${v!==null?v.toFixed(0)+'%':'\u2014'}</div>`;};
-      const rowBg=ki%2===0?'transparent':'rgba(26,40,71,.025)';
-      h+=`<div style="display:grid;grid-template-columns:${cols};background:${rowBg};border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='rgba(0,151,167,.06)'" onmouseout="this.style.background='${rowBg}'">
-        <div style="padding:6px 6px;display:flex;align-items:center;gap:3px">
-          <span style="font-size:9px;font-family:var(--mono);font-weight:900;color:var(--teal)">${k.id}</span>
-          ${rc>=2?`<span class="repeat-b" style="font-size:7px">↩</span>`:''}
-        </div>
-        <div style="padding:6px 6px;display:flex;flex-direction:column;justify-content:center;overflow:hidden">
-          <div style="font-size:9.5px;color:var(--t1);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lang==='ar'?k.nameAr:k.nameEn}</div>
-          <div style="font-size:7.5px;color:var(--t3);margin-top:1px">${(k.tier||3)===1?'🔴 T1':(k.tier||3)===2?'🟡 T2':'⚪ T3'}</div>
-        </div>
-        <div style="padding:6px 4px;font-size:8.5px;font-weight:700;color:${DM[k.dept].color};text-align:center;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--border)">${DM[k.dept].abbr}</div>
-        ${sh25?q25s.map(v=>cell(v)).join(''):''}
-        ${sh26?cell(q26v):''}
-        <div style="padding:6px 5px;font-size:9px;font-family:var(--mono);text-align:center;font-weight:800;background:${avgVal!==null?BC[pb(avgVal,k.target)]:'transparent'};color:${avgVal!==null?(pb(avgVal,k.target)===1?'#7f1d1d':pb(avgVal,k.target)===2?'#065f46':'var(--t1)'):'var(--t3)'};border-right:1px solid var(--border)">${avgVal!==null?avgVal+'%':'\u2014'}</div>
-        ${showYoY?`<div style="padding:6px 5px;font-size:9px;font-family:var(--mono);text-align:center;font-weight:700;color:${yoyColor};border-right:1px solid var(--border)">${yoyStr}</div>`:''}
-        <div style="padding:6px 5px;display:flex;align-items:center;justify-content:center"><span class="${a===null?'pill-pend':a?'pill-ok':'pill-miss'}" style="font-size:8px">${a===null?'\u2014':a?'\u2713 Met':'✕ Missed'}</span></div>
+    dk.forEach(k=>{
+      const v=qv(k),a=ok(k),c=kc(k);
+      const yStr=k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?((k.q1-k.yoy>=0?'+':'')+(k.q1-k.yoy).toFixed(1)+'%'):'\u2014';
+      const yC=k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?(k.q1>=k.yoy?'var(--green)':'var(--red)'):'var(--t3)';
+      const rc=getRepeat(k);
+      const isMissed=a===false;
+      tbl+=`<div style="display:grid;grid-template-columns:${cols};gap:2px;padding:5px 0;border-bottom:1px solid var(--border);align-items:center;${isMissed?'cursor:pointer;':'cursor:default;'}" ${isMissed?`onclick="openGap('${k.id}')"`:''}  ${isMissed?`onmouseover="this.style.background='rgba(220,38,38,.04)'" onmouseout="this.style.background='transparent'"`:''}> 
+        <div style="padding:0 4px"><div style="font-size:9px;font-family:var(--mono);font-weight:700;color:var(--teal)">${k.id}</div>${rc>=2?`<span class="repeat-b" style="margin-top:2px">\u21a9${rc}</span>`:''}</div>
+        <div style="font-size:10.5px;color:var(--t2);padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${lang==='ar'?k.nameAr:k.nameEn}</div>
+        <div style="font-size:9px;color:${DM[k.dept].color};padding:0 4px;font-weight:600">${DM[k.dept].abbr}</div>
+        <div style="font-size:9.5px;font-family:var(--mono);color:var(--t3);padding:0 4px">${k.op==='='?'=':'\u2265'}${k.target}%</div>
+        ${['q1','q2','q3','q4'].map(q=>{const v2=k[q];const b=pb(v2,k.target);return`<div style="font-size:9.5px;font-family:var(--mono);padding:2px 4px;border-radius:3px;background:${BC[b]};color:${b===3?'#1a1200':'#fff'};text-align:center">${v2!==null?v2.toFixed(0)+'%':'\u2014'}</div>`;}).join('')}
+        <div style="font-size:10px;font-family:var(--mono);font-weight:700;color:${c};padding:0 4px">${f2(v)}</div>
+        <div style="font-size:9.5px;font-family:var(--mono);color:${yC};font-weight:700;padding:0 4px">${yStr}</div>
+        <span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span>
+        <span class="${a===null?'pill-pend':a?'pill-ok':'pill-miss'}" style="font-size:9px${isMissed?';cursor:pointer;':''}">
+          ${a===null?'\u2014':a?'\u2713 Met':' Missed'}
+          ${isMissed?'<span style="font-size:8px;opacity:.7;margin-left:3px">\u2197</span>':''}
+        </span>
       </div>`;
     });
   });
-  el.innerHTML=h;
+  el.innerHTML=`<div class="card c12 r4"><div class="ch">${lang==='ar'?'مصفوفة حالة RAG':'RAG Status Matrix — Click missed KPI for gap details'}<div class="ch-r">${ks.length} ${lang==='ar'?'مؤشر':'KPIs'}</div></div><div class="cb sc" style="padding:4px 10px 10px">${tbl}</div></div>`;
 }
 
-
-/* ══════════════════════════════════════════
-   DEPT PAGE
-══════════════════════════════════════════ */
 function renderDept(){
   const d=F.dept==='all'?null:F.dept;
   const activeDepts=d?[d]:['maintenance','safety','housekeeping','projects'];
@@ -4127,7 +4050,11 @@ function renderRegistry(){
   const deps=['maintenance','safety','housekeeping','projects'];
   deps.forEach(d=>{
     const dk=ks.filter(k=>k.dept===d);if(!dk.length)return;
-    tbl+=`<div style="font-size:8px;font-weight:800;color:${DM[d].color};text-transform:uppercase;letter-spacing:.07em;padding:5px 4px 2px">${DM[d].abbr} ${lang==='ar'?DM[d].ar:DM[d].en}</div>`;
+    tbl+=`<div style="display:flex;align-items:center;gap:0;margin:6px 0 2px">
+      <div style="width:3px;height:28px;background:${DM[d].color};border-radius:2px;flex-shrink:0;margin-right:8px"></div>
+      <span style="font-size:10px;font-weight:800;color:${DM[d].color};text-transform:uppercase;letter-spacing:.08em">${DM[d].abbr}</span>
+      <span style="font-size:9px;font-weight:600;color:var(--t2);margin-left:6px">${lang==='ar'?DM[d].ar:DM[d].en}</span>
+    </div>`;
     dk.forEach(k=>{
       const v=qv(k),a=ok(k),c=kc(k);
       const yStr=k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?((k.q1-k.yoy>=0?'+':'')+(k.q1-k.yoy).toFixed(1)+'%'):'\u2014';
