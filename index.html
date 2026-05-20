@@ -3486,7 +3486,21 @@ function renderExec(){
   const a25=['q1','q2','q3','q4'].map(q=>avg(k25,q));
 
   const g=document.getElementById('execGrid');
-  g.innerHTML=`
+  
+  /* Pre-computed for exec summary bar */
+  const _missK=evaluated.filter(k=>ok(k)===false);
+  const _worstK=_missK.reduce((a,k)=>{const v=qv(k);if(v===null)return a;const g=k.target-v;return(!a||g>a.gap)?{k,gap:g}:a;},null);
+  const _biggestGapHTML=_worstK
+    ?'<div style="font-size:28px;font-weight:900;color:#F87171;font-family:monospace;line-height:1;margin-bottom:3px">-'+_worstK.gap.toFixed(1)+'%</div><div style="font-size:9px;color:rgba(255,255,255,.50);margin-top:2px;max-width:110px;overflow:hidden;text-overflow:ellipsis">'+_worstK.k.nameEn.slice(0,28)+'</div>'
+    :'<div style="font-size:28px;font-weight:900;color:#4ADE80;font-family:monospace">—</div><div style="font-size:9px;color:#4ADE80;margin-top:2px">No gaps</div>';
+  const _dScores2=Object.keys(DM).map(d=>{const dk2=evaluated.filter(k=>k.dept===d);return{d,miss:dk2.filter(k=>ok(k)===false).length,total:dk2.length};}).filter(x=>x.total>0).sort((a,b)=>b.miss-a.miss);
+  const _wDept=_dScores2[0];
+  const _dColor2={maintenance:'#0195af',safety:'#F87171',housekeeping:'#4ADE80',projects:'#FCD34D'};
+  const _deptAttnHTML=(!_wDept||_wDept.miss===0)
+    ?'<div style="font-size:22px;font-weight:900;color:#4ADE80">All Good</div>'
+    :'<div style="font-size:22px;font-weight:900;color:'+(_dColor2[_wDept.d]||'#fff')+'">'+DM[_wDept.d].en+'</div><div style="font-size:9px;color:rgba(255,255,255,.45);margin-top:3px">'+_wDept.miss+' missed of '+_wDept.total+'</div>';
+
+g.innerHTML=`
 
 <!-- ═══ STAT CARDS ═══ -->
 <div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:12px">
@@ -3580,180 +3594,122 @@ function renderExec(){
 </div>
 
 
-<!-- ═══ NEW: EXECUTIVE SUMMARY BAR ═══ -->
+<!-- ═══ EXECUTIVE SUMMARY BAR (Image 1 style) ═══ -->
 <div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:14px">
-  <div style="background:linear-gradient(135deg,#152538 0%,#1D3550 60%,#152538 100%);border-radius:14px;padding:20px 24px;display:grid;grid-template-columns:auto 1fr auto auto auto 1fr;gap:20px;align-items:center;box-shadow:0 4px 24px rgba(21,37,56,.22)">
-    <div style="width:50px;height:50px;border-radius:50%;border:2px solid rgba(1,149,175,.40);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+  <div style="background:linear-gradient(135deg,#0D1B2A 0%,#152538 50%,#0D1B2A 100%);border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(13,27,42,.40)">
+    <!-- Header bar -->
+    <div style="padding:10px 24px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:8px">
+      <div style="width:6px;height:6px;border-radius:50%;background:#0195af;box-shadow:0 0 8px #0195af"></div>
+      <span style="font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.80)">EXECUTIVE SUMMARY</span>
     </div>
-    <div>
-      <div style="font-size:11px;font-weight:800;color:#fff;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">EXECUTIVE SUMMARY</div>
-      <div style="font-size:11px;color:rgba(255,255,255,.68);line-height:1.6">Overall performance is <strong style="color:${(nOk/Math.max(total,1))>=.75?'#4ADE80':'#FCA5A5'}">${(nOk/Math.max(total,1))>=.75?'Stable':((nOk/Math.max(total,1))>=.5?'Developing':'Needs Attention')}.</strong><br>All departments are focused on maintaining compliance and improving quality outcomes.</div>
-    </div>
-    <div style="text-align:center;padding:0 8px;border-left:1px solid rgba(255,255,255,.10)">
-      <div style="font-size:26px;font-weight:800;font-family:monospace;line-height:1"><span style="color:#4ADE80">${nOk}</span><span style="color:rgba(255,255,255,.30);font-size:20px"> / </span><span style="color:rgba(255,255,255,.65)">${total}</span></div>
-      <div style="font-size:9px;color:rgba(255,255,255,.50);font-weight:600;margin-top:3px;white-space:nowrap">Target Achieved</div>
-    </div>
-    <div style="text-align:center;padding:0 8px">
-      <div style="font-size:30px;font-weight:800;color:${evaluated.filter(k=>ok(k)===false&&(k.tier||3)===1).length>0?'#F87171':'rgba(255,255,255,.85)'};font-family:monospace;line-height:1">${evaluated.filter(k=>ok(k)===false&&(k.tier||3)===1).length}</div>
-      <div style="font-size:9px;color:rgba(255,255,255,.50);font-weight:600;margin-top:3px;white-space:nowrap">Critical Escalations</div>
-    </div>
-    <div style="text-align:center;padding:0 8px;border-left:1px solid rgba(255,255,255,.10)">
-      <div style="font-size:30px;font-weight:800;font-family:monospace;line-height:1;color:${evaluated.filter(k=>{const v=qv(k);return ok(k)===false&&v!==null&&(k.target-v)<=5;}).length>0?'#FCD34D':'rgba(255,255,255,.85)'}">${evaluated.filter(k=>{const v=qv(k);return ok(k)===false&&v!==null&&(k.target-v)<=5;}).length}</div>
-      <div style="font-size:9px;color:rgba(255,255,255,.50);font-weight:600;margin-top:3px;white-space:nowrap">At Risk KPIs</div>
-    </div>
-    <div style="border-left:1px solid rgba(255,255,255,.10);padding-left:18px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span style="font-size:10px;font-weight:700;color:rgba(255,255,255,.80)">Performance Trend</span>
-        <span style="font-size:9px;color:#0195af;font-weight:700">${F.year==='all'?'2026':F.year}</span>
-      </div>
-      <canvas id="execSumChart" height="46" style="width:100%;display:block"></canvas>
-    </div>
-  </div>
-</div>
-
-
-<!-- ROW 2-3: Individual KPI Cards — full width now -->
-<div class="card c12">
-  <div class="ch" style="border-bottom:1px solid var(--border);padding-bottom:10px">
-    <span style="font-size:11px;font-weight:800;color:var(--t1)">DETAILED KPI PERFORMANCE CARDS</span>
-    <div class="ch-r">${ks.length} KPIs</div>
-  </div>
-  <div class="cb sc" style="padding:10px">
-    <div id="execKpiCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:10px;align-items:start"></div>
-  </div>
-</div>
-
-<!-- Executive Intelligence Panel -->
-<div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none">
-  <div style="background:#fff;border:1.5px solid #E2E8F0;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(10,22,48,.08)">
-    <!-- Header -->
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #F0F4F8;background:#FAFBFC">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div style="width:28px;height:28px;border-radius:8px;background:rgba(1,149,175,.12);display:flex;align-items:center;justify-content:center">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+    <!-- Content -->
+    <div style="display:grid;grid-template-columns:1fr 1px 1fr 1px 1fr 1px 1fr 1px 320px;align-items:stretch">
+      <!-- Target Achieved -->
+      <div style="padding:18px 22px 16px">
+        <div style="font-size:9.5px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Target Achieved</div>
+        <div style="font-size:32px;font-weight:900;font-family:monospace;line-height:1;color:#fff">
+          <span style="color:#4ADE80">${nOk}</span><span style="color:rgba(255,255,255,.25);font-weight:400;font-size:24px"> / </span><span>${total}</span>
         </div>
-        <span style="font-size:11px;font-weight:800;color:#152538;letter-spacing:.03em">${lang==='ar'?'مركز المعلومات التنفيذية':'Executive Intelligence'}</span>
+        <div style="font-size:12px;font-weight:700;color:#4ADE80;margin-top:5px">${total?+(nOk/total*100).toFixed(1):0}%</div>
       </div>
-      <span id="intelUpdateTime" style="font-size:9px;color:#94A3B8"></span>
-    </div>
-    <!-- Content grid -->
-    <div id="intelPanel" style="display:grid;grid-template-columns:1fr 1fr;gap:0">
-      <div style="grid-column:1/-1;padding:14px 20px;display:flex;align-items:center;gap:8px">
-        <div style="width:7px;height:7px;border-radius:50%;background:#0195af;animation:ai-dot 1.4s infinite"></div>
-        <div style="width:7px;height:7px;border-radius:50%;background:#0195af;animation:ai-dot 1.4s .47s infinite"></div>
-        <div style="width:7px;height:7px;border-radius:50%;background:#0195af;animation:ai-dot 1.4s .93s infinite"></div>
+      <div style="background:rgba(255,255,255,.08)"></div>
+      <!-- Missed KPIs -->
+      <div style="padding:18px 22px 16px">
+        <div style="font-size:9.5px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Missed KPIs</div>
+        <div style="font-size:32px;font-weight:900;font-family:monospace;line-height:1;color:#F87171">${miss}</div>
+        <div style="font-size:12px;font-weight:700;color:#F87171;margin-top:5px">${total?+(miss/total*100).toFixed(1):0}%</div>
+      </div>
+      <div style="background:rgba(255,255,255,.08)"></div>
+      <!-- Biggest Gap -->
+      <div style="padding:18px 22px 16px">
+        <div style="font-size:9.5px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Biggest Gap</div>
+        ${_biggestGapHTML}
+      </div>
+      <div style="background:rgba(255,255,255,.08)"></div>
+      <!-- Dept Requiring Attention -->
+      <div style="padding:18px 22px 16px">
+        <div style="font-size:9.5px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Dept. Requiring Attention</div>
+        ${_deptAttnHTML}
+      </div>
+      <div style="background:rgba(255,255,255,.08)"></div>
+      <!-- Performance Trend -->
+      <div style="padding:16px 20px;display:flex;flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <span style="font-size:10px;font-weight:800;color:rgba(255,255,255,.80);letter-spacing:.05em">PERFORMANCE TREND</span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="display:flex;align-items:center;gap:4px;font-size:9px;color:#0195af;font-weight:700"><svg width="16" height="8" viewBox="0 0 16 8"><line x1="0" y1="4" x2="12" y2="4" stroke="#0195af" stroke-width="2"/><circle cx="14" cy="4" r="2" fill="#0195af"/></svg>2026</span>
+            <span style="display:flex;align-items:center;gap:4px;font-size:9px;color:rgba(255,255,255,.50);font-weight:700"><svg width="16" height="8" viewBox="0 0 16 8"><line x1="0" y1="4" x2="12" y2="4" stroke="rgba(255,255,255,.5)" stroke-width="2" stroke-dasharray="3,2"/><circle cx="14" cy="4" r="2" fill="rgba(255,255,255,.5)"/></svg>2025</span>
+          </div>
+        </div>
+        <canvas id="execSumChart" style="flex:1;width:100%;min-height:60px"></canvas>
       </div>
     </div>
   </div>
 </div>
+function renderExec(){
+  _clearCache();
+  const ks=filt();
+  const evaluated=ks.filter(k=>ok(k)!==null);
+  const total=evaluated.length,nOk=evaluated.filter(k=>ok(k)===true).length,miss=evaluated.filter(k=>ok(k)===false).length;
+  const k26y=allK().filter(k=>k.yr===2026&&k.yoy!==undefined&&k.q1!==null);
+  let yoyDelta=null;
+  if(k26y.length){const d=k26y.map(k=>k.q1-k.yoy).reduce((a,b)=>a+b)/k26y.length;yoyDelta=d.toFixed(1);}
+  /* Annual YoY: avg of ALL available 2026 quarters vs 2025 full-year avg
+     ─ When Q2'26 is added: k26All will automatically include it
+     ─ Formula: mean(avg per KPI for 2026) - mean(avg per KPI for 2025) */
+  const k25All=allK().filter(k=>k.yr===2025);
+  const k26All=allK().filter(k=>k.yr===2026);
+  let annYoYDelta=null;
+  if(k25All.length&&k26All.length){
+    const getAvg=arr=>arr.map(k=>{const vs=[k.q1,k.q2,k.q3,k.q4].filter(v=>v!==null);return vs.length?vs.reduce((a,b)=>a+b)/vs.length:null;}).filter(v=>v!==null);
+    const avg25=getAvg(k25All),avg26=getAvg(k26All);
+    if(avg25.length&&avg26.length){
+      const mean25=avg25.reduce((a,b)=>a+b)/avg25.length;
+      const mean26=avg26.reduce((a,b)=>a+b)/avg26.length;
+      annYoYDelta=(mean26-mean25).toFixed(1);
+    }
+  }
+  const missKpis=ks.filter(k=>ok(k)===false).sort((a,b)=>(a.tier||3)-(b.tier||3));
+  const depts=['maintenance','safety','housekeeping','projects'];
+  const k25=allK().filter(k=>k.yr===2025);
+  const avg=(arr,q)=>{const vs=arr.map(k=>k[q]).filter(v=>v!==null);return vs.length?+(vs.reduce((a,b)=>a+b)/vs.length).toFixed(1):null;};
+  const a25=['q1','q2','q3','q4'].map(q=>avg(k25,q));
 
-<!-- DEPT SUMMARY is now embedded within the KPI cards section below -->
-<!-- RAG MATRIX -->
-<div class="card c12">
-  <div class="ch">📊 ${lang==='ar'?'مصفوفة RAG':'RAG Status Matrix'}
-    <div class="ch-r" style="display:flex;gap:5px">
-      <span style="display:inline-flex;align-items:center;gap:2px;font-size:8px"><span style="width:10px;height:10px;border-radius:2px;background:${BC[2]};display:inline-block"></span>Met</span>
-      <span style="display:inline-flex;align-items:center;gap:2px;font-size:8px"><span style="width:10px;height:10px;border-radius:2px;background:${BC[1]};display:inline-block"></span>Missed</span>
-      <span style="display:inline-flex;align-items:center;gap:2px;font-size:8px"><span style="width:10px;height:10px;border-radius:2px;background:${BC[0]};display:inline-block"></span>N/A</span>
-    </div>
-  </div>
-  <div class="cb sc" style="padding:4px 10px 10px"><div style="overflow-x:auto"><div id="ragMatrix" style="min-width:580px"></div></div></div>
-</div>
-
-<!-- CHARTS ROW -->
-<div class="card c5">
-  <div class="ch">📊 ${lang==='ar'?'الإنجاز الربعي':'Quarterly Achievement'}</div>
-  <div class="cb"><div class="cw" style="height:110px"><canvas id="cBar"></canvas></div></div>
-</div>
-<div class="card c4">
-  <div class="ch">📈 ${lang==='ar'?'الاتجاه الربعي حسب القسم':'Quarterly Trend by Department'}</div>
-  <div class="cb"><div class="cw" style="height:110px"><canvas id="cExecML"></canvas></div></div>
-</div>
-<div class="card c3">
-  <div class="ch">🎯 ${lang==='ar'?'مستويات المخاطر':'Risk Tiers'}</div>
-  <div class="cb" style="padding:4px 11px 10px">
-    ${[1,2,3].map(t=>{const tk=ks.filter(k=>(k.tier||3)===t);const tm=tk.filter(k=>ok(k)===false).length;const to=tk.filter(k=>ok(k)===true).length;return`<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border)">
-      <span class="tier-b ${t===1?'t1':t===2?'t2b':'t3b'}">T${t}</span>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:10px;color:var(--t2)">${lang==='ar'?TIERS[t].ar:TIERS[t].en}</div>
-        <div style="height:3px;background:var(--t4);border-radius:99px;margin-top:3px;overflow:hidden"><div style="height:100%;width:${tk.length?Math.round(to/tk.length*100):0}%;background:${tm>0?'var(--red)':'var(--green)'};border-radius:99px"></div></div>
-      </div>
-      <div style="font-size:11px;font-family:var(--mono);font-weight:700;color:${tm>0?'var(--red)':'var(--green)'}">${to}/${tk.length}</div>
-    </div>`;}).join('')}
-  </div>
-</div>
-
-<!-- Individual KPI Trend Analysis (from Departments page) -->
-<div class="card c12">
-  <div class="ch" style="border-bottom:1px solid var(--border)">
-    <span style="font-weight:800">📈 ${lang==='ar'?'تحليل الاتجاه الفردي لكل مؤشر — الهدف + YoY':'Individual KPI Trend Analysis — Quarterly + Target + YoY'}</span>
-    <div class="ch-r">${lang==='ar'?'Q1\'25 → Q4\'25 → Q1\'26 لكل مؤشر':'Q1\'25 → Q4\'25 → Q1\'26 per KPI'}</div>
-  </div>
-  <div class="cb sc" style="padding:10px">
-    <div id="execKpiTrends" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px"></div>
-  </div>
-</div>
-`;
+  const g=document.getElementById('execGrid');
+  `;
   setTimeout(()=>{
     /* Render individual KPI cards */
     renderExecKpiCards(ks);
     renderRAG(ks);
-    /* Bar chart — uses current filter, shows year in labels */
+    /* Bar chart — uses current filter, year-aware labels */
     dch('cBar');
     requestAnimationFrame(()=>{
       const _bKs=filt();
       const _yrs=[...new Set(_bKs.map(k=>k.yr))].sort();
       const _showAll=_yrs.length>1;
-      /* Build labels: Q1'25 Q2'25... or Q1 Q2... */
-      const _qL=_showAll
-        ?_yrs.flatMap(yr=>['Q1','Q2','Q3','Q4'].map(q=>q+"'"+(String(yr).slice(2))))
-        :['Q1','Q2','Q3','Q4'];
-      const _metD=_showAll
-        ?_yrs.flatMap(yr=>['q1','q2','q3','q4'].map((_,i)=>_bKs.filter(k=>k.yr===yr&&k['q'+(i+1)]!==null&&k['q'+(i+1)]>=k.target).length))
-        :['q1','q2','q3','q4'].map((_,i)=>_bKs.filter(k=>k['q'+(i+1)]!==null&&k['q'+(i+1)]>=k.target).length);
-      const _misD=_showAll
-        ?_yrs.flatMap(yr=>['q1','q2','q3','q4'].map((_,i)=>_bKs.filter(k=>k.yr===yr&&k['q'+(i+1)]!==null&&k['q'+(i+1)]<k.target).length))
-        :['q1','q2','q3','q4'].map((_,i)=>_bKs.filter(k=>k['q'+(i+1)]!==null&&k['q'+(i+1)]<k.target).length);
-      CH['cBar']=mkChart('cBar',{type:'bar',data:{labels:_qL,datasets:[
-        {label:'Met',data:_metD,backgroundColor:'rgba(22,163,74,.65)',borderRadius:3,stack:'s'},
-        {label:'Missed',data:_misD,backgroundColor:'rgba(220,38,38,.60)',borderRadius:3,stack:'s'}
-      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:9},boxWidth:8,padding:6}}},scales:{y:{stacked:true,ticks:{stepSize:1,font:{size:9}},grid:{color:'rgba(20,35,80,.06)'}},x:{stacked:true,ticks:{font:{size:9}},grid:{display:false}}}}});
-    });/* Bar chart */
-    dch('cBar');
-    requestAnimationFrame(()=>{
-      const qL=['Q1','Q2','Q3','Q4'];
-      CH['cBar']=mkChart('cBar',{type:'bar',data:{labels:qL,datasets:[
-        {label:'Met',data:qL.map((_,i)=>k25.filter(k=>k['q'+(i+1)]!==null&&k['q'+(i+1)]>=k.target).length),backgroundColor:'rgba(22,163,74,.65)',borderRadius:3,stack:'s'},
-        {label:'Missed',data:qL.map((_,i)=>k25.filter(k=>k['q'+(i+1)]!==null&&k['q'+(i+1)]<k.target).length),backgroundColor:'rgba(220,38,38,.60)',borderRadius:3,stack:'s'}
-      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:8,padding:8}}},scales:{y:{stacked:true,ticks:{stepSize:1,font:{size:10}},grid:{color:'rgba(20,35,80,.06)'}},x:{stacked:true,ticks:{font:{size:10}},grid:{display:false}}}}});
+      const _qL=_showAll?_yrs.flatMap(yr=>['Q1','Q2','Q3','Q4'].map(q=>q+"'"+(String(yr).slice(2)))):['Q1','Q2','Q3','Q4'];
+      const _metD=_showAll?_yrs.flatMap(yr=>['q1','q2','q3','q4'].map((_,i)=>_bKs.filter(k=>k.yr===yr&&k['q'+(i+1)]!==null&&k['q'+(i+1)]>=k.target).length)):['q1','q2','q3','q4'].map((_,i)=>_bKs.filter(k=>k['q'+(i+1)]!==null&&k['q'+(i+1)]>=k.target).length);
+      const _misD=_showAll?_yrs.flatMap(yr=>['q1','q2','q3','q4'].map((_,i)=>_bKs.filter(k=>k.yr===yr&&k['q'+(i+1)]!==null&&k['q'+(i+1)]<k.target).length)):['q1','q2','q3','q4'].map((_,i)=>_bKs.filter(k=>k['q'+(i+1)]!==null&&k['q'+(i+1)]<k.target).length);
+      CH['cBar']=mkChart('cBar',{type:'bar',data:{labels:_qL,datasets:[{label:'Met',data:_metD,backgroundColor:'rgba(22,163,74,.65)',borderRadius:3,stack:'s'},{label:'Missed',data:_misD,backgroundColor:'rgba(220,38,38,.60)',borderRadius:3,stack:'s'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:9},boxWidth:8,padding:6}}},scales:{y:{stacked:true,ticks:{stepSize:1,font:{size:9}},grid:{color:'rgba(20,35,80,.06)'}},x:{stacked:true,ticks:{font:{size:9}},grid:{display:false}}}}});
     });
-    /* Quarterly Trend by Dept — updated to Q1'26 */
-    dch('cExecML');
-    requestAnimationFrame(()=>{
-      const avg2=(arr,q)=>{const vs=arr.map(k=>k[q]).filter(v=>v!==null);return vs.length?+(vs.reduce((a,b)=>a+b)/vs.length).toFixed(1):null;};
-      const deps2=['maintenance','safety','housekeeping','projects'];
-      const dsExec=deps2.map(d=>{
-        const kk25=allK().filter(x=>x.yr===2025&&x.dept===d);
-        const kk26=allK().filter(x=>x.yr===2026&&x.dept===d);
-        const data=[...['q1','q2','q3','q4'].map(q=>avg2(kk25,q)),avg2(kk26,'q1')];
-        return{label:DM[d].abbr,data,borderColor:DM[d].color,backgroundColor:'transparent',tension:.4,pointRadius:3,borderWidth:2,spanGaps:true};
-      });
-      CH['cExecML']=mkChart('cExecML',{type:'line',data:{labels:["Q1'25","Q2'25","Q3'25","Q4'25","Q1'26"],datasets:dsExec},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:9},boxWidth:8,padding:6}},tooltip:{mode:'index',intersect:false}},scales:{y:{min:40,max:105,ticks:{callback:v=>v+'%',font:{size:9}},grid:{color:'rgba(26,40,71,.05)'}},x:{ticks:{font:{size:8}},grid:{display:false}}}}});
-    });
-    /* Individual KPI Trend Analysis in exec page */
+    /* Line chart */
+    dch('cLine');
+    const k25=allK().filter(k=>k.yr===2025);
+    const avg=(arr,q)=>{const vs=arr.map(k=>k[q]).filter(v=>v!==null);return vs.length?+(vs.reduce((a,b)=>a+b)/vs.length).toFixed(1):null;};
+    const a25=['q1','q2','q3','q4'].map(q=>avg(k25,q));
+    const a26Ks=filt().filter(k=>k.yr===2026);
+    const a26=['q1','q2','q3','q4'].map(q=>avg(a26Ks,q));
+    CH['cLine']=mkChart('cLine',{type:'line',data:{labels:["Q1'25","Q2'25","Q3'25","Q4'25","Q1'26","Q2'26","Q3'26","Q4'26"],datasets:[{label:'2025',data:a25,borderColor:'#0195af',backgroundColor:'rgba(1,149,175,.10)',tension:.4,fill:true,spanGaps:true},{label:'2026',data:[null,null,null,null,...a26],borderColor:'#152538',backgroundColor:'rgba(21,37,56,.08)',tension:.4,fill:true,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:9},boxWidth:8,padding:6}},tooltip:{mode:'index',intersect:false}},scales:{y:{min:40,max:105,ticks:{callback:v=>v+'%',font:{size:9}},grid:{color:'rgba(26,40,71,.05)'}},x:{ticks:{font:{size:8}},grid:{display:false}}}}});
+    /* Dept perf cards + trend */
+    buildDeptPerfCards(evaluated);
+    /* Individual KPI Trend Analysis */
     renderExecKpiTrends(ks);
     fetchAI();
-
     /* Draw executive summary mini trend chart */
-    [300,600,1000].forEach(t=>setTimeout(()=>{
-      const _sel=document.getElementById('trendYrSel');
-      updateExecTrend(_sel?_sel.value:'2025');
-    },t));
+    [300,600,1000].forEach(t=>setTimeout(()=>updateExecTrend('both'),t));
   },30);
 }
 
-/* ══ KPI cards grouped by department — with embedded dept summary ══ */
 function renderExecKpiCards(ks){
   const el=document.getElementById('execKpiCards');if(!el)return;
   if(!ks.length){
@@ -3930,74 +3886,79 @@ function buildIntelRisks(missKpis,repKpis){
 
 function renderRAG(ks){
   const el=document.getElementById('ragMatrix');if(!el)return;
-  /* Dynamic columns based on year filter */
   const yr=F.year==='all'?'all':parseInt(F.year);
-  const sh25=yr==='all'||yr===2025;
-  const sh26=yr==='all'||yr===2026;
-  const showYoY=sh25&&sh26;
-  /* Build column template */
-  const baseCols=['56px','1fr','44px'];
-  const q25cols=sh25?['48px','48px','48px','48px']:[];
-  const q26cols=sh26?['48px']:[];
-  const avgCol=['52px'];
-  const yoyCol=showYoY?['54px']:[];
-  const statusCol=['72px'];
-  const allCols=[...baseCols,...q25cols,...q26cols,...avgCol,...yoyCol,...statusCol];
-  const cols=allCols.join(' ');
-  /* Headers */
-  const hdrs=[lang==='ar'?'الكود':'Code',lang==='ar'?'اسم المؤشر':'KPI Name',lang==='ar'?'قسم':'Dept'];
-  if(sh25){hdrs.push("Q1'25","Q2'25","Q3'25","Q4'25");}
-  if(sh26){hdrs.push("Q1'26");}
-  hdrs.push('AVG');
-  if(showYoY)hdrs.push('YoY');
-  hdrs.push(lang==='ar'?'الحالة':'Status');
-  let h=`<div style="display:grid;grid-template-columns:${cols};gap:0;background:#1A2847;border-radius:6px 6px 0 0;overflow:hidden">
-    ${hdrs.map(x=>`<div style="padding:7px 6px;font-size:8.5px;font-weight:800;color:#fff;letter-spacing:.04em;text-transform:uppercase;border-right:1px solid rgba(255,255,255,.12)">${x}</div>`).join('')}
+  const qs=['q1','q2','q3','q4'];
+  const qL=['Q1','Q2','Q3','Q4'];
+  const pill=(v,tgt,op)=>{
+    if(v===null)return'<span style="color:#CBD5E1;font-size:11px">—</span>';
+    const met=op==='<'?v<tgt:op==='='||op==='=='?v>=tgt:v>=tgt;
+    const bg=met?'rgba(22,163,74,.12)':'rgba(220,38,38,.12)';
+    const c=met?'#15803D':'#DC2626';
+    const border=met?'rgba(22,163,74,.25)':'rgba(220,38,38,.25)';
+    return`<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:10.5px;font-weight:700;background:${bg};color:${c};border:1px solid ${border}">${v}%</span>`;
+  };
+  const tierBadge=t=>`<span style="padding:2px 8px;border-radius:6px;font-size:9.5px;font-weight:800;background:rgba(1,149,175,.12);color:#0195af">T${t||3}</span>`;
+  const statusBadge=(k)=>{
+    const s=ok(k);
+    if(s===null)return`<span style="font-size:10px;color:#CBD5E1">—</span>`;
+    return s
+      ?`<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 12px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(22,163,74,.10);color:#15803D;border:1px solid rgba(22,163,74,.22)">✓ Met</span>`
+      :`<a href="#" onclick="event.preventDefault();drilldept&&drilldept('${k.dept}')" style="display:inline-flex;align-items:center;gap:4px;padding:3px 12px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(220,38,38,.10);color:#DC2626;border:1px solid rgba(220,38,38,.22);text-decoration:none">Missed ›</a>`;
+  };
+  const yoyBadge=v=>{
+    if(v===null||v===undefined)return'<span style="color:#CBD5E1">—</span>';
+    const pos=parseFloat(v)>=0;
+    return`<span style="font-size:10.5px;font-weight:700;color:${pos?'#15803D':'#DC2626'}">${pos?'+':''}${v}%</span>`;
+  };
+
+  const filtered=yr==='all'?ks:ks.filter(k=>k.yr===yr);
+  const total=filtered.length;
+
+  el.innerHTML=`
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px 8px;border-bottom:1px solid #F0F4F8">
+    <span style="font-size:10px;font-weight:800;color:#152538;letter-spacing:.04em;text-transform:uppercase">RAG Status Matrix</span>
+    <span style="font-size:10px;font-weight:700;color:#64748B">${total} KPIs</span>
+  </div>
+  <div style="overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;font-size:11px">
+    <thead>
+      <tr style="background:#F8FAFC;border-bottom:2px solid #E2E8F0">
+        <th style="padding:9px 14px;text-align:left;font-size:9px;font-weight:800;color:#94A3B8;letter-spacing:.07em;white-space:nowrap;min-width:120px">KPI</th>
+        <th style="padding:9px 10px;text-align:center;font-size:9px;font-weight:800;color:#94A3B8;letter-spacing:.07em">TARGET</th>
+        <th style="padding:9px 10px;text-align:center;font-size:9px;font-weight:800;color:#94A3B8;letter-spacing:.07em">Q1</th>
+        <th style="padding:9px 10px;text-align:center;font-size:9px;font-weight:800;color:#94A3B8;letter-spacing:.07em">Q2</th>
+        <th style="padding:9px 10px;text-align:center;font-size:9px;font-weight:800;color:#94A3B8;letter-spacing:.07em">Q3</th>
+        <th style="padding:9px 10px;text-align:center;font-size:9px;font-weight:800;color:#94A3B8;letter-spacing:.07em">Q4</th>
+        <th style="padding:9px 10px;text-align:center;font-size:9px;font-weight:800;color:#94A3B8;letter-spacing:.07em">AVG</th>
+        <th style="padding:9px 10px;text-align:center;font-size:9px;font-weight:800;color:#94A3B8;letter-spacing:.07em">YOY</th>
+        <th style="padding:9px 10px;text-align:center;font-size:9px;font-weight:800;color:#94A3B8;letter-spacing:.07em">RISK</th>
+        <th style="padding:9px 14px;text-align:center;font-size:9px;font-weight:800;color:#94A3B8;letter-spacing:.07em">STATUS</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${filtered.map((k,i)=>{
+        const vals=qs.map(q=>k[q]);
+        const filled=vals.filter(v=>v!==null);
+        const avg=filled.length?+(filled.reduce((a,b)=>a+b)/filled.length).toFixed(1):null;
+        const yoy=k.yoy!==undefined&&k.q1!==null?+(k.q1-k.yoy).toFixed(1):null;
+        return`<tr style="border-bottom:1px solid #F0F4F8;background:${i%2===0?'#fff':'#FAFBFC'};transition:background .15s" onmouseover="this.style.background='#F0F9FF'" onmouseout="this.style.background='${i%2===0?'#fff':'#FAFBFC'}'">
+          <td style="padding:10px 14px">
+            <div style="font-size:10.5px;font-weight:700;color:#152538;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px" title="${k.nameEn}">${k.nameEn.slice(0,28)}${k.nameEn.length>28?'…':''}</div>
+            <div style="font-size:9px;color:#94A3B8;margin-top:1px">${k.id}</div>
+          </td>
+          <td style="padding:10px;text-align:center;font-size:10.5px;font-weight:600;color:#475569;white-space:nowrap">${k.op||'≥'}${k.target}%</td>
+          ${qs.map(q=>`<td style="padding:10px;text-align:center">${pill(k[q],k.target,k.op)}</td>`).join('')}
+          <td style="padding:10px;text-align:center;font-size:10.5px;font-weight:700;color:#334155">${avg!==null?avg+'%':'—'}</td>
+          <td style="padding:10px;text-align:center">${yoyBadge(yoy)}</td>
+          <td style="padding:10px;text-align:center">${tierBadge(k.tier)}</td>
+          <td style="padding:10px 14px;text-align:center">${statusBadge(k)}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>
   </div>`;
-  const deps=['maintenance','safety','housekeeping','projects'];
-  deps.forEach(d=>{
-    const dk=ks.filter(k=>k.dept===d);if(!dk.length)return;
-    h+=`<div style="display:grid;grid-template-columns:${cols};background:${DM[d].color}15;border-bottom:1px solid ${DM[d].color}35;margin-top:8px">
-      <div style="grid-column:1/-1;padding:5px 8px;font-size:8.5px;font-weight:800;color:${DM[d].color};letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:6px">
-        <span style="width:8px;height:8px;border-radius:50%;background:${DM[d].color};flex-shrink:0"></span>
-        ${DM[d].abbr} — ${lang==='ar'?DM[d].ar:DM[d].en}
-      </div>
-    </div>`;
-    dk.forEach((k,ki)=>{
-      const a=ok(k),rc=getRepeat(k);
-      const q25s=k.yr===2025?[k.q1,k.q2,k.q3,k.q4]:[null,null,null,null];
-      const q26v=k.yr===2026?k.q1:null;
-      const allVals=[k.q1,k.q2,k.q3,k.q4].filter(v=>v!==null);
-      const avgVal=allVals.length?+(allVals.reduce((a,b)=>a+b)/allVals.length).toFixed(1):null;
-      const yoyStr=showYoY&&k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?((k.q1-k.yoy>=0?'+':'')+(k.q1-k.yoy).toFixed(1)+'%'):'\u2014';
-      const yoyColor=showYoY&&k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?(k.q1>=k.yoy?'var(--green)':'var(--red)'):'var(--t3)';
-      const cell=v=>{const b=pb(v,k.target);return`<div style="padding:6px 5px;font-size:9px;font-family:var(--mono);text-align:center;font-weight:${b>1?700:400};background:${BC[b]};color:${b===1?'#7f1d1d':b===2?'#065f46':b===3?'#713f12':'var(--t3)'};border-right:1px solid var(--border)">${v!==null?v.toFixed(0)+'%':'\u2014'}</div>`;};
-      const rowBg=ki%2===0?'transparent':'rgba(26,40,71,.025)';
-      h+=`<div style="display:grid;grid-template-columns:${cols};background:${rowBg};border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='rgba(0,151,167,.06)'" onmouseout="this.style.background='${rowBg}'">
-        <div style="padding:6px 6px;display:flex;align-items:center;gap:3px">
-          <span style="font-size:9px;font-family:var(--mono);font-weight:900;color:var(--teal)">${k.id}</span>
-          ${rc>=2?`<span class="repeat-b" style="font-size:7px">↩</span>`:''}
-        </div>
-        <div style="padding:6px 6px;display:flex;flex-direction:column;justify-content:center;overflow:hidden">
-          <div style="font-size:9.5px;color:var(--t1);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lang==='ar'?k.nameAr:k.nameEn}</div>
-          <div style="font-size:7.5px;color:var(--t3);margin-top:1px">${(k.tier||3)===1?'🔴 T1':(k.tier||3)===2?'🟡 T2':'⚪ T3'}</div>
-        </div>
-        <div style="padding:6px 4px;font-size:8.5px;font-weight:700;color:${DM[k.dept].color};text-align:center;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--border)">${DM[k.dept].abbr}</div>
-        ${sh25?q25s.map(v=>cell(v)).join(''):''}
-        ${sh26?cell(q26v):''}
-        <div style="padding:6px 5px;font-size:9px;font-family:var(--mono);text-align:center;font-weight:800;background:${avgVal!==null?BC[pb(avgVal,k.target)]:'transparent'};color:${avgVal!==null?(pb(avgVal,k.target)===1?'#7f1d1d':pb(avgVal,k.target)===2?'#065f46':'var(--t1)'):'var(--t3)'};border-right:1px solid var(--border)">${avgVal!==null?avgVal+'%':'\u2014'}</div>
-        ${showYoY?`<div style="padding:6px 5px;font-size:9px;font-family:var(--mono);text-align:center;font-weight:700;color:${yoyColor};border-right:1px solid var(--border)">${yoyStr}</div>`:''}
-        <div style="padding:6px 5px;display:flex;align-items:center;justify-content:center"><span class="${a===null?'pill-pend':a?'pill-ok':'pill-miss'}" style="font-size:8px">${a===null?'\u2014':a?'\u2713 Met':'✕ Missed'}</span></div>
-      </div>`;
-    });
-  });
-  el.innerHTML=h;
 }
 
-
-/* ══════════════════════════════════════════
-   DEPT PAGE
-══════════════════════════════════════════ */
 function renderDept(){
   const d=F.dept==='all'?null:F.dept;
   const activeDepts=d?[d]:['maintenance','safety','housekeeping','projects'];
@@ -4820,31 +4781,112 @@ function aiSend(){
 function updateExecTrend(yr){
   const cv=document.getElementById('execSumChart');
   if(!cv)return;
-  cv.width=cv.offsetWidth||240;
+  cv.width=cv.offsetWidth||260;
   const ctx=cv.getContext('2d');
   const W=cv.width,H=cv.height;
-  const allKs=allK().filter(k=>k.yr===parseInt(yr));
-  const pts=['q1','q2','q3','q4'].map(q=>{
-    const v=allKs.map(k=>k[q]).filter(x=>x!==null);
-    return v.length?+(v.reduce((a,b)=>a+b)/v.length).toFixed(1):null;
-  }).filter(v=>v!==null);
   ctx.clearRect(0,0,W,H);
-  if(pts.length<2){
-    ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='9px sans-serif';ctx.textAlign='center';
-    ctx.fillText('No data for '+yr,W/2,H/2);return;
+  const yrs=yr==='both'?[2025,2026]:[parseInt(yr)];
+  const colors={2025:'rgba(255,255,255,.45)',2026:'#0195af'};
+  const dashes={2025:[5,4],2026:[]};
+  const allLabels=yr==='both'
+    ?["Q1 '25","Q2 '25","Q3 '25","Q4 '25","Q1 '26","Q2 '26","Q3 '26","Q4 '26"]
+    :['Q1','Q2','Q3','Q4'];
+  let drawn=false;
+  yrs.forEach(y=>{
+    const ks=allK().filter(k=>k.yr===y);
+    const pts=['q1','q2','q3','q4'].map(q=>{
+      const v=ks.map(k=>k[q]).filter(x=>x!==null);
+      return v.length?+(v.reduce((a,b)=>a+b)/v.length).toFixed(1):null;
+    });
+    /* For 'both', offset x positions */
+    const offset=yr==='both'&&y===2026?4:0;
+    const validPts=pts.map((v,i)=>v!==null?{i:i+offset,v}:null).filter(Boolean);
+    if(validPts.length<2)return;
+    drawn=true;
+    const mn=50,mx=105,rng=mx-mn;
+    const totalPts=yr==='both'?8:4;
+    const xs=Array.from({length:8},(_,i)=>Math.round(10+i*(W-20)/7));
+    const ys=v=>Math.round(4+(1-(v-mn)/rng)*(H-8));
+    /* Area */
+    if(y===2026){
+      ctx.beginPath();ctx.moveTo(xs[validPts[0].i],H);
+      validPts.forEach(p=>ctx.lineTo(xs[p.i],ys(p.v)));
+      ctx.lineTo(xs[validPts[validPts.length-1].i],H);ctx.closePath();
+      const g=ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0,'rgba(1,149,175,.28)');g.addColorStop(1,'rgba(1,149,175,.02)');
+      ctx.fillStyle=g;ctx.fill();
+    }
+    /* Line */
+    ctx.beginPath();ctx.moveTo(xs[validPts[0].i],ys(validPts[0].v));
+    validPts.forEach((p,j)=>{
+      if(j>0){const cx=(xs[validPts[j-1].i]+xs[p.i])/2;ctx.bezierCurveTo(cx,ys(validPts[j-1].v),cx,ys(p.v),xs[p.i],ys(p.v));}
+    });
+    ctx.strokeStyle=colors[y];ctx.lineWidth=y===2026?2.5:1.5;
+    ctx.setLineDash(dashes[y]);ctx.stroke();ctx.setLineDash([]);
+    /* Dots (2026 only) */
+    if(y===2026){
+      validPts.forEach(p=>{ctx.beginPath();ctx.arc(xs[p.i],ys(p.v),3.5,0,Math.PI*2);ctx.fillStyle='#0195af';ctx.fill();ctx.strokeStyle='rgba(255,255,255,.3)';ctx.lineWidth=1.5;ctx.stroke();});
+    }
+    /* Grid lines */
+    if(!drawn){[25,50,75,100].forEach(v=>{const y2=ys(v);ctx.beginPath();ctx.moveTo(8,y2);ctx.lineTo(W-4,y2);ctx.strokeStyle='rgba(255,255,255,.06)';ctx.lineWidth=1;ctx.setLineDash([]);ctx.stroke();});}
+  });
+  if(!drawn){
+    ctx.fillStyle='rgba(255,255,255,.20)';ctx.font='9px sans-serif';ctx.textAlign='center';
+    ctx.fillText('No data available',W/2,H/2);
   }
-  const mn=Math.min(...pts)-4,mx=Math.max(...pts)+4,rng=mx-mn||1;
-  const xs=pts.map((_,i)=>Math.round(10+i*(W-20)/(pts.length-1)));
-  const ys=pts.map(v=>Math.round(4+(1-(v-mn)/rng)*(H-8)));
-  const g=ctx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,'rgba(1,149,175,.35)');g.addColorStop(1,'rgba(1,149,175,.01)');
-  ctx.beginPath();ctx.moveTo(xs[0],H);
-  xs.forEach((x,i)=>ctx.lineTo(x,ys[i]));
-  ctx.lineTo(xs[xs.length-1],H);ctx.closePath();
-  ctx.fillStyle=g;ctx.fill();
-  ctx.beginPath();ctx.moveTo(xs[0],ys[0]);
-  xs.forEach((x,i)=>{if(i>0){const cx=(xs[i-1]+x)/2;ctx.bezierCurveTo(cx,ys[i-1],cx,ys[i],x,ys[i]);}});
-  ctx.strokeStyle='#0195af';ctx.lineWidth=2;ctx.stroke();
-  xs.forEach((x,i)=>{ctx.beginPath();ctx.arc(x,ys[i],3.5,0,Math.PI*2);ctx.fillStyle='#0195af';ctx.fill();ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1.5;ctx.stroke();});
+}
+
+function buildDeptPerfCards(evaluated){
+  const el=document.getElementById('deptPerfGrid');if(!el)return;
+  const depts=[
+    {id:'maintenance', color:'#0195af', lightBg:'rgba(1,149,175,.08)', icon:'<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>'},
+    {id:'safety',      color:'#DC2626', lightBg:'rgba(220,38,38,.08)',  icon:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'},
+    {id:'housekeeping',color:'#16A34A', lightBg:'rgba(22,163,74,.08)',  icon:'<path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>'},
+    {id:'projects',    color:'#D97706', lightBg:'rgba(217,119,6,.08)',  icon:'<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>'},
+  ];
+  const cards=depts.map(({id,color,lightBg,icon})=>{
+    const dk=evaluated.filter(k=>k.dept===id);
+    if(!dk.length)return'';
+    const met=dk.filter(k=>ok(k)===true).length;
+    const miss=dk.filter(k=>ok(k)===false).length;
+    const pct=dk.length?Math.round(met/dk.length*100):0;
+    const dm=DM[id];
+    /* SVG donut ring */
+    const r=38,cx=46,cy=46,circ=2*Math.PI*r;
+    const dash=+(pct/100*circ).toFixed(1);
+    const donut=`<svg width="92" height="92" viewBox="0 0 92 92">
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#F0F4F8" stroke-width="9"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="9"
+        stroke-dasharray="${dash} ${circ}" stroke-dashoffset="${circ/4}"
+        stroke-linecap="round" transform="rotate(-90 ${cx} ${cy})"/>
+      <text x="${cx}" y="${cy-4}" text-anchor="middle" font-size="15" font-weight="900" fill="#152538" font-family="monospace">${pct}%</text>
+      <text x="${cx}" y="${cy+12}" text-anchor="middle" font-size="9" fill="#94A3B8" font-weight="600">Met</text>
+    </svg>`;
+    return`<div style="background:#fff;border:1.5px solid #E8EDF4;border-radius:16px;padding:20px 22px;box-shadow:0 2px 12px rgba(10,22,48,.08);transition:box-shadow .2s" onmouseover="this.style.boxShadow='0 6px 24px rgba(10,22,48,.13)'" onmouseout="this.style.boxShadow='0 2px 12px rgba(10,22,48,.08)'">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+        <div style="width:40px;height:40px;border-radius:12px;background:${lightBg};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${icon}</svg>
+        </div>
+        <span style="font-size:15px;font-weight:800;color:${color}">${dm.en}</span>
+      </div>
+      <!-- Stats + Donut -->
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;gap:22px">
+          ${[{l:'KPIs',v:dk.length,c:'#152538'},{l:'Met',v:met,c:'#16A34A'},{l:'Missed',v:miss,c:'#DC2626'}].map(s=>`
+          <div style="text-align:center">
+            <div style="font-size:28px;font-weight:900;color:${s.c};font-family:monospace;line-height:1">${s.v}</div>
+            <div style="font-size:10px;font-weight:600;color:#94A3B8;margin-top:3px">${s.l}</div>
+          </div>`).join('')}
+        </div>
+        <div style="flex-shrink:0">${donut}</div>
+      </div>
+      <!-- Footer -->
+      <div style="margin-top:16px;padding-top:12px;border-top:1px solid #F1F5F9">
+        <a href="#" onclick="event.preventDefault();F.dept='${id}';updateChips();renderDept();switchTab('dept',document.querySelectorAll('.tab')[1])" style="font-size:10.5px;font-weight:700;color:${color};text-decoration:none">View Details →</a>
+      </div>
+    </div>`;
+  }).join('');
+  el.innerHTML=cards;
 }
 >
