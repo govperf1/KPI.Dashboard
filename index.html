@@ -2360,46 +2360,48 @@ function calcAdminPCI(q,prefix){
   const resEl=document.getElementById(prefix+Q+'_res');
   const errId='pci-err-'+prefix+Q;
 
-  const clearAll=()=>{
-    if(icEl){icEl.value='';}
-    if(resEl){resEl.textContent='—';resEl.style.color='var(--t3)';resEl.style.fontSize='13px';resEl.style.background='';resEl.style.padding='';}
-  };
-  const clearError=()=>{
+  const clearErr=()=>{
     if(coEl){coEl.style.borderColor='';coEl.style.background='';coEl.style.boxShadow='';}
     const e=document.getElementById(errId);if(e)e.style.display='none';
   };
-  const showError=(msg)=>{
+  const clearAll=()=>{
+    if(icEl)icEl.value='';
+    if(resEl){resEl.textContent='—';resEl.style.color='var(--t3)';resEl.style.background='';resEl.style.fontWeight='';resEl.style.padding='';resEl.style.borderRadius='';}
+  };
+  const showErr=(msg)=>{
     if(coEl){coEl.value='';coEl.style.borderColor='#EF4444';coEl.style.background='rgba(239,68,68,.08)';coEl.style.boxShadow='0 0 0 3px rgba(239,68,68,.15)';}
     clearAll();
-    let errEl=document.getElementById(errId);
-    if(!errEl){
-      errEl=document.createElement('div');errEl.id=errId;
-      errEl.style.cssText='position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:#DC2626;color:#fff;font-size:9px;font-weight:700;padding:4px 10px;border-radius:6px;white-space:nowrap;pointer-events:none;z-index:999;box-shadow:0 2px 8px rgba(220,38,38,.35)';
-      if(coEl){coEl.parentNode.style.position='relative';coEl.parentNode.appendChild(errEl);}
+    let e=document.getElementById(errId);
+    if(!e){
+      e=document.createElement('div');e.id=errId;
+      e.style.cssText='position:absolute;bottom:calc(100% + 4px);left:50%;transform:translateX(-50%);background:#DC2626;color:#fff;font-size:9px;font-weight:700;padding:4px 10px;border-radius:6px;white-space:nowrap;z-index:999;box-shadow:0 2px 8px rgba(220,38,38,.35)';
+      if(coEl){coEl.parentNode.style.position='relative';coEl.parentNode.appendChild(e);}
     }
-    errEl.textContent=msg;errEl.style.display='block';
-    const onNext=()=>{clearError();if(coEl)coEl.removeEventListener('input',onNext);};
-    if(coEl)coEl.addEventListener('input',onNext);
+    e.textContent=msg;e.style.display='block';
+    const onNext=()=>{clearErr();coEl&&coEl.removeEventListener('input',onNext);};
+    coEl&&coEl.addEventListener('input',onNext);
   };
 
   const plRaw=plEl?.value??'';
   const coRaw=coEl?.value??'';
   const pl=parseFloat(plRaw)||0;
-  const co=parseFloat(coRaw)||0;
+  const co=parseFloat(coRaw);
 
-  /* Must have both fields filled */
-  if(plRaw.trim()===''||coRaw.trim()===''){clearAll();clearError();return;}
+  /* Always clear if Complete not yet entered */
+  if(coRaw.trim()===''){clearAll();clearErr();return;}
 
-  /* Complete must be ≤ Planned */
-  if(co>pl){showError('Max allowed: '+pl);return;}
+  /* Planned must also be filled */
+  if(plRaw.trim()===''){clearAll();clearErr();return;}
 
-  /* Valid - clear any error */
-  clearError();
+  /* Validate range: 0 ≤ Complete ≤ Planned */
+  if(co<0){showErr('Min: 0 — cannot be negative');return;}
+  if(co>pl){showErr('Max: '+pl+' — cannot exceed Planned');return;}
 
-  /* Incomplete = Planned - Complete */
+  clearErr();
+
+  /* Now show Incomplete and Result */
   if(icEl)icEl.value=Math.max(0,pl-co)||'';
 
-  /* Result % */
   const pct=pl>0?+(co/pl*100).toFixed(1):0;
   const tgtEl=document.getElementById(prefix==='eAd'?'eTg':'aTg');
   const tgt=tgtEl?parseFloat(tgtEl.value)||0:0;
@@ -2407,9 +2409,10 @@ function calcAdminPCI(q,prefix){
   if(resEl){
     resEl.textContent=(isMet?'✓ ':'✗ ')+pct+'%';
     resEl.style.color=isMet?'#059669':'#DC2626';
-    resEl.style.fontSize='14px';resEl.style.fontWeight='800';
-    resEl.style.padding='2px 6px';resEl.style.borderRadius='5px';
+    resEl.style.fontWeight='800';
     resEl.style.background=isMet?'rgba(5,150,105,.10)':'rgba(220,38,38,.10)';
+    resEl.style.padding='2px 6px';
+    resEl.style.borderRadius='5px';
   }
   const inp=document.getElementById((prefix==='eAd'?'e':'a')+Q);
   if(inp)inp.value=pct;
@@ -3485,131 +3488,142 @@ function renderExec(){
   const avg=(arr,q)=>{const vs=arr.map(k=>k[q]).filter(v=>v!==null);return vs.length?+(vs.reduce((a,b)=>a+b)/vs.length).toFixed(1):null;};
   const a25=['q1','q2','q3','q4'].map(q=>avg(k25,q));
 
-  const g=document.getElementById('execGrid');
+  
+  /* ── Exec summary pre-computed ── */
+  const _metPct=total?+(nOk/total*100).toFixed(1):0;
+  const _perfLabel=(nOk/Math.max(total,1))>=.75?'Stable':((nOk/Math.max(total,1))>=.5?'Developing':'Needs Attention');
+  const _perfColor=(nOk/Math.max(total,1))>=.75?'#4ADE80':((nOk/Math.max(total,1))>=.5?'#FCD34D':'#F87171');
+  const _critEsc=evaluated.filter(k=>ok(k)===false&&(k.tier||3)===1).length;
+  const _atRisk=evaluated.filter(k=>{const v=qv(k);return ok(k)===false&&v!==null&&(k.target-v)<=5;}).length;
+  const _critColor=_critEsc>0?'#F87171':'rgba(255,255,255,.85)';
+  const _riskColor=_atRisk>0?'#FCD34D':'rgba(255,255,255,.85)';
+
+const g=document.getElementById('execGrid');
   g.innerHTML=`
 
-<!-- ═══ NEW: 5 STAT CARDS + EXECUTIVE SUMMARY ═══ -->
-<div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:10px">
+<!-- ═══ STAT CARDS ═══ -->
+<div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:12px">
   <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px">
 
-    <!-- Card 1: Total KPIs -->
-    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 14px rgba(10,22,48,.10);border:1.5px solid #E2E8F0;cursor:pointer" onclick="switchTab('registry',document.querySelectorAll('.tab')[2])">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
-        <div style="width:32px;height:32px;border-radius:9px;background:rgba(21,37,56,.08);display:flex;align-items:center;justify-content:center">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#152538" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+    <!-- TOTAL KPIs -->
+    <div style="background:#fff;border-radius:16px;padding:20px 18px 16px;box-shadow:0 2px 14px rgba(10,22,48,.09);border:1.5px solid #E2E8F0;position:relative;overflow:hidden;cursor:pointer" onclick="switchTab('registry',document.querySelectorAll('.tab')[2])">
+      <div style="position:absolute;top:0;right:0;width:70px;height:70px;border-radius:0 16px 0 70px;background:rgba(21,37,56,.04)"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+        <div style="width:38px;height:38px;border-radius:11px;background:rgba(21,37,56,.08);display:flex;align-items:center;justify-content:center">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#152538" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
         </div>
-        <span style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#152538">TOTAL KPIs</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.07em;text-transform:uppercase">Total</span>
       </div>
-      <div style="font-size:46px;font-weight:800;color:#152538;font-family:monospace;line-height:1;margin-bottom:4px">${total}</div>
-      <div style="font-size:10.5px;color:#64748B;margin-bottom:14px">Active Indicators</div>
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:10px;color:#0195af;font-weight:700">View All KPIs →</span>
-        <svg width="72" height="28" viewBox="0 0 72 28" fill="none"><polyline points="4,20 14,14 24,16 34,10 44,12 54,6 68,10" stroke="#152538" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity=".5"/><circle cx="68" cy="10" r="2.5" fill="#152538" opacity=".6"/></svg>
+      <div style="font-size:52px;font-weight:900;color:#152538;font-family:monospace;line-height:1;margin-bottom:2px">${total}</div>
+      <div style="font-size:10px;font-weight:600;color:#64748B;margin-bottom:14px">KPI Indicators</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #F1F5F9">
+        <span style="font-size:10px;font-weight:700;color:#0195af">View all →</span>
+        <span style="font-size:9.5px;color:#94A3B8">${evaluated.length} evaluated</span>
       </div>
     </div>
 
-    <!-- Card 2: Met -->
-    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 14px rgba(10,22,48,.10);border:1.5px solid #E2E8F0">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
-        <div style="width:32px;height:32px;border-radius:50%;background:#22C55E;display:flex;align-items:center;justify-content:center">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+    <!-- MET -->
+    <div style="background:#fff;border-radius:16px;padding:20px 18px 16px;box-shadow:0 2px 14px rgba(10,22,48,.09);border:1.5px solid #E2E8F0;position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;right:0;width:70px;height:70px;border-radius:0 16px 0 70px;background:rgba(22,163,74,.05)"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+        <div style="width:38px;height:38px;border-radius:50%;background:#22C55E;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(34,197,94,.30)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
-        <span style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#152538">MET</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.07em;text-transform:uppercase">Met</span>
       </div>
-      <div style="font-size:46px;font-weight:800;color:#16A34A;font-family:monospace;line-height:1;margin-bottom:4px">${nOk}</div>
-      <div style="font-size:10.5px;color:#64748B;margin-bottom:14px">Out of ${total} KPIs</div>
-      <div>
-        <span style="font-size:18px;font-weight:800;color:#16A34A">${total?+(nOk/total*100).toFixed(1):0}%</span>
-        <span style="font-size:10px;color:#86EFAC;margin-left:4px">of total</span>
+      <div style="font-size:52px;font-weight:900;color:#16A34A;font-family:monospace;line-height:1;margin-bottom:2px">${nOk}</div>
+      <div style="font-size:10px;font-weight:600;color:#64748B;margin-bottom:14px">KPIs on target</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #F1F5F9">
+        <span style="font-size:15px;font-weight:800;color:#16A34A">${total?+(nOk/total*100).toFixed(1):0}%</span>
+        <span style="font-size:9px;padding:2px 8px;border-radius:20px;background:#DCFCE7;color:#16A34A;font-weight:700">Success rate</span>
       </div>
     </div>
 
-    <!-- Card 3: Missed -->
-    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 14px rgba(10,22,48,.10);border:1.5px solid #E2E8F0">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
-        <div style="width:32px;height:32px;border-radius:50%;background:#EF4444;display:flex;align-items:center;justify-content:center">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.8" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    <!-- MISSED -->
+    <div style="background:#fff;border-radius:16px;padding:20px 18px 16px;box-shadow:0 2px 14px rgba(10,22,48,.09);border:1.5px solid #E2E8F0;position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;right:0;width:70px;height:70px;border-radius:0 16px 0 70px;background:rgba(239,68,68,.05)"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+        <div style="width:38px;height:38px;border-radius:50%;background:#EF4444;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(239,68,68,.30)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </div>
-        <span style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#152538">MISSED</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.07em;text-transform:uppercase">Missed</span>
       </div>
-      <div style="font-size:46px;font-weight:800;color:#DC2626;font-family:monospace;line-height:1;margin-bottom:4px">${miss}</div>
-      <div style="font-size:10.5px;color:#64748B;margin-bottom:14px">KPIs Below Target</div>
-      <div>
-        <span style="font-size:18px;font-weight:800;color:#DC2626">${total?+(miss/total*100).toFixed(1):0}%</span>
-        <span style="font-size:10px;color:#FCA5A5;margin-left:4px">of total</span>
+      <div style="font-size:52px;font-weight:900;color:#DC2626;font-family:monospace;line-height:1;margin-bottom:2px">${miss}</div>
+      <div style="font-size:10px;font-weight:600;color:#64748B;margin-bottom:14px">Below target</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #F1F5F9">
+        <span style="font-size:15px;font-weight:800;color:#DC2626">${total?+(miss/total*100).toFixed(1):0}%</span>
+        <span style="font-size:9px;padding:2px 8px;border-radius:20px;background:#FEE2E2;color:#DC2626;font-weight:700">Gap rate</span>
       </div>
     </div>
 
-    <!-- Card 4: YOY Q1 -->
-    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 14px rgba(10,22,48,.10);border:1.5px solid #E2E8F0">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
-        <div style="width:32px;height:32px;border-radius:9px;background:rgba(1,149,175,.10);display:flex;align-items:center;justify-content:center">
+    <!-- YOY Q1 -->
+    <div style="background:#fff;border-radius:16px;padding:20px 18px 16px;box-shadow:0 2px 14px rgba(10,22,48,.09);border:1.5px solid #E2E8F0;position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;right:0;width:70px;height:70px;border-radius:0 16px 0 70px;background:rgba(1,149,175,.05)"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+        <div style="width:38px;height:38px;border-radius:11px;background:rgba(1,149,175,.12);display:flex;align-items:center;justify-content:center">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2.2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
         </div>
-        <span style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#152538">YOY (Q1)</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.07em;text-transform:uppercase">YOY Q1</span>
       </div>
-      <div style="font-size:38px;font-weight:800;font-family:monospace;line-height:1;margin-bottom:4px;color:${yoyDelta===null?'#64748B':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}">${yoyDelta===null?'N/A':(parseFloat(yoyDelta)>=0?'+':'')+yoyDelta+'%'}</div>
-      <div style="font-size:10.5px;color:#64748B;margin-bottom:12px">Q1 Current vs Q1 Prior</div>
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="padding:3px 10px;border-radius:20px;font-size:9.5px;font-weight:700;background:${yoyDelta===null?'#F1F5F9':parseFloat(yoyDelta)>=0?'#DCFCE7':'#FEE2E2'};color:${yoyDelta===null?'#64748B':parseFloat(yoyDelta)>=0?'#15803D':'#DC2626'}">
-          ${yoyDelta===null?'No data':parseFloat(yoyDelta)>=0?'✓ Improved':'✗ Declined'}
-        </span>
-        <svg width="64" height="26" viewBox="0 0 64 26" fill="none"><polyline points="4,20 14,12 24,15 34,8 44,11 58,5" stroke="#0195af" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="58" cy="5" r="2.5" fill="#0195af"/></svg>
+      <div style="font-size:42px;font-weight:900;font-family:monospace;line-height:1;margin-bottom:2px;color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}">${yoyDelta===null?'N/A':(parseFloat(yoyDelta)>=0?'+':'')+yoyDelta+'%'}</div>
+      <div style="font-size:10px;font-weight:600;color:#64748B;margin-bottom:14px">Q1 vs prior year Q1</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #F1F5F9">
+        <span style="font-size:9px;padding:2px 10px;border-radius:20px;font-weight:700;background:${yoyDelta===null?'#F8FAFC':parseFloat(yoyDelta)>=0?'#DCFCE7':'#FEE2E2'};color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}">${yoyDelta===null?'No data':parseFloat(yoyDelta)>=0?'Improved':'Declined'}</span>
+        <svg width="54" height="22" viewBox="0 0 54 22" fill="none"><polyline points="3,16 12,9 21,12 30,5 39,8 51,3" stroke="#0195af" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="51" cy="3" r="2.5" fill="#0195af"/></svg>
       </div>
     </div>
 
-    <!-- Card 5: Annual YOY -->
-    <div style="background:#fff;border-radius:14px;padding:18px 20px;box-shadow:0 2px 14px rgba(10,22,48,.10);border:1.5px solid #E2E8F0">
-      <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
-        <div style="width:32px;height:32px;border-radius:9px;background:rgba(239,68,68,.10);display:flex;align-items:center;justify-content:center">
+    <!-- ANNUAL YOY -->
+    <div style="background:#fff;border-radius:16px;padding:20px 18px 16px;box-shadow:0 2px 14px rgba(10,22,48,.09);border:1.5px solid #E2E8F0;position:relative;overflow:hidden">
+      <div style="position:absolute;top:0;right:0;width:70px;height:70px;border-radius:0 16px 0 70px;background:rgba(239,68,68,.05)"></div>
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px">
+        <div style="width:38px;height:38px;border-radius:11px;background:rgba(239,68,68,.10);display:flex;align-items:center;justify-content:center">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2.2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         </div>
-        <span style="font-size:9.5px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:#152538">ANNUAL YOY</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.07em;text-transform:uppercase">Annual YOY</span>
       </div>
-      <div style="font-size:38px;font-weight:800;font-family:monospace;line-height:1;margin-bottom:4px;color:${annYoYDelta===null?'#64748B':parseFloat(String(annYoYDelta))>=0?'#16A34A':'#DC2626'}">${annYoYDelta===null?'N/A':(parseFloat(String(annYoYDelta))>=0?'+':'')+annYoYDelta+'%'}</div>
-      <div style="font-size:10.5px;color:#64748B;margin-bottom:12px">Annual Avg vs Prior Year</div>
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="padding:3px 10px;border-radius:20px;font-size:9.5px;font-weight:700;background:${annYoYDelta===null?'#F1F5F9':parseFloat(String(annYoYDelta))>=0?'#DCFCE7':'#FEE2E2'};color:${annYoYDelta===null?'#64748B':parseFloat(String(annYoYDelta))>=0?'#15803D':'#DC2626'}">
-          ${annYoYDelta===null?'No data':parseFloat(String(annYoYDelta))>=0?'✓ Improved':'✗ Declined'}
-        </span>
-        <svg width="64" height="26" viewBox="0 0 64 26" fill="none"><polyline points="4,8 14,16 24,12 34,18 44,14 58,20" stroke="#EF4444" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="58" cy="20" r="2.5" fill="#EF4444"/></svg>
+      <div style="font-size:42px;font-weight:900;font-family:monospace;line-height:1;margin-bottom:2px;color:${annYoYDelta===null?'#94A3B8':parseFloat(String(annYoYDelta))>=0?'#16A34A':'#DC2626'}">${annYoYDelta===null?'N/A':(parseFloat(String(annYoYDelta))>=0?'+':'')+annYoYDelta+'%'}</div>
+      <div style="font-size:10px;font-weight:600;color:#64748B;margin-bottom:14px">Annual avg vs prior year</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #F1F5F9">
+        <span style="font-size:9px;padding:2px 10px;border-radius:20px;font-weight:700;background:${annYoYDelta===null?'#F8FAFC':parseFloat(String(annYoYDelta))>=0?'#DCFCE7':'#FEE2E2'};color:${annYoYDelta===null?'#94A3B8':parseFloat(String(annYoYDelta))>=0?'#16A34A':'#DC2626'}">${annYoYDelta===null?'No data':parseFloat(String(annYoYDelta))>=0?'Improved':'Declined'}</span>
+        <svg width="54" height="22" viewBox="0 0 54 22" fill="none"><polyline points="3,5 12,12 21,9 30,16 39,12 51,18" stroke="#EF4444" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="51" cy="18" r="2.5" fill="#EF4444"/></svg>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ═══ NEW: EXECUTIVE SUMMARY BAR ═══ -->
+
+<!-- ═══ EXECUTIVE SUMMARY BAR ═══ -->
 <div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:14px">
-  <div style="background:linear-gradient(135deg,#152538 0%,#1D3550 60%,#152538 100%);border-radius:14px;padding:20px 24px;display:grid;grid-template-columns:auto 1fr auto auto auto 1fr;gap:20px;align-items:center;box-shadow:0 4px 24px rgba(21,37,56,.22)">
+  <div style="background:linear-gradient(135deg,#152538 0%,#1D3550 60%,#152538 100%);border-radius:14px;padding:20px 24px;display:grid;grid-template-columns:auto 1fr auto auto 1fr;gap:20px;align-items:center;box-shadow:0 4px 24px rgba(21,37,56,.22)">
     <div style="width:50px;height:50px;border-radius:50%;border:2px solid rgba(1,149,175,.40);display:flex;align-items:center;justify-content:center;flex-shrink:0">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
     </div>
     <div>
       <div style="font-size:11px;font-weight:800;color:#fff;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">EXECUTIVE SUMMARY</div>
-      <div style="font-size:11px;color:rgba(255,255,255,.68);line-height:1.6">Overall performance is <strong style="color:${(nOk/Math.max(total,1))>=.75?'#4ADE80':'#FCA5A5'}">${(nOk/Math.max(total,1))>=.75?'Stable':((nOk/Math.max(total,1))>=.5?'Developing':'Needs Attention')}.</strong><br>All departments are focused on maintaining compliance and improving quality outcomes.</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.68);line-height:1.6">Overall performance is <strong style="color:${_perfColor}">${_perfLabel}.</strong><br>All departments focused on maintaining compliance and improving quality outcomes.</div>
     </div>
-    <div style="text-align:center;padding:0 8px;border-left:1px solid rgba(255,255,255,.10)">
-      <div style="font-size:26px;font-weight:800;font-family:monospace;line-height:1"><span style="color:#4ADE80">${nOk}</span><span style="color:rgba(255,255,255,.30);font-size:20px"> / </span><span style="color:rgba(255,255,255,.65)">${total}</span></div>
+    <div style="text-align:center;padding:0 8px;border-left:1px solid rgba(255,255,255,.10);border-right:1px solid rgba(255,255,255,.10)">
+      <div style="font-size:26px;font-weight:800;font-family:monospace;line-height:1"><span style="color:#4ADE80">${nOk}</span><span style="color:rgba(255,255,255,.30);font-size:20px;font-weight:400"> / </span><span style="color:rgba(255,255,255,.65)">${total}</span></div>
       <div style="font-size:9px;color:rgba(255,255,255,.50);font-weight:600;margin-top:3px;white-space:nowrap">Target Achieved</div>
     </div>
     <div style="text-align:center;padding:0 8px">
-      <div style="font-size:30px;font-weight:800;color:${evaluated.filter(k=>ok(k)===false&&(k.tier||3)===1).length>0?'#F87171':'rgba(255,255,255,.85)'};font-family:monospace;line-height:1">${evaluated.filter(k=>ok(k)===false&&(k.tier||3)===1).length}</div>
+      <div style="font-size:30px;font-weight:800;color:${_critColor};font-family:monospace;line-height:1">${_critEsc}</div>
       <div style="font-size:9px;color:rgba(255,255,255,.50);font-weight:600;margin-top:3px;white-space:nowrap">Critical Escalations</div>
     </div>
-    <div style="text-align:center;padding:0 8px;border-left:1px solid rgba(255,255,255,.10)">
-      <div style="font-size:30px;font-weight:800;font-family:monospace;line-height:1;color:${evaluated.filter(k=>{const v=qv(k);return ok(k)===false&&v!==null&&(k.target-v)<=5;}).length>0?'#FCD34D':'rgba(255,255,255,.85)'}">${evaluated.filter(k=>{const v=qv(k);return ok(k)===false&&v!==null&&(k.target-v)<=5;}).length}</div>
-      <div style="font-size:9px;color:rgba(255,255,255,.50);font-weight:600;margin-top:3px;white-space:nowrap">At Risk KPIs</div>
-    </div>
-    <div style="border-left:1px solid rgba(255,255,255,.10);padding-left:18px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <span style="font-size:10px;font-weight:700;color:rgba(255,255,255,.80)">Performance Trend</span>
-        <span style="font-size:9px;color:#0195af;font-weight:700">${F.year==='all'?'2026':F.year}</span>
+    <div style="border-left:1px solid rgba(255,255,255,.10);padding-left:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:10px;font-weight:700;color:rgba(255,255,255,.85)">Performance Trend</span>
+        <select id="trendYrSel" onchange="updateExecTrend(this.value)" style="background:rgba(1,149,175,.20);color:#0195af;border:1px solid rgba(1,149,175,.35);border-radius:6px;font-size:9px;font-weight:700;padding:2px 6px;cursor:pointer;outline:none;font-family:inherit">
+          <option value="2025" selected>2025</option>
+          <option value="2026">2026</option>
+          <option value="all">All</option>
+        </select>
       </div>
-      <canvas id="execSumChart" height="46" style="width:100%;display:block"></canvas>
+      <canvas id="execSumChart" height="46" style="width:100%;display:block;border-radius:6px"></canvas>
     </div>
   </div>
 </div>
-
 
 <!-- ROW 2-3: Individual KPI Cards — full width now -->
 <div class="card c12">
@@ -3661,7 +3675,7 @@ function renderExec(){
 
 <!-- CHARTS ROW -->
 <div class="card c5">
-  <div class="ch">📊 ${lang==='ar'?'الأداء الربعي 2025':'2025 Quarterly Achievement'}</div>
+  <div class="ch">📊 ${lang==='ar'?'الإنجاز الربعي':'Quarterly Achievement'}</div>
   <div class="cb"><div class="cw" style="height:110px"><canvas id="cBar"></canvas></div></div>
 </div>
 <div class="card c4">
@@ -3742,12 +3756,13 @@ function renderExec(){
     /* Individual KPI Trend Analysis in exec page */
     renderExecKpiTrends(ks);
     fetchAI();
+    [300,700,1200].forEach(t=>setTimeout(()=>{const s=document.getElementById('trendYrSel');updateExecTrend(s?s.value:'2025');},t));
 
     /* Draw executive summary mini trend chart */
-    setTimeout(()=>{
+    [300,600,1000].forEach(t=>setTimeout(()=>{
       const _sel=document.getElementById('trendYrSel');
       updateExecTrend(_sel?_sel.value:'2025');
-    },200);
+    },t));
   },30);
 }
 
@@ -3822,7 +3837,8 @@ function renderExecKpiCards(ks){
     };
 
     /* Dept header row */
-    html+=`<div style="grid-column:1/-1;margin-top:14px;cursor:pointer" onclick="drilldept('${d}')">
+    if(html)html+='<!--DEPTSPLIT-->';
+    html+=`<div style="margin-top:0;cursor:pointer;padding:0 2px" onclick="drilldept('${d}')">
       <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:5px">
         <span style="font-size:16px;font-weight:900;color:${dm.color};letter-spacing:.05em;font-family:var(--mono)">${dm.abbr}</span>
         <span style="font-size:11px;font-weight:600;color:var(--t2)">${lang==='ar'?dm.ar:dm.en}</span>
@@ -3876,7 +3892,17 @@ function renderExecKpiCards(ks){
     }
   });
 
-  el.innerHTML=html;
+  /* Wrap dept sections 2 per row */
+  const _secs=html.split('<!--DEPTSPLIT-->');
+  let _out='';
+  for(let _i=0;_i<_secs.length;_i+=2){
+    _out+='<div style="display:grid;grid-template-columns:1fr 1px 1fr;gap:0;margin-bottom:8px">'
+      +(_secs[_i]||'')
+      +'<div style="background:#E8EDF4;margin:12px 0"></div>'
+      +(_secs[_i+1]||'')
+      +'</div>';
+  }
+  el.innerHTML=_out||html;
   setTimeout(()=>{canvases.forEach(({cid,k})=>{const v=qv(k);if(v!==null)drawBullet(cid,v,k.target);});},15);
 }
 
@@ -3922,8 +3948,8 @@ function buildIntelRisks(missKpis,repKpis){
       </div>
       ${content||`<div style="padding:16px;font-size:10px;color:#94A3B8;text-align:center">None</div>`}
     </div>`;
-  return col(lang==='ar'?'مؤشرات متعثرة':'Below Target','⚠','#DC2626',missHTML,missKpis.length)
-       +col(lang==='ar'?'تطورات مُبلَّغة':'Reported Issues','↑','#D97706',repHTML,repKpis.length);
+  return col(lang==='ar'?'مؤشرات متعثرة':'KPIs Below Target','⚠','#DC2626',missHTML,missKpis.length)
+       +col(lang==='ar'?'تطورات مُبلَّغة':'Reported Concerns','↑','#D97706',repHTML,repKpis.length);
 }
 
 function renderRAG(ks){
@@ -4058,7 +4084,7 @@ function renderDept(){
       <div style="padding:14px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #F0F4F8;background:#FAFBFC">
         <div style="display:flex;align-items:center;gap:10px;flex:1">
           <span style="font-size:11px;font-weight:900;color:${deptColor};background:${deptColor}18;padding:4px 12px;border-radius:20px;letter-spacing:.05em">${dm.abbr}</span>
-          <span style="font-size:12px;font-weight:700;color:#152538">${dm.en}</span>
+          <span style="font-size:12px;font-weight:700;color:#152538;padding-bottom:2px;border-bottom:2.5px solid ${deptColor}">${dm.en}</span>
           <span style="font-size:9.5px;color:#94A3B8">— click for detail</span>
         </div>
         <!-- Dept stats -->
@@ -4811,38 +4837,41 @@ function aiSend(){
   },500+Math.random()*350);
 }
 
+
+function updateExecTrend(yr){
+  const cv=document.getElementById('execSumChart');if(!cv)return;
+  cv.width=cv.offsetWidth||240;
+  const ctx=cv.getContext('2d');const W=cv.width,H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  const yrs=(yr==='all')?[2025,2026]:[parseInt(yr)];
+  const clr={2025:'rgba(255,255,255,.45)',2026:'#0195af'};
+  let drawn=false;
+  yrs.forEach(y=>{
+    const ks=allK().filter(k=>k.yr===y);
+    const raw=['q1','q2','q3','q4'].map(q=>{const v=ks.map(k=>k[q]).filter(x=>x!==null);return v.length?+(v.reduce((a,b)=>a+b)/v.length).toFixed(1):null;});
+    const pts=raw.map((v,i)=>v!==null?{i,v}:null).filter(Boolean);
+    if(pts.length<2)return;drawn=true;
+    const vals=pts.map(p=>p.v);
+    const mn=Math.min(...vals)-4,mx=Math.max(...vals)+4,rng=mx-mn||1;
+    const xOf=i=>Math.round(10+i*(W-20)/3);
+    const yOf=v=>Math.round(4+(1-(v-mn)/rng)*(H-8));
+    if(y===2026){
+      const g=ctx.createLinearGradient(0,0,0,H);
+      g.addColorStop(0,'rgba(1,149,175,.30)');g.addColorStop(1,'rgba(1,149,175,.02)');
+      ctx.beginPath();ctx.moveTo(xOf(pts[0].i),H);
+      pts.forEach(p=>ctx.lineTo(xOf(p.i),yOf(p.v)));
+      ctx.lineTo(xOf(pts[pts.length-1].i),H);ctx.closePath();
+      ctx.fillStyle=g;ctx.fill();
+    }
+    ctx.beginPath();ctx.moveTo(xOf(pts[0].i),yOf(pts[0].v));
+    pts.forEach((p,j)=>{if(j>0){const cx=(xOf(pts[j-1].i)+xOf(p.i))/2;ctx.bezierCurveTo(cx,yOf(pts[j-1].v),cx,yOf(p.v),xOf(p.i),yOf(p.v));}});
+    ctx.strokeStyle=clr[y];ctx.lineWidth=y===2026?2.5:1.5;
+    ctx.setLineDash(y===2025?[5,4]:[]);ctx.stroke();ctx.setLineDash([]);
+    pts.forEach(p=>{ctx.beginPath();ctx.arc(xOf(p.i),yOf(p.v),3.5,0,Math.PI*2);ctx.fillStyle=clr[y];ctx.fill();ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1.5;ctx.stroke();});
+  });
+  if(!drawn){ctx.fillStyle='rgba(255,255,255,.25)';ctx.font='9px sans-serif';ctx.textAlign='center';ctx.fillText('No data',W/2,H/2);}
+}
 </script>
 
 </body>
-</html
-function updateExecTrend(yr){
-  const cv=document.getElementById('execSumChart');
-  if(!cv)return;
-  cv.width=cv.offsetWidth||240;
-  const ctx=cv.getContext('2d');
-  const W=cv.width,H=cv.height;
-  const allKs=allK().filter(k=>k.yr===parseInt(yr));
-  const pts=['q1','q2','q3','q4'].map(q=>{
-    const v=allKs.map(k=>k[q]).filter(x=>x!==null);
-    return v.length?+(v.reduce((a,b)=>a+b)/v.length).toFixed(1):null;
-  }).filter(v=>v!==null);
-  ctx.clearRect(0,0,W,H);
-  if(pts.length<2){
-    ctx.fillStyle='rgba(255,255,255,.2)';ctx.font='9px sans-serif';ctx.textAlign='center';
-    ctx.fillText('No data for '+yr,W/2,H/2);return;
-  }
-  const mn=Math.min(...pts)-4,mx=Math.max(...pts)+4,rng=mx-mn||1;
-  const xs=pts.map((_,i)=>Math.round(10+i*(W-20)/(pts.length-1)));
-  const ys=pts.map(v=>Math.round(4+(1-(v-mn)/rng)*(H-8)));
-  const g=ctx.createLinearGradient(0,0,0,H);
-  g.addColorStop(0,'rgba(1,149,175,.35)');g.addColorStop(1,'rgba(1,149,175,.01)');
-  ctx.beginPath();ctx.moveTo(xs[0],H);
-  xs.forEach((x,i)=>ctx.lineTo(x,ys[i]));
-  ctx.lineTo(xs[xs.length-1],H);ctx.closePath();
-  ctx.fillStyle=g;ctx.fill();
-  ctx.beginPath();ctx.moveTo(xs[0],ys[0]);
-  xs.forEach((x,i)=>{if(i>0){const cx=(xs[i-1]+x)/2;ctx.bezierCurveTo(cx,ys[i-1],cx,ys[i],x,ys[i]);}});
-  ctx.strokeStyle='#0195af';ctx.lineWidth=2;ctx.stroke();
-  xs.forEach((x,i)=>{ctx.beginPath();ctx.arc(x,ys[i],3.5,0,Math.PI*2);ctx.fillStyle='#0195af';ctx.fill();ctx.strokeStyle='rgba(255,255,255,.25)';ctx.lineWidth=1.5;ctx.stroke();});
-}
->
+</html>
