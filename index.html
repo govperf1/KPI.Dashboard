@@ -3497,8 +3497,19 @@ function renderExec(){
   const _atRisk=evaluated.filter(k=>{const v=qv(k);return ok(k)===false&&v!==null&&(k.target-v)<=5;}).length;
   const _critColor=_critEsc>0?'#F87171':'rgba(255,255,255,.85)';
   const _riskColor=_atRisk>0?'#FCD34D':'rgba(255,255,255,.85)';
+  /* ── Premium bar vars ── */
+  const _missK2=evaluated.filter(k=>ok(k)===false);
+  const _wK2=_missK2.reduce((a,k)=>{const v=qv(k);if(v===null)return a;const g=k.target-v;return(!a||g>a.g)?{k,g}:a;},null);
+  const _bigGapStr=_wK2?('-'+_wK2.g.toFixed(1)+'%'):'—';
+  const _bigGapName=_wK2?_wK2.k.nameEn.slice(0,28):'';
+  const _dS2=Object.keys(DM).map(d=>{const dk2=evaluated.filter(k=>k.dept===d);return{d,miss:dk2.filter(k=>ok(k)===false).length,total:dk2.length};}).filter(x=>x.total>0).sort((a,b)=>b.miss-a.miss);
+  const _wD2=_dS2[0];
+  const _dC2={maintenance:'#0195af',safety:'#F87171',housekeeping:'#4ADE80',projects:'#FCD34D'};
+  const _wDColor=_wD2?(_dC2[_wD2.d]||'#fff'):'#4ADE80';
+  const _wDName=_wD2&&_wD2.miss>0?DM[_wD2.d].en:'All Good';
+  const _wDSub=_wD2&&_wD2.miss>0?(_wD2.miss+' missed of '+_wD2.total):'';
 
-const g=document.getElementById('execGrid');
+  const g=document.getElementById('execGrid');
   g.innerHTML=`
 
 <!-- ═══ STAT CARDS ═══ -->
@@ -3625,6 +3636,24 @@ const g=document.getElementById('execGrid');
   </div>
 </div>
 
+<!-- ═══ NEW PREMIUM EXEC SUMMARY ═══ -->
+<div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:14px">
+  <div style="background:linear-gradient(135deg,#0A1628,#0F2040 40%,#0A1628);border-radius:16px;overflow:hidden;box-shadow:0 8px 40px rgba(10,22,40,.45),0 0 0 1px rgba(1,149,175,.12)">
+    <div style="height:2px;background:linear-gradient(90deg,#0195af,rgba(1,149,175,0))"></div>
+    <div style="display:grid;grid-template-columns:1fr 1px 1fr 1px 1fr 1px 1fr 1px 1.4fr;min-height:86px">
+      <div style="padding:15px 20px;display:flex;flex-direction:column;justify-content:center"><div style="font-size:8px;font-weight:700;color:rgba(1,149,175,.80);letter-spacing:.14em;text-transform:uppercase;margin-bottom:7px">Target Achieved</div><div style="display:flex;align-items:baseline;gap:5px"><span style="font-size:30px;font-weight:900;color:#4ADE80;font-family:var(--mono);line-height:1">${nOk}</span><span style="font-size:16px;color:rgba(255,255,255,.25);font-weight:300">/</span><span style="font-size:20px;font-weight:700;color:rgba(255,255,255,.55);font-family:var(--mono)">${total}</span></div><div style="font-size:11px;font-weight:700;color:#4ADE80;margin-top:3px">${_metPct}%</div></div>
+      <div style="background:rgba(255,255,255,.07)"></div>
+      <div style="padding:15px 20px;display:flex;flex-direction:column;justify-content:center"><div style="font-size:8px;font-weight:700;color:rgba(1,149,175,.80);letter-spacing:.14em;text-transform:uppercase;margin-bottom:7px">Missed KPIs</div><div style="font-size:30px;font-weight:900;color:${miss>0?'#F87171':'#4ADE80'};font-family:var(--mono);line-height:1">${miss}</div><div style="font-size:11px;font-weight:700;color:${miss>0?'#F87171':'#4ADE80'};margin-top:3px">${total?+(miss/total*100).toFixed(1):0}%</div></div>
+      <div style="background:rgba(255,255,255,.07)"></div>
+      <div style="padding:15px 20px;display:flex;flex-direction:column;justify-content:center"><div style="font-size:8px;font-weight:700;color:rgba(1,149,175,.80);letter-spacing:.14em;text-transform:uppercase;margin-bottom:7px">Biggest Gap</div><div style="font-size:26px;font-weight:900;color:${_bigGapStr==='—'?'#64748B':'#F87171'};font-family:var(--mono);line-height:1">${_bigGapStr}</div><div style="font-size:9px;color:rgba(255,255,255,.35);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px">${_bigGapName}</div></div>
+      <div style="background:rgba(255,255,255,.07)"></div>
+      <div style="padding:15px 20px;display:flex;flex-direction:column;justify-content:center"><div style="font-size:8px;font-weight:700;color:rgba(1,149,175,.80);letter-spacing:.14em;text-transform:uppercase;margin-bottom:7px">Dept Requiring Attention</div><div style="font-size:17px;font-weight:900;color:${_wDColor};line-height:1.2">${_wDName}</div><div style="font-size:9px;color:rgba(255,255,255,.35);margin-top:2px">${_wDSub}</div></div>
+      <div style="background:rgba(255,255,255,.07)"></div>
+      <div style="padding:13px 18px 10px;display:flex;flex-direction:column"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px"><span style="font-size:8px;font-weight:700;color:rgba(1,149,175,.80);letter-spacing:.14em;text-transform:uppercase">Performance Trend</span><select id="execTrendYrSel2" onchange="updateExecTrend(this.value)" style="background:rgba(1,149,175,.15);color:#0195af;border:1px solid rgba(1,149,175,.30);border-radius:5px;font-size:8px;font-weight:700;padding:2px 5px;cursor:pointer;outline:none;font-family:inherit"><option value="2025">2025</option><option value="2026">2026</option><option value="all" selected>All</option></select></div><canvas id="execSumChart2" style="flex:1;width:100%;min-height:44px;display:block"></canvas></div>
+    </div>
+  </div>
+</div>
+
 <!-- ROW 2-3: Individual KPI Cards — full width now -->
 <div class="card c12">
   <div class="ch" style="border-bottom:1px solid var(--border);padding-bottom:10px">
@@ -3632,7 +3661,7 @@ const g=document.getElementById('execGrid');
     <div class="ch-r">${ks.length} KPIs</div>
   </div>
   <div class="cb sc" style="padding:10px">
-    <div id="execKpiCards" style="width:100%"></div>
+    <div id="execKpiCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:10px;align-items:start"></div>
   </div>
 </div>
 
@@ -3717,28 +3746,17 @@ const g=document.getElementById('execGrid');
       const _bKs=filt();
       const _yrs=[...new Set(_bKs.map(k=>k.yr))].sort();
       const _showAll=_yrs.length>1;
-      /* Build labels: Q1'25 Q2'25... or Q1 Q2... */
-      const _qL=_showAll
-        ?_yrs.flatMap(yr=>['Q1','Q2','Q3','Q4'].map(q=>q+"'"+(String(yr).slice(2))))
-        :['Q1','Q2','Q3','Q4'];
-      const _metD=_showAll
-        ?_yrs.flatMap(yr=>['q1','q2','q3','q4'].map((_,i)=>_bKs.filter(k=>k.yr===yr&&k['q'+(i+1)]!==null&&k['q'+(i+1)]>=k.target).length))
-        :['q1','q2','q3','q4'].map((_,i)=>_bKs.filter(k=>k['q'+(i+1)]!==null&&k['q'+(i+1)]>=k.target).length);
-      const _misD=_showAll
-        ?_yrs.flatMap(yr=>['q1','q2','q3','q4'].map((_,i)=>_bKs.filter(k=>k.yr===yr&&k['q'+(i+1)]!==null&&k['q'+(i+1)]<k.target).length))
-        :['q1','q2','q3','q4'].map((_,i)=>_bKs.filter(k=>k['q'+(i+1)]!==null&&k['q'+(i+1)]<k.target).length);
-      CH['cBar']=mkChart('cBar',{type:'bar',data:{labels:_qL,datasets:[
+      const _labels=[],_metD=[],_misD=[];
+      _yrs.forEach(yr=>{['q1','q2','q3','q4'].forEach((q,qi)=>{
+        if(!_bKs.some(k=>(!_showAll||k.yr===yr)&&k[q]!==null))return;
+        _labels.push(_showAll?`Q${qi+1}'${String(yr).slice(2)}`:`Q${qi+1}`);
+        _metD.push(_bKs.filter(k=>(!_showAll||k.yr===yr)&&k[q]!==null&&k[q]>=k.target).length);
+        _misD.push(_bKs.filter(k=>(!_showAll||k.yr===yr)&&k[q]!==null&&k[q]<k.target).length);
+      });});
+      if(_labels.length)CH['cBar']=mkChart('cBar',{type:'bar',data:{labels:_labels,datasets:[
         {label:'Met',data:_metD,backgroundColor:'rgba(22,163,74,.65)',borderRadius:3,stack:'s'},
         {label:'Missed',data:_misD,backgroundColor:'rgba(220,38,38,.60)',borderRadius:3,stack:'s'}
       ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:9},boxWidth:8,padding:6}}},scales:{y:{stacked:true,ticks:{stepSize:1,font:{size:9}},grid:{color:'rgba(20,35,80,.06)'}},x:{stacked:true,ticks:{font:{size:9}},grid:{display:false}}}}});
-    });/* Bar chart */
-    dch('cBar');
-    requestAnimationFrame(()=>{
-      const qL=['Q1','Q2','Q3','Q4'];
-      CH['cBar']=mkChart('cBar',{type:'bar',data:{labels:qL,datasets:[
-        {label:'Met',data:qL.map((_,i)=>k25.filter(k=>k['q'+(i+1)]!==null&&k['q'+(i+1)]>=k.target).length),backgroundColor:'rgba(22,163,74,.65)',borderRadius:3,stack:'s'},
-        {label:'Missed',data:qL.map((_,i)=>k25.filter(k=>k['q'+(i+1)]!==null&&k['q'+(i+1)]<k.target).length),backgroundColor:'rgba(220,38,38,.60)',borderRadius:3,stack:'s'}
-      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:8,padding:8}}},scales:{y:{stacked:true,ticks:{stepSize:1,font:{size:10}},grid:{color:'rgba(20,35,80,.06)'}},x:{stacked:true,ticks:{font:{size:10}},grid:{display:false}}}}});
     });
     /* Quarterly Trend by Dept — updated to Q1'26 */
     dch('cExecML');
@@ -3770,181 +3788,133 @@ const g=document.getElementById('execGrid');
 function renderExecKpiCards(ks){
   const el=document.getElementById('execKpiCards');if(!el)return;
   if(!ks.length){el.innerHTML=emptyStateExec(F.dept,F.status);return;}
-  const depts=['maintenance','safety','housekeeping','projects'];
-  const canvases=[];
-
-  /* ── KPI card builder ── */
+  const isAllYr=F.year==='all';
+  window._showKpiDetail=(kId)=>{
+    const k=allK().find(x=>x.id===kId);if(!k)return;
+    const v=qv(k),dm=DM[k.dept],pct=v!==null?+(v).toFixed(1):null,gap=pct!==null?+(k.target-pct).toFixed(1):null;
+    const ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(10,22,48,.60);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center';ov.onclick=e=>{if(e.target===ov)ov.remove();};
+    const qC=['q1','q2','q3','q4'].map((q,i)=>{const qv2=k[q];const L='Q'+(i+1);if(qv2===null)return'<div style="text-align:center;padding:8px;background:#F8FAFC;border-radius:8px;border:1px solid #E2E8F0"><div style="font-size:13px;color:#CBD5E1">—</div><div style="font-size:9px;color:#94A3B8;margin-top:1px">'+L+'</div></div>';const ok2=qv2>=k.target;return'<div style="text-align:center;padding:8px;background:'+(ok2?'rgba(22,163,74,.10)':'rgba(220,38,38,.10)')+';border-radius:8px;border:1px solid '+(ok2?'rgba(22,163,74,.25)':'rgba(220,38,38,.20)')+'"><div style="font-size:14px;font-weight:800;color:'+(ok2?'#16A34A':'#DC2626')+';font-family:var(--mono)">'+qv2.toFixed(1)+'%</div><div style="font-size:9px;color:#64748B;margin-top:1px">'+L+'</div></div>';}).join('');
+    ov.innerHTML='<div style="background:#fff;border-radius:16px;padding:24px;min-width:340px;max-width:440px;box-shadow:0 20px 60px rgba(10,22,48,.25);position:relative"><button onclick="this.closest(\'div[style*=fixed]\').remove()" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:#94A3B8">&times;</button><div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><div style="width:36px;height:36px;border-radius:10px;background:'+dm.color+'18;display:flex;align-items:center;justify-content:center"><span style="font-size:11px;font-weight:900;color:'+dm.color+'">'+dm.abbr+'</span></div><div><div style="font-size:10px;font-weight:700;color:'+dm.color+';text-transform:uppercase;letter-spacing:.06em">'+k.id+'</div><div style="font-size:13px;font-weight:700;color:#152538;line-height:1.3">'+k.nameEn+'</div></div></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">'+qC+'</div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px"><div style="background:#F8FAFC;border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:900;color:#152538;font-family:var(--mono)">'+(pct!==null?pct+'%':'—')+'</div><div style="font-size:9px;color:#64748B;margin-top:2px">Achievement</div></div><div style="background:'+(gap!==null&&gap>0?'#FEF2F2':'#ECFDF5')+';border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:900;color:'+(gap!==null&&gap>0?'#DC2626':'#16A34A')+';font-family:var(--mono)">'+(gap!==null?(gap>0?'-'+gap:'+0')+'%':'—')+'</div><div style="font-size:9px;color:#64748B;margin-top:2px">Gap</div></div><div style="background:#EFF6FF;border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:900;color:#1E40AF;font-family:var(--mono)">'+k.target+'%</div><div style="font-size:9px;color:#64748B;margin-top:2px">Target</div></div></div><div style="font-size:10px;color:#94A3B8;text-align:center">'+k.yr+' · '+dm.en+'</div></div>';
+    document.body.appendChild(ov);
+  };
   const mkCard=(k)=>{
-    const v=qv(k),a=ok(k);
+    const v=qv(k),a=ok(k),dC=DM[k.dept]?.color||'#64748B';
     const isMissed=a===false,isMet=a===true;
-    const accentColor=isMissed?'#DC2626':isMet?'#16A34A':'#94A3B8';
-    const leftBar=isMissed?'#DC2626':isMet?'#16A34A':'#CBD5E1';
-    const bgColor=isMissed?'rgba(220,38,38,.02)':isMet?'rgba(22,163,74,.015)':'var(--card)';
-    const borderColor=isMissed?'rgba(220,38,38,.28)':isMet?'rgba(22,163,74,.22)':'var(--border)';
+    const acC=isMissed?'#DC2626':isMet?'#16A34A':'#94A3B8';
+    const lB=isMissed?'#DC2626':isMet?'#16A34A':'#CBD5E1';
     const rc=getRepeat(k);
-    const yStr=k.yoy!==undefined&&k.yoy!==null&&k.q1!==null
-      ?((k.q1-k.yoy>=0?'\u25b2':'\u25bc')+' '+(Math.abs(k.q1-k.yoy).toFixed(1))+'%'):'';
-    const yC=k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?(k.q1>=k.yoy?'#16A34A':'#DC2626'):'#94A3B8';
-    const pctBar=v!==null?Math.min(100,Math.max(0,Math.round(v/k.target*100))):0;
-    return`<div style="background:${bgColor};border:1.5px solid ${borderColor};border-left:4px solid ${leftBar};border-radius:10px;padding:14px 14px 12px;display:flex;flex-direction:column;gap:8px;box-sizing:border-box">
-      <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap">
-        <span style="font-size:10px;font-weight:800;font-family:var(--mono);color:${accentColor}">${k.id}</span>
-        <span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}" style="font-size:8px">T${k.tier||3}</span>
-        ${rc>=2?`<span class="repeat-b">\u21a9${rc}x</span>`:''}
-        <span class="${a===null?'pill-pend':a?'pill-ok':'pill-miss'}" style="font-size:9px;margin-left:auto">${a===null?'\u2014':a?'\u2713 Met':'\u2715 Missed'}</span>
-      </div>
-      <div style="font-size:11.5px;font-weight:700;color:var(--t1);line-height:1.35;min-height:32px">${lang==='ar'?k.nameAr:k.nameEn}</div>
-      <div style="font-size:34px;font-weight:900;color:${accentColor};font-family:var(--mono);line-height:1;letter-spacing:-.01em">${v!==null?v.toFixed(1)+'%':'\u2014'}</div>
-      <div style="height:5px;background:rgba(0,0,0,.08);border-radius:4px;overflow:hidden">
-        <div style="width:${pctBar}%;height:100%;background:${leftBar};border-radius:4px"></div>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;font-size:9px">
-        <span style="color:var(--t3)">Target: ${k.op==='='?'=':'\u2265'}${k.target}%</span>
-        ${yStr?`<span style="color:${yC};font-weight:700">vs PY: ${yStr}</span>`:''}
-      </div>
-      ${isMissed?`<div onclick="openGap('${k.id}')" style="padding:6px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.18);border-radius:7px;font-size:9px;font-weight:700;color:#DC2626;cursor:pointer;text-align:center" onmouseover="this.style.background='rgba(220,38,38,.14)'" onmouseout="this.style.background='rgba(220,38,38,.07)'">\u00bb View Gap Analysis</div>`:''}
-    </div>`;
+    let yStr='',yC='#94A3B8';
+    if(k.yoy!==undefined&&k.yoy!==null&&k.yoy!==0&&v!==null){const diff=+((v-k.yoy)/Math.abs(k.yoy)*100).toFixed(1);yStr=(diff>=0?'\u25b2':'\u25bc')+' '+Math.abs(diff).toFixed(1)+'%';yC=diff>=0?'#16A34A':'#DC2626';}
+    const pB=v!==null?Math.min(100,Math.max(0,Math.round(v/k.target*100))):0;
+    return'<div style="background:'+(isMissed?'rgba(220,38,38,.02)':isMet?'rgba(22,163,74,.015)':'var(--card)')+';border:1.5px solid '+(isMissed?'rgba(220,38,38,.28)':isMet?'rgba(22,163,74,.22)':'var(--border)')+';border-left:4px solid '+lB+';border-radius:10px;padding:14px 14px 12px;display:flex;flex-direction:column;gap:8px;box-sizing:border-box;height:100%"><div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap"><span style="font-size:10px;font-weight:800;font-family:var(--mono);color:'+dC+'">'+k.id+'</span><span class="tier-b '+((k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b')+'" style="font-size:8px">T'+(k.tier||3)+'</span>'+(rc>=2?'<span class="repeat-b">\u21a9'+rc+'x</span>':'')+'<span class="'+(a===null?'pill-pend':a?'pill-ok':'pill-miss')+'" style="font-size:9px;margin-left:auto">'+(a===null?'\u2014':a?'\u2713 Met':'\u2715 Missed')+'</span></div><div style="font-size:11.5px;font-weight:700;color:var(--t1);line-height:1.35;min-height:32px">'+(lang==='ar'?k.nameAr:k.nameEn)+'</div><div onclick="window._showKpiDetail(\''+k.id+'\')" title="Click for details" style="font-size:34px;font-weight:900;color:'+acC+';font-family:var(--mono);line-height:1;cursor:pointer;transition:opacity .15s" onmouseover="this.style.opacity=\'.7\'" onmouseout="this.style.opacity=\'1\'">'+(v!==null?v.toFixed(1)+'%':'\u2014')+'</div><div style="height:5px;background:rgba(0,0,0,.08);border-radius:4px;overflow:hidden;flex-shrink:0"><div style="width:'+pB+'%;height:100%;background:'+lB+';border-radius:4px"></div></div><div style="display:flex;justify-content:space-between;align-items:center;font-size:9px"><span style="color:var(--t3)">Target: '+(k.op==='='?'=':'\u2265')+k.target+'%</span>'+(yStr?'<span style="color:'+yC+';font-weight:700">vs PY: '+yStr+'</span>':'')+'</div>'+(isMissed?'<div onclick="openGap(\''+k.id+'\')" style="padding:6px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.18);border-radius:7px;font-size:9px;font-weight:700;color:#DC2626;cursor:pointer;text-align:center;flex-shrink:0" onmouseover="this.style.background=\'rgba(220,38,38,.14)\'" onmouseout="this.style.background=\'rgba(220,38,38,.07)\'">\u00bb View Gap Analysis</div>':'')+'</div>';
   };
-
-  /* ── Dept stat box ── */
-  const mkStat=(label,val,color)=>`<div style="flex:1;background:var(--bg);border-radius:8px;padding:8px 10px;text-align:center;border:1px solid var(--border);box-sizing:border-box">
-    <div style="font-size:20px;font-weight:900;color:${color};font-family:var(--mono);line-height:1">${val}</div>
-    <div style="font-size:8.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">${label}</div>
-  </div>`;
-
-  /* ── Build one dept section ── */
-  const mkDept=d=>{
-    const dk=ks.filter(k=>k.dept===d);if(!dk.length)return'';
-    const dm=DM[d];
-    const nOk=dk.filter(k=>ok(k)===true).length;
-    const nMiss=dk.filter(k=>ok(k)===false).length;
-    const sorted=[...dk.filter(k=>ok(k)===false).sort((a,b)=>(a.tier||3)-(b.tier||3)),...dk.filter(k=>ok(k)===true),...dk.filter(k=>ok(k)===null)];
-    const cols=sorted.length<=2?'1fr 1fr':sorted.length===3?'1fr 1fr 1fr':'1fr 1fr';
-    return`<div style="display:flex;flex-direction:column;gap:12px;width:100%;min-width:0;box-sizing:border-box">
-      <!-- Dept header -->
-      <div style="display:flex;align-items:center;gap:10px">
-        <div style="width:4px;background:${dm.color};border-radius:2px;align-self:stretch;flex-shrink:0"></div>
-        <div>
-          <div style="display:flex;align-items:baseline;gap:7px">
-            <span style="font-size:18px;font-weight:900;color:${dm.color};font-family:var(--mono);letter-spacing:.04em">${dm.abbr}</span>
-            <span style="font-size:12px;font-weight:600;color:var(--t2)">${lang==='ar'?dm.ar:dm.en}</span>
-          </div>
-        </div>
-      </div>
-      <!-- Stat boxes -->
-      <div style="display:flex;gap:8px;width:100%">
-        ${mkStat('KPIs',dk.length,'var(--t1)')}
-        ${mkStat('\u2713 MET',nOk,'#16A34A')}
-        ${mkStat('\u2715 MISSED',nMiss,nMiss?'#DC2626':'var(--t3)')}
-      </div>
-      <!-- KPI cards grid -->
-      <div style="display:grid;grid-template-columns:${cols};gap:10px;width:100%">
-        ${sorted.map(k=>mkCard(k)).join('')}
-      </div>
-    </div>`;
+  const mkSt=(lb,val,c)=>'<div style="flex:1;background:var(--bg);border-radius:8px;padding:8px 10px;text-align:center;border:1px solid var(--border)"><div style="font-size:20px;font-weight:900;color:'+c+';font-family:var(--mono);line-height:1">'+val+'</div><div style="font-size:8.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">'+lb+'</div></div>';
+  const mkD=(d,yrKs)=>{
+    const dk=yrKs.filter(k=>k.dept===d);if(!dk.length)return'';
+    const dm=DM[d],nO=dk.filter(k=>ok(k)===true).length,nM=dk.filter(k=>ok(k)===false).length;
+    const srt=[...dk.filter(k=>ok(k)===false).sort((a,b)=>(a.tier||3)-(b.tier||3)),...dk.filter(k=>ok(k)===true),...dk.filter(k=>ok(k)===null)];
+    const cols=srt.length<=2?'1fr 1fr':srt.length===3?'1fr 1fr 1fr':'1fr 1fr';
+    return'<div style="display:flex;flex-direction:column;gap:12px;width:100%;min-width:0;box-sizing:border-box"><div style="display:flex;align-items:center;gap:10px"><div style="width:4px;background:'+dm.color+';border-radius:2px;align-self:stretch;flex-shrink:0;min-height:36px"></div><div style="flex:1"><div style="display:flex;align-items:baseline;gap:7px"><span style="font-size:18px;font-weight:900;color:'+dm.color+';font-family:var(--mono);letter-spacing:.04em">'+dm.abbr+'</span><span style="font-size:12px;font-weight:600;color:var(--t2)">'+(lang==='ar'?dm.ar:dm.en)+'</span></div></div></div><div style="display:flex;gap:8px;width:100%">'+mkSt('KPIs',dk.length,'var(--t1)')+mkSt('\u2713 MET',nO,'#16A34A')+mkSt('\u2715 MISSED',nM,nM?'#DC2626':'var(--t3)')+'</div><div style="display:grid;grid-template-columns:'+cols+';gap:10px;width:100%;align-items:stretch">'+srt.map(k=>mkCard(k)).join('')+'</div></div>';
   };
-
-  /* ── Outer 2×2 grid layout ── */
-  const pairs=[['maintenance','safety'],['housekeeping','projects']];
+  const bldYr=(yrKs,yr)=>{
+    let out='';
+    if(isAllYr&&yr)out+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><div style="height:1px;flex:0 0 14px;background:var(--teal)"></div><span style="font-size:13px;font-weight:800;color:var(--teal);letter-spacing:.04em">'+yr+'</span><div style="height:1px;flex:1;background:var(--border2)"></div></div>';
+    [['maintenance','safety'],['housekeeping','projects']].forEach(([d1,d2],ri)=>{
+      const s1=mkD(d1,yrKs),s2=mkD(d2,yrKs);if(!s1&&!s2)return;
+      out+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:'+(ri===0?'24px':'0')+';padding-bottom:'+(ri===0?'20px':'0')+';'+(ri===0?'border-bottom:1px solid var(--border2)':'')+';\nalign-items:start">'+(s1||'<div></div>')+(s2||'<div></div>')+'</div>';
+    });return out;
+  };
   let out='';
-  pairs.forEach(([d1,d2],rowIdx)=>{
-    const s1=mkDept(d1), s2=mkDept(d2);
-    if(!s1&&!s2)return;
-    out+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:${rowIdx===0?'28px':'0'};padding-bottom:${rowIdx===0?'24px':'0'};${rowIdx===0?'border-bottom:1px solid var(--border2)':''};align-items:start">`;
-    out+=s1?s1:'<div></div>';
-    out+=s2?s2:'<div></div>';
-    out+='</div>';
-  });
-
+  if(isAllYr){const yrs=[...new Set(ks.map(k=>k.yr))].sort();yrs.forEach((yr,i)=>{out+='<div style="margin-bottom:'+(i<yrs.length-1?'28px':'0')+';padding-bottom:'+(i<yrs.length-1?'24px':'0')+';'+(i<yrs.length-1?'border-bottom:2px solid var(--border2)':'')+'">'+bldYr(ks.filter(k=>k.yr===yr),yr)+'</div>';});}
+  else out=bldYr(ks,null);
   el.innerHTML=out;
-  setTimeout(()=>{canvases.forEach(({cid,k})=>{const v=qv(k);if(v!==null)drawBullet&&drawBullet(cid,v,k.target);});},15);
 }
 
 function buildIntelRisks(missKpis,repKpis){
-  if(!missKpis.length&&!repKpis.length){
-    return`<div style="grid-column:1/-1;padding:16px 20px;display:flex;align-items:center;gap:12px">
-      <div style="width:36px;height:36px;border-radius:10px;background:#ECFDF5;display:flex;align-items:center;justify-content:center;flex-shrink:0">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-      </div>
-      <div>
-        <div style="font-size:11.5px;font-weight:700;color:#16A34A">${lang==='ar'?'جميع المؤشرات محققة':'All KPIs On Track'}</div>
-        <div style="font-size:10.5px;color:#64748B;margin-top:2px">${lang==='ar'?'لا توجد مخاطر تنفيذية حالياً':'No operational risks detected at this time'}</div>
-      </div>
-    </div>`;
-  }
-  const mkCard=(k,type)=>{
-    const v=qv(k);
-    const isMiss=type==='miss';
-    const icon=isMiss
-      ?`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`
-      :`<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`;
-    const gap=v!==null?(k.target-v).toFixed(1):null;
-    return`<div style="display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-bottom:1px solid #F8FAFC;transition:background .15s" onmouseover="this.style.background='#F8FAFC'" onmouseout="this.style.background=''">
-      <div style="width:26px;height:26px;border-radius:8px;background:${isMiss?'rgba(220,38,38,.08)':'rgba(217,119,6,.08)'};display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">${icon}</div>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:2px">
-          <div style="font-size:10.5px;font-weight:700;color:#152538;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px">${k.nameEn}</div>
-          <span style="font-size:9px;font-weight:800;padding:2px 8px;border-radius:20px;background:${isMiss?'rgba(220,38,38,.10)':'rgba(217,119,6,.10)'};color:${isMiss?'#DC2626':'#D97706'};white-space:nowrap">${isMiss?(v!==null?v.toFixed(1)+'%':'—'):'Reported'}</span>
-        </div>
-        <div style="font-size:9.5px;color:#94A3B8">${k.id} · ${DM[k.dept]?.en||k.dept}${gap&&isMiss?` · Gap: <span style="color:#DC2626;font-weight:600">-${gap}%</span>`:''}</div>
-        ${!isMiss&&repKpis.find(r=>r.id===k.id)?.note?`<div style="font-size:9px;color:#D97706;margin-top:2px">${repKpis.find(r=>r.id===k.id).note}</div>`:''}
-      </div>
-    </div>`;
-  };
-  const missHTML=missKpis.map(k=>mkCard(k,'miss')).join('');
-  const repHTML=repKpis.map(k=>mkCard(k,'rep')).join('');
-  const col=(title,icon,color,content,count)=>`
-    <div style="border-right:1px solid #F0F4F8">
-      <div style="display:flex;align-items:center;gap:8px;padding:10px 16px 8px;background:#FAFBFC;border-bottom:1px solid #F0F4F8">
-        <span style="font-size:9px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:${color}">${title}</span>
-        <span style="background:${color}18;color:${color};font-size:9px;font-weight:800;padding:1px 7px;border-radius:20px">${count}</span>
-      </div>
-      ${content||`<div style="padding:16px;font-size:10px;color:#94A3B8;text-align:center">None</div>`}
-    </div>`;
-  return col(lang==='ar'?'مؤشرات متعثرة':'KPIs Below Target','⚠','#DC2626',missHTML,missKpis.length)
-       +col(lang==='ar'?'تطورات مُبلَّغة':'Reported Concerns','↑','#D97706',repHTML,repKpis.length);
+  const el=document.getElementById('intelPanel');if(!el)return;
+  const allEval=filt().filter(k=>ok(k)!==null);
+  const n2=allEval.filter(k=>ok(k)===true).length;
+  const p2=allEval.length?Math.round(n2/allEval.length*100):0;
+  const wK=missKpis.reduce((a,k)=>{const v=qv(k);if(v===null)return a;const g=k.target-v;return(!a||g>a.g)?{k,g}:a;},null);
+  const stxt='Division achieved '+p2+'%. '+(wK?'KPI '+wK.k.id+' ('+wK.k.nameEn+') shows the highest gap of '+wK.g.toFixed(1)+'% from target.':'All monitored KPIs are performing well.');
+  document.getElementById('intelUpdateTime').textContent='Last Updated: '+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+  const tB=t=>{const c=t===1?'#DC2626':t===2?'#D97706':'#0195af';const b=t===1?'rgba(220,38,38,.10)':t===2?'rgba(217,119,6,.10)':'rgba(1,149,175,.10)';return'<span style="padding:2px 8px;border-radius:5px;font-size:9px;font-weight:800;color:'+c+';background:'+b+'">T'+t+'</span>';};
+  const recs=[missKpis.some(k=>(k.tier||3)===1)?{t:'Immediate: Address Tier 1 Patient Safety KPIs',s:'Requires executive escalation'}:null,missKpis.length>=3?{t:'Chronic underperformance in '+missKpis.length+' KPIs',s:'Root cause analysis required'}:null,{t:(repKpis||[]).length>0?'Gap analysis incomplete':'Continue monitoring quarterly targets',s:(repKpis||[]).length>0?'Enter root causes & actions for all Missed KPIs':'All departments focused on compliance'}].filter(Boolean).slice(0,3);
+  const rCards=missKpis.slice(0,4).map(k=>{const v=qv(k);const rc=getRepeat(k);const dC=DM[k.dept]?.color||'#64748B';return'<div style="display:flex;align-items:center;gap:8px;padding:9px 12px;background:#FFF5F5;border-left:3px solid #DC2626;border-radius:0 8px 8px 0" onmouseover="this.style.background=\'#FEE2E2\'" onmouseout="this.style.background=\'#FFF5F5\'"><span style="font-size:10px;font-weight:800;color:'+dC+';font-family:var(--mono);min-width:54px">'+k.id+'</span>'+tB(k.tier||3)+(rc>=2?'<span style="font-size:8px;font-weight:700;padding:1px 6px;border-radius:20px;background:rgba(217,119,6,.12);color:#D97706">+'+rc+'x</span>':'')+'<span style="font-size:10px;color:#475569;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+k.nameEn+' \u2014 '+(v!==null?v.toFixed(1)+'%':'\u2014')+' / '+k.target+'%</span></div>';}).join('')||'<div style="font-size:11px;color:#94A3B8;padding:8px 0">No critical risks</div>';
+  const repR=(repKpis&&repKpis.length?repKpis:missKpis).slice(0,5);
+  el.innerHTML='<div style="display:grid;grid-template-columns:210px 1fr 250px;border-bottom:1px solid #F0F4F8"><div style="padding:16px 18px;border-right:1px solid #F0F4F8"><div style="font-size:8.5px;font-weight:800;color:#94A3B8;letter-spacing:.10em;text-transform:uppercase;margin-bottom:10px">Summary</div><p style="font-size:11.5px;color:#334155;line-height:1.70;margin:0">'+stxt+'</p></div><div style="padding:16px 18px;border-right:1px solid #F0F4F8"><div style="font-size:8.5px;font-weight:800;color:#94A3B8;letter-spacing:.10em;text-transform:uppercase;margin-bottom:10px">Critical Risks</div><div style="display:flex;flex-direction:column;gap:7px">'+rCards+'</div></div><div style="padding:16px 18px"><div style="font-size:8.5px;font-weight:800;color:#94A3B8;letter-spacing:.10em;text-transform:uppercase;margin-bottom:10px">Recommendations</div><div style="display:flex;flex-direction:column;gap:8px">'+recs.map(r=>'<div style="display:flex;gap:10px;padding:9px 12px;background:#F0FDF4;border-radius:10px;border:1px solid rgba(22,163,74,.12)"><div style="width:22px;height:22px;border-radius:50%;background:#16A34A;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg></div><div><div style="font-size:10.5px;font-weight:700;color:#152538">'+r.t+'</div><div style="font-size:9.5px;color:#64748B;margin-top:2px">'+r.s+'</div></div></div>').join('')+'</div></div></div>'+(repR.length?'<div style="padding:12px 0"><div style="font-size:8.5px;font-weight:800;color:#94A3B8;letter-spacing:.10em;text-transform:uppercase;padding:0 18px 10px">Repeat Misses</div><table style="width:100%;border-collapse:collapse"><thead><tr style="border-bottom:1px solid #F0F4F8"><th style="padding:6px 18px;text-align:left;font-size:8.5px;font-weight:700;color:#94A3B8">KPI</th><th style="padding:6px 10px;text-align:center;font-size:8.5px;font-weight:700;color:#94A3B8">Dept</th><th style="padding:6px 10px;text-align:center;font-size:8.5px;font-weight:700;color:#94A3B8">Risk Tier</th><th style="padding:6px 10px;text-align:center;font-size:8.5px;font-weight:700;color:#94A3B8">Trend</th><th style="padding:6px 18px;text-align:right;font-size:8.5px;font-weight:700;color:#94A3B8">Last Result</th></tr></thead><tbody>'+repR.map((k,i)=>{const v=qv(k);const rc=getRepeat(k);const dm=DM[k.dept];const dC=dm.color;const diff=k.yoy!=null&&v!=null?+((v-k.yoy)/Math.abs(k.yoy)*100).toFixed(1):null;const arw=diff===null?'\u2014':diff>=0?'<span style="color:#16A34A">&#9650; '+Math.abs(diff).toFixed(1)+'%</span>':'<span style="color:#DC2626">&#9660; '+Math.abs(diff).toFixed(1)+'%</span>';return'<tr style="border-bottom:1px solid #F8FAFC;background:'+(i%2?'#FAFBFC':'#fff')+'"><td style="padding:8px 18px"><div style="display:flex;align-items:center;gap:6px"><span style="font-size:10px;font-weight:800;font-family:var(--mono);color:'+dC+'">'+k.id+'</span>'+(rc>=2?'<span style="font-size:8px;font-weight:700;padding:1px 5px;border-radius:20px;background:rgba(217,119,6,.10);color:#D97706">'+rc+'q</span>':'')+'</div><div style="font-size:9.5px;color:#64748B;margin-top:1px">'+k.nameEn+'</div></td><td style="padding:8px 10px;text-align:center"><span style="font-size:9px;color:'+dC+';font-weight:700">'+dm.abbr+'</span></td><td style="padding:8px 10px;text-align:center">'+tB(k.tier||3)+'</td><td style="padding:8px 10px;text-align:center">'+arw+'</td><td style="padding:8px 18px;text-align:right;font-weight:700;font-size:10px;color:'+(v!==null&&v>=k.target?'#16A34A':'#DC2626')+'">'+(v!==null?v.toFixed(1)+'%':'\u2014')+' <span style="color:#94A3B8;font-weight:400">/ '+k.target+'%</span></td></tr>';}).join('')+'</tbody></table></div>':'');
 }
 
 function renderRAG(ks){
   const el=document.getElementById('ragMatrix');if(!el)return;
-  const cols='62px 1fr 65px 50px 55px 55px 55px 55px 58px 55px 48px 78px';
-  const hs=['Code','KPI Name','Dept','Target','Q1','Q2','Q3','Q4','Avg','YoY','Risk','Status'];
-  let tbl=`<div style="display:grid;grid-template-columns:${cols};gap:2px;padding:6px 2px;border-bottom:1px solid var(--border2);position:sticky;top:0;background:var(--card);z-index:1">
-    ${hs.map(x=>`<div style="font-size:9px;font-weight:700;color:var(--t3);letter-spacing:.06em;text-transform:uppercase;padding:0 4px">${x}</div>`).join('')}
+  /* Dynamic columns based on year filter */
+  const yr=F.year==='all'?'all':parseInt(F.year);
+  const sh25=yr==='all'||yr===2025;
+  const sh26=yr==='all'||yr===2026;
+  const showYoY=sh25&&sh26;
+  /* Build column template */
+  const baseCols=['56px','1fr','44px'];
+  const q25cols=sh25?['48px','48px','48px','48px']:[];
+  const q26cols=sh26?['48px']:[];
+  const avgCol=['52px'];
+  const yoyCol=showYoY?['54px']:[];
+  const statusCol=['72px'];
+  const allCols=[...baseCols,...q25cols,...q26cols,...avgCol,...yoyCol,...statusCol];
+  const cols=allCols.join(' ');
+  /* Headers */
+  const hdrs=[lang==='ar'?'الكود':'Code',lang==='ar'?'اسم المؤشر':'KPI Name',lang==='ar'?'قسم':'Dept'];
+  if(sh25){hdrs.push("Q1'25","Q2'25","Q3'25","Q4'25");}
+  if(sh26){hdrs.push("Q1'26");}
+  hdrs.push('AVG');
+  if(showYoY)hdrs.push('YoY');
+  hdrs.push(lang==='ar'?'الحالة':'Status');
+  let h=`<div style="display:grid;grid-template-columns:${cols};gap:0;background:#1A2847;border-radius:6px 6px 0 0;overflow:hidden">
+    ${hdrs.map(x=>`<div style="padding:7px 6px;font-size:8.5px;font-weight:800;color:#fff;letter-spacing:.04em;text-transform:uppercase;border-right:1px solid rgba(255,255,255,.12)">${x}</div>`).join('')}
   </div>`;
   const deps=['maintenance','safety','housekeeping','projects'];
   deps.forEach(d=>{
     const dk=ks.filter(k=>k.dept===d);if(!dk.length)return;
-    tbl+=`<div style="display:flex;align-items:center;gap:0;margin:6px 0 2px">
-      <div style="width:3px;height:28px;background:${DM[d].color};border-radius:2px;flex-shrink:0;margin-right:8px"></div>
-      <span style="font-size:10px;font-weight:800;color:${DM[d].color};text-transform:uppercase;letter-spacing:.08em">${DM[d].abbr}</span>
-      <span style="font-size:9px;font-weight:600;color:var(--t2);margin-left:6px">${lang==='ar'?DM[d].ar:DM[d].en}</span>
+    h+=`<div style="display:grid;grid-template-columns:${cols};background:${DM[d].color}15;border-bottom:1px solid ${DM[d].color}35;margin-top:8px">
+      <div style="grid-column:1/-1;padding:5px 8px;font-size:8.5px;font-weight:800;color:${DM[d].color};letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;gap:6px">
+        <span style="width:8px;height:8px;border-radius:50%;background:${DM[d].color};flex-shrink:0"></span>
+        ${DM[d].abbr} — ${lang==='ar'?DM[d].ar:DM[d].en}
+      </div>
     </div>`;
-    dk.forEach(k=>{
-      const v=qv(k),a=ok(k),c=kc(k);
-      const yStr=k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?((k.q1-k.yoy>=0?'+':'')+(k.q1-k.yoy).toFixed(1)+'%'):'\u2014';
-      const yC=k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?(k.q1>=k.yoy?'var(--green)':'var(--red)'):'var(--t3)';
-      const rc=getRepeat(k);
-      const isMissed=a===false;
-      tbl+=`<div style="display:grid;grid-template-columns:${cols};gap:2px;padding:5px 0;border-bottom:1px solid var(--border);align-items:center;${isMissed?'cursor:pointer;':'cursor:default;'}" ${isMissed?`onclick="openGap('${k.id}')"`:''}  ${isMissed?`onmouseover="this.style.background='rgba(220,38,38,.04)'" onmouseout="this.style.background='transparent'"`:''}> 
-        <div style="padding:0 4px"><div style="font-size:9px;font-family:var(--mono);font-weight:700;color:var(--teal)">${k.id}</div>${rc>=2?`<span class="repeat-b" style="margin-top:2px">\u21a9${rc}</span>`:''}</div>
-        <div style="font-size:10.5px;color:var(--t2);padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${lang==='ar'?k.nameAr:k.nameEn}</div>
-        <div style="font-size:9px;color:${DM[k.dept].color};padding:0 4px;font-weight:600">${DM[k.dept].abbr}</div>
-        <div style="font-size:9.5px;font-family:var(--mono);color:var(--t3);padding:0 4px">${k.op==='='?'=':'\u2265'}${k.target}%</div>
-        ${['q1','q2','q3','q4'].map(q=>{const v2=k[q];const b=pb(v2,k.target);return`<div style="font-size:9.5px;font-family:var(--mono);padding:2px 4px;border-radius:3px;background:${BC[b]};color:${b===3?'#1a1200':'#fff'};text-align:center">${v2!==null?v2.toFixed(0)+'%':'\u2014'}</div>`;}).join('')}
-        <div style="font-size:10px;font-family:var(--mono);font-weight:700;color:${c};padding:0 4px">${f2(v)}</div>
-        <div style="font-size:9.5px;font-family:var(--mono);color:${yC};font-weight:700;padding:0 4px">${yStr}</div>
-        <span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span>
-        <span class="${a===null?'pill-pend':a?'pill-ok':'pill-miss'}" style="font-size:9px${isMissed?';cursor:pointer;':''}">
-          ${a===null?'\u2014':a?'\u2713 Met':' Missed'}
-          ${isMissed?'<span style="font-size:8px;opacity:.7;margin-left:3px">\u2197</span>':''}
-        </span>
+    dk.forEach((k,ki)=>{
+      const a=ok(k),rc=getRepeat(k);
+      const q25s=k.yr===2025?[k.q1,k.q2,k.q3,k.q4]:[null,null,null,null];
+      const q26v=k.yr===2026?k.q1:null;
+      const allVals=[k.q1,k.q2,k.q3,k.q4].filter(v=>v!==null);
+      const avgVal=allVals.length?+(allVals.reduce((a,b)=>a+b)/allVals.length).toFixed(1):null;
+      const yoyStr=showYoY&&k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?((k.q1-k.yoy>=0?'+':'')+(k.q1-k.yoy).toFixed(1)+'%'):'\u2014';
+      const yoyColor=showYoY&&k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?(k.q1>=k.yoy?'var(--green)':'var(--red)'):'var(--t3)';
+      const cell=v=>{const b=pb(v,k.target);return`<div style="padding:6px 5px;font-size:9px;font-family:var(--mono);text-align:center;font-weight:${b>1?700:400};background:${BC[b]};color:${b===1?'#7f1d1d':b===2?'#065f46':b===3?'#713f12':'var(--t3)'};border-right:1px solid var(--border)">${v!==null?v.toFixed(0)+'%':'\u2014'}</div>`;};
+      const rowBg=ki%2===0?'transparent':'rgba(26,40,71,.025)';
+      h+=`<div style="display:grid;grid-template-columns:${cols};background:${rowBg};border-bottom:1px solid var(--border);transition:background .15s" onmouseover="this.style.background='rgba(0,151,167,.06)'" onmouseout="this.style.background='${rowBg}'">
+        <div style="padding:6px 6px;display:flex;align-items:center;gap:3px">
+          <span style="font-size:9px;font-family:var(--mono);font-weight:900;color:var(--teal)">${k.id}</span>
+          ${rc>=2?`<span class="repeat-b" style="font-size:7px">↩</span>`:''}
+        </div>
+        <div style="padding:6px 6px;display:flex;flex-direction:column;justify-content:center;overflow:hidden">
+          <div style="font-size:9.5px;color:var(--t1);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${lang==='ar'?k.nameAr:k.nameEn}</div>
+          <div style="font-size:7.5px;color:var(--t3);margin-top:1px">${(k.tier||3)===1?'🔴 T1':(k.tier||3)===2?'🟡 T2':'⚪ T3'}</div>
+        </div>
+        <div style="padding:6px 4px;font-size:8.5px;font-weight:700;color:${DM[k.dept].color};text-align:center;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--border)">${DM[k.dept].abbr}</div>
+        ${sh25?q25s.map(v=>cell(v)).join(''):''}
+        ${sh26?cell(q26v):''}
+        <div style="padding:6px 5px;font-size:9px;font-family:var(--mono);text-align:center;font-weight:800;background:${avgVal!==null?BC[pb(avgVal,k.target)]:'transparent'};color:${avgVal!==null?(pb(avgVal,k.target)===1?'#7f1d1d':pb(avgVal,k.target)===2?'#065f46':'var(--t1)'):'var(--t3)'};border-right:1px solid var(--border)">${avgVal!==null?avgVal+'%':'\u2014'}</div>
+        ${showYoY?`<div style="padding:6px 5px;font-size:9px;font-family:var(--mono);text-align:center;font-weight:700;color:${yoyColor};border-right:1px solid var(--border)">${yoyStr}</div>`:''}
+        <div style="padding:6px 5px;display:flex;align-items:center;justify-content:center"><span class="${a===null?'pill-pend':a?'pill-ok':'pill-miss'}" style="font-size:8px">${a===null?'\u2014':a?'\u2713 Met':'✕ Missed'}</span></div>
       </div>`;
     });
   });
-  el.innerHTML=`<div class="card c12 r4"><div class="ch">${lang==='ar'?'مصفوفة حالة RAG':'RAG Status Matrix — Click missed KPI for gap details'}<div class="ch-r">${ks.length} ${lang==='ar'?'مؤشر':'KPIs'}</div></div><div class="cb sc" style="padding:4px 10px 10px">${tbl}</div></div>`;
+  el.innerHTML=h;
 }
 
+
+/* ══════════════════════════════════════════
+   DEPT PAGE
+══════════════════════════════════════════ */
 function renderDept(){
   const d=F.dept==='all'?null:F.dept;
   const activeDepts=d?[d]:['maintenance','safety','housekeeping','projects'];
@@ -4050,11 +4020,7 @@ function renderRegistry(){
   const deps=['maintenance','safety','housekeeping','projects'];
   deps.forEach(d=>{
     const dk=ks.filter(k=>k.dept===d);if(!dk.length)return;
-    tbl+=`<div style="display:flex;align-items:center;gap:0;margin:6px 0 2px">
-      <div style="width:3px;height:28px;background:${DM[d].color};border-radius:2px;flex-shrink:0;margin-right:8px"></div>
-      <span style="font-size:10px;font-weight:800;color:${DM[d].color};text-transform:uppercase;letter-spacing:.08em">${DM[d].abbr}</span>
-      <span style="font-size:9px;font-weight:600;color:var(--t2);margin-left:6px">${lang==='ar'?DM[d].ar:DM[d].en}</span>
-    </div>`;
+    tbl+=`<div style="font-size:8px;font-weight:800;color:${DM[d].color};text-transform:uppercase;letter-spacing:.07em;padding:5px 4px 2px">${DM[d].abbr} ${lang==='ar'?DM[d].ar:DM[d].en}</div>`;
     dk.forEach(k=>{
       const v=qv(k),a=ok(k),c=kc(k);
       const yStr=k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?((k.q1-k.yoy>=0?'+':'')+(k.q1-k.yoy).toFixed(1)+'%'):'\u2014';
