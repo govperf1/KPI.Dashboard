@@ -3661,7 +3661,7 @@ function renderExec(){
     <div class="ch-r">${ks.length} KPIs</div>
   </div>
   <div class="cb sc" style="padding:10px">
-    <div id="execKpiCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:10px;align-items:start"></div>
+    <div id="execKpiCards" style="width:100%"></div>
   </div>
 </div>
 
@@ -3786,47 +3786,175 @@ function renderExec(){
 
 /* ══ KPI cards grouped by department — with embedded dept summary ══ */
 function renderExecKpiCards(ks){
-  const el=document.getElementById('execKpiCards');if(!el)return;
+  const el=document.getElementById('execKpiCards');
+  if(!el)return;
   if(!ks.length){el.innerHTML=emptyStateExec(F.dept,F.status);return;}
   const isAllYr=F.year==='all';
+
+  /* ── KPI detail popup ── */
   window._showKpiDetail=(kId)=>{
     const k=allK().find(x=>x.id===kId);if(!k)return;
-    const v=qv(k),dm=DM[k.dept],pct=v!==null?+(v).toFixed(1):null,gap=pct!==null?+(k.target-pct).toFixed(1):null;
-    const ov=document.createElement('div');ov.style.cssText='position:fixed;inset:0;background:rgba(10,22,48,.60);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center';ov.onclick=e=>{if(e.target===ov)ov.remove();};
-    const qC=['q1','q2','q3','q4'].map((q,i)=>{const qv2=k[q];const L='Q'+(i+1);if(qv2===null)return'<div style="text-align:center;padding:8px;background:#F8FAFC;border-radius:8px;border:1px solid #E2E8F0"><div style="font-size:13px;color:#CBD5E1">—</div><div style="font-size:9px;color:#94A3B8;margin-top:1px">'+L+'</div></div>';const ok2=qv2>=k.target;return'<div style="text-align:center;padding:8px;background:'+(ok2?'rgba(22,163,74,.10)':'rgba(220,38,38,.10)')+';border-radius:8px;border:1px solid '+(ok2?'rgba(22,163,74,.25)':'rgba(220,38,38,.20)')+'"><div style="font-size:14px;font-weight:800;color:'+(ok2?'#16A34A':'#DC2626')+';font-family:var(--mono)">'+qv2.toFixed(1)+'%</div><div style="font-size:9px;color:#64748B;margin-top:1px">'+L+'</div></div>';}).join('');
-    ov.innerHTML='<div style="background:#fff;border-radius:16px;padding:24px;min-width:340px;max-width:440px;box-shadow:0 20px 60px rgba(10,22,48,.25);position:relative"><button onclick="this.closest(\'div[style*=fixed]\').remove()" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:#94A3B8">&times;</button><div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><div style="width:36px;height:36px;border-radius:10px;background:'+dm.color+'18;display:flex;align-items:center;justify-content:center"><span style="font-size:11px;font-weight:900;color:'+dm.color+'">'+dm.abbr+'</span></div><div><div style="font-size:10px;font-weight:700;color:'+dm.color+';text-transform:uppercase;letter-spacing:.06em">'+k.id+'</div><div style="font-size:13px;font-weight:700;color:#152538;line-height:1.3">'+k.nameEn+'</div></div></div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">'+qC+'</div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px"><div style="background:#F8FAFC;border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:900;color:#152538;font-family:var(--mono)">'+(pct!==null?pct+'%':'—')+'</div><div style="font-size:9px;color:#64748B;margin-top:2px">Achievement</div></div><div style="background:'+(gap!==null&&gap>0?'#FEF2F2':'#ECFDF5')+';border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:900;color:'+(gap!==null&&gap>0?'#DC2626':'#16A34A')+';font-family:var(--mono)">'+(gap!==null?(gap>0?'-'+gap:'+0')+'%':'—')+'</div><div style="font-size:9px;color:#64748B;margin-top:2px">Gap</div></div><div style="background:#EFF6FF;border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:900;color:#1E40AF;font-family:var(--mono)">'+k.target+'%</div><div style="font-size:9px;color:#64748B;margin-top:2px">Target</div></div></div><div style="font-size:10px;color:#94A3B8;text-align:center">'+k.yr+' · '+dm.en+'</div></div>';
+    const v=qv(k),dm=DM[k.dept],pct=v!==null?+v.toFixed(1):null,gap=pct!==null?+(k.target-pct).toFixed(1):null;
+    const ov=document.createElement('div');
+    ov.style.cssText='position:fixed;inset:0;background:rgba(10,22,48,.60);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center';
+    ov.onclick=e=>{if(e.target===ov)ov.remove();};
+    const qRows=['q1','q2','q3','q4'].map((q,i)=>{const qv2=k[q],L='Q'+(i+1);
+      if(qv2===null)return'<div style="text-align:center;padding:8px;background:#F8FAFC;border-radius:8px;border:1px solid #E2E8F0"><div style="font-size:13px;color:#CBD5E1">—</div><div style="font-size:9px;color:#94A3B8;margin-top:1px">'+L+'</div></div>';
+      const m=qv2>=k.target;
+      return'<div style="text-align:center;padding:8px;background:'+(m?'rgba(22,163,74,.10)':'rgba(220,38,38,.10)')+';border-radius:8px;border:1px solid '+(m?'rgba(22,163,74,.25)':'rgba(220,38,38,.20)')+'"><div style="font-size:14px;font-weight:800;color:'+(m?'#16A34A':'#DC2626')+';font-family:var(--mono)">'+qv2.toFixed(1)+'%</div><div style="font-size:9px;color:#64748B;margin-top:1px">'+L+'</div></div>';
+    }).join('');
+    ov.innerHTML='<div style="background:#fff;border-radius:16px;padding:24px;min-width:340px;max-width:440px;box-shadow:0 20px 60px rgba(10,22,48,.25);position:relative">'
+      +'<button onclick="this.parentElement.parentElement.remove()" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:#94A3B8">&times;</button>'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><div style="width:36px;height:36px;border-radius:10px;background:'+dm.color+'18;display:flex;align-items:center;justify-content:center"><span style="font-size:11px;font-weight:900;color:'+dm.color+'">'+dm.abbr+'</span></div><div><div style="font-size:10px;font-weight:700;color:'+dm.color+';text-transform:uppercase">'+k.id+'</div><div style="font-size:13px;font-weight:700;color:#152538">'+k.nameEn+'</div></div></div>'
+      +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">'+qRows+'</div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">'
+      +'<div style="background:#F8FAFC;border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:900;color:#152538;font-family:var(--mono)">'+(pct!==null?pct+'%':'—')+'</div><div style="font-size:9px;color:#64748B;margin-top:2px">Achievement</div></div>'
+      +'<div style="background:'+(gap!==null&&gap>0?'#FEF2F2':'#ECFDF5')+';border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:900;color:'+(gap!==null&&gap>0?'#DC2626':'#16A34A')+';font-family:var(--mono)">'+(gap!==null?(gap>0?'-'+gap:'+0')+'%':'—')+'</div><div style="font-size:9px;color:#64748B;margin-top:2px">Gap</div></div>'
+      +'<div style="background:#EFF6FF;border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:900;color:#1E40AF;font-family:var(--mono)">'+k.target+'%</div><div style="font-size:9px;color:#64748B;margin-top:2px">Target</div></div>'
+      +'</div><div style="font-size:10px;color:#94A3B8;text-align:center">'+k.yr+' · '+dm.en+'</div></div>';
     document.body.appendChild(ov);
   };
+
+  /* ── KPI card builder — flex column, same height via grid stretch ── */
   const mkCard=(k)=>{
-    const v=qv(k),a=ok(k),dC=DM[k.dept]?.color||'#64748B';
-    const isMissed=a===false,isMet=a===true;
-    const acC=isMissed?'#DC2626':isMet?'#16A34A':'#94A3B8';
-    const lB=isMissed?'#DC2626':isMet?'#16A34A':'#CBD5E1';
+    const v=qv(k),a=ok(k);
+    const miss=a===false,met=a===true;
+    const dC=DM[k.dept]?.color||'#64748B';
+    const acC=miss?'#DC2626':met?'#16A34A':'#94A3B8';
+    const lB=miss?'#DC2626':met?'#16A34A':'#CBD5E1';
     const rc=getRepeat(k);
     let yStr='',yC='#94A3B8';
-    if(k.yoy!==undefined&&k.yoy!==null&&k.yoy!==0&&v!==null){const diff=+((v-k.yoy)/Math.abs(k.yoy)*100).toFixed(1);yStr=(diff>=0?'\u25b2':'\u25bc')+' '+Math.abs(diff).toFixed(1)+'%';yC=diff>=0?'#16A34A':'#DC2626';}
+    if(k.yoy!==undefined&&k.yoy!==null&&k.yoy!==0&&v!==null){
+      const d=+((v-k.yoy)/Math.abs(k.yoy)*100).toFixed(1);
+      yStr=(d>=0?'\u25b2':'\u25bc')+' '+Math.abs(d).toFixed(1)+'%';
+      yC=d>=0?'#16A34A':'#DC2626';
+    }
     const pB=v!==null?Math.min(100,Math.max(0,Math.round(v/k.target*100))):0;
-    return'<div style="background:'+(isMissed?'rgba(220,38,38,.02)':isMet?'rgba(22,163,74,.015)':'var(--card)')+';border:1.5px solid '+(isMissed?'rgba(220,38,38,.28)':isMet?'rgba(22,163,74,.22)':'var(--border)')+';border-left:4px solid '+lB+';border-radius:10px;padding:14px 14px 12px;display:flex;flex-direction:column;gap:8px;box-sizing:border-box;height:100%"><div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap"><span style="font-size:10px;font-weight:800;font-family:var(--mono);color:'+dC+'">'+k.id+'</span><span class="tier-b '+((k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b')+'" style="font-size:8px">T'+(k.tier||3)+'</span>'+(rc>=2?'<span class="repeat-b">\u21a9'+rc+'x</span>':'')+'<span class="'+(a===null?'pill-pend':a?'pill-ok':'pill-miss')+'" style="font-size:9px;margin-left:auto">'+(a===null?'\u2014':a?'\u2713 Met':'\u2715 Missed')+'</span></div><div style="font-size:11.5px;font-weight:700;color:var(--t1);line-height:1.35;min-height:32px">'+(lang==='ar'?k.nameAr:k.nameEn)+'</div><div onclick="window._showKpiDetail(\''+k.id+'\')" title="Click for details" style="font-size:34px;font-weight:900;color:'+acC+';font-family:var(--mono);line-height:1;cursor:pointer;transition:opacity .15s" onmouseover="this.style.opacity=\'.7\'" onmouseout="this.style.opacity=\'1\'">'+(v!==null?v.toFixed(1)+'%':'\u2014')+'</div><div style="height:5px;background:rgba(0,0,0,.08);border-radius:4px;overflow:hidden;flex-shrink:0"><div style="width:'+pB+'%;height:100%;background:'+lB+';border-radius:4px"></div></div><div style="display:flex;justify-content:space-between;align-items:center;font-size:9px"><span style="color:var(--t3)">Target: '+(k.op==='='?'=':'\u2265')+k.target+'%</span>'+(yStr?'<span style="color:'+yC+';font-weight:700">vs PY: '+yStr+'</span>':'')+'</div>'+(isMissed?'<div onclick="openGap(\''+k.id+'\')" style="padding:6px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.18);border-radius:7px;font-size:9px;font-weight:700;color:#DC2626;cursor:pointer;text-align:center;flex-shrink:0" onmouseover="this.style.background=\'rgba(220,38,38,.14)\'" onmouseout="this.style.background=\'rgba(220,38,38,.07)\'">\u00bb View Gap Analysis</div>':'')+'</div>';
+    return ''
+      +'<div style="'
+        +'background:'+(miss?'rgba(220,38,38,.025)':met?'rgba(22,163,74,.018)':'var(--card)')+';'
+        +'border:1.5px solid '+(miss?'rgba(220,38,38,.28)':met?'rgba(22,163,74,.22)':'var(--border)')+';'
+        +'border-left:4px solid '+lB+';'
+        +'border-radius:10px;padding:14px;box-sizing:border-box;'
+        +'display:flex;flex-direction:column;height:100%">'
+        /* badges row */
+        +'<div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;flex-shrink:0">'
+          +'<span style="font-size:10px;font-weight:800;font-family:var(--mono);color:'+dC+'">'+k.id+'</span>'
+          +'<span class="tier-b '+((k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b')+'" style="font-size:8px">T'+(k.tier||3)+'</span>'
+          +(rc>=2?'<span class="repeat-b">\u21a9'+rc+'x</span>':'')
+          +'<span class="'+(a===null?'pill-pend':met?'pill-ok':'pill-miss')+'" style="font-size:9px;margin-left:auto">'+(a===null?'\u2014':met?'\u2713 Met':'\u2715 Missed')+'</span>'
+        +'</div>'
+        /* KPI name — flex:1 pushes everything below to bottom */
+        +'<div style="font-size:11.5px;font-weight:700;color:var(--t1);line-height:1.38;margin-top:8px;flex:1">'+(lang==='ar'?k.nameAr:k.nameEn)+'</div>'
+        /* percentage — clickable */
+        +'<div onclick="window._showKpiDetail(\''+k.id+'\')" title="Click for details"'
+          +' style="font-size:34px;font-weight:900;color:'+acC+';font-family:var(--mono);line-height:1;margin-top:8px;cursor:pointer;flex-shrink:0"'
+          +' onmouseover="this.style.opacity=\'.7\'" onmouseout="this.style.opacity=\'1\'">'+(v!==null?v.toFixed(1)+'%':'\u2014')+'</div>'
+        /* progress bar */
+        +'<div style="height:5px;background:rgba(0,0,0,.08);border-radius:4px;overflow:hidden;margin-top:8px;flex-shrink:0">'
+          +'<div style="width:'+pB+'%;height:100%;background:'+lB+';border-radius:4px"></div>'
+        +'</div>'
+        /* footer */
+        +'<div style="display:flex;justify-content:space-between;align-items:center;font-size:9px;margin-top:6px;flex-shrink:0">'
+          +'<span style="color:var(--t3)">Target: '+(k.op==='='?'=':'\u2265')+k.target+'%</span>'
+          +(yStr?'<span style="color:'+yC+';font-weight:700">vs PY: '+yStr+'</span>':'')
+        +'</div>'
+        /* gap button — visibility:hidden on met keeps equal height */
+        +'<div style="margin-top:8px;flex-shrink:0">'
+          +(miss
+            ?'<div onclick="openGap(\''+k.id+'\')" style="padding:7px;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.18);border-radius:7px;font-size:9px;font-weight:700;color:#DC2626;cursor:pointer;text-align:center" onmouseover="this.style.background=\'rgba(220,38,38,.14)\'" onmouseout="this.style.background=\'rgba(220,38,38,.07)\'">\u00bb View Gap Analysis</div>'
+            :'<div style="padding:7px;visibility:hidden;font-size:9px">\u00bb placeholder</div>')
+        +'</div>'
+      +'</div>';
   };
-  const mkSt=(lb,val,c)=>'<div style="flex:1;background:var(--bg);border-radius:8px;padding:8px 10px;text-align:center;border:1px solid var(--border)"><div style="font-size:20px;font-weight:900;color:'+c+';font-family:var(--mono);line-height:1">'+val+'</div><div style="font-size:8.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">'+lb+'</div></div>';
+
+  /* ── Dept stat box ── */
+  const mkSt=(lb,val,c)=>''
+    +'<div style="flex:1;background:var(--bg);border-radius:8px;padding:8px 10px;text-align:center;border:1px solid var(--border)">'
+      +'<div style="font-size:20px;font-weight:900;color:'+c+';font-family:var(--mono);line-height:1">'+val+'</div>'
+      +'<div style="font-size:8.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px">'+lb+'</div>'
+    +'</div>';
+
+  /* ── One dept block ── */
   const mkD=(d,yrKs)=>{
     const dk=yrKs.filter(k=>k.dept===d);if(!dk.length)return'';
-    const dm=DM[d],nO=dk.filter(k=>ok(k)===true).length,nM=dk.filter(k=>ok(k)===false).length;
-    const srt=[...dk.filter(k=>ok(k)===false).sort((a,b)=>(a.tier||3)-(b.tier||3)),...dk.filter(k=>ok(k)===true),...dk.filter(k=>ok(k)===null)];
-    const cols=srt.length<=2?'1fr 1fr':srt.length===3?'1fr 1fr 1fr':'1fr 1fr';
-    return'<div style="display:flex;flex-direction:column;gap:12px;width:100%;min-width:0;box-sizing:border-box"><div style="display:flex;align-items:center;gap:10px"><div style="width:4px;background:'+dm.color+';border-radius:2px;align-self:stretch;flex-shrink:0;min-height:36px"></div><div style="flex:1"><div style="display:flex;align-items:baseline;gap:7px"><span style="font-size:18px;font-weight:900;color:'+dm.color+';font-family:var(--mono);letter-spacing:.04em">'+dm.abbr+'</span><span style="font-size:12px;font-weight:600;color:var(--t2)">'+(lang==='ar'?dm.ar:dm.en)+'</span></div></div></div><div style="display:flex;gap:8px;width:100%">'+mkSt('KPIs',dk.length,'var(--t1)')+mkSt('\u2713 MET',nO,'#16A34A')+mkSt('\u2715 MISSED',nM,nM?'#DC2626':'var(--t3)')+'</div><div style="display:grid;grid-template-columns:'+cols+';gap:10px;width:100%;align-items:stretch">'+srt.map(k=>mkCard(k)).join('')+'</div></div>';
+    const dm=DM[d];
+    const nO=dk.filter(k=>ok(k)===true).length;
+    const nM=dk.filter(k=>ok(k)===false).length;
+    /* Sort: missed first (by tier), then met, then pending */
+    const srt=[
+      ...dk.filter(k=>ok(k)===false).sort((a,b)=>(a.tier||3)-(b.tier||3)),
+      ...dk.filter(k=>ok(k)===true),
+      ...dk.filter(k=>ok(k)===null)
+    ];
+    /* Inside each dept column: auto-fill columns, stretch rows for equal height */
+    const cols=srt.length===1?'1fr':srt.length===3?'1fr 1fr 1fr':'1fr 1fr';
+    return ''
+      +'<div style="display:flex;flex-direction:column;gap:12px;min-width:0;box-sizing:border-box;width:100%">'
+        /* dept header */
+        +'<div style="display:flex;align-items:stretch;gap:10px">'
+          +'<div style="width:4px;border-radius:2px;background:'+dm.color+';flex-shrink:0"></div>'
+          +'<div><div style="display:flex;align-items:baseline;gap:7px">'
+            +'<span style="font-size:18px;font-weight:900;color:'+dm.color+';font-family:var(--mono)">'+dm.abbr+'</span>'
+            +'<span style="font-size:12px;font-weight:600;color:var(--t2)">'+(lang==='ar'?dm.ar:dm.en)+'</span>'
+          +'</div></div>'
+        +'</div>'
+        /* stats */
+        +'<div style="display:flex;gap:8px;width:100%">'
+          +mkSt('KPIs',dk.length,'var(--t1)')+mkSt('\u2713 MET',nO,'#16A34A')+mkSt('\u2715 MISSED',nM,nM?'#DC2626':'var(--t3)')
+        +'</div>'
+        /* KPI cards — grid-auto-rows:1fr makes all rows equal height */
+        +'<div style="display:grid;grid-template-columns:'+cols+';grid-auto-rows:1fr;gap:10px;width:100%">'
+          +srt.map(k=>mkCard(k)).join('')
+        +'</div>'
+      +'</div>';
   };
+
+  /* ── Build a year section ── */
   const bldYr=(yrKs,yr)=>{
     let out='';
-    if(isAllYr&&yr)out+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px"><div style="height:1px;flex:0 0 14px;background:var(--teal)"></div><span style="font-size:13px;font-weight:800;color:var(--teal);letter-spacing:.04em">'+yr+'</span><div style="height:1px;flex:1;background:var(--border2)"></div></div>';
+    if(isAllYr&&yr){
+      out+='<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">'
+        +'<div style="height:1px;flex:0 0 14px;background:var(--teal)"></div>'
+        +'<span style="font-size:13px;font-weight:800;color:var(--teal);letter-spacing:.04em">'+yr+'</span>'
+        +'<div style="height:1px;flex:1;background:var(--border2)"></div>'
+      +'</div>';
+    }
+    /* Row 1: MNT + SAF   |   Row 2: HK + PMD */
     [['maintenance','safety'],['housekeeping','projects']].forEach(([d1,d2],ri)=>{
-      const s1=mkD(d1,yrKs),s2=mkD(d2,yrKs);if(!s1&&!s2)return;
-      out+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:'+(ri===0?'24px':'0')+';padding-bottom:'+(ri===0?'20px':'0')+';'+(ri===0?'border-bottom:1px solid var(--border2)':'')+';\nalign-items:start">'+(s1||'<div></div>')+(s2||'<div></div>')+'</div>';
-    });return out;
+      const s1=mkD(d1,yrKs),s2=mkD(d2,yrKs);
+      if(!s1&&!s2)return;
+      out+=''
+        +'<div style="'
+          +'display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;'
+          +'margin-bottom:'+(ri===0?'24px':'0')+';'
+          +'padding-bottom:'+(ri===0?'20px':'0')+';'
+          +(ri===0?'border-bottom:1px solid var(--border2);':'')
+        +'">'
+          +(s1||'<div></div>')
+          +(s2||'<div></div>')
+        +'</div>';
+    });
+    return out;
   };
+
+  /* ── Final render ── */
   let out='';
-  if(isAllYr){const yrs=[...new Set(ks.map(k=>k.yr))].sort();yrs.forEach((yr,i)=>{out+='<div style="margin-bottom:'+(i<yrs.length-1?'28px':'0')+';padding-bottom:'+(i<yrs.length-1?'24px':'0')+';'+(i<yrs.length-1?'border-bottom:2px solid var(--border2)':'')+'">'+bldYr(ks.filter(k=>k.yr===yr),yr)+'</div>';});}
-  else out=bldYr(ks,null);
+  if(isAllYr){
+    const yrs=[...new Set(ks.map(k=>k.yr))].sort();
+    yrs.forEach((yr,i)=>{
+      out+=''
+        +'<div style="'
+          +'margin-bottom:'+(i<yrs.length-1?'28px':'0')+';'
+          +'padding-bottom:'+(i<yrs.length-1?'24px':'0')+';'
+          +(i<yrs.length-1?'border-bottom:2px solid var(--border2);':'')
+        +'">'
+        +bldYr(ks.filter(k=>k.yr===yr),yr)
+        +'</div>';
+    });
+  }else{
+    out=bldYr(ks,null);
+  }
   el.innerHTML=out;
 }
 
