@@ -325,7 +325,7 @@ select.fb option{background:#fff;color:var(--ink)}
     radial-gradient(ellipse 45% 30% at 92% 95%,rgba(4,10,20,0.04) 0%,transparent 55%);
 }
 .page{display:none}.page.on{display:block}
-.gg{display:grid;grid-template-columns:repeat(12,1fr);gap:14px;align-items:start}
+.gg{display:grid;grid-template-columns:repeat(12,1fr);gap:14px;align-items:stretch}
 .c1{grid-column:span 1}.c2{grid-column:span 2}.c3{grid-column:span 3}.c4{grid-column:span 4}
 .c5{grid-column:span 5}.c6{grid-column:span 6}.c7{grid-column:span 7}.c8{grid-column:span 8}
 .c9{grid-column:span 9}.c10{grid-column:span 10}.c11{grid-column:span 11}.c12{grid-column:span 12}
@@ -344,6 +344,8 @@ select.fb option{background:#fff;color:var(--ink)}
   transition:box-shadow var(--med) var(--ease), transform var(--med) var(--ease), border-color var(--med);
   animation:card-in .32s var(--ease) both;
 }
+.card{display:flex;flex-direction:column}
+.card .cb{flex:1}
 /* Premium top shimmer */
 .card::before{
   content:'';position:absolute;
@@ -3749,9 +3751,9 @@ function renderExec(){
   <div class="ch">📈 ${lang==='ar'?'الاتجاه الربعي حسب القسم':'Quarterly Trend by Department'}</div>
   <div class="cb"><div class="cw" style="height:110px"><canvas id="cExecML"></canvas></div></div>
 </div>
-<div class="card c3">
+<div class="card c3" style="display:flex;flex-direction:column">
   <div class="ch">🎯 ${lang==='ar'?'مستويات المخاطر':'Risk Tiers'}</div>
-  <div class="cb" style="padding:4px 11px 10px">
+  <div class="cb" style="padding:4px 11px 10px;flex:1;display:flex;flex-direction:column;justify-content:space-evenly">
     ${[1,2,3].map(t=>{const tk=ks.filter(k=>(k.tier||3)===t);const tm=tk.filter(k=>ok(k)===false).length;const to=tk.filter(k=>ok(k)===true).length;return`<div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--border)">
       <span class="tier-b ${t===1?'t1':t===2?'t2b':'t3b'}">T${t}</span>
       <div style="flex:1;min-width:0">
@@ -3832,24 +3834,93 @@ function renderExecKpiCards(ks){
   /* ── KPI detail popup ── */
   window._showKpiDetail=(kId)=>{
     const k=allK().find(x=>x.id===kId);if(!k)return;
-    const v=qv(k),dm=DM[k.dept],pct=v!==null?+v.toFixed(1):null,gap=pct!==null?+(k.target-pct).toFixed(1):null;
+    const v=qv(k),dm=DM[k.dept];
+    const old=document.getElementById('kpiDetailOv');if(old)old.remove();
     const ov=document.createElement('div');
+    ov.id='kpiDetailOv';
     ov.style.cssText='position:fixed;inset:0;background:rgba(10,22,48,.60);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center';
-    ov.onclick=e=>{if(e.target===ov)ov.remove();};
-    const qRows=['q1','q2','q3','q4'].map((q,i)=>{const qv2=k[q],L='Q'+(i+1);
-      if(qv2===null)return'<div style="text-align:center;padding:8px;background:#F8FAFC;border-radius:8px;border:1px solid #E2E8F0"><div style="font-size:13px;color:#CBD5E1">—</div><div style="font-size:9px;color:#94A3B8;margin-top:1px">'+L+'</div></div>';
-      const m=qv2>=k.target;
-      return'<div style="text-align:center;padding:8px;background:'+(m?'rgba(22,163,74,.10)':'rgba(220,38,38,.10)')+';border-radius:8px;border:1px solid '+(m?'rgba(22,163,74,.25)':'rgba(220,38,38,.20)')+'"><div style="font-size:14px;font-weight:800;color:'+(m?'#16A34A':'#DC2626')+';font-family:var(--mono)">'+qv2.toFixed(1)+'%</div><div style="font-size:9px;color:#64748B;margin-top:1px">'+L+'</div></div>';
+    ov.onclick=function(e){if(e.target===ov)ov.remove();};
+
+    const pciData=(ST.pci||{})[k.id]||{};
+    const quarters=['q1','q2','q3','q4'];
+    const qLabels=['Q1','Q2','Q3','Q4'];
+    const anyPCI=quarters.some(function(q){return (pciData[q]||{}).planned>0;});
+
+    const qRows=quarters.map(function(q,i){
+      const qv2=k[q];
+      const pci=pciData[q]||{};
+      const pl=pci.planned>0?pci.planned:null;
+      const co=pl!==null?pci.complete:null;
+      const ic=pl!==null?(pci.planned-(pci.complete||0)):null;
+      const hasPCI=pl!==null;
+      const pct=hasPCI?Math.min(100,Math.round((pci.complete||0)/pl*100)):0;
+      const isMet=qv2!==null&&qv2>=k.target;
+      const bg=qv2===null?'#F8FAFC':isMet?'rgba(22,163,74,.05)':'rgba(220,38,38,.05)';
+      const bc=qv2===null?'#E2E8F0':isMet?'rgba(22,163,74,.20)':'rgba(220,38,38,.18)';
+      const tc=qv2===null?'#94A3B8':isMet?'#16A34A':'#DC2626';
+      return '<div style="background:'+bg+';border:1px solid '+bc+';border-radius:10px;padding:12px">'
+        +'<div style="font-size:10px;font-weight:800;color:#64748B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">'+qLabels[i]+'</div>'
+        +'<div style="font-size:26px;font-weight:900;color:'+tc+';font-family:var(--mono);line-height:1;margin-bottom:4px">'+(qv2!==null?qv2.toFixed(1)+'%':'—')+'</div>'
+        +'<div style="font-size:9px;color:#94A3B8;margin-bottom:10px">'+(qv2!==null?(isMet?'&#10003; Met':'&#10007; Below target'):'Pending')+'</div>'
+        +'<div style="border-top:1px solid '+bc+';padding-top:10px">'
+          +'<div style="display:flex;justify-content:space-between;margin-bottom:5px">'
+            +'<span style="font-size:9.5px;color:#64748B">Planned</span>'
+            +'<span style="font-size:12px;font-weight:800;font-family:var(--mono);color:#475569">'+(hasPCI?pl:'—')+'</span>'
+          +'</div>'
+          +'<div style="display:flex;justify-content:space-between;margin-bottom:5px">'
+            +'<span style="font-size:9.5px;color:#16A34A">Complete</span>'
+            +'<span style="font-size:12px;font-weight:800;font-family:var(--mono);color:#16A34A">'+(hasPCI?pci.complete:'—')+'</span>'
+          +'</div>'
+          +'<div style="display:flex;justify-content:space-between;margin-bottom:8px">'
+            +'<span style="font-size:9.5px;color:#DC2626">Incomplete</span>'
+            +'<span style="font-size:12px;font-weight:800;font-family:var(--mono);color:#DC2626">'+(hasPCI?ic:'—')+'</span>'
+          +'</div>'
+          +'<div style="height:5px;background:#E2E8F0;border-radius:4px;overflow:hidden">'
+            +'<div style="width:'+pct+'%;height:100%;background:'+(pct>=100?'#16A34A':'#0195af')+';border-radius:4px"></div>'
+          +'</div>'
+          +(hasPCI?'<div style="font-size:9px;color:#94A3B8;text-align:right;margin-top:3px">'+pct+'%</div>':'')
+        +'</div>'
+      +'</div>';
     }).join('');
-    ov.innerHTML='<div style="background:#fff;border-radius:16px;padding:24px;min-width:340px;max-width:440px;box-shadow:0 20px 60px rgba(10,22,48,.25);position:relative">'
-      +'<button onclick="this.parentElement.parentElement.remove()" style="position:absolute;top:14px;right:14px;background:none;border:none;font-size:18px;cursor:pointer;color:#94A3B8">&times;</button>'
-      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><div style="width:36px;height:36px;border-radius:10px;background:'+dm.color+'18;display:flex;align-items:center;justify-content:center"><span style="font-size:11px;font-weight:900;color:'+dm.color+'">'+dm.abbr+'</span></div><div><div style="font-size:10px;font-weight:700;color:'+dm.color+';text-transform:uppercase">'+k.id+'</div><div style="font-size:13px;font-weight:700;color:#152538">'+k.nameEn+'</div></div></div>'
-      +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px">'+qRows+'</div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px">'
-      +'<div style="background:#F8FAFC;border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:900;color:#152538;font-family:var(--mono)">'+(pct!==null?pct+'%':'—')+'</div><div style="font-size:9px;color:#64748B;margin-top:2px">Achievement</div></div>'
-      +'<div style="background:'+(gap!==null&&gap>0?'#FEF2F2':'#ECFDF5')+';border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:900;color:'+(gap!==null&&gap>0?'#DC2626':'#16A34A')+';font-family:var(--mono)">'+(gap!==null?(gap>0?'-'+gap:'+0')+'%':'—')+'</div><div style="font-size:9px;color:#64748B;margin-top:2px">Gap</div></div>'
-      +'<div style="background:#EFF6FF;border-radius:10px;padding:12px;text-align:center"><div style="font-size:20px;font-weight:900;color:#1E40AF;font-family:var(--mono)">'+k.target+'%</div><div style="font-size:9px;color:#64748B;margin-top:2px">Target</div></div>'
-      +'</div><div style="font-size:10px;color:#94A3B8;text-align:center">'+k.yr+' · '+dm.en+'</div></div>';
+
+    const op=v!==null?+v.toFixed(1):null;
+    const isMet=op!==null&&op>=k.target;
+    const gap=op!==null?+(k.target-op).toFixed(1):null;
+
+    const inner=document.createElement('div');
+    inner.style.cssText='background:#fff;border-radius:16px;padding:24px;width:600px;max-width:96vw;max-height:92vh;overflow-y:auto;box-shadow:0 20px 60px rgba(10,22,48,.28);position:relative';
+    inner.innerHTML=''
+      +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">'
+        +'<div style="width:40px;height:40px;border-radius:11px;background:'+dm.color+'18;display:flex;align-items:center;justify-content:center;flex-shrink:0">'
+          +'<span style="font-size:12px;font-weight:900;color:'+dm.color+'">'+dm.abbr+'</span>'
+        +'</div>'
+        +'<div style="flex:1">'
+          +'<div style="font-size:10px;font-weight:700;color:'+dm.color+';text-transform:uppercase">'+k.id+' &middot; '+dm.en+' &middot; '+k.yr+'</div>'
+          +'<div style="font-size:14px;font-weight:800;color:#152538">'+k.nameEn+'</div>'
+        +'</div>'
+        +'<div style="text-align:right;flex-shrink:0">'
+          +'<div style="font-size:32px;font-weight:900;color:'+(isMet?'#16A34A':op!==null?'#DC2626':'#94A3B8')+';font-family:var(--mono)">'+(op!==null?op+'%':'—')+'</div>'
+          +'<div style="font-size:9.5px;color:#94A3B8">Target: '+(k.op==='='?'=':'&ge;')+k.target+'%'+(gap!==null&&gap>0?' &middot; Gap: -'+gap+'%':'')+'</div>'
+        +'</div>'
+      +'</div>'
+      +(!anyPCI?'<div style="background:#FFF7ED;border:1px solid rgba(217,119,6,.25);border-radius:9px;padding:10px 14px;margin-bottom:14px;font-size:10.5px;color:#92400E">'
+        +'&#9888; No PCI data entered yet &mdash; go to <strong>Admin Panel &rarr; Edit KPI</strong> to add Planned / Complete numbers per quarter.'
+        +'</div>':'')
+      +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">'+qRows+'</div>';
+
+    const closeBtn=document.createElement('button');
+    closeBtn.textContent='&#10005; Close';
+    closeBtn.style.cssText='width:100%;margin-top:16px;padding:10px;background:#152538;color:#fff;border:none;border-radius:9px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer';
+    closeBtn.onclick=function(){ov.remove();};
+
+    const xBtn=document.createElement('button');
+    xBtn.innerHTML='&times;';
+    xBtn.style.cssText='position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;cursor:pointer;color:#94A3B8;line-height:1';
+    xBtn.onclick=function(){ov.remove();};
+
+    inner.appendChild(closeBtn);
+    inner.appendChild(xBtn);
+    ov.appendChild(inner);
     document.body.appendChild(ov);
   };
 
@@ -4125,7 +4196,7 @@ function buildIntelRisks(missKpis, repKpis){
             +'</div>'
             +'<div style="font-size:10px;color:#64748B">'+k.nameEn+'</div>'
           +'</div>'
-          +'<div style="padding:10px 12px;background:'+bg+';border-bottom:1px solid #F8FAFC;display:flex;align-items:center;justify-content:center;gap:8px">'+dIcon(k.dept)+'<span style="font-size:10.5px;color:#334155">'+dm.en+'</span></div>'
+          +'<div style="padding:10px 12px;background:'+bg+';border-bottom:1px solid #F8FAFC;display:flex;align-items:center;justify-content:center"><span style="font-size:10.5px;font-weight:600;color:#334155">'+dm.en+'</span></div>'
           +'<div style="padding:10px 12px;background:'+bg+';border-bottom:1px solid #F8FAFC;display:flex;align-items:center;justify-content:center">'+tB(k.tier||3,true)+'</div>'
           +'<div style="padding:10px 12px;background:'+bg+';border-bottom:1px solid #F8FAFC;display:flex;align-items:center;justify-content:center">'+tArrow(k)+'</div>'
           +'<div style="padding:10px 20px;background:'+bg+';border-bottom:1px solid #F8FAFC;display:flex;align-items:center;justify-content:flex-end;font-size:10.5px;font-family:var(--mono)">'
@@ -4211,94 +4282,275 @@ function renderDept(){
   const d=F.dept==='all'?null:F.dept;
   const activeDepts=d?[d]:['maintenance','safety','housekeeping','projects'];
   const el=document.getElementById('deptGrid');if(!el)return;
-
   const tierColor={1:'#DC2626',2:'#D97706',3:'#64748B'};
-  const tierLabel={1:'T1',2:'T2',3:'T3'};
 
-  const deptBlocks={};
-  activeDepts.forEach(dept=>{
+  /* ══ Per-KPI bar chart (Q1'25→Q4'25→Q1'26) ══ */
+  const mkBarChart=(cid,k)=>{
+    setTimeout(()=>{
+      dch(cid);
+      const cv=document.getElementById(cid);if(!cv)return;
+      const labels=["Q1'25","Q2'25","Q3'25","Q4'25","Q1'26"];
+      const vals=[k.q1_25,k.q2_25,k.q3_25,k.q4_25,k.q1_26];
+      /* find matching 2025/2026 kpis */
+      const k25=allK().find(x=>x.dept===k.dept&&x.nameEn===k.nameEn&&x.yr===2025);
+      const k26=allK().find(x=>x.dept===k.dept&&x.nameEn===k.nameEn&&x.yr===2026);
+      const data=[k25?.q1??null,k25?.q2??null,k25?.q3??null,k25?.q4??null,k26?.q1??null];
+      const tgt=k.target;
+      const allV=data.filter(v=>v!==null);
+      if(!allV.length)return;
+      CH[cid]=mkChart(cid,{
+        type:'bar',
+        data:{labels,datasets:[
+          {label:'Result',data,backgroundColor:data.map(v=>v===null?'rgba(0,0,0,0)':v>=tgt?'rgba(22,163,74,.72)':'rgba(220,38,38,.68)'),borderRadius:4,borderSkipped:false},
+          {label:'Target',data:labels.map(()=>tgt),type:'line',borderColor:'rgba(220,38,38,.55)',borderWidth:1.5,borderDash:[5,3],pointRadius:0,fill:false,order:0}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y!==null?c.parsed.y+'%':'—')}}},scales:{y:{min:Math.max(0,Math.floor(Math.min(...allV,tgt)-8)),max:Math.min(105,Math.ceil(Math.max(...allV,tgt)+4)),ticks:{callback:v=>v+'%',font:{size:8},maxTicksLimit:5},grid:{color:'rgba(20,35,80,.05)'}},x:{ticks:{font:{size:8}},grid:{display:false}}}}
+      });
+    },50);
+  };
+
+  /* ══ Per-KPI trend line chart ══ */
+  const mkTrendChart=(cid,k25,k26)=>{
+    setTimeout(()=>{
+      dch(cid);
+      const cv=document.getElementById(cid);if(!cv)return;
+      const trendData=[k25?.q1??null,k25?.q2??null,k25?.q3??null,k25?.q4??null,k26?.q1??null];
+      const allV=trendData.filter(v=>v!==null);
+      if(!allV.length)return;
+      const tgt=(k25||k26)?.target||90;
+      const yoyRef=k26?.yoy??null;
+      const latestV=allV[allV.length-1];
+      const lc=latestV>=tgt?'#16A34A':'#DC2626';
+      CH[cid]=mkChart(cid,{
+        type:'line',
+        data:{labels:["Q1'25","Q2'25","Q3'25","Q4'25","Q1'26"],datasets:[
+          {label:'Trend',data:trendData,borderColor:lc,backgroundColor:lc+'15',fill:true,tension:.4,pointRadius:trendData.map(v=>v!==null?3.5:0),borderWidth:2.5,spanGaps:false},
+          {label:'Target',data:[tgt,tgt,tgt,tgt,tgt],borderColor:'rgba(220,38,38,.45)',borderWidth:1.5,borderDash:[5,3],pointRadius:0,fill:false},
+          ...(yoyRef!==null?[{label:'PY Ref',data:[yoyRef,null,null,null,null],borderColor:'rgba(100,116,139,.50)',borderWidth:1.5,borderDash:[2,2],pointRadius:[4,0,0,0,0],pointStyle:'diamond',fill:false}]:[])
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{mode:'index',intersect:false}},scales:{y:{min:Math.max(0,Math.floor(Math.min(...allV,tgt)-8)),max:Math.min(105,Math.ceil(Math.max(...allV,tgt)+4)),ticks:{callback:v=>v+'%',font:{size:8},maxTicksLimit:5},grid:{color:'rgba(20,35,80,.05)'}},x:{ticks:{font:{size:8}},grid:{display:false}}}}
+      });
+    },80);
+  };
+
+  /* ══ KPI card builder ══ */
+  const mkKpiCard=(k25,k26,dept)=>{
+    const k=k26||k25;
     const dm=DM[dept];
-    const dk=filt().filter(k=>k.dept===dept);
-    const met=dk.filter(k=>ok(k)===true);
-    const missed=dk.filter(k=>ok(k)===false);
-    const hasCrit=missed.some(k=>(k.tier||3)===1);
-    const deptColor={maintenance:'#0195af',safety:'#DC2626',housekeeping:'#16A34A',projects:'#D97706'}[dept]||'#152538';
+    const v=qv(k26||k25);
+    const a=ok(k26||k25);
+    const isMet=a===true, isMiss=a===false;
+    const dC=dm.color;
+    const latestQ=k26?.q1??k25?.q4??k25?.q3??k25?.q2??k25?.q1??null;
+    const tgt=k.target;
+    const tier=k.tier||3;
+    const rc=getRepeat(k26||k25);
+    const yoyRef=k26?.yoy??null;
+    const yoyDiff=yoyRef!==null&&latestQ!==null?+(latestQ-yoyRef).toFixed(1):null;
+    const gd=(ST.gaps||{})[k.id]||{};
+    const cid='dkpi_'+k.id.replace(/[^a-zA-Z0-9]/g,'_');
+    const cid2='dbar_'+k.id.replace(/[^a-zA-Z0-9]/g,'_');
 
-    /* Per-KPI cards */
-    const kpiCards=dk.map(k=>{
-      const v=qv(k);
-      const status=ok(k);
-      const isMet=status===true;
-      const isMiss=status===false;
-      const isPend=status===null;
-      const accentColor=isMet?'#0195af':isMiss?'#DC2626':'#94A3B8';
-      const bgColor=isMet?'#F0FDFA':isMiss?'#FFF5F5':'#F8FAFC';
-      const borderColor=isMet?'rgba(1,149,175,.25)':isMiss?'rgba(220,38,38,.20)':'#E2E8F0';
-      const tier=k.tier||3;
-      const pct=v!==null?+(v/k.target*100).toFixed(0):0;
-      const barW=Math.min(100,Math.max(0,pct));
+    const card=''
+      +'<div style="background:#fff;border:1.5px solid '+(isMiss?'rgba(220,38,38,.22)':isMet?'rgba(22,163,74,.18)':'#E2E8F0')+';border-top:3px solid '+dC+';border-radius:12px;padding:0;overflow:hidden;box-shadow:0 2px 10px rgba(10,22,48,.07)">'
 
-      return`<div style="background:${bgColor};border:1.5px solid ${borderColor};border-radius:12px;padding:14px 16px;min-width:160px;flex:1;display:flex;flex-direction:column;gap:8px;transition:box-shadow .2s" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,.10)'" onmouseout="this.style.boxShadow='none'">
-        <!-- Header badges -->
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          <span style="font-size:9px;font-weight:800;color:#152538;background:#E8EDF4;padding:2px 8px;border-radius:20px;letter-spacing:.04em">${k.id}</span>
-          <span style="font-size:8.5px;font-weight:700;color:${tierColor[tier]};background:${tier===1?'rgba(220,38,38,.10)':tier===2?'rgba(217,119,6,.10)':'rgba(100,116,139,.10)'};padding:2px 7px;border-radius:20px">${tierLabel[tier]}</span>
-          ${tier===1&&isMiss?'<span style="font-size:8px;font-weight:800;color:#DC2626;background:rgba(220,38,38,.10);padding:2px 8px;border-radius:20px">Patient Safety</span>':''}
-          <span style="margin-left:auto;font-size:8.5px;font-weight:700;padding:2px 9px;border-radius:20px;background:${isMet?'rgba(22,163,74,.12)':isMiss?'rgba(220,38,38,.12)':'rgba(148,163,184,.12)'};color:${isMet?'#16A34A':isMiss?'#DC2626':'#64748B'}">
-            ${isMet?'✓ Met':isMiss?'✗ Missed':'Pending'}
-          </span>
-        </div>
-        <!-- KPI Name -->
-        <div style="font-size:11px;font-weight:600;color:#334155;line-height:1.4">${k.nameEn}</div>
-        <!-- Big value -->
-        <div style="font-size:38px;font-weight:800;color:${accentColor};font-family:monospace;line-height:1;letter-spacing:-.02em">${v!==null?v.toFixed(1)+'%':'—'}<span style="font-size:14px;font-weight:600;opacity:.6">.</span></div>
-        <!-- Progress bar -->
-        <div>
-          <div style="height:6px;background:rgba(0,0,0,.07);border-radius:10px;overflow:hidden;margin-bottom:5px">
-            <div style="width:${barW}%;height:100%;background:${isMet?'linear-gradient(90deg,#0195af,#01c5e8)':isMiss?'linear-gradient(90deg,#DC2626,#EF4444)':'#CBD5E1'};border-radius:10px;transition:width .6s ease"></div>
-          </div>
-          <span style="font-size:9.5px;color:#94A3B8;font-weight:500">Target: ${k.op||'≥'}${k.target}%</span>
-        </div>
-      </div>`;
-    }).join('');
+        /* ── Card header ── */
+        +'<div style="padding:12px 14px 10px;border-bottom:1px solid #F0F4F8">'
+          +'<div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">'
+            +'<span style="font-size:10px;font-weight:800;font-family:var(--mono);color:'+dC+'">'+k.id+'</span>'
+            +'<span style="font-size:8px;font-weight:700;padding:2px 6px;border-radius:4px;background:'+(tier===1?'rgba(220,38,38,.10)':tier===2?'rgba(217,119,6,.10)':'rgba(100,116,139,.10)')+';color:'+(tier===1?'#DC2626':tier===2?'#D97706':'#64748B')+'">T'+tier+'</span>'
+            +(rc>=2?'<span style="font-size:8px;font-weight:700;padding:2px 6px;border-radius:4px;background:rgba(217,119,6,.12);color:#D97706">↩'+rc+'x</span>':'')+
+            '<span style="margin-left:auto;font-size:9px;font-weight:700;padding:3px 9px;border-radius:20px;background:'+(isMet?'#ECFDF5':isMiss?'#FEF2F2':'#F8FAFC')+';color:'+(isMet?'#16A34A':isMiss?'#DC2626':'#94A3B8')+'">'+(isMet?'✓ Met':isMiss?'✗ Missed':'Pending')+'</span>'
+          +'</div>'
+          +'<div style="font-size:12px;font-weight:700;color:#152538;line-height:1.35">'+(lang==='ar'?k.nameAr:k.nameEn)+'</div>'
+        +'</div>'
 
-    deptBlocks[dept]=`
-    <!-- ═══ ${dm.en.toUpperCase()} ═══ -->
-    <div style="background:#fff;border-radius:14px;border:1px solid #E8EDF4;box-shadow:0 1px 6px rgba(10,22,48,.06);overflow:hidden;margin-bottom:16px">
-      <!-- Dept Header -->
-      <div style="padding:14px 18px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #F0F4F8;background:#FAFBFC">
-        <div style="display:flex;align-items:center;gap:10px;flex:1">
-          <span style="font-size:11px;font-weight:900;color:${deptColor};background:${deptColor}18;padding:4px 12px;border-radius:20px;letter-spacing:.05em">${dm.abbr}</span>
-          <span style="font-size:12px;font-weight:700;color:#152538;padding-bottom:2px;border-bottom:2.5px solid ${deptColor}">${dm.en}</span>
-          <span style="font-size:9.5px;color:#94A3B8">— click for detail</span>
-        </div>
-        <!-- Dept stats -->
-        <div style="display:flex;align-items:center;gap:0">
-          ${[{l:'KPIs',v:dk.length,c:'#152538'},{l:'MET',v:met.length,c:'#16A34A'},{l:'MISSED',v:missed.length,c:'#DC2626'}].map((s,i)=>`
-          <div style="text-align:center;padding:6px 16px;${i>0?'border-left:1px solid #E8EDF4':''}">
-            <div style="font-size:20px;font-weight:800;color:${s.c};font-family:monospace;line-height:1">${s.v}</div>
-            <div style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.06em;text-transform:uppercase;margin-top:2px">${s.l}</div>
-          </div>`).join('')}
-          ${hasCrit?`<div style="margin-left:12px;padding:5px 12px;background:#FEF2F2;border:1px solid #FECACA;border-radius:20px;font-size:9px;font-weight:800;color:#DC2626;white-space:nowrap">Patient Safety KPI Missed!</div>`:''}
-        </div>
-      </div>
-      <!-- KPI Cards grid -->
-      <div style="padding:14px 16px;display:flex;gap:12px;flex-wrap:wrap">
-        ${kpiCards||'<div style="color:#94A3B8;font-size:11px;padding:8px">No KPIs for current filter</div>'}
-      </div>
-    </div>`;
-  });
+        /* ── Stats row ── */
+        +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;border-bottom:1px solid #F0F4F8">'
+          /* Latest result */
+          +'<div style="padding:10px 12px;border-right:1px solid #F0F4F8">'
+            +'<div style="font-size:8px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Latest</div>'
+            +'<div style="font-size:22px;font-weight:900;color:'+(isMet?'#16A34A':isMiss?'#DC2626':'#94A3B8')+';font-family:var(--mono);line-height:1">'+(latestQ!==null?latestQ.toFixed(1)+'%':'—')+'</div>'
+          +'</div>'
+          /* Target */
+          +'<div style="padding:10px 12px;border-right:1px solid #F0F4F8">'
+            +'<div style="font-size:8px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Target</div>'
+            +'<div style="font-size:22px;font-weight:900;color:#1E40AF;font-family:var(--mono);line-height:1">'+(k.op==='='?'=':'≥')+tgt+'%</div>'
+          +'</div>'
+          /* YoY */
+          +'<div style="padding:10px 12px;border-right:1px solid #F0F4F8">'
+            +'<div style="font-size:8px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">YoY</div>'
+            +'<div style="font-size:22px;font-weight:900;font-family:var(--mono);line-height:1;color:'+(yoyDiff===null?'#94A3B8':yoyDiff>=0?'#16A34A':'#DC2626')+'">'+(yoyDiff!==null?(yoyDiff>=0?'▲':'')+yoyDiff+'%':'—')+'</div>'
+          +'</div>'
+          /* Gap */
+          +'<div style="padding:10px 12px">'
+            +'<div style="font-size:8px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Gap</div>'
+            +'<div style="font-size:22px;font-weight:900;font-family:var(--mono);line-height:1;color:'+(latestQ===null?'#94A3B8':latestQ>=tgt?'#16A34A':'#DC2626')+'">'+(latestQ!==null?latestQ>=tgt?'+0%':'-'+(tgt-latestQ).toFixed(1)+'%':'—')+'</div>'
+          +'</div>'
+        +'</div>'
 
-  /* Pair depts 2 per row with gap */
-  let _pairedHTML='';
-  for(let _i=0;_i<activeDepts.length;_i+=2){
-    const _l=deptBlocks[activeDepts[_i]]||'';
-    const _r=_i+1<activeDepts.length?(deptBlocks[activeDepts[_i+1]]||''):'';
-    _pairedHTML+=`<div style="display:grid;grid-template-columns:${_r?'1fr 1fr':'1fr'};gap:18px;margin-bottom:16px">${_l}${_r}</div>`;
-  }
-  el.innerHTML=`<div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none">${_pairedHTML}</div>`;
+        /* ── Charts row: trend + bar ── */
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid #F0F4F8">'
+          +'<div style="padding:10px 12px;border-right:1px solid #F0F4F8">'
+            +'<div style="font-size:8px;font-weight:700;color:#94A3B8;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">📈 Trend Line</div>'
+            +'<div style="height:80px"><canvas id="'+cid+'"></canvas></div>'
+          +'</div>'
+          +'<div style="padding:10px 12px">'
+            +'<div style="font-size:8px;font-weight:700;color:#94A3B8;letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">📊 Quarter vs Target</div>'
+            +'<div style="height:80px"><canvas id="'+cid2+'"></canvas></div>'
+          +'</div>'
+        +'</div>'
+
+        /* ── Q1-Q4 pills ── */
+        +'<div style="padding:10px 12px;display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid #F0F4F8">'
+          +['q1','q2','q3','q4'].map((q,i)=>{
+            const yr25=k25?.[q];const yr26=k26?.[q];
+            const val=k26?yr26:yr25;
+            if(val===null&&yr25===null)return'<span style="font-size:9px;padding:3px 8px;border-radius:20px;background:#F8FAFC;color:#CBD5E1">Q'+(i+1)+' —</span>';
+            const met2=val!==null&&val>=tgt;
+            return'<span style="font-size:9px;font-weight:700;padding:3px 8px;border-radius:20px;background:'+(val===null?'#F8FAFC':met2?'rgba(22,163,74,.12)':'rgba(220,38,38,.10)')+';color:'+(val===null?'#94A3B8':met2?'#16A34A':'#DC2626')+'">Q'+(i+1)+' '+(val!==null?val.toFixed(1)+'%':'—')+'</span>';
+          }).join('')
+          /* YoY ref pill */
+          +(yoyRef!==null?'<span style="font-size:9px;font-weight:700;padding:3px 8px;border-radius:20px;background:rgba(100,116,139,.10);color:#64748B">PY '+yoyRef.toFixed(1)+'%</span>':'')
+        +'</div>'
+
+        /* ── Bottom: gap action or success ── */
+        +(isMiss
+          ?'<div style="padding:10px 12px;display:flex;align-items:center;justify-content:space-between">'
+            +'<div style="font-size:10px;color:#64748B">'+(gd.gapEn?'<span style="color:#DC2626;font-weight:700">Root cause: </span>'+gd.gapEn.slice(0,50)+(gd.gapEn.length>50?'…':''):'<span style="color:#94A3B8">Root cause not documented</span>')+'</div>'
+            +'<button onclick="openGap(\''+k.id+'\')" style="font-size:9px;font-weight:700;color:#DC2626;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.18);border-radius:6px;padding:5px 10px;cursor:pointer;font-family:inherit;white-space:nowrap">Gap Analysis »</button>'
+          +'</div>'
+          :isMet
+          ?'<div style="padding:8px 12px;font-size:9.5px;color:#16A34A;font-weight:600">✓ Target achieved — continue monitoring</div>'
+          :'<div style="padding:8px 12px;font-size:9.5px;color:#94A3B8">⏳ Awaiting quarterly data</div>')
+
+      +'</div>';
+
+    /* queue chart draws */
+    mkTrendChart(cid,k25,k26);
+    mkBarChart(cid2,k25||k26);
+    return card;
+  };
+
+  /* ══ Group KPIs by nameEn across years ══ */
+  const groupKpis=(dept)=>{
+    const all=filt().filter(k=>k.dept===dept);
+    const map={};
+    all.forEach(k=>{
+      const key=k.nameEn;
+      if(!map[key])map[key]={k25:null,k26:null};
+      if(k.yr===2025)map[key].k25=k;
+      if(k.yr===2026)map[key].k26=k;
+    });
+    return Object.values(map).filter(g=>g.k25||g.k26);
+  };
+
+  /* ══ Build dept section ══ */
+  const mkDeptSection=(dept)=>{
+    const dm=DM[dept];
+    const dC=dm.color;
+    const groups=groupKpis(dept);
+    if(!groups.length)return'';
+    const allKs=groups.map(g=>g.k26||g.k25);
+    const met=allKs.filter(k=>ok(k)===true).length;
+    const miss=allKs.filter(k=>ok(k)===false).length;
+    const pend=allKs.filter(k=>ok(k)===null).length;
+    const pct=allKs.length?Math.round((met/allKs.filter(k=>ok(k)!==null).length||0)*100):0;
+    const hasCrit=allKs.filter(k=>ok(k)===false).some(k=>(k.tier||3)===1);
+
+    /* Dept summary header */
+    let out=''
+      +'<div style="background:#fff;border-radius:14px;border:1px solid #E2E8F0;box-shadow:0 2px 12px rgba(10,22,48,.07);overflow:hidden;margin-bottom:20px">'
+        /* Colored top band */
+        +'<div style="height:4px;background:'+dC+'"></div>'
+        /* Header row */
+        +'<div style="padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;border-bottom:1px solid #F0F4F8">'
+          +'<div style="display:flex;align-items:center;gap:10px;flex:1">'
+            +'<span style="font-size:22px;font-weight:900;color:'+dC+';font-family:var(--mono)">'+dm.abbr+'</span>'
+            +'<div>'
+              +'<div style="font-size:14px;font-weight:800;color:#152538">'+(lang==='ar'?dm.ar:dm.en)+'</div>'
+              +'<div style="font-size:10px;color:#94A3B8">'+groups.length+' KPI'+(groups.length>1?'s':'')+(F.year!=='all'?' · '+F.year:'')+'</div>'
+            +'</div>'
+            +(hasCrit?'<span style="font-size:9px;font-weight:800;padding:4px 10px;border-radius:20px;background:#FEF2F2;color:#DC2626;border:1px solid #FECACA">⚠ Patient Safety KPI Missed</span>':'')
+          +'</div>'
+          /* Stats */
+          +'<div style="display:flex;gap:0;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden">'
+            +[{l:'Total',v:allKs.length,c:'#152538',bg:'#F8FAFC'},{l:'Met',v:met,c:'#16A34A',bg:'#ECFDF5'},{l:'Missed',v:miss,c:miss?'#DC2626':'#94A3B8',bg:miss?'#FEF2F2':'#F8FAFC'},{l:'Pending',v:pend,c:'#94A3B8',bg:'#F8FAFC'}].map((s,i)=>
+              '<div style="padding:8px 16px;text-align:center;border-left:'+(i>0?'1px solid #E2E8F0':'none')+';background:'+s.bg+'">'
+                +'<div style="font-size:20px;font-weight:900;color:'+s.c+';font-family:var(--mono);line-height:1">'+s.v+'</div>'
+                +'<div style="font-size:8px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.05em;margin-top:2px">'+s.l+'</div>'
+              +'</div>'
+            ).join('')
+          +'</div>'
+          /* Performance bar */
+          +'<div style="min-width:120px">'
+            +'<div style="display:flex;justify-content:space-between;font-size:9px;font-weight:700;color:#152538;margin-bottom:5px"><span>Performance</span><span style="color:'+dC+'">'+pct+'%</span></div>'
+            +'<div style="height:7px;background:#E2E8F0;border-radius:4px;overflow:hidden">'
+              +'<div style="width:'+pct+'%;height:100%;background:'+dC+';border-radius:4px;transition:width .6s"></div>'
+            +'</div>'
+          +'</div>'
+        +'</div>'
+
+        /* ── Dept-level charts ── */
+        +'<div style="padding:16px 16px 0;display:grid;grid-template-columns:1fr 1fr;gap:14px;border-bottom:1px solid #F0F4F8">'
+          /* Line chart — KPI trends over quarters */
+          +'<div style="background:#FAFBFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px">'
+            +'<div style="font-size:9px;font-weight:800;color:#64748B;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">📈 Quarterly Trend — All KPIs</div>'
+            +'<div style="height:160px"><canvas id="dline_'+dept+'"></canvas></div>'
+          +'</div>'
+          /* Bar chart — KPI performance comparison latest quarter */
+          +'<div style="background:#FAFBFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px">'
+            +'<div style="font-size:9px;font-weight:800;color:#64748B;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">📊 KPI Achievement vs Target</div>'
+            +'<div style="height:160px"><canvas id="dbar_dept_'+dept+'"></canvas></div>'
+          +'</div>'
+        +'</div>'
+        /* KPI cards grid */
+        +'<div style="padding:16px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px">'
+          +groups.map(g=>mkKpiCard(g.k25,g.k26,dept)).join('')
+        +'</div>'
+      +'</div>';
+
+    /* draw dept-level charts after DOM is set */
+    setTimeout(()=>{
+      /* Line chart — one line per KPI, Q1'25→Q1'26 */
+      dch('dline_'+dept);
+      const lineEl=document.getElementById('dline_'+dept);
+      if(lineEl){
+        const dsLine=groups.map(g=>{
+          const k25=g.k25, k26=g.k26;
+          const k=k26||k25;
+          const dArr=[k25?.q1??null,k25?.q2??null,k25?.q3??null,k25?.q4??null,k26?.q1??null];
+          const allV=dArr.filter(v=>v!==null);
+          if(!allV.length)return null;
+          const isMet=ok(k)===true;
+          const col=isMet?dC+'CC':'rgba(220,38,38,.75)';
+          return{label:k.id,data:dArr,borderColor:col,backgroundColor:'transparent',tension:.4,pointRadius:dArr.map(v=>v!==null?3:0),borderWidth:2,spanGaps:false};
+        }).filter(Boolean);
+        const allVals=groups.flatMap(g=>[g.k25?.q1,g.k25?.q2,g.k25?.q3,g.k25?.q4,g.k26?.q1]).filter(v=>v!==null);
+        const avgTgt=groups.length?Math.round(groups.map(g=>(g.k26||g.k25).target).reduce((a,b)=>a+b)/groups.length):90;
+        dsLine.push({label:'Avg Target',data:[avgTgt,avgTgt,avgTgt,avgTgt,avgTgt],borderColor:'rgba(220,38,38,.40)',borderWidth:1.5,borderDash:[5,3],pointRadius:0,fill:false,backgroundColor:'transparent'});
+        CH['dline_'+dept]=mkChart('dline_'+dept,{type:'line',data:{labels:["Q1'25","Q2'25","Q3'25","Q4'25","Q1'26"],datasets:dsLine},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:9},boxWidth:10,padding:6}}},scales:{y:{min:Math.max(0,(Math.min(...allVals)||80)-10),max:Math.min(105,(Math.max(...allVals)||100)+5),ticks:{callback:v=>v+'%',font:{size:9},maxTicksLimit:6},grid:{color:'rgba(20,35,80,.05)'}},x:{ticks:{font:{size:9}},grid:{display:false}}}}});
+      }
+      /* Bar chart — latest result vs target per KPI */
+      dch('dbar_dept_'+dept);
+      const barEl=document.getElementById('dbar_dept_'+dept);
+      if(barEl){
+        const labels=groups.map(g=>(g.k26||g.k25).id);
+        const results=groups.map(g=>{const k=g.k26||g.k25;return qv(k);});
+        const targets=groups.map(g=>(g.k26||g.k25).target);
+        CH['dbar_dept_'+dept]=mkChart('dbar_dept_'+dept,{type:'bar',data:{labels,datasets:[
+          {label:'Result',data:results,backgroundColor:results.map((v,i)=>v===null?'#E2E8F0':v>=targets[i]?dC+'BB':'rgba(220,38,38,.65)'),borderRadius:4,borderSkipped:false},
+          {label:'Target',data:targets,type:'line',borderColor:'rgba(220,38,38,.50)',borderWidth:1.5,borderDash:[5,3],pointRadius:0,fill:false,order:0}
+        ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:9},boxWidth:10,padding:6}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y!==null?c.parsed.y+'%':'—')}}},scales:{y:{min:0,max:105,ticks:{callback:v=>v+'%',font:{size:9},maxTicksLimit:6},grid:{color:'rgba(20,35,80,.05)'}},x:{ticks:{font:{size:9},maxRotation:45},grid:{display:false}}}}});
+      }
+    },100);
+    return out;
+  };
+
+  /* ══ Render all depts ══ */
+  const allHtml=activeDepts.map(dept=>mkDeptSection(dept)).filter(Boolean).join('');
+  el.innerHTML='<div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none">'+allHtml+'</div>';
 }
-
 
 function renderRegistry(){
   _clearCache();
@@ -4426,41 +4678,10 @@ async function fetchAI(){
   try{
     const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
     const d=await r.json();const t=d.content?.[0]?.text||'';
-    if(el&&t){
-      el.innerHTML=`<div class="intel-sec"><div class="intel-sec-t"> ${lang==='ar'?'التحليل التنفيذي':'Executive Analysis'}</div><div class="ai-txt">${t.replace(/\n/g,'<br>')}</div></div>${buildIntelRisks(missKpis,repKpis)}`;
-    } else if(el)el.innerHTML=buildFallback(rate,missKpis,repKpis);
-  } catch(e){if(el)el.innerHTML=buildFallback(rate,missKpis,repKpis);}
+    if(el&&t){ buildIntelRisks(missKpis,repKpis); } else if(el)buildIntelRisks(missKpis,repKpis);
+  } catch(e){if(el)buildIntelRisks(missKpis,repKpis);}
 }
-function buildIntelRisks(missKpis,repKpis){
-  let h='';
-  if(!missKpis.length&&!repKpis.length){
-    h+=`<div class="intel-sec"><div class="intel-sec-t"> ${lang==='ar'?'الوضع التشغيلي':'Status'}</div><div class="intel-item ok"><div class="intel-item-name">${lang==='ar'?'جميع المؤشرات محققة':'All KPIs Met'}</div></div></div>`;
-  } else {
-    h+=`<div class="intel-sec"><div class="intel-sec-t"> ${lang==='ar'?'مخاطر حرجة':'Critical Risks'}</div>`;
-    missKpis.slice(0,4).forEach(k=>{const v=qv(k);const rc=getRepeat(k);h+=`<div class="intel-item" style="margin-bottom:4px"><div class="intel-item-name">${k.id} <span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span>${rc>=2?` <span class="repeat-b">↩${rc}x</span>`:''}</div><div class="intel-item-d">${lang==='ar'?k.nameAr:k.nameEn} — ${(v||0).toFixed(1)}% / ${k.target}%</div></div>`;});h+='</div>';
-    if(repKpis.length){h+=`<div class="intel-sec"><div class="intel-sec-t">↩ ${lang==='ar'?'إخفاق متكرر':'Repeat Misses'}</div>`;repKpis.forEach(k=>{const rc=getRepeat(k);h+=`<div class="intel-item warn" style="margin-bottom:4px"><div class="intel-item-name">${k.id}: ${rc} ${lang==='ar'?'أرباع':'quarters'}</div><div class="intel-item-d">${lang==='ar'?k.nameAr:k.nameEn}</div></div>`;});h+='</div>';}
-  }
-  /* ── Recommendations section ── */
-  const recs=[];
-  if(missKpis.filter(k=>(k.tier||3)===1).length>0)
-    recs.push(lang==='ar'?' أولوية فورية: معالجة مؤشرات سلامة المريض (T1) — يُوجب التدخل التنفيذي المباشر':' Immediate: Address Tier 1 Patient Safety KPIs — requires executive escalation');
-  if(repKpis.length>0)
-    recs.push(lang==='ar'?` إخفاق متكرر: مراجعة جذرية لـ ${repKpis.length} مؤشر بإخفاق متتالٍ — تحليل الأسباب الجذرية مطلوب`:` Chronic underperformance in ${repKpis.length} KPI(s) — Root cause analysis required`);
-  if(missKpis.length>0&&missKpis.every(k=>!(ST.gaps||{})[k.id]?.gapEn))
-    recs.push(lang==='ar'?' تحليل الفجوة غير مكتمل — يُرجى إدخال أسباب وإجراءات لكل مؤشر غير محقق':' Gap analysis incomplete — Enter root causes & actions for all Missed KPIs');
-  if(missKpis.length===0)
-    recs.push(lang==='ar'?' الأداء ممتاز — استمر في مراقبة مستوى الأهداف ومشاركة أفضل الممارسات':' Excellent performance — Sustain targets and share best practices across departments');
-  if(recs.length>0){
-    h+=`<div class="intel-sec"><div class="intel-sec-t"> ${lang==='ar'?'التوصيات':'Recommendations'}</div>`;
-    recs.forEach(r=>{h+=`<div style="font-size:10px;color:var(--t1);line-height:1.6;padding:4px 0;border-bottom:1px solid var(--border)">${r}</div>`;});
-    h+='</div>';
-  }
-  return h;
-}
-function buildFallback(rate,missKpis,repKpis){
-  const w=missKpis[0];
-  return`<div class="intel-sec"><div class="intel-sec-t"> ${lang==='ar'?'ملخص':'Summary'}</div><div class="ai-txt">${lang==='ar'?`معدل إنجاز الإدارة ${rate}%. ${w?`المؤشر ${w.id} (${w.nameAr}) يُمثل أعلى فجوة عن الهدف.`:''}`:`Division achieved ${rate}%. ${w?`KPI ${w.id} (${w.nameEn}) shows the highest gap from target.`:''}`}</div></div>${buildIntelRisks(missKpis,repKpis)}`;
-}
+function buildFallback(rate,missKpis,repKpis){ buildIntelRisks(missKpis,repKpis); }
 
 /* ══════════════════════════════════════════
    GAP MODAL
@@ -4690,7 +4911,7 @@ function saveAdmin(){
     }
   });
   if(!pciValid)return;
-  const id=document.getElementById('eSel').value;if(!id){toast('Select a KPI');return;}if(!ST.ov)ST.ov={};ST.ov[id]={q1:pn(document.getElementById('eQ1').value),q2:pn(document.getElementById('eQ2').value),q3:pn(document.getElementById('eQ3').value),q4:pn(document.getElementById('eQ4').value),target:parseFloat(document.getElementById('eTg').value)||90,tier:parseInt(document.getElementById('eTier').value)||3};
+  const id=document.getElementById('eSel').value;if(!id){toast('Select a KPI');return;}if(!ST.ov)ST.ov={};const _gQV=Q=>{const pl=parseFloat(document.getElementById('eAd'+Q+'_pl')?.value)||0;const co=parseFloat(document.getElementById('eAd'+Q+'_co')?.value);return(pl>0&&!isNaN(co)&&co!==null)?+(co/pl*100).toFixed(1):null;};ST.ov[id]={q1:_gQV('Q1'),q2:_gQV('Q2'),q3:_gQV('Q3'),q4:_gQV('Q4'),target:parseFloat(document.getElementById('eTg').value)||90,tier:parseInt(document.getElementById('eTier').value)||3};
   /* Save PCI breakdown data */
   if(!ST.pci)ST.pci={};if(!ST.pci[id])ST.pci[id]={};
   ['Q1','Q2','Q3','Q4'].forEach(Q=>{
