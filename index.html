@@ -973,16 +973,37 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 
 /* ══ Report edit button ══ */
 .rpt-ep{position:relative;padding-right:2px}
-.rpt-edit-btn{position:absolute;top:0;right:0;display:inline-flex;align-items:center;gap:3px;padding:3px 10px;background:linear-gradient(135deg,#0195af,#007A96);border:none;border-radius:20px;color:#fff;font-size:9px;font-weight:700;cursor:pointer;font-family:inherit;opacity:0;transition:opacity .2s,transform .15s;box-shadow:0 2px 8px rgba(1,149,175,.32);letter-spacing:.02em;white-space:nowrap}
+.rpt-edit-btn{
+  position:absolute;top:8px;right:8px;
+  display:inline-flex;align-items:center;gap:5px;
+  padding:5px 11px 5px 8px;
+  background:#fff;
+  border:1.5px solid #E2E8F0;
+  border-radius:8px;
+  color:#475569;
+  font-size:9px;font-weight:700;
+  cursor:pointer;font-family:inherit;
+  opacity:0;
+  box-shadow:0 2px 8px rgba(10,22,48,.10);
+  transition:opacity .18s,box-shadow .18s,border-color .18s,transform .15s;box-shadow:0 2px 8px rgba(1,149,175,.32);letter-spacing:.02em;white-space:nowrap}
 .rpt-ep:hover .rpt-edit-btn{opacity:1;transform:translateY(-1px)}
-.rpt-edit-btn.done-btn{background:linear-gradient(135deg,#06845A,#059669)!important;box-shadow:0 2px 8px rgba(6,132,90,.32)!important}
+.rpt-edit-btn.done-btn{background:#ECFDF5;border-color:#16A34A;color:#16A34A!important;box-shadow:0 2px 8px rgba(6,132,90,.32)!important}
 
 /* ── Footbar text ── */
 .footbar-info{display:flex;align-items:center;gap:8px;flex:1}
 .footbar-title{font-size:10px;font-weight:700;color:#fff;white-space:nowrap}
 .footbar-sub{font-size:9px;color:rgba(255,255,255,.70);white-space:nowrap}
 
+.export-menu-item{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:7px;font-size:12px;font-weight:600;color:#334155;cursor:pointer;transition:background .12s,color .12s,padding-left .12s;white-space:nowrap}
 .export-menu-item:hover{background:rgba(1,149,175,.10);color:#0195af;padding-left:18px}
+
+@media print{
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .overlay,.rpt-edit-btn,.edit-btn{display:none!important}
+  .gg{grid-auto-rows:auto!important}
+  .card{break-inside:avoid;box-shadow:none!important}
+  @page{size:landscape;margin:10mm}
+}
 </style>
 
 </head>
@@ -1018,7 +1039,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
         <div style="font-size:9px;font-weight:700;color:var(--t3);padding:6px 10px 4px;text-transform:uppercase;letter-spacing:.06em">Select Page to Export</div>
         <div onclick="doExportPage('exec')" class="export-menu-item"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> Executive Command</div>
         <div onclick="doExportPage('dept')" class="export-menu-item"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> Departments</div>
-        <div onclick="doExportPage('registry')" class="export-menu-item"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg> KPI Registry</div>
+        <div onclick="doExportPage('registry')" class="export-menu-item"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg> KPI Register</div>
         <div onclick="doExportPage('acc')" class="export-menu-item"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> Accountability</div>
         <div style="height:1px;background:var(--border);margin:4px 0"></div>
         <div onclick="doExportPage('all')" class="export-menu-item" style="color:#0195af;font-weight:700"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> All Pages</div>
@@ -1063,7 +1084,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 <div class="tabnav">
   <div class="tab on" onclick="switchTab('exec',this)"> <span data-en="Executive Command" data-ar="القيادة التنفيذية">Executive Command</span></div>
   <div class="tab" onclick="switchTab('dept',this)"> <span data-en="Departments" data-ar="الأقسام">Departments</span></div>
-  <div class="tab" onclick="switchTab('registry',this)"> <span data-en="KPI Registry" data-ar="سجل المؤشرات">KPI Registry</span></div>
+  <div class="tab" onclick="switchTab('registry',this)"> <span data-en="KPI Register" data-ar="سجل المؤشرات">KPI Register</span></div>
   <div class="tab" onclick="switchTab('accountability',this)"> <span data-en="Accountability" data-ar="المساءلة">Accountability</span> <span class="tab-badge" id="accBadge" style="display:none">0</span></div>
 
 </div>
@@ -1111,11 +1132,11 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
     <div style="padding:18px 18px 16px">
       <div style="margin-bottom:14px">
         <label style="display:block;font-size:10.5px;font-weight:700;color:var(--t2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">Page to Export</label>
-        <select id="pdfPageSel" class="msel" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:7px;background:var(--card);color:var(--t1);font-size:12px;font-family:inherit">
-          <option value="exec">  Executive Command</option>
-          <option value="dept">  Departments</option>
-          <option value="registry">  KPI Registry</option>
-          <option value="acc">  Accountability</option>
+        <select id="pdfPageSel" class="msel" style="width:100%;padding:8px 10px;border:1px solid var(--border2);border-radius:7px;background:var(--card);color:var(--t1);font-size:12px;font-family:inherit;cursor:pointer">
+          <option value="exec">📊 Executive Command</option>
+          <option value="dept">🏢 Departments</option>
+          <option value="registry">📋 KPI Register</option>
+          <option value="acc">📌 Accountability</option>
         </select>
       </div>
       <div style="margin-bottom:16px">
@@ -1612,7 +1633,7 @@ const BASE=[
 ══════════════════════════════════════════ */
 function exportExcel(){
   toast(lang==='ar'?'جاري تحضير ملف Excel...':'Building Excel report...');
-  setTimeout(()=>_buildExcelSimple(),80);
+  setTimeout(()=>_buildExcelFull(),80);
 }
 function exportExcel_UNUSED(){/* XLSX library kept for future use */
   if(typeof XLSX!=='undefined'){
@@ -1653,8 +1674,8 @@ function _buildExcelXLSX(){
         k.q3!=null?k.q3+'%':'—', k.q4!=null?k.q4+'%':'—',
         k.yr===2026&&k.q1!=null?k.q1+'%':'—',
         avgV!=null?avgV+'%':'—',
-        yoyQ!=null?(yoyQ>=0?'+':'')+yoyQ+'%':'—',
-        annYoY!=null?(annYoY>=0?'+':'')+annYoY+'%':'—',
+        yoyQ!=null?(yoyQ>0?'▲ ':'▼ ')+Math.abs(yoyQ)+'%':'—',
+        annYoY!=null?(annYoY>0?'▲ ':'▼ ')+Math.abs(annYoY)+'%':'—',
         'T'+(k.tier||3),
         a===null?'Pending':a?' Met':' Missed'
       ]);
@@ -1704,6 +1725,208 @@ function _buildExcelXLSX(){
   toast(lang==='ar'?' تم تحميل Excel — شيتان: KPI Report + Gap Analysis':' Excel downloaded — 2 sheets: KPI Report + Gap Analysis');
 }
 /* ── Simple HTML-table Excel (100% browser compatible) ── */
+function _buildExcelFull(){
+  if(typeof ExcelJS==='undefined'){_buildExcelSimple();return;}
+  const ks=filt();
+  const miss=ks.filter(k=>ok(k)===false);
+  const depts=['maintenance','safety','housekeeping','projects'];
+  const today=new Date().toLocaleDateString('en-GB');
+  const qLbl=F.qtr.includes('all')?'All Quarters':F.qtr.map(q=>q.toUpperCase()).join('+');
+  const period=(F.year==='all'?'All Years':F.year)+' '+qLbl;
+
+  const wb=new ExcelJS.Workbook();
+  wb.creator='QUMC KPI Dashboard';wb.created=new Date();
+
+  /* ── helpers ── */
+  const argb=hex=>hex.replace('#','').toUpperCase().padStart(8,'FF');
+  const fl=c=>({type:'pattern',pattern:'solid',fgColor:{argb:argb(c)}});
+  const ft=(color,size,bold)=>({name:'Calibri',color:{argb:argb(color)},size:size||10,bold:!!bold});
+  const al=(h,v)=>({horizontal:h||'center',vertical:v||'middle',wrapText:true});
+  const bd=()=>({top:{style:'thin',color:{argb:'FFE2E8F0'}},left:{style:'thin',color:{argb:'FFE2E8F0'}},bottom:{style:'thin',color:{argb:'FFE2E8F0'}},right:{style:'thin',color:{argb:'FFE2E8F0'}}});
+  const sc=(row,col,val,fillHex,fontColor,fontSize,bold,alignH)=>{
+    const c=row.getCell(col);c.value=val;
+    if(fillHex)c.fill=fl(fillHex);
+    c.font=ft(fontColor||'#1E293B',fontSize||10,bold);
+    c.alignment=al(alignH||'center');
+    c.border=bd();
+    return c;
+  };
+
+  /* ════════════ SHEET 1: KPI Report ════════════ */
+  /* Logo */
+  let _logoImgId=-1;
+  try{
+    const _li=document.getElementById('logoImg');
+    if(_li&&_li.src&&_li.src.length>100){
+      const _ext=_li.src.startsWith('data:image/png')?'png':'jpeg';
+      _logoImgId=wb.addImage({base64:_li.src.split(',')[1],extension:_ext});
+    }
+  }catch(_e){}
+
+  const ws1=wb.addWorksheet('KPI Report',{views:[{showGridLines:false}]});
+  ws1.columns=[
+    {width:12},{width:38},{width:14},{width:8},
+    {width:10},{width:8},{width:8},{width:8},{width:8},
+    {width:8},{width:10},{width:8},{width:10}
+  ];
+
+  /* Logo — read from existing img element in page */
+  try{
+    const logoEl=document.getElementById('logoImg');
+    if(logoEl&&logoEl.src&&logoEl.src.startsWith('data:')){
+      const ext=logoEl.src.includes('png')?'png':'jpeg';
+      const b64=logoEl.src.split(',')[1];
+      const imgId=wb.addImage({base64:b64,extension:ext});
+      ws1.addImage(imgId,{tl:{col:0,row:0},ext:{width:75,height:48},editAs:'oneCell'});
+    }
+  }catch(e){}
+
+    if(_logoImgId>=0){
+    try{ws1.addImage(_logoImgId,{tl:{col:0,row:0},ext:{width:80,height:50},editAs:'oneCell'});}catch(_e){}
+  }
+
+  /* Title */
+  ws1.mergeCells('A1:M1');
+  const t1=ws1.getCell('A1');
+  t1.value='Qassim University Medical City — Facilities & Safety Division — KPI Report';
+  t1.fill=fl('#152538');t1.font=ft('#FFFFFF',16,true);t1.alignment=al('center');
+
+  /* Subtitle */
+  ws1.mergeCells('A2:M2');
+  const s1=ws1.getCell('A2');
+  s1.value='Period: '+period+' | Generated: '+today+' | Total: '+ks.length+' KPIs | Met: '+ks.filter(k=>ok(k)===true).length+' | Missed: '+miss.length;
+  s1.fill=fl('#1E3356');s1.font=ft('#FFFFFF',10,false);s1.alignment=al('center');
+
+  /* Spacer */
+  ws1.addRow([]);
+
+  /* Column headers */
+  const hdrs=['Code','KPI Name','Department','Year','Target','Q1','Q2','Q3','Q4','Avg','YoY','Risk','Status'];
+  const hr=ws1.addRow(hdrs);
+  hr.eachCell(c=>{c.fill=fl('#152538');c.font=ft('#FFFFFF',10,true);c.alignment=al('center');c.border=bd();});
+  ws1.getRow(4).height=22;
+
+  /* KPI data rows */
+  let rowNum=0;
+  depts.forEach(d=>{
+    const dk=ks.filter(k=>k.dept===d);if(!dk.length)return;
+    const dm=DM[d];
+    const dr=ws1.addRow([dm.abbr+' — '+dm.en]);
+    ws1.mergeCells('A'+(rowNum+5)+':M'+(rowNum+5));
+    dr.getCell(1).fill=fl('#1E3356');dr.getCell(1).font=ft('#FFFFFF',11,true);
+    dr.getCell(1).alignment=al('left');
+    dr.height=20;rowNum++;
+
+    dk.forEach(k=>{
+      const v=qv(k),a=ok(k);
+      const allV=[k.q1,k.q2,k.q3,k.q4].filter(x=>x!==null);
+      const avg=allV.length?+(allV.reduce((x,y)=>x+y)/allV.length).toFixed(1):null;
+      const yoy=k.yoy!=null&&avg!=null?+(avg-k.yoy).toFixed(1):null;
+      const statTxt=a===null?'Pending':a?'✓ Met':'✗ Missed';
+      const statFill=a===null?'#F8FAFC':a?'#DCFCE7':'#FEE2E2';
+      const statColor=a===null?'#94A3B8':a?'#166534':'#991B1B';
+      const tierFill=k.tier===1?'#FEF2F2':k.tier===2?'#FFFBEB':'#EFF6FF';
+      const tierColor=k.tier===1?'#7F1D1D':k.tier===2?'#713F12':'#1E40AF';
+      const bg=rowNum%2===0?'#FFFFFF':'#F8FAFC';
+      const qCell=q=>q!=null?q.toFixed(1)+'%':'—';
+      const dr2=ws1.addRow([
+        k.id, k.nameEn, DM[d].en, k.yr||2025, (k.op==='='?'=':'≥')+k.target+'%',
+        qCell(k.q1),qCell(k.q2),qCell(k.q3),qCell(k.q4),
+        avg!=null?avg.toFixed(1)+'%':'—',
+        yoy!=null?(yoy>0?'▲ ':'▼ ')+Math.abs(yoy).toFixed(1)+'%':'—',
+        'T'+(k.tier||3),
+        statTxt
+      ]);
+      dr2.eachCell((c,i)=>{
+        c.fill=fl(bg);c.border=bd();c.alignment=al('center');c.font=ft('#334155',10);
+      });
+      dr2.getCell(1).font=ft('#006D7F',10,true);dr2.getCell(1).fill=fl('#E0F7FA');
+      dr2.getCell(2).alignment=al('left');dr2.getCell(2).font=ft('#1E293B',10);
+      dr2.getCell(4).font=ft('#475569',10,true);
+      dr2.getCell(12).fill=fl(tierFill);dr2.getCell(12).font=ft(tierColor,10,true);
+      dr2.getCell(13).fill=fl(statFill);dr2.getCell(13).font=ft(statColor,10,true);
+      rowNum++;
+    });
+    ws1.addRow([]);rowNum++;
+  });
+
+  /* Footer */
+  const lastR=ws1.lastRow.number+1;
+  ws1.mergeCells('A'+lastR+':M'+lastR);
+  const fr=ws1.getCell('A'+lastR);
+  fr.value='QUMC KPI Command Center · Governance & Performance · '+today;
+  fr.fill=fl('#F8FAFC');fr.font=ft('#94A3B8',8,false);fr.alignment=al('center');
+
+  /* ════════════ SHEET 2: Gap Analysis ════════════ */
+  const ws2=wb.addWorksheet('Gap Analysis',{views:[{showGridLines:false}]});
+  ws2.columns=[
+    {width:12},{width:38},{width:14},{width:10},
+    {width:10},{width:10},{width:16},{width:40},{width:40}
+  ];
+
+  /* Title */
+  ws2.mergeCells('A1:I1');
+  const t2=ws2.getCell('A1');
+  t2.value='Gap Analysis — Missed KPIs Corrective Action Register';
+  t2.fill=fl('#7F1D1D');t2.font=ft('#FFFFFF',16,true);t2.alignment=al('center');
+
+  /* Subtitle */
+  ws2.mergeCells('A2:I2');
+  const s2=ws2.getCell('A2');
+  s2.value='Qassim University Medical City · Facilities & Safety Division · '+today+' | Period: '+period;
+  s2.fill=fl('#991B1B');s2.font=ft('#FFFFFF',10,false);s2.alignment=al('center');
+
+  ws2.addRow([]);
+
+  /* Column headers */
+  const gHdrs=['Code','KPI Name','Dept','Target','Result','Gap','Priority','Root Cause','Corrective Action'];
+  const gh=ws2.addRow(gHdrs);
+  gh.eachCell(c=>{c.fill=fl('#7F1D1D');c.font=ft('#FFFFFF',10,true);c.alignment=al('center');c.border=bd();});
+
+  if(miss.length){
+    miss.forEach((k,i)=>{
+      const v=qv(k);
+      const gap=v!=null?(k.target-v).toFixed(1)+'%':'—';
+      const gd=(ST?.gaps||{})[k.id]||{};
+      const ac=(ST?.actions||{})[k.id]||{};
+      const pri=(ac.priority||gd.priority||'Medium');
+      const sta=(ac.status||gd.status||'Open');
+      const priFill=pri.toLowerCase()==='critical'?'#FEE2E2':pri.toLowerCase()==='high'?'#FEF9C3':'#F0FDF4';
+      const priFg=pri.toLowerCase()==='critical'?'#7F1D1D':pri.toLowerCase()==='high'?'#713F12':'#166534';
+      const bg=i%2===0?'#FFF5F5':'#FEF2F2';
+      const gr=ws2.addRow([
+        k.id,k.nameEn,DM[k.dept]?.abbr||k.dept,
+        (k.op==='='?'=':'≥')+k.target+'%',
+        v!=null?v.toFixed(1)+'%':'—', gap, pri, sta,
+        (gd.gapEn||'Not documented')+(gd.actEn?'\nAction: '+gd.actEn:'')
+      ]);
+      gr.eachCell((c,j)=>{c.fill=fl(bg);c.border=bd();c.alignment=al('center');c.font=ft('#334155',10);});
+      gr.getCell(1).fill=fl('#FFF5F5');gr.getCell(1).font=ft('#C42B2B',10,true);
+      gr.getCell(2).alignment=al('left');
+      gr.getCell(5).fill=fl('#FEE2E2');gr.getCell(5).font=ft('#991B1B',10,true);
+      gr.getCell(6).fill=fl('#FEE2E2');gr.getCell(6).font=ft('#991B1B',10,true);
+      gr.getCell(7).fill=fl(priFill);gr.getCell(7).font=ft(priFg,10,true);
+      gr.getCell(9).alignment=al('left');gr.getCell(9).font=ft('#334155',9);
+      gr.height=40;
+    });
+  }else{
+    const er=ws2.addRow(['All KPIs Met Their Targets — No gap analysis required for this period.']);
+    ws2.mergeCells('A5:I5');
+    er.getCell(1).fill=fl('#ECFDF5');er.getCell(1).font=ft('#06845A',12,true);er.getCell(1).alignment=al('center');
+  }
+
+  /* Download */
+  wb.xlsx.writeBuffer().then(buf=>{
+    const blob=new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;
+    a.download='QUMC_KPI_Report_'+(F.year==='all'?'All':F.year)+'_'+new Date().toISOString().slice(0,10)+'.xlsx';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+    toast(' Excel downloaded — 2 sheets: KPI Report + Gap Analysis');
+  }).catch(()=>{_buildExcelSimple();});
+}
+
 function _buildExcelSimple(){
   const ks=filt(),depts=['maintenance','safety','housekeeping','projects'];
   const miss=ks.filter(k=>ok(k)===false);
@@ -1715,7 +1938,8 @@ function _buildExcelSimple(){
 
   /* ── inline style shortcuts ── */
   const e=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-  const td=(txt,bg,fg='#1E293B',extra='')=>`<td bgcolor="${bg}" style="color:${fg};${extra};font-family:Calibri,Arial;font-size:10pt;padding:7px 10px;border:1px solid #E2E8F0">${e(txt)}</td>`;
+  const td=(txt,bg,fg,extra)=>{fg=fg||'#1E293B';extra=extra||'';return `<td bgcolor="${bg}" style="color:${fg};${extra};font-family:Calibri,Arial;font-size:10pt;padding:7px 10px;border:1px solid #E2E8F0">${e(txt)}</td>`;};
+  
   const th=(txt,bg='#00A3C4',fg='#FFFFFF',extra='')=>`<th bgcolor="${bg}" style="color:${fg};${extra};font-family:Calibri,Arial;font-size:9pt;font-weight:bold;padding:9px 10px;border:1px solid #007A96;text-align:center">${e(txt)}</th>`;
   const qCell=(v,tgt)=>{
     if(v===null)return td('—','#F8FAFC','#CBD5E1','text-align:center');
@@ -1734,16 +1958,16 @@ function _buildExcelSimple(){
   let t1=`<table style="border-collapse:collapse;width:100%">`;
 
   /* Title */
-  t1+=`<tr><td colspan="14" bgcolor="#152538" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:16pt;font-weight:bold;padding:14px 18px;border:none">
+  t1+=`<tr><td colspan="13" bgcolor="#152538" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:16pt;font-weight:bold;padding:14px 18px;border:none;text-align:center">
     Qassim University Medical City — Facilities &amp; Safety Division
   </td></tr>`;
-  t1+=`<tr><td colspan="14" bgcolor="#1E3356" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:10pt;font-weight:bold;padding:7px 18px;border:none">
+  t1+=`<tr><td colspan="13" bgcolor="#1E3356" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:10pt;font-weight:bold;padding:7px 18px;border:none">
     KPI Performance Report · Governance &amp; Performance Department
   </td></tr>`;
-  t1+=`<tr><td colspan="14" bgcolor="#EBF5F7" style="color:#475569;font-family:Calibri,Arial;font-size:9pt;font-style:italic;padding:6px 18px;border:none">
+  t1+=`<tr><td colspan="13" bgcolor="#EBF5F7" style="color:#475569;font-family:Calibri,Arial;font-size:9pt;font-style:italic;padding:6px 18px;border:none;text-align:center">
     Period: ${period} &nbsp;|&nbsp; Generated: ${today} &nbsp;|&nbsp; Total: ${ks.length} &nbsp;|&nbsp; Met: ${metKs.length} &nbsp;|&nbsp; Missed: ${miss.length}
   </td></tr>`;
-  t1+=`<tr><td colspan="14" style="padding:6px;border:none"></td></tr>`;
+  t1+=`<tr><td colspan="13" style="padding:6px;border:none"></td></tr>`;
 
   /* Summary strip */
   t1+=`<tr>
@@ -1760,12 +1984,12 @@ function _buildExcelSimple(){
     <td colspan="2" bgcolor="${avg&&avg>=90?'#ECFDF5':'#FEF2F2'}" style="color:${avg&&avg>=90?'#06845A':'#C42B2B'};font-family:Calibri,Arial;font-size:22pt;font-weight:bold;padding:12px;text-align:center;border:1px solid ${avg&&avg>=90?'#A7F3D0':'#FECACA'}">${avg!==null?avg+'%':'N/A'}</td>
     <td colspan="6" style="border:none"></td>
   </tr>`;
-  t1+=`<tr><td colspan="14" style="padding:5px;border:none"></td></tr>`;
+  t1+=`<tr><td colspan="13" style="padding:5px;border:none"></td></tr>`;
 
   /* Column headers */
   t1+=`<tr>
     ${th('Code','#152538')}
-    ${th('KPI Name (EN)','#152538','#FFFFFF','text-align:left')}
+    ${th('KPI Name (EN)','#152538','#FFFFFF','text-align:center')}
     ${th('Dept','#152538')}
     ${th('Target','#152538')}
     ${th('Q1 2025','#00A3C4')}
@@ -1776,7 +2000,6 @@ function _buildExcelSimple(){
     ${th('YoY','#152538')}
     ${th('Risk','#152538')}
     ${th('Status','#152538')}
-    ${th('AR Name','#1E3356')}
     ${th('Year','#1E3356')}
   </tr>`;
 
@@ -1784,7 +2007,7 @@ function _buildExcelSimple(){
   let rowNum=0;
   depts.forEach(d=>{
     const dk=ks.filter(k=>k.dept===d);if(!dk.length)return;
-    t1+=`<tr><td colspan="14" bgcolor="#1E3356" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:10pt;font-weight:bold;padding:8px 14px;border:1px solid #1E3E6A">
+    t1+=`<tr><td colspan="13" bgcolor="#1E3356" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:10pt;font-weight:bold;padding:8px 14px;border:1px solid #1E3E6A;text-align:center">
       ${DM[d].abbr} — ${DM[d].en}
     </td></tr>`;
     dk.forEach(k=>{
@@ -1793,13 +2016,13 @@ function _buildExcelSimple(){
       const kAvg=allV.length?+(allV.reduce((x,y)=>x+y)/allV.length).toFixed(1):null;
       const yoy=k.yoy!=null&&kAvg!=null?+(kAvg-k.yoy).toFixed(1):null;
       const odd=rowNum%2===0;rowNum++;
-      const rb=odd?'#FFFFFF':'#F8FAFC';
+      const rb='#FFFFFF';
       const tier=k.tier||3;
       const tBg=tier===1?'#FEF2F2':tier===2?'#FFFBEB':'#EFF6FF';
       const tFg=tier===1?'#7F1D1D':tier===2?'#713F12':'#1E40AF';
       t1+=`<tr>
         <td bgcolor="#E0F7FA" style="color:#006D7F;font-family:Courier New,Courier;font-weight:bold;font-size:9pt;padding:7px 10px;border:1px solid #BAE6FD;text-align:center">${e(k.id)}</td>
-        <td bgcolor="${rb}" style="color:#1E293B;font-family:Calibri,Arial;font-size:9.5pt;padding:7px 10px;border:1px solid #E2E8F0">${e(k.nameEn)}</td>
+        <td bgcolor="${rb}" style="color:#1E293B;font-family:Calibri,Arial;font-size:9.5pt;padding:7px 10px;border:1px solid #E2E8F0;text-align:center">${e(k.nameEn)}</td>
         <td bgcolor="${rb}" style="color:#64748B;font-family:Calibri,Arial;font-size:9pt;padding:7px 10px;border:1px solid #E2E8F0;text-align:center">${e(DM[d].abbr)}</td>
         <td bgcolor="${rb}" style="color:#334155;font-family:Calibri,Arial;font-size:9pt;font-weight:bold;padding:7px 10px;border:1px solid #E2E8F0;text-align:center">${k.op==='='?'=':'≥'}${k.target}%</td>
         ${qCell(k.q1,k.target)}
@@ -1810,16 +2033,15 @@ function _buildExcelSimple(){
         ${yoy!==null?td((yoy>=0?'+':'')+yoy+'%',rb,yoy>=0?'#06845A':'#C42B2B','text-align:center;font-weight:bold'):td('—','#F8FAFC','#CBD5E1','text-align:center')}
         <td bgcolor="${tBg}" style="color:${tFg};font-family:Calibri,Arial;font-size:9pt;font-weight:bold;padding:7px 8px;border:1px solid #E2E8F0;text-align:center">T${tier}</td>
         ${statusCell(a,odd)}
-        <td bgcolor="${rb}" style="color:#475569;font-family:Calibri,Arial;font-size:9pt;padding:7px 10px;border:1px solid #E2E8F0" dir="rtl">${e(k.nameAr||'')}</td>
         <td bgcolor="${rb}" style="color:#64748B;font-family:Calibri,Arial;font-size:9pt;padding:7px 10px;border:1px solid #E2E8F0;text-align:center">${k.yr||2025}</td>
       </tr>`;
     });
-    t1+=`<tr><td colspan="14" style="padding:3px;border:none"></td></tr>`;
+    t1+=`<tr><td colspan="13" style="padding:3px;border:none"></td></tr>`;
   });
 
   /* Footer */
-  t1+=`<tr><td colspan="14" bgcolor="#F8FAFC" style="color:#94A3B8;font-family:Calibri,Arial;font-size:8pt;font-style:italic;padding:6px 14px;border-top:2px solid #E2E8F0;text-align:center;border-bottom:none">
-    QUMC KPI Command Center · Governance &amp; Performance Department · ${today} · CONFIDENTIAL
+  t1+=`<tr><td colspan="13" bgcolor="#F8FAFC" style="color:#94A3B8;font-family:Calibri,Arial;font-size:8pt;font-style:italic;padding:6px 14px;border-top:2px solid #E2E8F0;text-align:center;border-bottom:none">
+    QUMC KPI Command Center · Governance &amp; Performance Department · ${today}
   </td></tr>`;
   t1+=`</table>`;
 
@@ -1827,10 +2049,10 @@ function _buildExcelSimple(){
      SHEET 2: GAP ANALYSIS
   ═══════════════════════════════ */
   let t2=`<table style="border-collapse:collapse;width:100%">`;
-  t2+=`<tr><td colspan="9" bgcolor="#7F1D1D" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:14pt;font-weight:bold;padding:14px 18px;border:none">
+  t2+=`<tr><td colspan="9" bgcolor="#7F1D1D" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:14pt;font-weight:bold;padding:14px 18px;border:none;text-align:center">
      Gap Analysis — Missed KPIs Corrective Action Register
   </td></tr>`;
-  t2+=`<tr><td colspan="9" bgcolor="#991B1B" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:9.5pt;font-weight:bold;padding:7px 18px;border:none">
+  t2+=`<tr><td colspan="9" bgcolor="#991B1B" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:9.5pt;font-weight:bold;padding:7px 18px;border:none;text-align:center">
     Qassim University Medical City · Facilities &amp; Safety Division · ${today} · Period: ${period}
   </td></tr>`;
   t2+=`<tr><td colspan="9" style="padding:5px;border:none"></td></tr>`;
@@ -1838,14 +2060,14 @@ function _buildExcelSimple(){
   if(miss.length){
     t2+=`<tr>
       ${th('Code','#7F1D1D')}
-      ${th('KPI Name','#7F1D1D','#FFFFFF','text-align:left')}
+      ${th('KPI Name','#7F1D1D','#FFFFFF','text-align:center')}
       ${th('Dept','#7F1D1D')}
       ${th('Target','#7F1D1D')}
       ${th('Result','#7F1D1D')}
       ${th('Gap','#7F1D1D')}
       ${th('Priority','#7F1D1D')}
       ${th('Status','#7F1D1D')}
-      ${th('Root Cause & Corrective Action','#7F1D1D','#FFFFFF','text-align:left')}
+      ${th('Root Cause & Corrective Action','#7F1D1D','#FFFFFF','text-align:center')}
     </tr>`;
     miss.forEach((k,i)=>{
       const v=qv(k),gap=v!=null?(k.target-v).toFixed(1):null;
@@ -1856,17 +2078,17 @@ function _buildExcelSimple(){
       const priFg=pri==='critical'?'#7F1D1D':pri==='high'?'#713F12':'#166534';
       const staBg=sta.includes('closed')?'#F0FDF4':sta.includes('progress')?'#FEF9C3':'#FEE2E2';
       const staFg=sta.includes('closed')?'#166534':sta.includes('progress')?'#713F12':'#7F1D1D';
-      const rb=i%2===0?'#FFF5F5':'#FEF2F2';
+      const rb='#FFFFFF';
       t2+=`<tr>
         <td bgcolor="#FFF5F5" style="color:#C42B2B;font-family:Courier New,Courier;font-weight:bold;font-size:9pt;padding:8px 10px;border:1px solid #FECACA;border-left:4px solid #C42B2B">${e(k.id)}</td>
-        <td bgcolor="${rb}" style="color:#1E293B;font-family:Calibri,Arial;font-size:9.5pt;padding:8px 10px;border:1px solid #FECACA">${e(k.nameEn)}</td>
+        <td bgcolor="${rb}" style="color:#1E293B;font-family:Calibri,Arial;font-size:9.5pt;padding:8px 10px;border:1px solid #FECACA;text-align:center">${e(k.nameEn)}</td>
         <td bgcolor="${rb}" style="color:#64748B;font-family:Calibri,Arial;font-size:9pt;padding:8px 10px;border:1px solid #FECACA;text-align:center">${e(DM[k.dept]?.abbr||k.dept)}</td>
         <td bgcolor="${rb}" style="color:#334155;font-family:Calibri,Arial;font-size:9pt;font-weight:bold;padding:8px 10px;border:1px solid #FECACA;text-align:center">${k.op==='='?'=':'≥'}${k.target}%</td>
         <td bgcolor="#FEE2E2" style="color:#991B1B;font-family:Calibri,Arial;font-size:9.5pt;font-weight:bold;padding:8px 10px;border:1px solid #FECACA;text-align:center">${v!=null?v.toFixed(1)+'%':'N/A'}</td>
         <td bgcolor="#FEE2E2" style="color:#991B1B;font-family:Calibri,Arial;font-size:9.5pt;font-weight:bold;padding:8px 10px;border:1px solid #FECACA;text-align:center">${gap?gap+'%':'—'}</td>
         <td bgcolor="${priBg}" style="color:${priFg};font-family:Calibri,Arial;font-size:9pt;font-weight:bold;padding:8px 10px;border:1px solid #FECACA;text-align:center">${(pri||'medium').charAt(0).toUpperCase()+(pri||'medium').slice(1)}</td>
         <td bgcolor="${staBg}" style="color:${staFg};font-family:Calibri,Arial;font-size:9pt;font-weight:bold;padding:8px 10px;border:1px solid #FECACA;text-align:center">${(sta||'open').charAt(0).toUpperCase()+(sta||'open').slice(1)}</td>
-        <td bgcolor="${rb}" style="color:#334155;font-family:Calibri,Arial;font-size:9pt;padding:8px 10px;border:1px solid #FECACA">
+        <td bgcolor="${rb}" style="color:#334155;font-family:Calibri,Arial;font-size:9pt;padding:8px 10px;border:1px solid #FECACA;text-align:center">
           ${gd.gapEn?`<b>Root Cause:</b> ${e(gd.gapEn)}<br>`:''}
           ${gd.actEn?`<b>Action:</b> ${e(gd.actEn)}`:'Not documented'}
         </td>
@@ -1888,10 +2110,10 @@ function _buildExcelSimple(){
 <!--[if gte mso 9]><xml>
 <x:ExcelWorkbook><x:ExcelWorksheets>
 <x:ExcelWorksheet><x:Name>KPI Report</x:Name>
-  <x:WorksheetOptions><x:Selected/><x:DisplayGridlines/></x:WorksheetOptions>
+  <x:WorksheetOptions><x:Selected/><x:DoNotDisplayGridlines/></x:WorksheetOptions>
 </x:ExcelWorksheet>
 <x:ExcelWorksheet><x:Name>Gap Analysis</x:Name>
-  <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+  <x:WorksheetOptions><x:DoNotDisplayGridlines/></x:WorksheetOptions>
 </x:ExcelWorksheet>
 </x:ExcelWorksheets></x:ExcelWorkbook>
 </xml><![endif]-->
@@ -1902,7 +2124,7 @@ function _buildExcelSimple(){
 </head>
 <body>
 ${t1}
-<br clear="all" style="page-break-after:always;mso-break-type:section-break">
+<div style="page-break-before:always;mso-break-type:section-break"></div>
 ${t2}
 </body></html>`;
 
@@ -2194,7 +2416,7 @@ async function _buildWordDoc(){
       const bg=i%2===0?WHITE:LT_TEAL;
       const qMet=qv_v!==null&&qv_v>=k.target;
       const qGap=qv_v!==null?(qv_v-k.target).toFixed(1):'---';
-      const qGapStr=qv_v!==null?(parseFloat(qGap)>=0?'+':'')+qGap+'%':'---';
+      const qGapStr=qv_v!==null?qGap+'%':'---';
       const qStatus=qv_v===null?'Pending':qMet?'Met':'Not Met';
       const qStatusBg=qMet?'D1FAE5':qv_v===null?'F5F5F5':'FEE2E2';
       const qStatusCol=qMet?'065F46':qv_v===null?GREY:'7F1D1D';
@@ -2477,71 +2699,67 @@ function toggleExportMenu(e){
 function openExportPDF(){toggleExportMenu(null);}
 function closeExportPDF(){const m=document.getElementById('exportMenuDrop');if(m)m.style.display='none';}
 async function doExportPage(pageSel){
-  const m=document.getElementById('exportMenuDrop');if(m)m.style.display='none';
-  const pageMap={exec:{id:'page-exec',keys:['executive','تنفيذي']},dept:{id:'page-dept',keys:['department','أقسام']},registry:{id:'page-registry',keys:['registry','سجل']},acc:{id:'page-accountability',keys:['account','مساءل']},report:{id:'page-report',keys:['report','تقرير']}};
-  
-  const old=document.getElementById('pdf-print-style');if(old)old.remove();
-  const s=document.createElement('style');s.id='pdf-print-style';
-  if(pageSel==='all'){
-    s.textContent=`
-/* ═══ KPI Performance Card — Premium Hover ═══════════════════ */
-.kpi-perf-card{
-  transition:transform .28s cubic-bezier(0.16,1,0.3,1), box-shadow .28s cubic-bezier(0.16,1,0.3,1), border-color .20s ease;
-  will-change:transform;
-}
-.kpi-perf-card:hover{
-  transform:translateY(-4px) scale(1.005);
-  box-shadow:0 16px 48px rgba(0,163,196,0.18), 0 4px 16px rgba(4,10,20,0.10);
-}
-.kpi-perf-card.missed:hover{
-  box-shadow:0 14px 42px rgba(196,43,43,0.16), 0 4px 14px rgba(4,10,20,0.10);
-}
-/* PCI input premium style override */
-.pci-complete{background:rgba(6,132,90,0.04)!important}
-.pci-complete:focus{background:rgba(6,132,90,0.07)!important}
-.pci-incomplete{background:rgba(196,43,43,0.04)!important}
-.pci-incomplete:focus{background:rgba(196,43,43,0.07)!important}
-.pci-planned{background:rgba(138,158,192,0.06)!important}
-.pci-result{background:rgba(0,163,196,0.05)!important;color:var(--teal)!important}
-/* Admin section spacing */
-.admin-section{margin-bottom:1.5rem}
-.admin-section:last-child{margin-bottom:0}
+  const m=document.getElementById('exportMenuDrop');
+  if(m)m.style.display='none';
 
-@media print{.topbar,.filter-strip,.tabnav,.footbar,.overlay{display:none!important}.page{display:block!important;page-break-after:always}.page:last-child{page-break-after:auto}body,html{height:auto!important;overflow:visible!important;background:#fff!important}.dashwrap{overflow:visible!important;height:auto!important}.gg{grid-auto-rows:auto!important}.card{break-inside:avoid;background:#fff!important;border:1px solid #ccc!important}.bullet-c{display:none!important}.kpi-val-print{display:block!important;font-size:10px;color:#475569;margin-top:2px}@page{size:landscape;margin:8mm}}`;
-  }else{
-    const cfg=pageMap[pageSel];if(!cfg)return;
-    let clicked=false;
-    document.querySelectorAll('.tab').forEach(t=>{if(!clicked){const txt=(t.textContent||'').toLowerCase().trim();if(cfg.keys.some(k=>txt.includes(k))){t.click();clicked=true;}}});
-    await new Promise(r=>setTimeout(r,700));
-    s.textContent=`
-/* ═══ KPI Performance Card — Premium Hover ═══════════════════ */
-.kpi-perf-card{
-  transition:transform .28s cubic-bezier(0.16,1,0.3,1), box-shadow .28s cubic-bezier(0.16,1,0.3,1), border-color .20s ease;
-  will-change:transform;
-}
-.kpi-perf-card:hover{
-  transform:translateY(-4px) scale(1.005);
-  box-shadow:0 16px 48px rgba(0,163,196,0.18), 0 4px 16px rgba(4,10,20,0.10);
-}
-.kpi-perf-card.missed:hover{
-  box-shadow:0 14px 42px rgba(196,43,43,0.16), 0 4px 14px rgba(4,10,20,0.10);
-}
-/* PCI input premium style override */
-.pci-complete{background:rgba(6,132,90,0.04)!important}
-.pci-complete:focus{background:rgba(6,132,90,0.07)!important}
-.pci-incomplete{background:rgba(196,43,43,0.04)!important}
-.pci-incomplete:focus{background:rgba(196,43,43,0.07)!important}
-.pci-planned{background:rgba(138,158,192,0.06)!important}
-.pci-result{background:rgba(0,163,196,0.05)!important;color:var(--teal)!important}
-/* Admin section spacing */
-.admin-section{margin-bottom:1.5rem}
-.admin-section:last-child{margin-bottom:0}
+  const pageMap={
+    exec:'page-exec', dept:'page-dept',
+    registry:'page-registry', acc:'page-accountability'
+  };
+  const tabKeys={exec:'executive',dept:'department',registry:'registry',acc:'account'};
 
-@media print{.topbar,.filter-strip,.tabnav,.footbar,.overlay{display:none!important}.page{display:none!important}#${cfg.id}{display:block!important}body,html{height:auto!important;overflow:visible!important;background:#fff!important}.dashwrap{overflow:visible!important;height:auto!important}.gg{grid-auto-rows:auto!important}.card{break-inside:avoid;background:#fff!important;border:1px solid #ccc!important}@page{size:landscape;margin:8mm}}`;
+  /* Navigate to selected tab so content renders */
+  if(pageSel!=='all'){
+    document.querySelectorAll('.tab').forEach(t=>{
+      if((t.textContent||'').toLowerCase().includes(tabKeys[pageSel]||pageSel))
+        t.click();
+    });
+    await new Promise(r=>setTimeout(r,1500));
   }
-  document.head.appendChild(s);
-  setTimeout(()=>{window.print();setTimeout(()=>{const ps=document.getElementById('pdf-print-style');if(ps)ps.remove();},2500);},300);
+
+  /* Build override CSS: un-hide selected page(s), fix dashwrap */
+  let overrideCSS='@media print{';
+  overrideCSS+='.dashwrap{overflow:visible!important;height:auto!important;max-height:none!important}';
+  overrideCSS+='.cb.sc,.sc{overflow:visible!important;max-height:none!important;height:auto!important}';
+  overrideCSS+='.topbar,.filter-strip,.tabnav,.footbar,.overlay,.rpt-edit-btn{display:none!important}';
+  overrideCSS+='.gg{grid-auto-rows:auto!important}';
+  overrideCSS+='.card{break-inside:avoid;box-shadow:none!important}';
+  overrideCSS+='@page{size:landscape;margin:10mm}';
+
+  if(pageSel==='all'){
+    /* Show all dashboard pages, hide report */
+    overrideCSS+='#page-exec,#page-dept,#page-registry,#page-accountability{display:block!important;visibility:visible!important}';
+    overrideCSS+='#page-report{display:none!important}';
+  } else {
+    const tid=pageMap[pageSel];
+    /* Show only selected, hide the rest including report */
+    ['page-exec','page-dept','page-registry','page-accountability','page-report'].forEach(pid=>{
+      if(pid===tid)
+        overrideCSS+='#'+pid+'{display:block!important;visibility:visible!important;width:100%!important}';
+      else
+        overrideCSS+='#'+pid+'{display:none!important;visibility:hidden!important}';
+    });
+  }
+  overrideCSS+='}';
+
+  /* Inject override AFTER existing print styles so it wins */
+  const old=document.getElementById('kpi-print-override');if(old)old.remove();
+  const st=document.createElement('style');
+  st.id='kpi-print-override';
+  st.textContent=overrideCSS;
+  document.head.appendChild(st);
+
+  /* Small paint delay then print */
+  await new Promise(r=>setTimeout(r,200));
+  window.print();
+
+  /* Clean up after dialog closes */
+  setTimeout(()=>{
+    const s=document.getElementById('kpi-print-override');
+    if(s)s.remove();
+  },3000);
 }
+
 async function doExportPDF(){doExportPage('exec');}
 /* Sync hash — works on file:// and HTTPS, no async needed */
 /* ══════════════════════════════════════════════════════════
@@ -2598,7 +2816,7 @@ function renderReport(){
     const id='ep'+(++_eid);
     return `<div class="rpt-ep" id="${id}-w" style="position:relative;${style}">
       <p id="${id}" style="font-size:12px;color:#334155;line-height:1.85;margin:0;min-height:20px">${txt}</p>
-      <button class="rpt-edit-btn" onclick="rptStartEdit('${id}')" title="Edit paragraph"></button>
+      <button class="rpt-edit-btn" onclick="rptStartEdit('${id}')" title="Edit section"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Edit</button>
     </div>`;
   };
 
@@ -2833,7 +3051,7 @@ function renderReport(){
         </div>
         <div style="text-align:right">
           <p style="margin:0;font-size:8.5px;color:rgba(255,255,255,.55)">Generated: ${dateStr}</p>
-          <p style="margin:3px 0 0;display:inline-flex;align-items:center;gap:5px;padding:2px 10px;background:rgba(1,149,175,.15);border:1px solid rgba(1,149,175,.25);border-radius:20px;font-size:8px;font-weight:700;color:#0195af;letter-spacing:.06em;text-transform:uppercase">CONFIDENTIAL</p>
+          <p style="margin:3px 0 0;display:inline-flex;align-items:center;gap:5px;padding:2px 10px;background:rgba(1,149,175,.15);border:1px solid rgba(1,149,175,.25);border-radius:20px;font-size:8px;font-weight:700;color:#0195af;letter-spacing:.06em;text-transform:uppercase"></p>
         </div>
       </div>
     </div>
@@ -4477,40 +4695,52 @@ function renderDept(){
         +'</div>'
       +'</div>';
 
-    /* draw dept-level charts after DOM is set */
+    /* ── Dept-level charts ── */
     setTimeout(()=>{
-      /* Line chart — one line per KPI, Q1'25→Q1'26 */
       dch('dline_'+dept);
       const lineEl=document.getElementById('dline_'+dept);
       if(lineEl){
         const dsLine=groups.map(g=>{
-          const k25=g.k25, k26=g.k26;
-          const k=k26||k25;
-          const dArr=[k25?.q1??null,k25?.q2??null,k25?.q3??null,k25?.q4??null,k26?.q1??null];
-          const allV=dArr.filter(v=>v!==null);
-          if(!allV.length)return null;
-          const isMet=ok(k)===true;
-          const col=isMet?dC+'CC':'rgba(220,38,38,.75)';
-          return{label:k.id,data:dArr,borderColor:col,backgroundColor:'transparent',tension:.4,pointRadius:dArr.map(v=>v!==null?3:0),borderWidth:2,spanGaps:false};
+          const k25=g.k25,k26=g.k26,k=k26||k25;
+          const data=[k25?.q1??null,k25?.q2??null,k25?.q3??null,k25?.q4??null,k26?.q1??null];
+          if(!data.some(v=>v!==null))return null;
+          const latestV=data.filter(v=>v!==null).pop();
+          const col=latestV>=k.target?dC+'CC':'rgba(220,38,38,.80)';
+          return{label:k.id,data,borderColor:col,backgroundColor:'transparent',
+            tension:.4,pointRadius:data.map(v=>v!==null?3.5:0),
+            pointBackgroundColor:data.map(v=>v===null?'transparent':v>=k.target?dC:'#DC2626'),
+            borderWidth:2.2,spanGaps:false};
         }).filter(Boolean);
-        const allVals=groups.flatMap(g=>[g.k25?.q1,g.k25?.q2,g.k25?.q3,g.k25?.q4,g.k26?.q1]).filter(v=>v!==null);
+        const allVals=groups.flatMap(g=>[g.k25?.q1,g.k25?.q2,g.k25?.q3,g.k25?.q4,g.k26?.q1]).filter(v=>v!=null);
         const avgTgt=groups.length?Math.round(groups.map(g=>(g.k26||g.k25).target).reduce((a,b)=>a+b)/groups.length):90;
-        dsLine.push({label:'Avg Target',data:[avgTgt,avgTgt,avgTgt,avgTgt,avgTgt],borderColor:'rgba(220,38,38,.40)',borderWidth:1.5,borderDash:[5,3],pointRadius:0,fill:false,backgroundColor:'transparent'});
-        CH['dline_'+dept]=mkChart('dline_'+dept,{type:'line',data:{labels:["Q1'25","Q2'25","Q3'25","Q4'25","Q1'26"],datasets:dsLine},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:9},boxWidth:10,padding:6}}},scales:{y:{min:Math.max(0,(Math.min(...allVals)||80)-10),max:Math.min(105,(Math.max(...allVals)||100)+5),ticks:{callback:v=>v+'%',font:{size:9},maxTicksLimit:6},grid:{color:'rgba(20,35,80,.05)'}},x:{ticks:{font:{size:9}},grid:{display:false}}}}});
+        dsLine.push({label:'Avg Target',data:[avgTgt,avgTgt,avgTgt,avgTgt,avgTgt],
+          borderColor:'rgba(220,38,38,.40)',borderWidth:1.5,borderDash:[5,3],pointRadius:0,fill:false,backgroundColor:'transparent'});
+        CH['dline_'+dept]=mkChart('dline_'+dept,{type:'line',
+          data:{labels:["Q1'25","Q2'25","Q3'25","Q4'25","Q1'26"],datasets:dsLine},
+          options:{responsive:true,maintainAspectRatio:false,
+            plugins:{legend:{position:'right',labels:{font:{size:9},boxWidth:10,padding:5,color:'#475569'}}},
+            scales:{y:{min:Math.max(0,(Math.min(...allVals)||80)-8),max:Math.min(105,(Math.max(...allVals)||100)+5),
+              ticks:{callback:v=>v+'%',font:{size:9},maxTicksLimit:6},grid:{color:'rgba(20,35,80,.05)'}},
+              x:{ticks:{font:{size:9}},grid:{display:false}}}}});
       }
-      /* Bar chart — latest result vs target per KPI */
       dch('dbar_dept_'+dept);
       const barEl=document.getElementById('dbar_dept_'+dept);
       if(barEl){
-        const labels=groups.map(g=>(g.k26||g.k25).id);
-        const results=groups.map(g=>{const k=g.k26||g.k25;return qv(k);});
+        const barLabels=groups.map(g=>(g.k26||g.k25).id);
+        const results=groups.map(g=>qv(g.k26||g.k25));
         const targets=groups.map(g=>(g.k26||g.k25).target);
-        CH['dbar_dept_'+dept]=mkChart('dbar_dept_'+dept,{type:'bar',data:{labels,datasets:[
-          {label:'Result',data:results,backgroundColor:results.map((v,i)=>v===null?'#E2E8F0':v>=targets[i]?dC+'BB':'rgba(220,38,38,.65)'),borderRadius:4,borderSkipped:false},
-          {label:'Target',data:targets,type:'line',borderColor:'rgba(220,38,38,.50)',borderWidth:1.5,borderDash:[5,3],pointRadius:0,fill:false,order:0}
-        ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:9},boxWidth:10,padding:6}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y!==null?c.parsed.y+'%':'—')}}},scales:{y:{min:0,max:105,ticks:{callback:v=>v+'%',font:{size:9},maxTicksLimit:6},grid:{color:'rgba(20,35,80,.05)'}},x:{ticks:{font:{size:9},maxRotation:45},grid:{display:false}}}}});
+        CH['dbar_dept_'+dept]=mkChart('dbar_dept_'+dept,{type:'bar',
+          data:{labels:barLabels,datasets:[
+            {label:'Result',data:results,backgroundColor:results.map((v,i)=>v===null?'#E2E8F0':v>=targets[i]?dC+'BB':'rgba(220,38,38,.65)'),borderRadius:5,borderSkipped:false,barPercentage:.6},
+            {label:'Target',data:targets,type:'line',borderColor:'rgba(220,38,38,.50)',borderWidth:1.8,borderDash:[5,3],pointRadius:0,fill:false,order:0}
+          ]},
+          options:{responsive:true,maintainAspectRatio:false,
+            plugins:{legend:{position:'top',labels:{font:{size:9},boxWidth:10,padding:8,color:'#475569'}}},
+            scales:{y:{min:0,max:105,ticks:{callback:v=>v+'%',font:{size:9},maxTicksLimit:6},grid:{color:'rgba(20,35,80,.05)'}},
+              x:{ticks:{font:{size:9},maxRotation:30},grid:{display:false}}}}});
       }
-    },100);
+    },120);
+
     return out;
   };
 
@@ -4523,19 +4753,24 @@ function renderRegistry(){
   _clearCache();
   const ks=filt();
   const g=document.getElementById('registryGrid');
-  const cols='62px 1fr 65px 50px 55px 55px 55px 55px 58px 55px 48px 78px';
-  const hs=lang==='ar'?['الكود','المؤشر','القسم','الهدف','Q1','Q2','Q3','Q4','المتوسط','YoY','مخاطر','الحالة']:['Code','KPI Name','Dept','Target','Q1','Q2','Q3','Q4','Avg','YoY','Risk','Status'];
+  const cols='62px 1fr 65px 50px 55px 55px 55px 55px 58px 48px 78px';
+  const hs=lang==='ar'?['الكود','المؤشر','القسم','الهدف','Q1','Q2','Q3','Q4','المتوسط','مخاطر','الحالة']:['Code','KPI Name','Dept','Target','Q1','Q2','Q3','Q4','Avg','Risk','Status'];
   let tbl=`<div style="display:grid;grid-template-columns:${cols};gap:2px;padding:6px 2px;border-bottom:1px solid var(--border2);position:sticky;top:0;background:var(--card);z-index:1">
     ${hs.map(x=>`<div style="font-size:9px;font-weight:700;color:var(--t3);letter-spacing:.06em;text-transform:uppercase;padding:0 4px">${x}</div>`).join('')}
   </div>`;
   const deps=['maintenance','safety','housekeeping','projects'];
   deps.forEach(d=>{
     const dk=ks.filter(k=>k.dept===d);if(!dk.length)return;
-    tbl+=`<div style="font-size:8px;font-weight:800;color:${DM[d].color};text-transform:uppercase;letter-spacing:.07em;padding:5px 4px 2px">${DM[d].abbr} ${lang==='ar'?DM[d].ar:DM[d].en}</div>`;
+    tbl+=`<div style="margin:6px 0 2px;display:flex;align-items:center;gap:0">
+      <div style="width:100%;height:2.5px;background:${DM[d].color};border-radius:2px;opacity:.85"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;padding:4px 4px 3px">
+      <div style="width:3px;height:18px;background:${DM[d].color};border-radius:2px;flex-shrink:0"></div>
+      <span style="font-size:9.5px;font-weight:800;color:${DM[d].color};text-transform:uppercase;letter-spacing:.08em">${DM[d].abbr}</span>
+      <span style="font-size:9px;font-weight:600;color:var(--t2)">${lang==='ar'?DM[d].ar:DM[d].en}</span>
+    </div>`; 
     dk.forEach(k=>{
       const v=qv(k),a=ok(k),c=kc(k);
-      const yStr=k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?((k.q1-k.yoy>=0?'+':'')+(k.q1-k.yoy).toFixed(1)+'%'):'\u2014';
-      const yC=k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?(k.q1>=k.yoy?'var(--green)':'var(--red)'):'var(--t3)';
       const rc=getRepeat(k);
       const isMissed=a===false;
       /* Row is only clickable for missed KPIs */
@@ -4546,7 +4781,6 @@ function renderRegistry(){
         <div style="font-size:9.5px;font-family:var(--mono);color:var(--t3);padding:0 4px">${k.op==='='?'=':'≥'}${k.target}%</div>
         ${['q1','q2','q3','q4'].map(q=>{const v2=k[q];const b=pb(v2,k.target);return`<div style="font-size:9.5px;font-family:var(--mono);padding:2px 4px;border-radius:3px;background:${BC[b]};color:${b===3?'#1a1200':'#fff'};text-align:center">${v2!==null?v2.toFixed(0)+'%':'\u2014'}</div>`;}).join('')}
         <div style="font-size:10px;font-family:var(--mono);font-weight:700;color:${c};padding:0 4px">${f2(v)}</div>
-        <div style="font-size:9.5px;font-family:var(--mono);color:${yC};font-weight:700;padding:0 4px">${yStr}</div>
         <span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span>
         <span class="${a===null?'pill-pend':a?'pill-ok':'pill-miss'}" style="font-size:9px${isMissed?';cursor:pointer;':''}">
           ${a===null?'\u2014':a?'\u2713 Met':' Missed'}
@@ -4664,7 +4898,7 @@ function openGap(id){
     <div style="display:flex;gap:8px;margin-bottom:11px;flex-wrap:wrap">
       <div style="flex:1;min-width:75px;background:var(--red-dim);border-radius:7px;padding:10px;border:1px solid rgba(248,113,113,.2)"><div style="font-size:8.5px;color:var(--red);font-weight:700;text-transform:uppercase;margin-bottom:3px">${lang==='ar'?'الأداء':'Actual'}</div><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--red)">${f2(v)}</div></div>
       <div style="flex:1;min-width:75px;background:rgba(255,255,255,.04);border-radius:7px;padding:10px;border:1px solid var(--border)"><div style="font-size:8.5px;color:var(--t3);font-weight:700;text-transform:uppercase;margin-bottom:3px">${lang==='ar'?'الهدف':'Target'}</div><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--teal)">${k.op==='='?'=':'≥'}${k.target}%</div></div>
-      ${gap?`<div style="flex:1;min-width:75px;background:var(--red-dim);border-radius:7px;padding:10px;border:1px solid rgba(248,113,113,.2)"><div style="font-size:8.5px;color:var(--red);font-weight:700;text-transform:uppercase;margin-bottom:3px">${lang==='ar'?'الفجوة':'Gap'}</div><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--red)">-${gap}%</div></div>`:''}
+      ${gap?`<div style="flex:1;min-width:75px;background:var(--red-dim);border-radius:7px;padding:10px;border:1px solid rgba(248,113,113,.2)"><div style="font-size:8.5px;color:var(--red);font-weight:700;text-transform:uppercase;margin-bottom:3px">${lang==='ar'?'الفجوة':'Gap'}</div><div style="font-size:22px;font-weight:800;font-family:var(--mono);color:var(--red)">${gap}%</div></div>`:''}
     </div>
     <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">
       <span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">Tier ${k.tier||3}: ${lang==='ar'?TIERS[k.tier||3].ar:TIERS[k.tier||3].en}</span>
