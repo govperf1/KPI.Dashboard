@@ -1676,7 +1676,7 @@ function _buildExcelXLSX(){
       const gap=v!=null?(k.target-v).toFixed(1)+'%':'—';
       sh2.push([
         k.id, k.nameEn, DM[k.dept].en,
-        v!=null?v.toFixed(1)+'%':'—', '-'+gap,
+        v!=null?v.toFixed(1)+'%':'—', gap,
         ac.priority||gd.priority||'Medium',
         ac.status||gd.status||'Open',
         gd.gapEn||'Not documented',
@@ -1863,7 +1863,7 @@ function _buildExcelSimple(){
         <td bgcolor="${rb}" style="color:#64748B;font-family:Calibri,Arial;font-size:9pt;padding:8px 10px;border:1px solid #FECACA;text-align:center">${e(DM[k.dept]?.abbr||k.dept)}</td>
         <td bgcolor="${rb}" style="color:#334155;font-family:Calibri,Arial;font-size:9pt;font-weight:bold;padding:8px 10px;border:1px solid #FECACA;text-align:center">${k.op==='='?'=':'≥'}${k.target}%</td>
         <td bgcolor="#FEE2E2" style="color:#991B1B;font-family:Calibri,Arial;font-size:9.5pt;font-weight:bold;padding:8px 10px;border:1px solid #FECACA;text-align:center">${v!=null?v.toFixed(1)+'%':'N/A'}</td>
-        <td bgcolor="#FEE2E2" style="color:#991B1B;font-family:Calibri,Arial;font-size:9.5pt;font-weight:bold;padding:8px 10px;border:1px solid #FECACA;text-align:center">${gap?'–'+gap+'%':'—'}</td>
+        <td bgcolor="#FEE2E2" style="color:#991B1B;font-family:Calibri,Arial;font-size:9.5pt;font-weight:bold;padding:8px 10px;border:1px solid #FECACA;text-align:center">${gap?gap+'%':'—'}</td>
         <td bgcolor="${priBg}" style="color:${priFg};font-family:Calibri,Arial;font-size:9pt;font-weight:bold;padding:8px 10px;border:1px solid #FECACA;text-align:center">${(pri||'medium').charAt(0).toUpperCase()+(pri||'medium').slice(1)}</td>
         <td bgcolor="${staBg}" style="color:${staFg};font-family:Calibri,Arial;font-size:9pt;font-weight:bold;padding:8px 10px;border:1px solid #FECACA;text-align:center">${(sta||'open').charAt(0).toUpperCase()+(sta||'open').slice(1)}</td>
         <td bgcolor="${rb}" style="color:#334155;font-family:Calibri,Arial;font-size:9pt;padding:8px 10px;border:1px solid #FECACA">
@@ -2279,7 +2279,7 @@ async function _buildWordDoc(){
     });
     children.push(new Table({width:{size:9026,type:WidthType.DXA},columnWidths:[w1,w2,w3,w4d,w5,w6+100],rows:sRows}));
     const missKs=ks.filter(k=>ok(k)===false);
-    if(missKs.length){children.push(SP(2));children.push(H2('Missed KPIs — Gap Analysis'));missKs.forEach(k=>{const gd=(ST.gaps||{})[k.id]||{};const v=qv(k);children.push(new Paragraph({children:[new TextRun({text:`${k.id}: ${k.nameEn}`,bold:true,font:'Times New Roman',size:22,color:'7F1D1D'})],spacing:{before:100,after:40}}));if(v!==null)children.push(BUL(`Result: ${v.toFixed(1)}% vs Target: ${k.target}% (Gap: -${(k.target-v).toFixed(1)}%)`));if(gd.gapEn)children.push(BUL(`Root Cause: ${gd.gapEn}`));if(gd.actEn)children.push(BUL(`Corrective Action: ${gd.actEn}`));});}
+    if(missKs.length){children.push(SP(2));children.push(H2('Missed KPIs — Gap Analysis'));missKs.forEach(k=>{const gd=(ST.gaps||{})[k.id]||{};const v=qv(k);children.push(new Paragraph({children:[new TextRun({text:`${k.id}: ${k.nameEn}`,bold:true,font:'Times New Roman',size:22,color:'7F1D1D'})],spacing:{before:100,after:40}}));if(v!==null)children.push(BUL(`Result: ${v.toFixed(1)}% vs Target: ${k.target}% (Gap: ${(k.target-v).toFixed(1)}%)`));if(gd.gapEn)children.push(BUL(`Root Cause: ${gd.gapEn}`));if(gd.actEn)children.push(BUL(`Corrective Action: ${gd.actEn}`));});}
   }
   /* Footer line */
   children.push(SP(2));
@@ -3502,7 +3502,7 @@ function renderExec(){
   /* ── Premium bar vars ── */
   const _missK2=evaluated.filter(k=>ok(k)===false);
   const _wK2=_missK2.reduce((a,k)=>{const v=qv(k);if(v===null)return a;const g=k.target-v;return(!a||g>a.g)?{k,g}:a;},null);
-  const _bigGapStr=_wK2?('-'+_wK2.g.toFixed(1)+'%'):'—';
+  const _bigGapStr=_wK2?(_wK2.g.toFixed(1)+'%'):'—';
   const _bigGapName=_wK2?_wK2.k.nameEn.slice(0,28):'';
   const _dS2=Object.keys(DM).map(d=>{const dk2=evaluated.filter(k=>k.dept===d);return{d,miss:dk2.filter(k=>ok(k)===false).length,total:dk2.length};}).filter(x=>x.total>0).sort((a,b)=>b.miss-a.miss);
   const _wD2=_dS2[0];
@@ -3578,7 +3578,7 @@ function renderExec(){
         </div>
         <span style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.07em;text-transform:uppercase">YOY Q1</span>
       </div>
-      <div style="font-size:42px;font-weight:900;font-family:monospace;line-height:1;margin-bottom:2px;color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}">${yoyDelta===null?'N/A':(parseFloat(yoyDelta)>=0?'+':'')+yoyDelta+'%'}</div>
+      <div style="font-size:42px;font-weight:900;font-family:monospace;line-height:1;margin-bottom:2px;color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}">${yoyDelta===null?'N/A':(parseFloat(yoyDelta)>0?'▲ ':'▼ ')+Math.abs(parseFloat(yoyDelta||0))+'%'}</div>
       <div style="font-size:10px;font-weight:600;color:#64748B;margin-bottom:14px">Q1 vs prior year Q1</div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #F1F5F9">
         <span style="font-size:9px;padding:2px 10px;border-radius:20px;font-weight:700;background:${yoyDelta===null?'#F8FAFC':parseFloat(yoyDelta)>=0?'#DCFCE7':'#FEE2E2'};color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}">${yoyDelta===null?'No data':parseFloat(yoyDelta)>=0?'Improved':'Declined'}</span>
@@ -3595,7 +3595,7 @@ function renderExec(){
         </div>
         <span style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.07em;text-transform:uppercase">Annual YOY</span>
       </div>
-      <div style="font-size:42px;font-weight:900;font-family:monospace;line-height:1;margin-bottom:2px;color:${annYoYDelta===null?'#94A3B8':parseFloat(String(annYoYDelta))>=0?'#16A34A':'#DC2626'}">${annYoYDelta===null?'N/A':(parseFloat(String(annYoYDelta))>=0?'+':'')+annYoYDelta+'%'}</div>
+      <div style="font-size:42px;font-weight:900;font-family:monospace;line-height:1;margin-bottom:2px;color:${annYoYDelta===null?'#94A3B8':parseFloat(String(annYoYDelta))>=0?'#16A34A':'#DC2626'}">${annYoYDelta===null?'N/A':(parseFloat(String(annYoYDelta||0))>0?'▲ ':'▼ ')+Math.abs(parseFloat(String(annYoYDelta||0)))+'%'}</div>
       <div style="font-size:10px;font-weight:600;color:#64748B;margin-bottom:14px">Annual avg vs prior year</div>
       <div style="display:flex;align-items:center;justify-content:space-between;padding-top:12px;border-top:1px solid #F1F5F9">
         <span style="font-size:9px;padding:2px 10px;border-radius:20px;font-weight:700;background:${annYoYDelta===null?'#F8FAFC':parseFloat(String(annYoYDelta))>=0?'#DCFCE7':'#FEE2E2'};color:${annYoYDelta===null?'#94A3B8':parseFloat(String(annYoYDelta))>=0?'#16A34A':'#DC2626'}">${annYoYDelta===null?'No data':parseFloat(String(annYoYDelta))>=0?'Improved':'Declined'}</span>
@@ -3608,138 +3608,75 @@ function renderExec(){
 
 <!-- ═══ EXECUTIVE SUMMARY BAR ═══ -->
 <div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:14px">
-  <div style="background:linear-gradient(135deg,#152538 0%,#1D3550 60%,#152538 100%);border-radius:14px;padding:20px 24px;display:grid;grid-template-columns:auto 1fr auto auto 1fr;gap:20px;align-items:center;box-shadow:0 4px 24px rgba(21,37,56,.22)">
-    <div style="width:50px;height:50px;border-radius:50%;border:2px solid rgba(1,149,175,.40);display:flex;align-items:center;justify-content:center;flex-shrink:0">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-    </div>
-    <div>
-      <div style="font-size:11px;font-weight:800;color:#fff;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px">EXECUTIVE SUMMARY</div>
-      <div style="font-size:11px;color:rgba(255,255,255,.68);line-height:1.6">Overall performance is <strong style="color:${_perfColor}">${_perfLabel}.</strong><br>All departments focused on maintaining compliance and improving quality outcomes.</div>
-    </div>
-    <div style="text-align:center;padding:0 8px;border-left:1px solid rgba(255,255,255,.10);border-right:1px solid rgba(255,255,255,.10)">
-      <div style="font-size:26px;font-weight:800;font-family:monospace;line-height:1"><span style="color:#4ADE80">${nOk}</span><span style="color:rgba(255,255,255,.30);font-size:20px;font-weight:400"> / </span><span style="color:rgba(255,255,255,.65)">${total}</span></div>
-      <div style="font-size:9px;color:rgba(255,255,255,.50);font-weight:600;margin-top:3px;white-space:nowrap">Target Achieved</div>
-    </div>
-    <div style="text-align:center;padding:0 8px">
-      <div style="font-size:30px;font-weight:800;color:${_critColor};font-family:monospace;line-height:1">${_critEsc}</div>
-      <div style="font-size:9px;color:rgba(255,255,255,.50);font-weight:600;margin-top:3px;white-space:nowrap">Critical Escalations</div>
-    </div>
-    <div style="border-left:1px solid rgba(255,255,255,.10);padding-left:20px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <span style="font-size:10px;font-weight:700;color:rgba(255,255,255,.85)">Performance Trend</span>
-        <select id="trendYrSel" onchange="updateExecTrend(this.value)" style="background:rgba(1,149,175,.20);color:#0195af;border:1px solid rgba(1,149,175,.35);border-radius:6px;font-size:9px;font-weight:700;padding:2px 6px;cursor:pointer;outline:none;font-family:inherit">
-          <option value="2025" selected>2025</option>
-          <option value="2026">2026</option>
-          <option value="all">All</option>
-        </select>
+  <div style="background:linear-gradient(135deg,#152538 0%,#1D3550 60%,#152538 100%);border-radius:14px;padding:20px 24px;display:grid;grid-template-columns:auto 1fr 1px auto 1px auto 1px auto 1px auto 1px auto;gap:0;align-items:center;box-shadow:0 4px 24px rgba(21,37,56,.22)">
+    <!-- Icon + Label -->
+    <div style="display:flex;align-items:center;gap:14px;padding-right:22px">
+      <div style="width:44px;height:44px;border-radius:50%;border:2px solid rgba(1,149,175,.40);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       </div>
-      <canvas id="execSumChart" height="46" style="width:100%;display:block;border-radius:6px"></canvas>
+      <div>
+        <div style="font-size:9px;font-weight:800;color:rgba(255,255,255,.45);letter-spacing:.12em;text-transform:uppercase;margin-bottom:4px">Performance</div>
+        <div style="font-size:10px;font-weight:800;color:#fff;letter-spacing:.04em;text-transform:uppercase;line-height:1.35">Executive<br>Summary</div>
+      </div>
     </div>
-  </div>
-</div>
-
-<!-- ═══ NEW PREMIUM EXEC SUMMARY ═══ -->
-<div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:14px">
-  <div style="background:linear-gradient(135deg,#152538 0%,#1D3550 60%,#152538 100%);border-radius:14px;padding:20px 24px;display:grid;grid-template-columns:130px auto auto auto auto 1fr;align-items:center;gap:0;box-shadow:0 4px 24px rgba(21,37,56,.22)">
-
-    <!-- Label -->
-    <div style="padding-right:22px;border-right:1px solid rgba(255,255,255,.12)">
-      <div style="font-size:7.5px;font-weight:700;color:rgba(255,255,255,.40);letter-spacing:.12em;text-transform:uppercase;margin-bottom:5px">Performance</div>
-      <div style="font-size:10px;font-weight:800;color:#fff;letter-spacing:.04em;text-transform:uppercase;line-height:1.35">Executive<br>Summary</div>
+    <!-- Performance text -->
+    <div style="padding-right:22px">
+      <div style="font-size:11px;font-weight:700;color:#fff;margin-bottom:3px">Overall: <strong style="color:${_perfColor}">${_perfLabel}</strong></div>
+      <div style="font-size:9.5px;color:rgba(255,255,255,.55);line-height:1.5">Focused on compliance &amp; quality outcomes</div>
     </div>
-
+    <div style="width:1px;height:40px;background:rgba(255,255,255,.12)"></div>
     <!-- Target Achieved -->
-    <div style="padding:0 22px;border-right:1px solid rgba(255,255,255,.12)">
+    <div style="padding:0 22px;text-align:center">
       <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.50);letter-spacing:.10em;text-transform:uppercase;margin-bottom:6px;white-space:nowrap">Target Achieved</div>
-      <div style="display:flex;align-items:baseline;gap:4px">
+      <div style="display:flex;align-items:baseline;justify-content:center;gap:4px">
         <span style="font-size:28px;font-weight:900;color:#4ADE80;font-family:var(--mono);line-height:1">${nOk}</span>
-        <span style="font-size:15px;color:rgba(255,255,255,.20);font-weight:300">/</span>
+        <span style="font-size:14px;color:rgba(255,255,255,.20)">/</span>
         <span style="font-size:18px;font-weight:700;color:rgba(255,255,255,.60);font-family:var(--mono)">${total}</span>
       </div>
-      <div style="font-size:11px;font-weight:700;color:#4ADE80;margin-top:3px">${_metPct}%</div>
+      <div style="font-size:10px;font-weight:700;color:#4ADE80;margin-top:3px">${_metPct}%</div>
     </div>
-
+    <div style="width:1px;height:40px;background:rgba(255,255,255,.12)"></div>
     <!-- Missed KPIs -->
-    <div style="padding:0 22px;border-right:1px solid rgba(255,255,255,.12)">
+    <div style="padding:0 22px;text-align:center">
       <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.50);letter-spacing:.10em;text-transform:uppercase;margin-bottom:6px;white-space:nowrap">Missed KPIs</div>
       <div style="font-size:28px;font-weight:900;color:${miss>0?'#F87171':'#4ADE80'};font-family:var(--mono);line-height:1">${miss}</div>
-      <div style="font-size:11px;font-weight:700;color:${miss>0?'#F87171':'#4ADE80'};margin-top:3px">${total?+(miss/total*100).toFixed(1):0}%</div>
+      <div style="font-size:10px;font-weight:700;color:${miss>0?'#F87171':'#4ADE80'};margin-top:3px">${total?+(miss/total*100).toFixed(1):0}%</div>
     </div>
-
+    <div style="width:1px;height:40px;background:rgba(255,255,255,.12)"></div>
+    <!-- Critical Escalations -->
+    <div style="padding:0 22px;text-align:center">
+      <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.50);letter-spacing:.10em;text-transform:uppercase;margin-bottom:6px;white-space:nowrap">Critical Escal.</div>
+      <div style="font-size:28px;font-weight:900;color:${_critColor};font-family:var(--mono);line-height:1">${_critEsc}</div>
+      <div style="font-size:10px;font-weight:700;color:${_critColor};margin-top:3px">${_critEsc>0?'Tier 1':'All Clear'}</div>
+    </div>
+    <div style="width:1px;height:40px;background:rgba(255,255,255,.12)"></div>
     <!-- Biggest Gap -->
-    <div style="padding:0 22px;border-right:1px solid rgba(255,255,255,.12)">
+    <div style="padding:0 22px;text-align:center">
       <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.50);letter-spacing:.10em;text-transform:uppercase;margin-bottom:6px;white-space:nowrap">Biggest Gap</div>
       <div style="font-size:26px;font-weight:900;color:${_bigGapStr==='—'?'rgba(255,255,255,.28)':'#F87171'};font-family:var(--mono);line-height:1">${_bigGapStr}</div>
-      <div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100px">${_bigGapName}</div>
+      <div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px">${_bigGapName}</div>
     </div>
-
+    <div style="width:1px;height:40px;background:rgba(255,255,255,.12)"></div>
     <!-- Dept Requiring Attention -->
-    <div style="padding:0 22px;border-right:1px solid rgba(255,255,255,.12)">
+    <div style="padding:0 22px;text-align:center">
       <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.50);letter-spacing:.10em;text-transform:uppercase;margin-bottom:6px;white-space:nowrap">Dept. Attention</div>
-      <div style="font-size:16px;font-weight:900;color:${_wDColor};line-height:1.2">${_wDName}</div>
+      <div style="font-size:17px;font-weight:900;color:${_wDColor};line-height:1.2">${_wDName}</div>
       <div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:3px;white-space:nowrap">${_wDSub}</div>
     </div>
-
-    <!-- Performance Trend — both years -->
-    <div style="padding-left:22px;display:flex;flex-direction:column;justify-content:center;height:100%">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-        <span style="font-size:8px;font-weight:800;color:rgba(255,255,255,.50);letter-spacing:.10em;text-transform:uppercase">Trend</span>
-        <div style="display:flex;align-items:center;gap:8px">
-          <span style="display:flex;align-items:center;gap:3px;font-size:8px;color:rgba(255,255,255,.70);font-weight:700"><span style="width:12px;border-top:1.5px dashed rgba(255,255,255,.70);display:inline-block"></span>2025</span>
-          <span style="display:flex;align-items:center;gap:3px;font-size:8px;color:#0195af;font-weight:700"><span style="width:12px;border-top:2px solid #0195af;display:inline-block;border-radius:1px"></span>2026</span>
-        </div>
-      </div>
-      <canvas id="execSumChart2" height="42" style="width:100%;display:block"></canvas>
-    </div>
   </div>
 </div>
 
-<!-- ROW 2-3: Individual KPI Cards — full width now -->
-<div class="card c12">
-  <div class="ch" style="border-bottom:1px solid var(--border);padding-bottom:10px">
-    <span style="font-size:11px;font-weight:800;color:var(--t1)">DETAILED KPI PERFORMANCE CARDS</span>
-    <div class="ch-r">${ks.length} KPIs</div>
+
+
+<!-- DETAILED KPI PERFORMANCE CARDS -->
+<div class="card c12" style="padding:0;background:transparent;box-shadow:none;border:none">
+  <div class="ch" style="background:var(--card);border:1px solid rgba(10,22,48,.07);border-radius:var(--radius) var(--radius) 0 0;border-bottom:1px solid var(--border2)">
+    <span style="font-weight:800">📋 ${lang==='ar'?'بطاقات الأداء التفصيلية':'DETAILED KPI PERFORMANCE CARDS'}</span>
+    <div class="ch-r">${ks.length} ${lang==='ar'?'مؤشر':'KPIs'}</div>
   </div>
-  <div class="cb sc" style="padding:10px">
+  <div class="cb sc" style="padding:10px;background:var(--card);border:1px solid rgba(10,22,48,.07);border-top:none;border-radius:0 0 var(--radius) var(--radius)">
     <div id="execKpiCards" style="width:100%"></div>
   </div>
-</div>
-
-<!-- Executive Intelligence Panel -->
-<div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none">
-  <div style="background:#fff;border:1.5px solid #E2E8F0;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(10,22,48,.08)">
-    <!-- Header -->
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid #F0F4F8;background:#FAFBFC">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div style="width:28px;height:28px;border-radius:8px;background:rgba(1,149,175,.12);display:flex;align-items:center;justify-content:center">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
-        </div>
-        <span style="font-size:11px;font-weight:800;color:#152538;letter-spacing:.03em">${lang==='ar'?'مركز المعلومات التنفيذية':'Executive Intelligence'}</span>
-      </div>
-      <span id="intelUpdateTime" style="font-size:9px;color:#94A3B8"></span>
-    </div>
-    <!-- Content grid -->
-    <div id="intelPanel" style="display:block">
-      <div style="grid-column:1/-1;padding:14px 20px;display:flex;align-items:center;gap:8px">
-        <div style="width:7px;height:7px;border-radius:50%;background:#0195af;animation:ai-dot 1.4s infinite"></div>
-        <div style="width:7px;height:7px;border-radius:50%;background:#0195af;animation:ai-dot 1.4s .47s infinite"></div>
-        <div style="width:7px;height:7px;border-radius:50%;background:#0195af;animation:ai-dot 1.4s .93s infinite"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- DEPT SUMMARY is now embedded within the KPI cards section below -->
-<!-- RAG MATRIX -->
-<div class="card c12">
-  <div class="ch">📊 ${lang==='ar'?'مصفوفة RAG':'RAG Status Matrix'}
-    <div class="ch-r" style="display:flex;gap:5px">
-      <span style="display:inline-flex;align-items:center;gap:2px;font-size:8px"><span style="width:10px;height:10px;border-radius:2px;background:${BC[2]};display:inline-block"></span>Met</span>
-      <span style="display:inline-flex;align-items:center;gap:2px;font-size:8px"><span style="width:10px;height:10px;border-radius:2px;background:${BC[1]};display:inline-block"></span>Missed</span>
-      <span style="display:inline-flex;align-items:center;gap:2px;font-size:8px"><span style="width:10px;height:10px;border-radius:2px;background:${BC[0]};display:inline-block"></span>N/A</span>
-    </div>
-  </div>
-  <div class="cb sc" style="padding:4px 10px 10px"><div style="overflow-x:auto"><div id="ragMatrix" style="min-width:580px"></div></div></div>
 </div>
 
 <!-- CHARTS ROW -->
@@ -3766,6 +3703,8 @@ function renderExec(){
 </div>
 
 <!-- Individual KPI Trend Analysis (from Departments page) -->
+
+
 <div class="card c12">
   <div class="ch" style="border-bottom:1px solid var(--border)">
     <span style="font-weight:800">📈 ${lang==='ar'?'تحليل الاتجاه الفردي لكل مؤشر — الهدف + YoY':'Individual KPI Trend Analysis — Quarterly + Target + YoY'}</span>
@@ -3779,7 +3718,6 @@ function renderExec(){
   setTimeout(()=>{
     /* Render individual KPI cards */
     renderExecKpiCards(ks);
-    renderRAG(ks);
     /* Bar chart — uses current filter, shows year in labels */
     dch('cBar');
     requestAnimationFrame(()=>{
@@ -3900,7 +3838,7 @@ function renderExecKpiCards(ks){
         +'</div>'
         +'<div style="text-align:right;flex-shrink:0">'
           +'<div style="font-size:32px;font-weight:900;color:'+(isMet?'#16A34A':op!==null?'#DC2626':'#94A3B8')+';font-family:var(--mono)">'+(op!==null?op+'%':'—')+'</div>'
-          +'<div style="font-size:9.5px;color:#94A3B8">Target: '+(k.op==='='?'=':'&ge;')+k.target+'%'+(gap!==null&&gap>0?' &middot; Gap: -'+gap+'%':'')+'</div>'
+          +'<div style="font-size:9.5px;color:#94A3B8">Target: '+(k.op==='='?'=':'&ge;')+k.target+'%'+(gap!==null&&gap>0?' &middot; Gap: '+gap+'%':'')+'</div>'
         +'</div>'
       +'</div>'
       +(!anyPCI?'<div style="background:#FFF7ED;border:1px solid rgba(217,119,6,.25);border-radius:9px;padding:10px 14px;margin-bottom:14px;font-size:10.5px;color:#92400E">'
@@ -3935,7 +3873,7 @@ function renderExecKpiCards(ks){
     let yStr='',yC='#94A3B8';
     if(k.yoy!==undefined&&k.yoy!==null&&k.yoy!==0&&v!==null){
       const d=+((v-k.yoy)/Math.abs(k.yoy)*100).toFixed(1);
-      yStr=(d>=0?'\u25b2':'\u25bc')+' '+Math.abs(d).toFixed(1)+'%';
+      yStr=(d>=0?'▲':'▼')+' '+Math.abs(d).toFixed(1)+'%';
       yC=d>=0?'#16A34A':'#DC2626';
     }
     const pB=v!==null?Math.min(100,Math.max(0,Math.round(v/k.target*100))):0;
@@ -3986,21 +3924,57 @@ function renderExecKpiCards(ks){
 
   /* ── One dept block ── */
   const mkD=(d,yrKs)=>{
-    const dk=yrKs.filter(k=>k.dept===d);if(!dk.length)return'';
+    const dk=yrKs.filter(k=>k.dept===d);
+    if(!dk.length)return'';
     const dm=DM[d];
     const nO=dk.filter(k=>ok(k)===true).length;
     const nM=dk.filter(k=>ok(k)===false).length;
-    /* Sort: missed first (by tier), then met, then pending */
-    const srt=[
-      ...dk.filter(k=>ok(k)===false).sort((a,b)=>(a.tier||3)-(b.tier||3)),
+
+    /* ── Year breakdown (when All years selected) ── */
+    let yrBreakdown='';
+    if(isAllYr){
+      const yrs=[...new Set(dk.map(k=>k.yr))].sort((a,b)=>b-a);
+      let ybHtml='<div style="display:flex;flex-direction:column;gap:0;border:1px solid #E2E8F0;border-radius:10px;overflow:hidden;margin-top:2px">';
+      yrs.forEach(function(yr,i){
+        const yk=dk.filter(k=>k.yr===yr);
+        const yO=yk.filter(k=>ok(k)===true).length;
+        const yM=yk.filter(k=>ok(k)===false).length;
+        const yEval=yk.filter(k=>ok(k)!==null).length;
+        const yPct=yEval?Math.round(yO/yEval*100):0;
+        const srt=[
+          ...yk.filter(k=>ok(k)===false).sort(function(a,b){return(a.tier||3)-(b.tier||3);}),
+          ...yk.filter(k=>ok(k)===true),
+          ...yk.filter(k=>ok(k)===null)
+        ];
+        const cols=srt.length===1?'1fr':srt.length===3?'1fr 1fr 1fr':'1fr 1fr';
+        const rowBg=i%2===0?'#F8FAFC':'#fff';
+        ybHtml+=('<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:'+rowBg+';border-bottom:1px solid #E2E8F0">'
+          +'<span style="font-size:11px;font-weight:800;color:'+dm.color+';font-family:var(--mono);min-width:36px">'+yr+'</span>'
+          +'<div style="display:flex;gap:6px;flex:1">'
+            +'<span style="font-size:9.5px;font-weight:700;padding:2px 9px;border-radius:20px;background:rgba(100,116,139,.10);color:#475569">'+yk.length+' KPIs</span>'
+            +'<span style="font-size:9.5px;font-weight:700;padding:2px 9px;border-radius:20px;background:rgba(22,163,74,.10);color:#16A34A">✓ '+yO+' Met</span>'
+            +(yM?'<span style="font-size:9.5px;font-weight:700;padding:2px 9px;border-radius:20px;background:rgba(220,38,38,.10);color:#DC2626">✕ '+yM+' Missed</span>':'')
+          +'</div>'
+          +'<div style="font-size:9px;font-weight:700;font-family:var(--mono);color:'+(yPct>=80?'#16A34A':yPct>=50?'#D97706':'#DC2626')+'">'+yPct+'%</div>'
+        +'</div>'
+        +'<div style="padding:10px;display:grid;grid-template-columns:'+cols+';grid-auto-rows:1fr;gap:8px;background:'+rowBg+'">'
+          +srt.map(function(k){return mkCard(k);}).join('')
+        +'</div>');
+      });
+      ybHtml+='</div>';
+      yrBreakdown=ybHtml;
+    }
+
+    /* ── Normal (single year) sorted cards ── */
+    const srt=isAllYr?[]:[
+      ...dk.filter(k=>ok(k)===false).sort(function(a,b){return(a.tier||3)-(b.tier||3);}),
       ...dk.filter(k=>ok(k)===true),
       ...dk.filter(k=>ok(k)===null)
     ];
-    /* Inside each dept column: auto-fill columns, stretch rows for equal height */
-    const cols=srt.length===1?'1fr':srt.length===3?'1fr 1fr 1fr':'1fr 1fr';
-    return ''
+    const cols=(!isAllYr&&srt.length===1)?'1fr':(!isAllYr&&srt.length===3)?'1fr 1fr 1fr':'1fr 1fr';
+
+    const deptBlock=(''
       +'<div style="display:flex;flex-direction:column;gap:12px;min-width:0;box-sizing:border-box;width:100%">'
-        /* dept header */
         +'<div style="display:flex;align-items:stretch;gap:10px">'
           +'<div style="width:4px;border-radius:2px;background:'+dm.color+';flex-shrink:0"></div>'
           +'<div><div style="display:flex;align-items:baseline;gap:7px">'
@@ -4008,18 +3982,20 @@ function renderExecKpiCards(ks){
             +'<span style="font-size:12px;font-weight:600;color:var(--t2)">'+(lang==='ar'?dm.ar:dm.en)+'</span>'
           +'</div></div>'
         +'</div>'
-        /* stats */
         +'<div style="display:flex;gap:8px;width:100%">'
-          +mkSt('KPIs',dk.length,'var(--t1)')+mkSt('\u2713 MET',nO,'#16A34A')+mkSt('\u2715 MISSED',nM,nM?'#DC2626':'var(--t3)')
+          +mkSt('KPIs',dk.length,'var(--t1)')+mkSt('✓ MET',nO,'#16A34A')+mkSt('✕ MISSED',nM,nM?'#DC2626':'var(--t3)')
         +'</div>'
-        /* KPI cards — grid-auto-rows:1fr makes all rows equal height */
-        +'<div style="display:grid;grid-template-columns:'+cols+';grid-auto-rows:1fr;gap:10px;width:100%">'
-          +srt.map(k=>mkCard(k)).join('')
-        +'</div>'
-      +'</div>';
+        +(isAllYr
+          ?yrBreakdown
+          :('<div style="display:grid;grid-template-columns:'+cols+';grid-auto-rows:1fr;gap:10px;width:100%">'
+            +srt.map(function(k){return mkCard(k);}).join('')
+          +'</div>')
+        )
+      +'</div>'
+    );
+    return deptBlock;
   };
 
-  /* ── Build a year section ── */
   const bldYr=(yrKs,yr)=>{
     let out='';
     if(isAllYr&&yr){
@@ -4050,17 +4026,8 @@ function renderExecKpiCards(ks){
   /* ── Final render ── */
   let out='';
   if(isAllYr){
-    const yrs=[...new Set(ks.map(k=>k.yr))].sort();
-    yrs.forEach((yr,i)=>{
-      out+=''
-        +'<div style="'
-          +'margin-bottom:'+(i<yrs.length-1?'28px':'0')+';'
-          +'padding-bottom:'+(i<yrs.length-1?'24px':'0')+';'
-          +(i<yrs.length-1?'border-bottom:2px solid var(--border2);':'')
-        +'">'
-        +bldYr(ks.filter(k=>k.yr===yr),yr)
-        +'</div>';
-    });
+    /* Pass ALL ks to bldYr so mkD can do its own year grouping */
+    out=bldYr(ks,null);
   }else{
     out=bldYr(ks,null);
   }
@@ -4380,12 +4347,12 @@ function renderDept(){
           /* YoY */
           +'<div style="padding:10px 12px;border-right:1px solid #F0F4F8">'
             +'<div style="font-size:8px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">YoY</div>'
-            +'<div style="font-size:22px;font-weight:900;font-family:var(--mono);line-height:1;color:'+(yoyDiff===null?'#94A3B8':yoyDiff>=0?'#16A34A':'#DC2626')+'">'+(yoyDiff!==null?(yoyDiff>=0?'▲':'')+yoyDiff+'%':'—')+'</div>'
+            +'<div style="font-size:22px;font-weight:900;font-family:var(--mono);line-height:1;color:'+(yoyDiff===null?'#94A3B8':yoyDiff>=0?'#16A34A':'#DC2626')+'">'+(yoyDiff!==null?(yoyDiff>0?'▲ '+yoyDiff+'%':yoyDiff<0?'▼ '+Math.abs(yoyDiff)+'%':'—'):'—')+'</div>'
           +'</div>'
           /* Gap */
           +'<div style="padding:10px 12px">'
             +'<div style="font-size:8px;color:#94A3B8;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Gap</div>'
-            +'<div style="font-size:22px;font-weight:900;font-family:var(--mono);line-height:1;color:'+(latestQ===null?'#94A3B8':latestQ>=tgt?'#16A34A':'#DC2626')+'">'+(latestQ!==null?latestQ>=tgt?'+0%':'-'+(tgt-latestQ).toFixed(1)+'%':'—')+'</div>'
+            +'<div style="font-size:22px;font-weight:900;font-family:var(--mono);line-height:1;color:'+(latestQ===null||latestQ>=tgt?'#94A3B8':'#DC2626')+'">'+(latestQ!==null?latestQ>=tgt?'—':(tgt-latestQ).toFixed(1)+'%':'—')+'</div>'
           +'</div>'
         +'</div>'
 
@@ -4670,7 +4637,7 @@ async function fetchAI(){
     return`- ${DM[d].en}: ${dk.length?Math.round(o/dk.length*100):0}% (${o}/${dk.length})`;
   }).join('\n');
   const missStr=missKpis.map(k=>{const v=qv(k),gap=(k.target-(v||0)).toFixed(1);const rc=getRepeat(k);const gd=(ST.gaps||{})[k.id]||{};
-    return`- ${k.id} (${k.nameEn}): ${(v||0).toFixed(1)}% vs ${k.target}% target | Gap: -${gap}% | Risk Tier ${k.tier||3}(${TIERS[k.tier||3].en})${rc>=2?` | REPEAT MISS: ${rc} quarters`:''} | Root cause: ${gd.gapEn||'Not documented'}`;
+    return`- ${k.id} (${k.nameEn}): ${(v||0).toFixed(1)}% vs ${k.target}% target | Gap: ${gap}% | Risk Tier ${k.tier||3}(${TIERS[k.tier||3].en})${rc>=2?` | REPEAT MISS: ${rc} quarters`:''} | Root cause: ${gd.gapEn||'Not documented'}`;
   }).join('\n');
   const prompt=lang==='ar'
     ?`أنت محلل مؤشرات أداء متخصص في مستشفيات الكبرى. البيانات لإدارة المرافق والسلامة في المدينة الطبية بجامعة القصيم:\n\nالإجمالي: ${ks.length} مؤشر | محقق: ${nOk} | غير محقق: ${miss} | معدل الإنجاز: ${rate}%\n\nالمؤشرات غير المحققة:\n${missStr||'لا توجد'}\n\nالأداء حسب القسم:\n${deptStr}\n\nاكتب تقريراً تنفيذياً موجزاً مكوناً من 3 فقرات قصيرة باللغة العربية الرسمية:\n1. تقييم الأداء العام بالأرقام الفعلية\n2. تحديد المخاطر الحرجة (ركز على مؤشرات T1 والإخفاق المتكرر)\n3. التوصية التشغيلية الأكثر أولوية\n\nلا تستخدم عبارات عامة. استخدم أسماء المؤشرات والأرقام الفعلية.`
