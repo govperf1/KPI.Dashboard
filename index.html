@@ -3895,6 +3895,52 @@ function renderExec(){
 </div>
 
 
+<!-- ═══ EXECUTIVE INTELLIGENCE CARD ═══ -->
+<div class="c12" id="execIntelCard" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:14px">
+  <div style="background:#fff;border-radius:14px;border:1px solid #E2E8F0;box-shadow:0 2px 16px rgba(10,22,48,.08);overflow:hidden">
+    <!-- Header -->
+    <div style="padding:14px 20px;border-bottom:1px solid #F0F4F8;display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:32px;height:32px;border-radius:8px;background:rgba(1,149,175,.10);display:flex;align-items:center;justify-content:center">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
+        </div>
+        <span style="font-size:14px;font-weight:800;color:#152538">Executive Intelligence</span>
+      </div>
+      <span id="ei_updated" style="font-size:10px;color:#94A3B8">Last Updated: —</span>
+    </div>
+    <!-- Body: 3 columns -->
+    <div style="display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:0">
+      <!-- Summary -->
+      <div style="padding:18px 20px;border-right:1px solid #F0F4F8">
+        <div style="font-size:9px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Summary</div>
+        <div id="ei_summary" style="font-size:11.5px;color:#334155;line-height:1.75">—</div>
+      </div>
+      <!-- Critical Risks -->
+      <div style="padding:18px 20px;border-right:1px solid #F0F4F8">
+        <div style="font-size:9px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Critical Risks</div>
+        <div id="ei_risks" style="display:flex;flex-direction:column;gap:8px">—</div>
+      </div>
+      <!-- Recommendations -->
+      <div style="padding:18px 20px">
+        <div style="font-size:9px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Recommendations</div>
+        <div id="ei_recs" style="display:flex;flex-direction:column;gap:10px">—</div>
+      </div>
+    </div>
+    <!-- Repeat Misses -->
+    <div style="border-top:1px solid #F0F4F8">
+      <div style="padding:12px 20px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #F0F4F8">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0M12 8v4M12 16h.01"/></svg>
+        <span style="font-size:10px;font-weight:800;color:#DC2626;text-transform:uppercase;letter-spacing:.06em">Repeat Misses</span>
+      </div>
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;padding:8px 20px;background:#F8FAFC;border-bottom:1px solid #F0F4F8">
+        ${['KPI','Department','Risk Tier','Trend','Last Result'].map(h=>`<span style="font-size:8px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em">${h}</span>`).join('')}
+      </div>
+      <div id="ei_repeats">—</div>
+    </div>
+  </div>
+</div>
+
+
 <!-- ═══ EXECUTIVE INTELLIGENCE SUMMARY ═══ -->
 <div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:14px">
   <div id="execIntelBar" style="background:linear-gradient(135deg,#0f1f35 0%,#152538 60%,#0f1f35 100%);border-radius:14px;padding:0;box-shadow:0 4px 24px rgba(10,22,48,.30);overflow:hidden">
@@ -4041,12 +4087,12 @@ function renderExec(){
   </div>
 </div>
 
-<!-- Individual KPI Trend Analysis (from Departments page) -->
+<!-- KPI Trend Analysis (from Departments page) -->
 
 
 <div class="card c12">
   <div class="ch" style="border-bottom:1px solid var(--border)">
-    <span style="font-weight:800">📈 ${lang==='ar'?'تحليل الاتجاه الفردي لكل مؤشر — الهدف + YoY':'Individual KPI Trend Analysis — Quarterly + Target + YoY'}</span>
+    <span style="font-weight:800">📈 ${lang==='ar'?'تحليل الاتجاه الفردي لكل مؤشر — الهدف + YoY':'KPI Trend Analysis'}</span>
     <div class="ch-r">${lang==='ar'?'Q1\'25 → Q4\'25 → Q1\'26 لكل مؤشر':'Q1\'25 → Q4\'25 → Q1\'26 per KPI'}</div>
   </div>
   <div class="cb sc" style="padding:10px">
@@ -4055,12 +4101,103 @@ function renderExec(){
 </div>
 `;
   setTimeout(()=>{
+    /* ── Populate Executive Intelligence Card ── */
+    try{
+    const _ksi=filt();
+    const _miss2=_ksi.filter(k=>ok(k)===false);
+    const _met2=_ksi.filter(k=>ok(k)===true);
+
+    /* Timestamp */
+    const _now=new Date();
+    const _ei_up=document.getElementById('ei_updated');
+    if(_ei_up)_ei_up.textContent='Last Updated: '+_now.getHours()+':'+String(_now.getMinutes()).padStart(2,'0')+' '+(_now.getHours()>=12?'PM':'AM');
+
+    /* Summary */
+    const _ei_sum=document.getElementById('ei_summary');
+    if(_ei_sum){
+      const _pct2=_ksi.filter(k=>ok(k)!==null).length?Math.round(_met2.length/_ksi.filter(k=>ok(k)!==null).length*100):0;
+      const _bigG=[..._miss2].sort((a,b)=>(b.target-(qv(b)||0))-(a.target-(qv(a)||0)))[0];
+      _ei_sum.innerHTML='Division achieved <strong style="color:'+(_pct2>=80?'#16A34A':_pct2>=60?'#D97706':'#DC2626')+'">'+_pct2+'%</strong>. '
+        +(_bigG?'KPI <strong style="color:#152538">'+(lang==='ar'?_bigG.nameAr:_bigG.nameEn)+'</strong> shows the highest gap from target.':'All evaluated KPIs are on track.');
+    }
+
+    /* Critical Risks */
+    const _ei_risks=document.getElementById('ei_risks');
+    if(_ei_risks){
+      const _topRisks=[..._miss2].sort((a,b)=>(b.tier||3)-(a.tier||3)||(b.target-(qv(b)||0))-(a.target-(qv(a)||0))).slice(0,4);
+      if(_topRisks.length){
+        _ei_risks.innerHTML=_topRisks.map(k=>{
+          const v=qv(k),gap=v!==null?(k.target-v).toFixed(1):null;
+          const rc=getRepeat(k);
+          return '<div style="padding:10px 12px;border-radius:8px;border:1px solid rgba(220,38,38,.15);background:#FEF2F2">'
+            +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">'
+              +'<span style="font-size:10px;font-weight:900;color:#DC2626;font-family:var(--mono)">'+k.id+'</span>'
+              +'<span style="font-size:8px;font-weight:700;padding:1px 6px;border-radius:4px;background:rgba(220,38,38,.15);color:#DC2626">T'+(k.tier||3)+'</span>'
+              +(rc>=2?'<span style="font-size:8px;font-weight:700;padding:1px 6px;border-radius:4px;background:rgba(217,119,6,.15);color:#D97706">+'+rc+'x</span>':'')
+            +'</div>'
+            +'<div style="font-size:10px;color:#334155;font-weight:600">'+(lang==='ar'?k.nameAr:k.nameEn)+'</div>'
+            +'<div style="font-size:9px;color:#64748B;margin-top:3px">'+(v!==null?v.toFixed(1)+'%':' — ')+' / '+(k.op==='='?'=':'≥')+k.target+'%'+(gap?' — <span style="color:#DC2626;font-weight:700">Gap: '+gap+'%</span>':'')+'</div>'
+          +'</div>';
+        }).join('');
+      }else _ei_risks.innerHTML='<div style="font-size:11px;color:#16A34A;font-weight:700">✓ No critical risks identified</div>';
+    }
+
+    /* Recommendations */
+    const _ei_recs=document.getElementById('ei_recs');
+    if(_ei_recs){
+      const recs=[];
+      const _t1miss=_miss2.filter(k=>(k.tier||3)===1);
+      if(_t1miss.length)recs.push({title:'Immediate: Address Tier 1 KPIs',sub:'Requires executive escalation',ok:false});
+      if(_miss2.filter(k=>getRepeat(k)>=2).length>=2)recs.push({title:'Chronic underperformance in '+_miss2.filter(k=>getRepeat(k)>=2).length+' KPIs',sub:'Root cause analysis required',ok:false});
+      const _nogap=_miss2.filter(k=>!((ST.gaps||{})[k.id]||{}).gapEn);
+      if(_nogap.length)recs.push({title:'Gap analysis incomplete',sub:'Enter root causes & actions for all Missed KPIs',ok:false});
+      if(!recs.length)recs.push({title:'Performance on track','sub':'Continue monitoring quarterly results',ok:true});
+      _ei_recs.innerHTML=recs.map(r=>'<div style="display:flex;align-items:flex-start;gap:10px">'
+        +'<div style="width:20px;height:20px;border-radius:50%;background:'+(r.ok?'rgba(22,163,74,.12)':'rgba(220,38,38,.10)')+';display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">'
+          +'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="'+(r.ok?'#16A34A':'#DC2626')+'" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>'
+        +'</div>'
+        +'<div><div style="font-size:10.5px;font-weight:700;color:#152538">'+r.title+'</div>'
+        +'<div style="font-size:9px;color:#64748B;margin-top:2px">'+r.sub+'</div></div>'
+      +'</div>').join('');
+    }
+
+    /* Repeat Misses table */
+    const _ei_rep=document.getElementById('ei_repeats');
+    if(_ei_rep){
+      const _repeats=_ks.filter(k=>getRepeat(k)>=2).sort((a,b)=>getRepeat(b)-getRepeat(a));
+      if(_repeats.length){
+        _ei_rep.innerHTML=_repeats.map(k=>{
+          const v=qv(k),dm=DM[k.dept];
+          const trend=k.yoy!==null&&v!==null?(v>k.yoy?'▲':'▼'):'—';
+          const trendC=k.yoy!==null&&v!==null?(v>k.yoy?'#16A34A':'#DC2626'):'#94A3B8';
+          return '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;padding:10px 20px;border-bottom:1px solid #F8FAFC;align-items:center">'
+            +'<div>'
+              +'<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">'
+                +'<span style="font-size:10px;font-weight:800;color:'+((dm&&dm.color?dm.color:'#94A3B8')||'#152538')+';font-family:var(--mono)">'+k.id+'</span>'
+                +'<span style="font-size:8px;color:#94A3B8">'+getRepeat(k)+' quarters</span>'
+              +'</div>'
+              +'<div style="font-size:10px;color:#334155">'+(lang==='ar'?k.nameAr:k.nameEn)+'</div>'
+            +'</div>'
+            +'<div style="display:flex;align-items:center;gap:6px">'
+              +(dm?'<div style="width:8px;height:8px;border-radius:50%;background:'+(dm.color||'#94A3B8')+';flex-shrink:0"></div>':'')
+              +'<span style="font-size:10px;color:#475569">'+(lang==='ar'?(dm&&dm.ar?dm.ar:''):(dm&&dm.en?dm.en:'')||k.dept)+'</span>'
+            +'</div>'
+            +'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+(k.tier===1?'rgba(220,38,38,.10)':k.tier===2?'rgba(217,119,6,.10)':'rgba(1,149,175,.10)')+';color:'+(k.tier===1?'#DC2626':k.tier===2?'#D97706':'#0195af')+'">T'+(k.tier||3)+'</span>'
+            +'<div style="display:flex;align-items:center;gap:3px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="'+trendC+'" stroke-width="2.5" stroke-linecap="round"><polyline points="'+(trend==='▲'?'22 7 13.5 15.5 8.5 10.5 2 17':'22 17 13.5 8.5 8.5 13.5 2 7')+'"/></svg><span style="font-size:10px;font-weight:700;color:'+trendC+'">'+trend+'</span></div>'
+            +'<span style="font-size:11px;font-weight:900;color:'+(v!==null&&v<k.target?'#DC2626':'#16A34A')+';font-family:var(--mono)">'+(v!==null?v.toFixed(1)+'%':'—')+'<span style="font-size:8px;font-weight:500;color:#94A3B8"> / '+(k.op==='='?'=':'≥')+k.target+'%</span></span>'
+          +'</div>';
+        }).join('');
+      }else _ei_rep.innerHTML='<div style="padding:16px 20px;font-size:11px;color:#16A34A;font-weight:700">✓ No repeat misses detected</div>';
+    }
+
+    }catch(_eic){console.error('Intel Card error:',_eic);}
     /* ── Populate Executive Intelligence Summary ── */
     const _ks=filt();
     const _miss=_ks.filter(k=>ok(k)===false);
     const _met=_ks.filter(k=>ok(k)===true);
     const _pend=_ks.filter(k=>ok(k)===null);
 
+    try{
     /* Status */
     const _st=document.getElementById('eis_status');
     const _sd=document.getElementById('eis_desc');
@@ -4070,7 +4207,7 @@ function renderExec(){
       else if(_miss.length>_met.length){_st.textContent='ATTENTION REQUIRED';_st.style.color='#FBBF24';}
       else if(_pct>=80){_st.textContent='ON TRACK';_st.style.color='#4ADE80';}
       else{_st.textContent='NEEDS IMPROVEMENT';_st.style.color='#FBBF24';}
-      _sd.textContent=_miss.length?'Immediate focus required on '+_miss.length+' missed KPI'+(miss.length===1?'':'s')+' to meet annual targets.':'Division performing at '+_pct+'% achievement rate.';
+      _sd.textContent=_miss.length?'Immediate focus required on '+_miss.length+' missed KPI'+(_miss.length===1?'':'s')+' to meet annual targets.':'Division performing at '+_pct+'% achievement rate.';
     }
 
     /* Critical Escalations */
@@ -4117,6 +4254,7 @@ function renderExec(){
     if(_ra&&_worstDept&&_gapK)_ra.textContent='Review '+DM[_worstDept].en+' recovery plan and '+_gapK.nameEn+' actions before next quarter closure to improve annual achievement.';
     else if(_ra)_ra.textContent='Continue monitoring KPI performance and maintain current achievement levels.';
 
+    }catch(_eis){console.error('EIS error:',_eis);}
     /* Render individual KPI cards */
     renderExecKpiCards(ks);
     /* Bar chart — uses current filter, shows year in labels */
@@ -4135,7 +4273,7 @@ function renderExec(){
       if(_labels.length)CH['cBar']=mkChart('cBar',{type:'bar',data:{labels:_labels,datasets:[
         {label:'Met',data:_metD,backgroundColor:'rgba(22,163,74,.65)',borderRadius:3,stack:'s'},
         {label:'Missed',data:_misD,backgroundColor:'rgba(220,38,38,.60)',borderRadius:3,stack:'s'}
-      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:9},boxWidth:8,padding:6}}},scales:{y:{stacked:true,ticks:{stepSize:1,font:{size:9}},grid:{color:'rgba(20,35,80,.06)'}},x:{stacked:true,ticks:{font:{size:9}},grid:{display:false}}}}});
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:9},boxWidth:10,padding:8,color:'#475569'}}},scales:{y:{stacked:true,ticks:{stepSize:1,font:{size:9}},grid:{color:'rgba(20,35,80,.06)'}},x:{stacked:true,ticks:{font:{size:9}},grid:{display:false}}}}});
     });
     /* Quarterly Trend by Dept — updated to Q1'26 */
     dch('cExecML');
@@ -4148,9 +4286,9 @@ function renderExec(){
         const data=[...['q1','q2','q3','q4'].map(q=>avg2(kk25,q)),avg2(kk26,'q1')];
         return{label:DM[d].abbr,data,borderColor:DM[d].color,backgroundColor:'transparent',tension:.4,pointRadius:3,borderWidth:2,spanGaps:true};
       });
-      CH['cExecML']=mkChart('cExecML',{type:'line',data:{labels:["Q1'25","Q2'25","Q3'25","Q4'25","Q1'26"],datasets:dsExec},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:9},boxWidth:8,padding:6}},tooltip:{mode:'index',intersect:false}},scales:{y:{min:40,max:105,ticks:{callback:v=>v+'%',font:{size:9}},grid:{color:'rgba(26,40,71,.05)'}},x:{ticks:{font:{size:8}},grid:{display:false}}}}});
+      CH['cExecML']=mkChart('cExecML',{type:'line',data:{labels:["Q1'25","Q2'25","Q3'25","Q4'25","Q1'26"],datasets:dsExec},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:9},boxWidth:10,padding:8,color:'#475569'}},tooltip:{mode:'index',intersect:false}},scales:{y:{min:40,max:105,ticks:{callback:v=>v+'%',font:{size:9}},grid:{color:'rgba(26,40,71,.05)'}},x:{ticks:{font:{size:8}},grid:{display:false}}}}});
     });
-    /* Individual KPI Trend Analysis in exec page */
+    /* KPI Trend Analysis in exec page */
     renderExecKpiTrends(ks);
     fetchAI();
     [300,700,1200].forEach(t=>setTimeout(()=>{const s=document.getElementById('trendYrSel');updateExecTrend(s?s.value:'2025');},t));
@@ -4239,7 +4377,22 @@ function renderExecKpiCards(ks){
         +'</div>'
         +'<div style="text-align:right;flex-shrink:0">'
           +'<div style="font-size:32px;font-weight:900;color:'+(isMet?'#16A34A':op!==null?'#DC2626':'#94A3B8')+';font-family:var(--mono)">'+(op!==null?op+'%':'—')+'</div>'
-          +'<div style="font-size:9.5px;color:#94A3B8">Target: '+(k.op==='='?'=':'&ge;')+k.target+'%'+(gap!==null&&gap>0?' &middot; Gap: '+gap+'%':'')+'</div>'
+          +'<div style="font-size:9.5px;color:#94A3B8">Target: '+(k.op==='='?'=':'&ge;')+k.target+'%'+(gap!==null&&gap>0?' &middot; Gap: '+gap+'%':'')
+          +(function(){
+            var QTRS=['q1','q2','q3','q4'],QLBLS=['Q1','Q2','Q3','Q4'];
+            var lastIdx=-1;
+            for(var i=0;i<4;i++){if(k[QTRS[i]]!==null&&k[QTRS[i]]!==undefined)lastIdx=i;}
+            if(lastIdx<0||lastIdx>2)return '';
+            var curVal=k[QTRS[lastIdx]];
+            var nxtQ=QTRS[lastIdx+1];
+            var prevK=allK().filter(function(x){return x.yr===k.yr-1&&x.dept===k.dept&&x.nameEn===k.nameEn;})[0];
+            if(!prevK)return '<div style="font-size:9px;color:#94A3B8;margin-top:2px">Forecast: Insufficient Data</div>';
+            var pCur=prevK[QTRS[lastIdx]],pNxt=prevK[nxtQ];
+            if(pCur==null||pNxt==null)return '<div style="font-size:9px;color:#94A3B8;margin-top:2px">Forecast: Insufficient Data</div>';
+            var fc=Math.min(100,Math.max(0,+(curVal+(pNxt-pCur)).toFixed(1)));
+            var ok=fc>=k.target;
+            return '<div style="font-size:9px;font-weight:700;margin-top:3px;color:'+(ok?'#16A34A':'#DC2626')+'">Forecast '+QLBLS[lastIdx+1]+'\''+(String(k.yr).slice(2))+': <span style="font-family:var(--mono)">'+fc+'%</span></div>';
+          }())+'</div>'
         +'</div>'
       +'</div>'
       +(!anyPCI?'<div style="background:#FFF7ED;border:1px solid rgba(217,119,6,.25);border-radius:9px;padding:10px 14px;margin-bottom:14px;font-size:10.5px;color:#92400E">'
@@ -4666,7 +4819,7 @@ function renderDept(){
 
         }),borderRadius:5,borderSkipped:false,barPercentage:.6},
         {type:'line',label:'Target',data:targets,borderColor:TEAL,borderWidth:2,borderDash:[6,3],pointRadius:0,fill:false,order:0}
-      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,position:'top',labels:{font:{size:8},boxWidth:10,padding:6,color:'#475569'}}},
         scales:{y:{min:0,max:105,ticks:{callback:function(v){return v+'%';},font:{size:8},maxTicksLimit:5},grid:{color:'rgba(20,35,80,.05)'}},
           x:{ticks:{font:{size:8},maxRotation:40},grid:{display:false}}}}});
     },80);
@@ -4744,6 +4897,17 @@ function renderDept(){
     });
     return Object.values(map).filter(function(g){return g.k25||g.k26;});
   }
+  /* Trend groups always include all years for proper trend display */
+  function getTrendGroups(dept){
+    var all=allK().filter(function(k){return k.dept===dept;});
+    var map={};
+    all.forEach(function(k){
+      var key=k.id.replace(/[^A-Z0-9]/gi,'');
+      if(!map[key])map[key]={k25:null,k26:null};
+      if(k.yr===2025)map[key].k25=k;else map[key].k26=k;
+    });
+    return Object.values(map).filter(function(g){return g.k25||g.k26;});
+  }
 
   function mkCard(k25,k26,dept){
     var k=k26||k25,dm=DM[dept],dC=dm.color;
@@ -4768,15 +4932,17 @@ function renderDept(){
       if(!ds.slice(0,-1).some(function(d){return d.data.some(function(v){return v!==null;});}))return;
       var allV=v25.concat(v26).filter(function(v){return v!==null;});
       CH[cid]=mkChart(cid,{type:'line',data:{labels:['Q1','Q2','Q3','Q4'],datasets:ds},
-        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:true,position:'bottom',labels:{font:{size:7},boxWidth:7,padding:4,color:'#64748B'}}},
           scales:{y:{min:Math.max(0,(allV.length?Math.min.apply(null,allV):tgt)-8),
             max:Math.min(105,(allV.length?Math.max.apply(null,allV):tgt)+5),
             ticks:{callback:function(v){return v+'%';},font:{size:8},maxTicksLimit:4},grid:{color:'rgba(20,35,80,.04)'}},
             x:{ticks:{font:{size:8}},grid:{display:false}}}}});
     },50);
     var statColor=function(val){return val===null?'#94A3B8':val>=tgt?'#16A34A':'#DC2626';};
+    var _resultAvg=null;
     var stats=[
-      {l:'Latest',v:latest!==null?latest.toFixed(1)+'%':'—',c:statColor(latest)},
+      {l:'Result',v:(function(){var qs=[k26?k26.q1:null,k26?k26.q2:null,k26?k26.q3:null,k26?k26.q4:null,k25?k25.q1:null,k25?k25.q2:null,k25?k25.q3:null,k25?k25.q4:null].filter(function(v){return v!==null;});_resultAvg=qs.length?(qs.reduce(function(a,b){return a+b;},0)/qs.length):null;return _resultAvg!==null?_resultAvg.toFixed(1)+'%':'—';}()),c:_resultAvg!==null?(_resultAvg>=tgt?'#16A34A':'#DC2626'):'#94A3B8'},
       {l:'Target',v:(k.op==='='?'=':'\u2265')+tgt+'%',c:TEAL},
       {l:'YoY',v:yoyDiff!==null?(yoyDiff>0?'\u25b2':yoyDiff<0?'\u25bc':'\u2014')+' '+Math.abs(yoyDiff).toFixed(1)+'%':'—',c:yoyDiff===null?'#94A3B8':yoyDiff>=0?'#16A34A':'#DC2626'},
       {l:'Gap',v:gap!==null?gap.toFixed(1)+'%':'—',c:gap!==null?'#DC2626':'#94A3B8'}
@@ -4809,6 +4975,25 @@ function renderDept(){
           return '<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;background:'+(v2===null?'#F1F5F9':m2?'rgba(22,163,74,.10)':'rgba(220,38,38,.08)')+';color:'+(v2===null?'#CBD5E1':m2?'#16A34A':'#DC2626')+'">Q'+(i+1)+' '+(v2!==null?v2.toFixed(1)+'%':'—')+'</span>';
         }).join('')
       +'</div>'
+
+      /* Next QTR Forecast */
+      +(function(){
+        var qa=k26?[k26.q1,k26.q2,k26.q3,k26.q4]:(k25?[k25.q1,k25.q2,k25.q3,k25.q4]:[]);
+        var pts=qa.filter(function(v){return v!==null;});
+        if(!pts.length)return '';
+        var fc;
+        if(pts.length===1){fc=pts[0];}
+        else{
+          var diffs=[];for(var i=1;i<pts.length;i++)diffs.push(pts[i]-pts[i-1]);
+          var ad=diffs.reduce(function(a,b){return a+b;},0)/diffs.length;
+          fc=Math.min(110,Math.max(0,pts[pts.length-1]+ad));
+        }
+        var fcOk=fc>=tgt;
+        return '<div style="padding:6px 12px;border-top:1px solid #F0F4F8;display:flex;align-items:center;justify-content:space-between">'
+          +'<span style="font-size:9px;font-weight:700;color:#64748B">Next QTR Forecast</span>'
+          +'<span style="font-size:12px;font-weight:900;color:'+(fcOk?'#16A34A':'#DC2626')+';font-family:var(--mono);padding:2px 10px;border-radius:8px;background:'+(fcOk?'rgba(22,163,74,.08)':'rgba(220,38,38,.06)')+'">'+fc.toFixed(1)+'%</span>'
+        +'</div>';
+      }())
       +'<div style="margin-top:auto;padding:7px 12px;border-top:1px solid '+(isMiss?'rgba(220,38,38,.10)':'#F0F4F8')+';background:'+(isMiss?'rgba(220,38,38,.02)':'#FAFBFC')+';display:flex;align-items:center;justify-content:space-between;min-height:36px">'
         +(isMiss?'<span style="font-size:9px;color:#64748B">'+(gd.gapEn?gd.gapEn.slice(0,40)+'…':'Root cause not documented')+'</span><button onclick="openGap(\''+k.id+'\')" style="font-size:9px;font-weight:700;color:#DC2626;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.18);border-radius:6px;padding:4px 9px;cursor:pointer;font-family:inherit">Gap »</button>'
         :'<span style="font-size:9px;color:#94A3B8">'+(a===true?'\u2713 Met':'\u23f3 Pending')+'</span>')
@@ -4827,8 +5012,9 @@ function renderDept(){
     var pct=allKs.filter(function(k){return ok(k)!==null;}).length?Math.round(met/allKs.filter(function(k){return ok(k)!==null;}).length*100):0;
 
     /* Build trend groups by nameEn */
+    var trendGroups=getTrendGroups(dept);
     var nm={};
-    groups.forEach(function(g){
+    trendGroups.forEach(function(g){
       var kk=g.k26||g.k25;
       /* For Projects: group PMD-02-xx together by prefix for comparison */
       var prefix=kk.id.match(/^([A-Z]+-\d+)-/);
@@ -4885,7 +5071,7 @@ function renderDept(){
           +'<div style="background:#FAFBFC;border:1px solid #E2E8F0;border-radius:8px;padding:8px 8px 4px"><div style="height:130px"><canvas id="'+cKB+'"></canvas></div></div>'
         +'</div>'
         +'<div style="padding:14px 16px">'
-          +'<div style="font-size:8px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">KPI Individual Trends</div>'
+          +'<div style="font-size:8px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">KPI Trends</div>'
           +trendHtml
         +'</div>'
       +'</div>'
