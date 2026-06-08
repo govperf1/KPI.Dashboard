@@ -1004,8 +1004,143 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 }
 </style>
 
+
+  <!-- ══ Firebase SDK ══ -->
+  <script type="module">
+    import { initializeApp }
+      from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+      from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+    import { getFirestore, doc, getDoc }
+      from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+    /* ══ PASTE YOUR FIREBASE CONFIG HERE ══ */
+    const firebaseConfig = {
+      apiKey:            "YOUR_API_KEY",
+      authDomain:        "YOUR_PROJECT.firebaseapp.com",
+      projectId:         "YOUR_PROJECT_ID",
+      storageBucket:     "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId:             "YOUR_APP_ID"
+    };
+    /* ════════════════════════════════════ */
+
+    const HOSPITAL_DOMAIN = '@qumc.edu.sa';
+
+    const app  = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+
+    window._fbAuth    = auth;
+    window._fbSignOut = signOut;
+
+    /* ── Sign In ── */
+    window._doLogin = async () => {
+      const email = (document.getElementById('_fbEmail')||{}).value?.trim();
+      const pass  = (document.getElementById('_fbPass')||{}).value;
+      const errEl = document.getElementById('_fbErr');
+      const btn   = document.getElementById('_fbLoginBtn');
+      if(errEl) errEl.textContent = '';
+      if(!email||!pass){if(errEl)errEl.textContent='الرجاء إدخال الإيميل وكلمة المرور.';return;}
+      if(!email.endsWith(HOSPITAL_DOMAIN)){
+        if(errEl)errEl.textContent='ممنوع. استخدم إيميل المستشفى الرسمي ('+HOSPITAL_DOMAIN+').';
+        return;
+      }
+      try{
+        if(btn){btn.disabled=true;btn.textContent='جاري التحقق…';}
+        await signInWithEmailAndPassword(auth,email,pass);
+      }catch(e){
+        const m=e.code==='auth/wrong-password'||e.code==='auth/user-not-found'||e.code==='auth/invalid-credential'
+          ?'إيميل أو كلمة مرور غير صحيحة.':'فشل تسجيل الدخول: '+e.message;
+        if(errEl)errEl.textContent=m;
+        if(btn){btn.disabled=false;btn.textContent='تسجيل الدخول';}
+      }
+    };
+
+    /* ── Sign Out ── */
+    window._doLogout = () => signOut(auth);
+
+    /* ── Auth State ── */
+    onAuthStateChanged(auth, async(user)=>{
+      if(!user){
+        window._fbUser=null; window._fbRole=null; window._fbDept=null;
+        if(typeof showLoginOverlay==='function') showLoginOverlay(true);
+        return;
+      }
+      const email=user.email||'';
+      if(!email.endsWith(HOSPITAL_DOMAIN)){
+        await signOut(auth);
+        if(typeof showAuthError==='function') showAuthError('ممنوع. استخدم إيميل المستشفى الرسمي ('+HOSPITAL_DOMAIN+').');
+        return;
+      }
+      try{
+        const snap=await getDoc(doc(db,'users',email));
+        if(!snap.exists()){
+          await signOut(auth);
+          if(typeof showAuthError==='function') showAuthError('حسابك في انتظار موافقة المدير. تواصل مع المسؤول.');
+          return;
+        }
+        const data=snap.data();
+        if(!data.approved){
+          await signOut(auth);
+          if(typeof showAuthError==='function') showAuthError('لم يتم اعتماد حسابك بعد. تواصل مع المسؤول.');
+          return;
+        }
+        window._fbUser = email;
+        window._fbRole = data.role||'viewer';
+        window._fbDept = data.dept||null;
+        window._fbName = data.displayName||email.split('@')[0];
+        if(typeof showLoginOverlay==='function') showLoginOverlay(false);
+        if(typeof applyRolePermissions==='function') applyRolePermissions(window._fbRole,window._fbDept);
+        if(typeof updateUserBadge==='function') updateUserBadge(window._fbName,window._fbRole);
+        if(typeof renderCurrent==='function') renderCurrent();
+      }catch(e){
+        if(typeof showAuthError==='function') showAuthError('خطأ في تحميل الملف الشخصي. حاول مجدداً.');
+        console.error('[Auth]',e);
+      }
+    });
+  </script>
 </head>
 <body>
+<!-- ══ AUTH OVERLAY ══ -->
+<div id="_authOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,#0a1628,#0f2444 50%,#0a1628);z-index:9999;display:flex;align-items:center;justify-content:center;font-family:inherit">
+  <div style="background:#fff;border-radius:22px;padding:44px 38px;width:100%;max-width:420px;box-shadow:0 28px 80px rgba(0,0,0,.5);margin:20px">
+    <div style="text-align:center;margin-bottom:30px">
+      <div style="width:60px;height:60px;background:linear-gradient(135deg,#0195af,#152538);border-radius:16px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <div style="font-size:19px;font-weight:900;color:#152538;margin-bottom:5px">KPI Performance Center</div>
+      <div style="font-size:11px;color:#64748B">Qassim University Medical City</div>
+      <div style="font-size:10px;color:#94A3B8;margin-top:3px">Facilities &amp; Safety Division</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:6px">Hospital Email</label>
+        <input id="_fbEmail" type="email" placeholder="name@qumc.edu.sa"
+          style="width:100%;padding:11px 14px;border:1.5px solid #E2E8F0;border-radius:11px;font-size:13px;outline:none;box-sizing:border-box;transition:border .18s"
+          onfocus="this.style.borderColor='#0195af'" onblur="this.style.borderColor='#E2E8F0'"
+          onkeydown="if(event.key==='Enter')document.getElementById('_fbPass').focus()"/>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:6px">Password</label>
+        <input id="_fbPass" type="password" placeholder="••••••••"
+          style="width:100%;padding:11px 14px;border:1.5px solid #E2E8F0;border-radius:11px;font-size:13px;outline:none;box-sizing:border-box;transition:border .18s"
+          onfocus="this.style.borderColor='#0195af'" onblur="this.style.borderColor='#E2E8F0'"
+          onkeydown="if(event.key==='Enter')window._doLogin&&window._doLogin()"/>
+      </div>
+      <div id="_fbErr" style="font-size:11px;color:#DC2626;min-height:18px;text-align:center;font-weight:600"></div>
+      <button id="_fbLoginBtn" onclick="window._doLogin&&window._doLogin()"
+        style="background:linear-gradient(135deg,#0195af,#0077a8);color:#fff;border:none;border-radius:11px;padding:13px;font-size:13px;font-weight:800;cursor:pointer;transition:opacity .18s;letter-spacing:.02em"
+        onmouseover="this.style.opacity='.87'" onmouseout="this.style.opacity='1'">
+        تسجيل الدخول
+      </button>
+    </div>
+    <div style="margin-top:22px;padding-top:16px;border-top:1px solid #F0F4F8;text-align:center;font-size:10px;color:#94A3B8">
+      الوصول مقتصر على إيميلات المستشفى الرسمية فقط
+    </div>
+  </div>
+</div>
+
 
 <!-- ═══ TOPBAR — QUMC Institutional Header ══════════ -->
 <div class="topbar">
@@ -1029,7 +1164,22 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
     <button class="tb-btn" onclick="document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));var rp=document.getElementById('page-report');if(rp){rp.classList.add('on');}if(typeof renderReport==='function')renderReport();" style="background:#152538;color:#fff;border-color:#152538;display:flex;align-items:center;gap:5px;font-weight:700">
       📄 Report
     </button>
-    <div style="position:relative;display:inline-block">
+  
+    <!-- ── User Badge ── -->
+    <div id="_userBadge" style="display:none;align-items:center;gap:8px;padding:5px 12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:10px;margin-right:4px">
+      <div id="_userAvatar" style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#0195af,#152538);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff">U</div>
+      <div>
+        <div id="_userName" style="font-size:10px;font-weight:700;color:#fff">User</div>
+        <div id="_userRole" style="font-size:8.5px;color:#0195af;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Viewer</div>
+      </div>
+      <button onclick="window._doLogout&&window._doLogout()"
+        title="Sign Out"
+        style="background:rgba(220,38,38,.20);color:#FCA5A5;border:none;border-radius:6px;padding:4px 8px;font-size:9px;font-weight:700;cursor:pointer;margin-left:4px;transition:background .15s"
+        onmouseover="this.style.background='rgba(220,38,38,.35)'" onmouseout="this.style.background='rgba(220,38,38,.20)'">
+        خروج
+      </button>
+    </div>
+  <div style="position:relative;display:inline-block">
       <button class="tb-btn" onclick="toggleExportMenu(event)" style="background:#0195af;color:#fff;border-color:#0195af;font-weight:700;display:flex;align-items:center;gap:5px;letter-spacing:.01em">
         ↗ Export ▾
       </button>
@@ -1600,6 +1750,57 @@ const TIERS={
 /* Binary band: 0=N/A, 1=Missed(red), 2=Met(green) */
 const BC=['rgba(255,255,255,.07)','rgba(248,113,113,.80)','rgba(52,211,153,.75)'];
 const BCL=['b0','b1','b4'];
+
+
+/* ══ AUTH HELPERS ══════════════════════════════════════ */
+function showLoginOverlay(show){
+  const el=document.getElementById('_authOverlay');
+  if(!el)return;
+  el.style.display=show?'flex':'none';
+  if(show){const btn=document.getElementById('_fbLoginBtn');if(btn){btn.disabled=false;btn.textContent='تسجيل الدخول';}}
+}
+function showAuthError(msg){
+  showLoginOverlay(true);
+  const e=document.getElementById('_fbErr');if(e)e.textContent=msg;
+}
+function updateUserBadge(name,role){
+  const b=document.getElementById('_userBadge');if(b)b.style.display='flex';
+  const av=document.getElementById('_userAvatar');if(av)av.textContent=(name||'U')[0].toUpperCase();
+  const nm=document.getElementById('_userName');if(nm)nm.textContent=name||'User';
+  const rl=document.getElementById('_userRole');
+  if(rl){const L={admin:'Admin',department_manager:'Dept Manager',viewer:'Viewer'};rl.textContent=L[role]||role;rl.style.color=role==='admin'?'#F87171':role==='department_manager'?'#FBBF24':'#4ADE80';}
+}
+function applyRolePermissions(role,dept){
+  const isViewer=role==='viewer';
+  const isDeptMgr=role==='department_manager';
+  const isAdmin=role==='admin';
+  /* Hide admin lock button for non-admins */
+  if(!isAdmin){
+    document.querySelectorAll('.topbar button').forEach(b=>{if(b.innerHTML.includes('M7 11V7'))b.style.display='none';});
+  }
+  /* Viewer: hide all edit/gap buttons */
+  if(isViewer){
+    const s=document.createElement('style');s.id='_viewerStyle';
+    s.textContent='[onclick*="openGap"],[onclick*="rptEdit"],[onclick*="saveAdmin"],[onclick*="addAction"],[id$="-acts"]{display:none!important;}';
+    document.head.appendChild(s);
+  }
+  /* Dept Manager: lock dept filter */
+  if(isDeptMgr&&dept){
+    window._lockedDept=dept;
+    const orig=window.setF;
+    window.setF=function(type,val,el){if(type==='dept'&&val!==dept&&val!=='all')return;if(orig)orig(type,val,el);};
+    setTimeout(()=>{
+      F.dept=dept;
+      document.querySelectorAll('[data-filter="dept"]').forEach(b=>{
+        b.classList.toggle('on',b.dataset.val===dept);
+        if(b.dataset.val!==dept&&b.dataset.val!=='all')b.style.opacity='.35';
+      });
+      renderCurrent();
+    },400);
+  }
+}
+/* ════════════════════════════════════════════════════════ */
+
 
 const BASE=[
   {id:'MNT-01',dept:'maintenance',yr:2025,nameEn:'Preventive Maintenance Compliance',nameAr:'معدل الالتزام بالصيانة الوقائية',target:90,op:'>=',q1:98.77,q2:98.77,q3:97.72,q4:98.14,type:'core',tier:3},
@@ -5575,6 +5776,7 @@ function drilldept(d){
    KPI REGISTRY
 ══════════════════════════════════════════ */
 updateChips();updateBadge();
+showLoginOverlay(true);
 renderYearFilter();populateAddYears();
 /* Set initial quarter button states based on auto-detected period */
 document.querySelectorAll('.fb[data-filter="qtr"]').forEach(b=>{
