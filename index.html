@@ -816,19 +816,21 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
    FOOTBAR — QUMC Institutional Footer
 ═══════════════════════════════════════════════════════════════ */
 .footbar{
-  height:42px;
-  background:#152538;
-  border-top:2px solid #0195af;
+  height:48px;
+  background:linear-gradient(90deg,#0f1e33 0%,#152538 40%,#0f2040 100%);
+  border-top:3px solid transparent;
+  border-image:linear-gradient(90deg,#0195af,#4ADE80,#0195af) 1;
   display:flex;align-items:center;
-  padding:0 28px;flex-shrink:0;gap:12px;
+  padding:0 32px;flex-shrink:0;gap:16px;
   position:sticky;bottom:0;z-index:50;
+  box-shadow:0 -2px 16px rgba(1,149,175,.12);
 }
-.footbar-logo{height:22px;display:flex;align-items:center}
-.footbar-logo img{height:100%;width:auto;object-fit:contain;opacity:.80}
-.footbar-sep{width:1px;height:14px;background:rgba(255,255,255,.18);flex-shrink:0;margin:0 4px}
+.footbar-logo{height:24px;display:flex;align-items:center}
+.footbar-logo img{height:100%;width:auto;object-fit:contain;opacity:.85;filter:brightness(1.1)}
+.footbar-sep{width:1px;height:16px;background:rgba(255,255,255,.14);flex-shrink:0;margin:0 6px}
 .fb-t{font-size:9px;color:var(--t3);font-weight:600;letter-spacing:.04em}
-.live-dot{width:6px;height:6px;border-radius:50%;background:var(--met);flex-shrink:0;animation:live-pulse 2.5s ease infinite}
-@keyframes live-pulse{0%,100%{opacity:.28}50%{opacity:1}}
+.live-dot{width:7px;height:7px;border-radius:50%;background:#4ADE80;flex-shrink:0;animation:live-pulse 2.5s ease infinite;box-shadow:0 0 6px rgba(74,222,128,.6)}
+@keyframes live-pulse{0%,100%{opacity:.35;transform:scale(.9)}50%{opacity:1;transform:scale(1.1)}}
 
 /* ═══════════════════════════════════════════════════════════════
    REPORT & AUDIT
@@ -980,8 +982,15 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 
 /* ── Footbar text ── */
 .footbar-info{display:flex;align-items:center;gap:8px;flex:1}
-.footbar-title{font-size:10px;font-weight:700;color:#fff;white-space:nowrap}
-.footbar-sub{font-size:9px;color:rgba(255,255,255,.70);white-space:nowrap}
+.footbar-l{display:flex;align-items:center;gap:14px;flex:1}
+.footbar-r{display:flex;align-items:center;gap:8px}
+.footbar-info{display:flex;align-items:center;gap:10px;flex:1}
+.footbar-title{font-size:11px;font-weight:800;color:#fff;white-space:nowrap;letter-spacing:.01em}
+.footbar-sub{font-size:9.5px;color:rgba(255,255,255,.55);white-space:nowrap;letter-spacing:.02em}
+.footbar-live{font-size:9px;font-weight:700;color:#4ADE80;letter-spacing:.06em;text-transform:uppercase}
+.footbar-clock{font-size:10px;font-weight:600;color:rgba(255,255,255,.70);font-family:var(--mono);letter-spacing:.04em}
+.footbar-copy{font-size:9px;color:rgba(255,255,255,.40);letter-spacing:.03em}
+.footbar-status{display:flex;align-items:center;gap:5px}
 
 .export-menu-item{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:7px;font-size:12px;font-weight:600;color:#334155;cursor:pointer;transition:background .12s,color .12s,padding-left .12s;white-space:nowrap}
 .export-menu-item:hover{background:rgba(1,149,175,.10);color:#0195af;padding-left:18px}
@@ -4206,7 +4215,14 @@ function renderExec(){
     if(_de){if(_worstDept){_de.textContent=DM[_worstDept].en;_de.style.color=_worstPct<60?'#F87171':'#FBBF24';if(_ds)_ds.textContent='Performance '+_worstPct+'%';if(_db){_db.textContent=_worstPct<60?'Needs recovery':'Needs improvement';_db.style.background=_worstPct<60?'rgba(220,38,38,.25)':'rgba(217,119,6,.25)';_db.style.color=_worstPct<60?'#F87171':'#FBBF24';}}else{_de.textContent='—';}}
 
     /* Gap Analysis Open — missed KPIs without documented gap */
-    const _gapsMissed=_miss.filter(k=>!((ST.gaps||{})[k.id]&&(ST.gaps||{})[k.id].gapEn));
+    /* Gap Analysis Open: فقط KPIs عندها Gap مدخل + action لا يزال in-progress */
+    const _gapsMissed=_miss.filter(k=>{
+      const _g=(ST.gaps||{})[k.id];
+      const _a=(ST.actions||{})[k.id];
+      if(!_g||!_g.gapEn)return false;
+      if(_a&&_a.status==='closed')return false;
+      return true;
+    });
     const _openAct=_gapsMissed.length;
     const _ae=document.getElementById('eis_actions');if(_ae){_ae.textContent=_openAct;_ae.style.color=_openAct>0?'#FBBF24':'#4ADE80';}
     const _ab=document.getElementById('eis_actions_badge');if(_ab){_ab.textContent=_openAct===0?'All documented':_openAct===1?'1 pending':''+_openAct+' pending';_ab.style.color=_openAct>0?'#FBBF24':'#4ADE80';_ab.style.background=_openAct>0?'rgba(217,119,6,.25)':'rgba(22,163,74,.20)';}
@@ -4483,9 +4499,9 @@ function renderExecKpiCards(ks){
         ybHtml+=('<div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:'+rowBg+';border-bottom:1px solid #E2E8F0">'
           +'<span style="font-size:11px;font-weight:800;color:'+dm.color+';font-family:var(--mono);min-width:36px">'+yr+'</span>'
           +'<div style="display:flex;gap:6px;flex:1">'
-            +'<span style="font-size:11px;font-weight:700;padding:3px 12px;border-radius:20px;background:rgba(100,116,139,.10);color:#475569">'+yk.length+' KPIs</span>'
-            +'<span style="font-size:11px;font-weight:700;padding:3px 12px;border-radius:20px;background:rgba(22,163,74,.10);color:#16A34A">✓ '+yO+' Met</span>'
-            +(yM?'<span style="font-size:11px;font-weight:700;padding:3px 12px;border-radius:20px;background:rgba(220,38,38,.10);color:#DC2626">✕ '+yM+' Missed</span>':'')
+            +'<span style="font-size:12px;font-weight:700;padding:3px 12px;border-radius:20px;background:rgba(100,116,139,.10);color:#475569">'+yk.length+' KPIs</span>'
+            +'<span style="font-size:13px;font-weight:800;padding:3px 12px;border-radius:20px;background:rgba(22,163,74,.10);color:#16A34A">✓ '+yO+' Met</span>'
+            +(yM?'<span style="font-size:13px;font-weight:800;padding:3px 12px;border-radius:20px;background:rgba(220,38,38,.10);color:#DC2626">✕ '+yM+' Missed</span>':'')
           +'</div>'
           +'<div style="font-size:9px;font-weight:700;font-family:var(--mono);color:'+(yPct>=80?'#16A34A':yPct>=50?'#D97706':'#DC2626')+'">'+yPct+'%</div>'
         +'</div>'
