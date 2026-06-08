@@ -1005,34 +1005,100 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 </style>
 
 
-  <!-- ══ Firebase SDK ══ -->
+  <!-- ══ Firebase Auth v2 — Permission-Based System ══ -->
   <script type="module">
     import { initializeApp }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
     import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-    import { getFirestore, doc, getDoc }
+    import { getFirestore, doc, getDoc, setDoc, addDoc, collection, serverTimestamp }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
-    /* ══ PASTE YOUR FIREBASE CONFIG HERE ══ */
+    /* ══ PASTE YOUR FIREBASE CONFIG HERE ══════════════════════ */
     const firebaseConfig = {
-      apiKey:            "AIzaSyAlLWZvsu4UbHn-LncFdrSHlbL3bIAG4no",
-      authDomain:        "qumc-kpi-dashboard-f10dd.firebaseapp.com",
-      projectId:         "qumc-kpi-dashboard-f10dd",
-      storageBucket:     "qumc-kpi-dashboard-f10dd.firebasestorage.app",
-      messagingSenderId: "Y65997197347",
-      appId:             "1:659971973475:web:483116a0711008a6a97356"
+      apiKey:            "YOUR_API_KEY",
+      authDomain:        "YOUR_PROJECT.firebaseapp.com",
+      projectId:         "YOUR_PROJECT_ID",
+      storageBucket:     "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId:             "YOUR_APP_ID"
     };
-    /* ════════════════════════════════════ */
+    /* ═══════════════════════════════════════════════════════════ */
 
-    const HOSPITAL_DOMAIN = '@qumc.edu.sa';
+    /* ── Default role permissions (fallback if not in Firestore) ── */
+    const DEFAULT_ROLE_PERMISSIONS = {
+      super_admin: ['*'],
+      admin: [
+        'manage_users','view_all_departments','view_department',
+        'edit_kpi','edit_gap_analysis','edit_actions','edit_targets',
+        'approve_changes','lock_quarter','unlock_quarter',
+        'view_executive_intelligence','export_reports',
+        'manage_dashboard_settings','view_audit_trail'
+      ],
+      executive: [
+        'view_all_departments','view_department',
+        'view_executive_intelligence','export_reports'
+      ],
+      /* Dept Manager: read-only, own dept only, no admin panel */
+      department_manager: [
+        'view_department','view_executive_intelligence','export_reports'
+      ],
+      /* KPI Owner: gap analysis only, own dept/KPIs, no admin panel */
+      kpi_owner: [
+        'view_department','edit_gap_analysis'
+      ],
+      viewer: [
+        'view_all_departments','view_department','export_reports'
+      ]
+    };
 
     const app  = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db   = getFirestore(app);
 
-    window._fbAuth    = auth;
-    window._fbSignOut = signOut;
+    /* ── Expose Firestore helpers for audit/approvals ── */
+    window._fbAuth      = auth;
+    window._fbDb        = db;
+    window._fbSignOut   = signOut;
+    window._fbAddDoc    = addDoc;
+    window._fbCollection= collection;
+    window._fbSetDoc    = setDoc;
+    window._fbDoc       = doc;
+    window._fbServerTs  = serverTimestamp;
+
+    /* ── Log user activity ── */
+    async function logActivity(action, details={}) {
+      if(!window._fbUser) return;
+      try {
+        await addDoc(collection(db,'activity_log'),{
+          user: window._fbUser,
+          role: window._fbRole||'unknown',
+          action,
+          details,
+          timestamp: serverTimestamp(),
+          sessionId: window._sessionId||'unknown'
+        });
+      } catch(e){ console.warn('[Activity]',e); }
+    }
+    window._logActivity = logActivity;
+
+    /* ── Log audit trail ── */
+    async function logAudit(action, kpiId, dept, oldVal, newVal) {
+      if(!window._fbUser) return;
+      try {
+        await addDoc(collection(db,'audit_trail'),{
+          user: window._fbUser,
+          role: window._fbRole||'unknown',
+          action,
+          kpiId: kpiId||null,
+          dept: dept||null,
+          oldValue: oldVal!==undefined?JSON.stringify(oldVal):null,
+          newValue: newVal!==undefined?JSON.stringify(newVal):null,
+          timestamp: serverTimestamp()
+        });
+      } catch(e){ console.warn('[Audit]',e); }
+    }
+    window._logAudit = logAudit;
 
     /* ── Sign In ── */
     window._doLogin = async () => {
@@ -1040,62 +1106,104 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
       const pass  = (document.getElementById('_fbPass')||{}).value;
       const errEl = document.getElementById('_fbErr');
       const btn   = document.getElementById('_fbLoginBtn');
-      if(errEl) errEl.textContent = '';
+      if(errEl) errEl.textContent='';
       if(!email||!pass){if(errEl)errEl.textContent='الرجاء إدخال الإيميل وكلمة المرور.';return;}
-      if(!email.endsWith(HOSPITAL_DOMAIN)){
-        if(errEl)errEl.textContent='ممنوع. استخدم إيميل المستشفى الرسمي ('+HOSPITAL_DOMAIN+').';
-        return;
-      }
       try{
         if(btn){btn.disabled=true;btn.textContent='جاري التحقق…';}
         await signInWithEmailAndPassword(auth,email,pass);
       }catch(e){
-        const m=e.code==='auth/wrong-password'||e.code==='auth/user-not-found'||e.code==='auth/invalid-credential'
-          ?'إيميل أو كلمة مرور غير صحيحة.':'فشل تسجيل الدخول: '+e.message;
+        const m = e.code==='auth/wrong-password'||e.code==='auth/user-not-found'||e.code==='auth/invalid-credential'
+          ? 'إيميل أو كلمة مرور غير صحيحة.'
+          : e.code==='auth/too-many-requests'
+          ? 'محاولات كثيرة. حاول لاحقاً.'
+          : 'فشل تسجيل الدخول: '+e.message;
         if(errEl)errEl.textContent=m;
         if(btn){btn.disabled=false;btn.textContent='تسجيل الدخول';}
       }
     };
 
-    /* ── Sign Out ── */
-    window._doLogout = () => signOut(auth);
+    window._doLogout = async () => {
+      await logActivity('logout');
+      signOut(auth);
+    };
 
-    /* ── Auth State ── */
-    onAuthStateChanged(auth, async(user)=>{
+    /* ── Auth state listener ── */
+    onAuthStateChanged(auth, async (user) => {
       if(!user){
-        window._fbUser=null; window._fbRole=null; window._fbDept=null;
+        window._fbUser=null; window._fbRole=null;
+        window._fbDept=null; window._fbPerms=[];
+        window._fbAssignedKpis=null;
         if(typeof showLoginOverlay==='function') showLoginOverlay(true);
         return;
       }
-      const email=user.email||'';
-      if(!email.endsWith(HOSPITAL_DOMAIN)){
-        await signOut(auth);
-        if(typeof showAuthError==='function') showAuthError('ممنوع. استخدم إيميل المستشفى الرسمي ('+HOSPITAL_DOMAIN+').');
-        return;
-      }
-      try{
-        const snap=await getDoc(doc(db,'users',email));
-        if(!snap.exists()){
+
+      const email = user.email||'';
+      window._sessionId = Math.random().toString(36).slice(2);
+
+      try {
+        /* 1. Load user document */
+        const userSnap = await getDoc(doc(db,'users',email));
+        if(!userSnap.exists()){
           await signOut(auth);
-          if(typeof showAuthError==='function') showAuthError('حسابك في انتظار موافقة المدير. تواصل مع المسؤول.');
+          if(typeof showAuthError==='function')
+            showAuthError('حسابك غير مسجل. تواصل مع المسؤول للحصول على صلاحية الوصول.');
           return;
         }
-        const data=snap.data();
-        if(!data.approved){
+        const userData = userSnap.data();
+        if(!userData.approved){
           await signOut(auth);
-          if(typeof showAuthError==='function') showAuthError('لم يتم اعتماد حسابك بعد. تواصل مع المسؤول.');
+          if(typeof showAuthError==='function')
+            showAuthError('حسابك في انتظار الموافقة. تواصل مع المسؤول.');
           return;
         }
-        window._fbUser = email;
-        window._fbRole = data.role||'viewer';
-        window._fbDept = data.dept||null;
-        window._fbName = data.displayName||email.split('@')[0];
-        if(typeof showLoginOverlay==='function') showLoginOverlay(false);
-        if(typeof applyRolePermissions==='function') applyRolePermissions(window._fbRole,window._fbDept);
-        if(typeof updateUserBadge==='function') updateUserBadge(window._fbName,window._fbRole);
-        if(typeof renderCurrent==='function') renderCurrent();
-      }catch(e){
-        if(typeof showAuthError==='function') showAuthError('خطأ في تحميل الملف الشخصي. حاول مجدداً.');
+
+        const role = userData.role||'viewer';
+
+        /* 2. Load role permissions from Firestore (or use defaults) */
+        let perms = [];
+        try {
+          const roleSnap = await getDoc(doc(db,'config_roles',role));
+          perms = roleSnap.exists() ? (roleSnap.data().permissions||[]) : (DEFAULT_ROLE_PERMISSIONS[role]||[]);
+        } catch(_) {
+          perms = DEFAULT_ROLE_PERMISSIONS[role]||[];
+        }
+
+        /* 3. Merge user-level permission overrides */
+        if(userData.extraPermissions && Array.isArray(userData.extraPermissions)){
+          perms = [...new Set([...perms,...userData.extraPermissions])];
+        }
+        if(userData.revokedPermissions && Array.isArray(userData.revokedPermissions)){
+          perms = perms.filter(p=>!userData.revokedPermissions.includes(p));
+        }
+
+        /* 4. Set globals */
+        window._fbUser         = email;
+        window._fbRole         = role;
+        window._fbDept         = userData.dept||null;
+        window._fbPerms        = perms;
+        window._fbName         = userData.displayName||email.split('@')[0];
+        window._fbAssignedKpis = userData.assignedKpis||null;
+
+        /* 5. Log login */
+        await logActivity('login',{role,dept:userData.dept||null});
+
+        /* 6. Update last login */
+        try{ await setDoc(doc(db,'users',email),{lastLogin:serverTimestamp()},{merge:true}); }
+        catch(_){}
+
+        /* 7. Apply UI */
+        /* Show portal selection instead of jumping straight to dashboard */
+        if(typeof showPortalSelection==='function') showPortalSelection();
+        else {
+          if(typeof showLoginOverlay==='function')    showLoginOverlay(false);
+          if(typeof applyRolePermissions==='function') applyRolePermissions(role, userData.dept||null, perms);
+          if(typeof updateUserBadge==='function')      updateUserBadge(window._fbName, role, perms);
+          if(typeof renderCurrent==='function')        renderCurrent();
+        }
+
+      } catch(e) {
+        if(typeof showAuthError==='function')
+          showAuthError('خطأ في تحميل بيانات المستخدم. حاول مجدداً.');
         console.error('[Auth]',e);
       }
     });
@@ -1104,19 +1212,23 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 <body>
 <!-- ══ AUTH OVERLAY ══ -->
 <div id="_authOverlay" style="position:fixed;inset:0;background:linear-gradient(135deg,#0a1628,#0f2444 50%,#0a1628);z-index:9999;display:flex;align-items:center;justify-content:center;font-family:inherit">
-  <div style="background:#fff;border-radius:22px;padding:44px 38px;width:100%;max-width:420px;box-shadow:0 28px 80px rgba(0,0,0,.5);margin:20px">
+
+  <!-- ── Login Panel ── -->
+  <div id="_loginPanel" style="background:#fff;border-radius:22px;padding:44px 38px;width:100%;max-width:420px;box-shadow:0 28px 80px rgba(0,0,0,.5);margin:20px">
     <div style="text-align:center;margin-bottom:30px">
       <div style="width:60px;height:60px;background:linear-gradient(135deg,#0195af,#152538);border-radius:16px;margin:0 auto 16px;display:flex;align-items:center;justify-content:center">
         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
       </div>
-      <div style="font-size:19px;font-weight:900;color:#152538;margin-bottom:5px">KPI Performance Center</div>
-      <div style="font-size:11px;color:#64748B">Qassim University Medical City</div>
-      <div style="font-size:10px;color:#94A3B8;margin-top:3px">Facilities &amp; Safety Division</div>
+      <div style="font-size:18px;font-weight:900;color:#152538;margin-bottom:3px">Governance and Performance</div>
+      <div style="font-size:12px;font-weight:700;color:#475569;margin-bottom:8px">Department</div>
+      <div style="width:40px;height:2px;background:linear-gradient(90deg,#0195af,#4ADE80);border-radius:2px;margin:0 auto 10px"></div>
+      <div style="font-size:10.5px;color:#64748B;margin-bottom:2px">Qassim University Medical City</div>
+      <div style="font-size:9.5px;color:#94A3B8">Facilities &amp; Safety Division</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:14px">
       <div>
-        <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:6px">Hospital Email</label>
-        <input id="_fbEmail" type="email" placeholder="name@qumc.edu.sa"
+        <label style="font-size:11px;font-weight:700;color:#475569;display:block;margin-bottom:6px">Email</label>
+        <input id="_fbEmail" type="email" placeholder="name@example.com"
           style="width:100%;padding:11px 14px;border:1.5px solid #E2E8F0;border-radius:11px;font-size:13px;outline:none;box-sizing:border-box;transition:border .18s"
           onfocus="this.style.borderColor='#0195af'" onblur="this.style.borderColor='#E2E8F0'"
           onkeydown="if(event.key==='Enter')document.getElementById('_fbPass').focus()"/>
@@ -1132,13 +1244,55 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
       <button id="_fbLoginBtn" onclick="window._doLogin&&window._doLogin()"
         style="background:linear-gradient(135deg,#0195af,#0077a8);color:#fff;border:none;border-radius:11px;padding:13px;font-size:13px;font-weight:800;cursor:pointer;transition:opacity .18s;letter-spacing:.02em"
         onmouseover="this.style.opacity='.87'" onmouseout="this.style.opacity='1'">
-        تسجيل الدخول
+        Sign In
       </button>
     </div>
-    <div style="margin-top:22px;padding-top:16px;border-top:1px solid #F0F4F8;text-align:center;font-size:10px;color:#94A3B8">
-      الوصول مقتصر على إيميلات المستشفى الرسمية فقط
-    </div>
   </div>
+
+  <!-- ── Portal Selection (shown after login) ── -->
+  <div id="_portalPanel" style="display:none;flex-direction:column;align-items:center;gap:28px;padding:20px">
+    <div style="text-align:center">
+      <div id="_portalAnimTitle" style="font-size:32px;font-weight:900;color:#fff;letter-spacing:-.01em;min-height:44px;transition:opacity .4s;margin-bottom:6px"> </div>
+      <div id="_portalUserName" style="font-size:13px;font-weight:600;color:rgba(255,255,255,.55);margin-bottom:2px">User</div>
+      <div id="_portalUserRole" style="font-size:10px;color:#0195af;font-weight:700;text-transform:uppercase;letter-spacing:.08em"></div>
+      <div style="width:36px;height:2px;background:linear-gradient(90deg,#0195af,#4ADE80);border-radius:2px;margin:10px auto 4px"></div>
+      <div style="font-size:9px;color:rgba(255,255,255,.30)">Qassim University Medical City · Facilities &amp; Safety Division</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%;max-width:520px">
+
+      <!-- Performance -->
+      <div onclick="window._selectPortal('performance')"
+        style="background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.12);border-radius:20px;padding:36px 24px;text-align:center;cursor:pointer;transition:all .22s"
+        onmouseover="this.style.background='rgba(74,222,128,.10)';this.style.borderColor='#4ADE80';this.style.transform='translateY(-5px)';this.style.boxShadow='0 16px 40px rgba(74,222,128,.15)'"
+        onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.borderColor='rgba(255,255,255,.12)';this.style.transform='none';this.style.boxShadow='none'">
+        <div style="width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,rgba(74,222,128,.22),rgba(74,222,128,.06));margin:0 auto 16px;display:flex;align-items:center;justify-content:center">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        </div>
+        <div style="font-size:17px;font-weight:900;color:#fff;margin-bottom:7px">Performance</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.40);line-height:1.6">KPI Dashboard<br>Performance Tracking</div>
+      </div>
+
+      <!-- Governance -->
+      <div onclick="window._selectPortal('governance')"
+        style="background:rgba(255,255,255,.06);border:1.5px solid rgba(255,255,255,.12);border-radius:20px;padding:36px 24px;text-align:center;cursor:pointer;transition:all .22s"
+        onmouseover="this.style.background='rgba(1,149,175,.12)';this.style.borderColor='#0195af';this.style.transform='translateY(-5px)';this.style.boxShadow='0 16px 40px rgba(1,149,175,.15)'"
+        onmouseout="this.style.background='rgba(255,255,255,.06)';this.style.borderColor='rgba(255,255,255,.12)';this.style.transform='none';this.style.boxShadow='none'">
+        <div style="width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,rgba(1,149,175,.25),rgba(1,149,175,.06));margin:0 auto 16px;display:flex;align-items:center;justify-content:center">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </div>
+        <div style="font-size:17px;font-weight:900;color:#fff;margin-bottom:7px">Governance</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.40);line-height:1.6">Policies · Compliance<br>Standards</div>
+      </div>
+
+    </div>
+    <button onclick="window._doLogout&&window._doLogout()"
+      style="background:transparent;color:rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.12);border-radius:9px;padding:8px 20px;font-size:10px;font-weight:600;cursor:pointer;transition:all .18s;margin-top:8px"
+      onmouseover="this.style.color='#FCA5A5';this.style.borderColor='rgba(220,38,38,.4)'"
+      onmouseout="this.style.color='rgba(255,255,255,.35)';this.style.borderColor='rgba(255,255,255,.12)'">
+      Sign Out
+    </button>
+  </div>
+
 </div>
 
 
@@ -1167,15 +1321,18 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
   
     <!-- ── User Badge ── -->
     <div id="_userBadge" style="display:none;align-items:center;gap:8px;padding:5px 12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);border-radius:10px;margin-right:4px">
-      <div id="_userAvatar" style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#0195af,#152538);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff">U</div>
+      <div style="position:relative">
+        <div id="_userAvatar" style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#0195af,#152538);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff">U</div>
+        <div id="_pendingBadge" style="display:none;position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:#F87171;border:2px solid #152538;font-size:7px;font-weight:800;color:#fff;align-items:center;justify-content:center" title="Pending Approvals">!</div>
+      </div>
       <div>
         <div id="_userName" style="font-size:10px;font-weight:700;color:#fff">User</div>
-        <div id="_userRole" style="font-size:8.5px;color:#0195af;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Viewer</div>
+        <div id="_userRole" style="font-size:8.5px;color:#4ADE80;font-weight:600;text-transform:uppercase;letter-spacing:.05em">Viewer</div>
       </div>
       <button onclick="window._doLogout&&window._doLogout()"
         title="Sign Out"
-        style="background:rgba(220,38,38,.20);color:#FCA5A5;border:none;border-radius:6px;padding:4px 8px;font-size:9px;font-weight:700;cursor:pointer;margin-left:4px;transition:background .15s"
-        onmouseover="this.style.background='rgba(220,38,38,.35)'" onmouseout="this.style.background='rgba(220,38,38,.20)'">
+        style="background:rgba(220,38,38,.18);color:#FCA5A5;border:1px solid rgba(220,38,38,.25);border-radius:7px;padding:4px 10px;font-size:9px;font-weight:700;cursor:pointer;margin-left:4px;transition:all .15s"
+        onmouseover="this.style.background='rgba(220,38,38,.35)'" onmouseout="this.style.background='rgba(220,38,38,.18)'">
         خروج
       </button>
     </div>
@@ -1752,57 +1909,276 @@ const BC=['rgba(255,255,255,.07)','rgba(248,113,113,.80)','rgba(52,211,153,.75)'
 const BCL=['b0','b1','b4'];
 
 
-/* ══ AUTH HELPERS ══════════════════════════════════════ */
+/* ══ AUTH HELPERS v2 — Permission-Based ══════════════════════ */
+
+/* Check if current user has a permission */
+function hasPermission(perm){
+  const p=window._fbPerms||[];
+  return p.includes('*')||p.includes(perm);
+}
+window.hasPermission=hasPermission;
+
+/* Check if user can access a specific dept */
+function canAccessDept(dept){
+  if(hasPermission('view_all_departments')) return true;
+  if(hasPermission('view_department') && window._fbDept===dept) return true;
+  return false;
+}
+window.canAccessDept=canAccessDept;
+
+/* Check if user can edit a specific KPI */
+function canEditKpi(kpiId, dept){
+  if(!hasPermission('edit_kpi')) return false;
+  if(window._fbRole==='super_admin'||window._fbRole==='admin') return true;
+  if(window._fbDept && window._fbDept!==dept) return false;
+  if(window._fbRole==='kpi_owner' && window._fbAssignedKpis){
+    return window._fbAssignedKpis.includes(kpiId);
+  }
+  return true;
+}
+window.canEditKpi=canEditKpi;
+
+/* Check if quarter is locked */
+function isQuarterLocked(year, qtr){
+  const k=(window._quarterLocks||{})[year+'_'+qtr];
+  return k===true;
+}
+window.isQuarterLocked=isQuarterLocked;
+
 function showLoginOverlay(show){
   const el=document.getElementById('_authOverlay');
   if(!el)return;
   el.style.display=show?'flex':'none';
-  if(show){const btn=document.getElementById('_fbLoginBtn');if(btn){btn.disabled=false;btn.textContent='تسجيل الدخول';}}
+  if(show){
+    /* Reset to login panel */
+    const lp=document.getElementById('_loginPanel');
+    const pp=document.getElementById('_portalPanel');
+    if(lp)lp.style.display='block';
+    if(pp)pp.style.display='none';
+    const btn=document.getElementById('_fbLoginBtn');
+    if(btn){btn.disabled=false;btn.textContent='Sign In';}
+    const err=document.getElementById('_fbErr');
+    if(err)err.textContent='';
+  }
 }
+
+function showPortalSelection(){
+  const el=document.getElementById('_authOverlay');
+  if(el) el.style.display='flex';
+  const lp=document.getElementById('_loginPanel');
+  const pp=document.getElementById('_portalPanel');
+  if(lp) lp.style.display='none';
+  if(pp) pp.style.display='flex';
+  /* User info */
+  const nm=document.getElementById('_portalUserName');
+  const rl=document.getElementById('_portalUserRole');
+  if(nm) nm.textContent=window._fbName||'User';
+  if(rl){
+    const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',
+             department_manager:'Department Manager',kpi_owner:'KPI Owner',viewer:'Viewer'};
+    rl.textContent=L[window._fbRole||'viewer']||window._fbRole;
+  }
+  /* Clear animated title */
+  const anim=document.getElementById('_portalAnimTitle');
+  if(anim){ anim.textContent=''; }
+}
+
+window._selectPortal = function(portal){
+  if(portal==='performance'){
+    /* Enter dashboard */
+    const el=document.getElementById('_authOverlay');
+    if(el) el.style.display='none';
+    if(typeof applyRolePermissions==='function')
+      applyRolePermissions(window._fbRole,window._fbDept,window._fbPerms);
+    if(typeof updateUserBadge==='function')
+      updateUserBadge(window._fbName,window._fbRole,window._fbPerms);
+    if(typeof renderCurrent==='function') renderCurrent();
+  } else {
+    /* Governance → Coming Soon overlay */
+    const ov=document.getElementById('_authOverlay');
+    if(!ov) return;
+    const cs=document.createElement('div');
+    cs.id='_csSplash';
+    cs.style.cssText='position:fixed;inset:0;background:linear-gradient(135deg,#0a1628,#0f2444 50%,#0a1628);z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px';
+    cs.innerHTML=`
+      <div style="width:70px;height:70px;border-radius:20px;background:linear-gradient(135deg,rgba(1,149,175,.3),rgba(1,149,175,.08));display:flex;align-items:center;justify-content:center;border:1.5px solid rgba(1,149,175,.25)">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="1.8" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:28px;font-weight:900;color:#fff;margin-bottom:8px">Governance</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.45)">This portal is currently under development</div>
+      </div>
+      <div style="padding:8px 24px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.25);border-radius:20px;font-size:11px;font-weight:700;color:#0195af;letter-spacing:.06em">COMING SOON</div>
+      <button onclick="document.getElementById('_csSplash').remove()" style="margin-top:12px;background:transparent;color:rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.12);border-radius:9px;padding:9px 24px;font-size:11px;cursor:pointer;transition:all .18s" onmouseover="this.style.color='#fff';this.style.borderColor='rgba(255,255,255,.4)'" onmouseout="this.style.color='rgba(255,255,255,.35)';this.style.borderColor='rgba(255,255,255,.12)'">← Back</button>
+    `;
+    document.body.appendChild(cs);
+  }
+};
+
 function showAuthError(msg){
   showLoginOverlay(true);
-  const e=document.getElementById('_fbErr');if(e)e.textContent=msg;
+  const e=document.getElementById('_fbErr');
+  if(e){e.textContent=msg;e.style.color='#DC2626';}
 }
-function updateUserBadge(name,role){
-  const b=document.getElementById('_userBadge');if(b)b.style.display='flex';
-  const av=document.getElementById('_userAvatar');if(av)av.textContent=(name||'U')[0].toUpperCase();
-  const nm=document.getElementById('_userName');if(nm)nm.textContent=name||'User';
+
+function updateUserBadge(name, role, perms){
+  const b=document.getElementById('_userBadge');
+  if(b)b.style.display='flex';
+  const av=document.getElementById('_userAvatar');
+  if(av)av.textContent=(name||'U')[0].toUpperCase();
+  const nm=document.getElementById('_userName');
+  if(nm)nm.textContent=name||'User';
   const rl=document.getElementById('_userRole');
-  if(rl){const L={admin:'Admin',department_manager:'Dept Manager',viewer:'Viewer'};rl.textContent=L[role]||role;rl.style.color=role==='admin'?'#F87171':role==='department_manager'?'#FBBF24':'#4ADE80';}
+  if(rl){
+    const L={
+      super_admin:'Super Admin',admin:'Admin',executive:'Executive',
+      department_manager:'Dept Manager',kpi_owner:'KPI Owner',viewer:'Viewer'
+    };
+    rl.textContent=L[role]||role;
+    const C={super_admin:'#F87171',admin:'#FBBF24',executive:'#A78BFA',
+              department_manager:'#4ADE80',kpi_owner:'#60A5FA',viewer:'#94A3B8'};
+    rl.style.color=C[role]||'#94A3B8';
+  }
+  /* Show/hide pending approvals badge */
+  const pa=document.getElementById('_pendingBadge');
+  if(pa) pa.style.display=hasPermission('approve_changes')?'flex':'none';
+  /* Show/hide audit trail tab (admin+super_admin only) */
+  const auditTab=document.getElementById('_auditTab');
+  if(auditTab) auditTab.style.display=hasPermission('view_audit_trail')?'':'none';
 }
-function applyRolePermissions(role,dept){
-  const isViewer=role==='viewer';
-  const isDeptMgr=role==='department_manager';
-  const isAdmin=role==='admin';
-  /* Hide admin lock button for non-admins */
-  if(!isAdmin){
-    document.querySelectorAll('.topbar button').forEach(b=>{if(b.innerHTML.includes('M7 11V7'))b.style.display='none';});
+
+function applyRolePermissions(role, dept, perms){
+  /* ── Pages ── */
+  const canViewExecIntel = hasPermission('view_executive_intelligence');
+  const canExport        = hasPermission('export_reports');
+  const canManageUsers   = hasPermission('manage_users');
+  const canApprove       = hasPermission('approve_changes');
+  const canLock          = hasPermission('lock_quarter');
+  const canEditKpiData   = hasPermission('edit_kpi');
+  const canEditGap       = hasPermission('edit_gap_analysis');
+  const canEditActions   = hasPermission('edit_actions');
+
+  /* Hide Admin Panel (lock icon) for users without manage_users or manage_dashboard_settings */
+  if(!canManageUsers && !hasPermission('manage_dashboard_settings')){
+    document.querySelectorAll('.topbar button').forEach(b=>{
+      if(b.innerHTML.includes('M7 11V7'))b.style.display='none';
+    });
   }
-  /* Viewer: hide all edit/gap buttons */
-  if(isViewer){
-    const s=document.createElement('style');s.id='_viewerStyle';
-    s.textContent='[onclick*="openGap"],[onclick*="rptEdit"],[onclick*="saveAdmin"],[onclick*="addAction"],[id$="-acts"]{display:none!important;}';
-    document.head.appendChild(s);
+
+  /* Hide edit controls based on permissions */
+  const style=document.createElement('style');
+  style.id='_permStyle';
+  let css='';
+  if(!canEditGap)    css+='[onclick*="openGap"]{display:none!important;}';
+  if(!canEditActions)css+='[onclick*="addAction"],[onclick*="saveAction"]{display:none!important;}';
+  if(!canExport)     css+='[onclick*="exportExcel"],[onclick*="exportReport"]{display:none!important;}';
+  if(!canApprove)    css+='[onclick*="approveChange"],[onclick*="rejectChange"]{display:none!important;}';
+  if(!canLock)       css+='[onclick*="lockQuarter"],[onclick*="unlockQuarter"]{display:none!important;}';
+  /* Report edit buttons */
+  if(!hasPermission('edit_kpi'))css+='[id$="-acts"]{display:none!important;}';
+  if(style.textContent!==css){ style.textContent=css; document.head.appendChild(style); }
+
+  /* Executive Intelligence visibility */
+  if(!canViewExecIntel){
+    const eiCard=document.getElementById('execIntelCard');
+    if(eiCard)eiCard.style.display='none';
   }
-  /* Dept Manager: lock dept filter */
-  if(isDeptMgr&&dept){
+
+  /* ── Dept Manager / KPI Owner: lock dept filter ── */
+  if((role==='department_manager'||role==='kpi_owner') && dept){
     window._lockedDept=dept;
-    const orig=window.setF;
-    window.setF=function(type,val,el){if(type==='dept'&&val!==dept&&val!=='all')return;if(orig)orig(type,val,el);};
+    const origSetF=window.setF;
+    window.setF=function(type,val,el){
+      if(type==='dept'&&val!==dept&&val!=='all')return;
+      if(origSetF)origSetF(type,val,el);
+    };
     setTimeout(()=>{
-      F.dept=dept;
+      if(typeof F!=='undefined'){F.dept=dept;}
       document.querySelectorAll('[data-filter="dept"]').forEach(b=>{
         b.classList.toggle('on',b.dataset.val===dept);
-        if(b.dataset.val!==dept&&b.dataset.val!=='all')b.style.opacity='.35';
+        if(b.dataset.val!==dept&&b.dataset.val!=='all')
+          {b.style.opacity='.30';b.style.pointerEvents='none';}
       });
-      renderCurrent();
+      if(typeof renderCurrent==='function')renderCurrent();
     },400);
   }
+
+  /* Executive: read-only */
+  if(role==='executive'){
+    const s2=document.createElement('style');s2.id='_execStyle';
+    s2.textContent='[onclick*="openGap"],[onclick*="rptEdit"],[onclick*="saveAdmin"],[id$="-acts"],[onclick*="addAction"]{display:none!important;}';
+    document.head.appendChild(s2);
+  }
+
+  /* Department Manager: read-only + own dept only + no admin panel */
+  if(role==='department_manager'){
+    /* No admin panel */
+    document.querySelectorAll('.topbar button').forEach(b=>{
+      if(b.innerHTML.includes('M7 11V7'))b.style.display='none';
+    });
+    /* Hide all edit buttons */
+    const sdm=document.createElement('style');sdm.id='_dmStyle';
+    sdm.textContent='[onclick*="openGap"],[onclick*="rptEdit"],[onclick*="saveAdmin"],[id$="-acts"],[onclick*="addAction"],[onclick*="saveAction"]{display:none!important;}';
+    document.head.appendChild(sdm);
+    /* Lock dept filter to assigned dept */
+    if(dept){
+      window._lockedDept=dept;
+      const origSetF2=window.setF;
+      window.setF=function(type,val,el){
+        if(type==='dept'&&val!==dept&&val!=='all')return;
+        if(origSetF2)origSetF2(type,val,el);
+      };
+      setTimeout(()=>{
+        if(typeof F!=='undefined')F.dept=dept;
+        document.querySelectorAll('[data-filter="dept"]').forEach(b=>{
+          b.classList.toggle('on',b.dataset.val===dept);
+          if(b.dataset.val!==dept&&b.dataset.val!=='all'){b.style.opacity='.30';b.style.pointerEvents='none';}
+        });
+        if(typeof renderCurrent==='function')renderCurrent();
+      },400);
+    }
+  }
+
+  /* KPI Owner: gap analysis only + own dept/KPIs + no admin panel */
+  if(role==='kpi_owner'){
+    /* No admin panel */
+    document.querySelectorAll('.topbar button').forEach(b=>{
+      if(b.innerHTML.includes('M7 11V7'))b.style.display='none';
+    });
+    /* Hide everything except Gap Analysis buttons */
+    const sko=document.createElement('style');sko.id='_koStyle';
+    sko.textContent=`
+      [onclick*="rptEdit"],[onclick*="saveAdmin"],[id$="-acts"],
+      [onclick*="addAction"],[onclick*="saveAction"],
+      [onclick*="exportExcel"],[onclick*="exportReport"]
+      {display:none!important;}
+      /* Show only gap analysis button */
+      [onclick*="openGap"]{display:inline-flex!important;}
+    `;
+    document.head.appendChild(sko);
+    /* Lock dept filter */
+    if(dept){
+      window._lockedDept=dept;
+      const origSetF3=window.setF;
+      window.setF=function(type,val,el){
+        if(type==='dept'&&val!==dept&&val!=='all')return;
+        if(origSetF3)origSetF3(type,val,el);
+      };
+      setTimeout(()=>{
+        if(typeof F!=='undefined')F.dept=dept;
+        document.querySelectorAll('[data-filter="dept"]').forEach(b=>{
+          b.classList.toggle('on',b.dataset.val===dept);
+          if(b.dataset.val!==dept&&b.dataset.val!=='all'){b.style.opacity='.30';b.style.pointerEvents='none';}
+        });
+        if(typeof renderCurrent==='function')renderCurrent();
+      },400);
+    }
+  }
 }
-/* ════════════════════════════════════════════════════════ */
 
+/* ════════════════════════════════════════════════════════════ */
 
-const BASE=[
+ BASE=[
   {id:'MNT-01',dept:'maintenance',yr:2025,nameEn:'Preventive Maintenance Compliance',nameAr:'معدل الالتزام بالصيانة الوقائية',target:90,op:'>=',q1:98.77,q2:98.77,q3:97.72,q4:98.14,type:'core',tier:3},
   {id:'MNT-02',dept:'maintenance',yr:2025,nameEn:'Corrective Maintenance Resolution Rate',nameAr:'معدل إغلاق طلبات الصيانة التصحيحية',target:90,op:'>=',q1:95.03,q2:98.14,q3:99.02,q4:99.53,type:'core',tier:3},
   {id:'MNT-03',dept:'maintenance',yr:2026,nameEn:'Preventive Maintenance Compliance',nameAr:'معدل الالتزام بالصيانة الوقائية',target:95,op:'>=',q1:93.23,q2:null,q3:null,q4:null,type:'core',tier:3,yoy:98.35},
