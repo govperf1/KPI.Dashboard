@@ -2803,10 +2803,7 @@ function renderReport(){
   let _eid=0;
   const EP=(txt,style='')=>{
     const id='ep'+(++_eid);
-    const _ctx=(F.dept||'all')+'_'+(F.year||'all')+'_'+(Array.isArray(F.qtr)?F.qtr.join(''):'all');
-    const _ctxKey=_ctx+'_'+id;
-    const _saved=(ST.rptEdits||{})[_ctxKey];
-    const _content=_saved!==undefined?_saved:txt;
+    const _ctx=(F.dept||'all')+'_'+(F.year||'all')+'_'+(Array.isArray(F.qtr)?F.qtr.join(''):'all')+'_'+(window._rptKpi||'all');const _ctxKey=_ctx+'_'+id;const _saved=(ST.rptEdits||{})[_ctxKey];const _content=_saved!==undefined?_saved:txt;
     return `<div class="rpt-ep" id="${id}-w" style="display:flex;align-items:flex-start;gap:8px;${style}">
       <p id="${id}" style="font-size:12px;color:#334155;line-height:1.85;margin:0;min-height:20px;flex:1">${_content}</p>
       <div id="${id}-acts" style="flex-shrink:0;display:flex;flex-direction:column;gap:4px;padding-top:2px">
@@ -3144,11 +3141,7 @@ function rptDoneEdit(id){
   const p=document.getElementById(id);
   const wrap=document.getElementById(id+'-w');
   if(!p||!wrap)return;
-  /* Persist edit to ST — keyed by filter context */
-  if(!ST.rptEdits)ST.rptEdits={};
-  const _rCtx=(F.dept||'all')+'_'+(F.year||'all')+'_'+(Array.isArray(F.qtr)?F.qtr.join(''):'all');
-  ST.rptEdits[_rCtx+'_'+id]=p.innerHTML;
-  sLS(ST);
+  if(!ST.rptEdits)ST.rptEdits={};const _rCtx=(F.dept||'all')+'_'+(F.year||'all')+'_'+(Array.isArray(F.qtr)?F.qtr.join(''):'all')+'_'+(window._rptKpi||'all');ST.rptEdits[_rCtx+'_'+id]=p.innerHTML;sLS(ST);
   delete wrap.dataset.editing;
   p.contentEditable='false';
   p.style.outline='none';
@@ -3703,9 +3696,16 @@ function renderExec(){
   const ks=filt();
   const evaluated=ks.filter(k=>ok(k)!==null);
   const total=evaluated.length,nOk=evaluated.filter(k=>ok(k)===true).length,miss=evaluated.filter(k=>ok(k)===false).length;
-  const k26y=allK().filter(k=>k.yr===2026&&k.yoy!==undefined&&k.q1!==null);
+  /* YoY Q1: compare Q1'26 vs actual Q1'25 (matched by nameEn+dept) */
+  const k26y=allK().filter(k=>k.yr===2026&&k.q1!==null);
   let yoyDelta=null;
-  if(k26y.length){const d=k26y.map(k=>k.q1-k.yoy).reduce((a,b)=>a+b)/k26y.length;yoyDelta=d.toFixed(1);}
+  if(k26y.length){
+    const diffs=k26y.map(k=>{
+      const k25=allK().find(x=>x.yr===2025&&x.dept===k.dept&&x.nameEn===k.nameEn);
+      return k25&&k25.q1!==null?k.q1-k25.q1:null;
+    }).filter(v=>v!==null);
+    if(diffs.length)yoyDelta=(diffs.reduce((a,b)=>a+b,0)/diffs.length).toFixed(1);
+  }
   /* Annual YoY: avg of ALL available 2026 quarters vs 2025 full-year avg
      ─ When Q2'26 is added: k26All will automatically include it
      ─ Formula: mean(avg per KPI for 2026) - mean(avg per KPI for 2025) */
@@ -3748,19 +3748,8 @@ function renderExec(){
   const _wDName=_wD2&&_wD2.miss>0?DM[_wD2.d].en:'All Good';
   const _wDSub=_wD2&&_wD2.miss>0?(_wD2.miss+' missed of '+_wD2.total):'';
   const _wText=_wD2&&_wD2.miss>0?(DM[_wD2.d]?DM[_wD2.d].en:'—'):'All Depts OK';
-  /* Annual YoY: avg(all 2026 quarters available) vs avg(all 2025 quarters)
-     Uses actual 2025 data — automatically updates as 2026 quarters are added */
-  const _annualYoy=(()=>{
-    const k25=allK().filter(k=>k.yr===2025);
-    const k26=allK().filter(k=>k.yr===2026);
-    if(!k25.length||!k26.length)return null;
-    const avg25=k25.map(k=>{const qs=[k.q1,k.q2,k.q3,k.q4].filter(v=>v!==null);return qs.length?qs.reduce((a,b)=>a+b,0)/qs.length:null;}).filter(v=>v!==null);
-    const avg26=k26.map(k=>{const qs=[k.q1,k.q2,k.q3,k.q4].filter(v=>v!==null);return qs.length?qs.reduce((a,b)=>a+b,0)/qs.length:null;}).filter(v=>v!==null);
-    if(!avg25.length||!avg26.length)return null;
-    const mean25=avg25.reduce((a,b)=>a+b,0)/avg25.length;
-    const mean26=avg26.reduce((a,b)=>a+b,0)/avg26.length;
-    return+(mean26-mean25).toFixed(1);
-  })();
+  const _annYoyKs=allK().filter(k=>k.yr===2026&&k.yoy!==undefined&&k.yoy!==null);
+  const _annualYoy=_annYoyKs.length?(+( _annYoyKs.map(k=>{const v=qv(k);return v!==null?v-k.yoy:null;}).filter(v=>v!==null).reduce((a,b)=>a+b,0)/_annYoyKs.length).toFixed(1)):null;
 
   const g=document.getElementById('execGrid');
   g.innerHTML=`
@@ -3769,82 +3758,87 @@ function renderExec(){
   <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px">
 
     <!-- TOTAL -->
-    <div class="card" style="padding:20px 20px 16px;border-radius:14px;display:flex;flex-direction:column;gap:4px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div style="width:36px;height:36px;border-radius:9px;background:#F1F5F9;display:flex;align-items:center;justify-content:center">
+    <div class="card" style="padding:20px 20px 16px;border-radius:16px;display:flex;flex-direction:column;gap:0;position:relative;overflow:hidden">
+      <div style="position:absolute;top:-32px;right:-32px;width:115px;height:115px;border-radius:50%;background:rgba(100,116,139,.06)"></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div style="width:38px;height:38px;border-radius:10px;background:#F1F5F9;display:flex;align-items:center;justify-content:center">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
         </div>
-        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em">Total</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">Total</span>
       </div>
-      <div style="font-size:44px;font-weight:900;color:#152538;font-family:var(--mono);line-height:1.1;margin-top:8px">${total}</div>
-      <div style="font-size:11px;font-weight:600;color:#64748B">KPI Indicators</div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:10px;border-top:1px solid #F0F4F8">
-        <span style="font-size:10px;color:#0195af;font-weight:700;cursor:pointer">View all →</span>
+      <div style="font-size:46px;font-weight:900;color:#152538;font-family:var(--mono);line-height:1;margin-bottom:4px">${total}</div>
+      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">KPI Indicators</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #F0F4F8">
+        <span style="font-size:10px;color:#0195af;font-weight:700">View all →</span>
         <span style="font-size:9.5px;color:#94A3B8">${evaluated.length} evaluated</span>
       </div>
     </div>
 
     <!-- MET -->
-    <div class="card" style="padding:20px 20px 16px;border-radius:14px;display:flex;flex-direction:column;gap:4px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div style="width:36px;height:36px;border-radius:50%;background:#16A34A;display:flex;align-items:center;justify-content:center">
+    <div class="card" style="padding:20px 20px 16px;border-radius:16px;display:flex;flex-direction:column;gap:0;position:relative;overflow:hidden">
+      <div style="position:absolute;top:-32px;right:-32px;width:115px;height:115px;border-radius:50%;background:rgba(22,163,74,.07)"></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div style="width:38px;height:38px;border-radius:50%;background:#16A34A;display:flex;align-items:center;justify-content:center">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
-        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em">Met</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">Met</span>
       </div>
-      <div style="font-size:44px;font-weight:900;color:#16A34A;font-family:var(--mono);line-height:1.1;margin-top:8px">${nOk}</div>
-      <div style="font-size:11px;font-weight:600;color:#64748B">KPIs on target</div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:10px;border-top:1px solid #F0F4F8">
-        <span style="font-size:13px;font-weight:900;color:#16A34A;font-family:var(--mono)">${total?+(nOk/total*100).toFixed(0):0}%</span>
-        <span style="font-size:8.5px;font-weight:700;padding:2px 9px;border-radius:12px;background:#DCFCE7;color:#16A34A">Success rate</span>
+      <div style="font-size:46px;font-weight:900;color:#16A34A;font-family:var(--mono);line-height:1;margin-bottom:4px">${nOk}</div>
+      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">KPIs on target</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #F0F4F8">
+        <span style="font-size:13px;font-weight:900;color:#16A34A;font-family:var(--mono)">${total?+(nOk/total*100).toFixed(1):0}%</span>
+        <span style="font-size:8.5px;font-weight:700;padding:2px 10px;border-radius:12px;background:#DCFCE7;color:#16A34A">Success rate</span>
       </div>
     </div>
 
     <!-- MISSED -->
-    <div class="card" style="padding:20px 20px 16px;border-radius:14px;display:flex;flex-direction:column;gap:4px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div style="width:36px;height:36px;border-radius:50%;background:#DC2626;display:flex;align-items:center;justify-content:center">
+    <div class="card" style="padding:20px 20px 16px;border-radius:16px;display:flex;flex-direction:column;gap:0;position:relative;overflow:hidden">
+      <div style="position:absolute;top:-32px;right:-32px;width:115px;height:115px;border-radius:50%;background:rgba(220,38,38,.07)"></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div style="width:38px;height:38px;border-radius:50%;background:#DC2626;display:flex;align-items:center;justify-content:center">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </div>
-        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em">Missed</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">Missed</span>
       </div>
-      <div style="font-size:44px;font-weight:900;color:#DC2626;font-family:var(--mono);line-height:1.1;margin-top:8px">${miss}</div>
-      <div style="font-size:11px;font-weight:600;color:#64748B">Below target</div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:10px;border-top:1px solid #F0F4F8">
-        <span style="font-size:13px;font-weight:900;color:#DC2626;font-family:var(--mono)">${total?+(miss/total*100).toFixed(0):0}%</span>
-        <span style="font-size:8.5px;font-weight:700;padding:2px 9px;border-radius:12px;background:#FEE2E2;color:#DC2626">Gap rate</span>
+      <div style="font-size:46px;font-weight:900;color:#DC2626;font-family:var(--mono);line-height:1;margin-bottom:4px">${miss}</div>
+      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">Below target</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #F0F4F8">
+        <span style="font-size:13px;font-weight:900;color:#DC2626;font-family:var(--mono)">${total?+(miss/total*100).toFixed(1):0}%</span>
+        <span style="font-size:8.5px;font-weight:700;padding:2px 10px;border-radius:12px;background:#FEE2E2;color:#DC2626">Gap rate</span>
       </div>
     </div>
 
-    <!-- YoY Q -->
-    <div class="card" style="padding:20px 20px 16px;border-radius:14px;display:flex;flex-direction:column;gap:4px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div style="width:36px;height:36px;border-radius:9px;background:#EFF6FF;display:flex;align-items:center;justify-content:center">
+    <!-- YoY Q1 -->
+    <div class="card" style="padding:20px 20px 16px;border-radius:16px;display:flex;flex-direction:column;gap:0;position:relative;overflow:hidden">
+      <div style="position:absolute;top:-32px;right:-32px;width:115px;height:115px;border-radius:50%;background:rgba(59,130,246,.07)"></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div style="width:38px;height:38px;border-radius:10px;background:#EFF6FF;display:flex;align-items:center;justify-content:center">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
         </div>
-        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em">YoY Q1</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">YoY Q1</span>
       </div>
-      <div style="font-size:34px;font-weight:900;color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'};font-family:var(--mono);line-height:1.1;margin-top:8px">${yoyDelta===null?'—':(parseFloat(yoyDelta)>0?'▲ ':'▼ ')+Math.abs(parseFloat(yoyDelta||0))+'%'}</div>
-      <div style="font-size:11px;font-weight:600;color:#64748B">Q1 vs prior year Q1</div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:10px;border-top:1px solid #F0F4F8">
-        <span style="font-size:8.5px;font-weight:700;padding:2px 9px;border-radius:12px;background:${yoyDelta===null?'#F1F5F9':parseFloat(yoyDelta)>=0?'#DCFCE7':'#FEE2E2'};color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}">${yoyDelta===null?'No data':parseFloat(yoyDelta)>=0?'Improved':'Declined'}</span>
-        <svg width="40" height="20" viewBox="0 0 40 20" fill="none"><polyline points="2,15 12,8 22,11 32,5 38,8" stroke="${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+      <div style="font-size:36px;font-weight:900;color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'};font-family:var(--mono);line-height:1;margin-bottom:4px">${yoyDelta===null?'—':(parseFloat(yoyDelta)>0?'▲ ':'▼ ')+Math.abs(parseFloat(yoyDelta||0))+'%'}</div>
+      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">Q1 vs prior year Q1</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #F0F4F8">
+        <span style="font-size:8.5px;font-weight:700;padding:2px 10px;border-radius:12px;background:${yoyDelta===null?'#F1F5F9':parseFloat(yoyDelta)>=0?'#DCFCE7':'#FEE2E2'};color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}">${yoyDelta===null?'No data':parseFloat(yoyDelta)>=0?'Improved':'Declined'}</span>
+        <svg width="44" height="22" viewBox="0 0 44 22" fill="none"><polyline points="2,16 12,9 22,12 32,6 42,9" stroke="${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
       </div>
     </div>
 
     <!-- Annual YoY -->
-    <div class="card" style="padding:20px 20px 16px;border-radius:14px;display:flex;flex-direction:column;gap:4px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start">
-        <div style="width:36px;height:36px;border-radius:9px;background:#FFF7ED;display:flex;align-items:center;justify-content:center">
+    <div class="card" style="padding:20px 20px 16px;border-radius:16px;display:flex;flex-direction:column;gap:0;position:relative;overflow:hidden">
+      <div style="position:absolute;top:-32px;right:-32px;width:115px;height:115px;border-radius:50%;background:rgba(217,119,6,.07)"></div>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div style="width:38px;height:38px;border-radius:10px;background:#FFF7ED;display:flex;align-items:center;justify-content:center">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         </div>
-        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em">Annual YoY</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">Annual YoY</span>
       </div>
-      <div style="font-size:34px;font-weight:900;color:${_annualYoy===null?'#94A3B8':_annualYoy>=0?'#16A34A':'#DC2626'};font-family:var(--mono);line-height:1.1;margin-top:8px">${_annualYoy===null?'—':(_annualYoy>0?'▲ ':'▼ ')+Math.abs(_annualYoy)+'%'}</div>
-      <div style="font-size:11px;font-weight:600;color:#64748B">Annual avg vs prior year</div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:10px;border-top:1px solid #F0F4F8">
-        <span style="font-size:8.5px;font-weight:700;padding:2px 9px;border-radius:12px;background:${_annualYoy===null?'#F1F5F9':_annualYoy>=0?'#DCFCE7':'#FEE2E2'};color:${_annualYoy===null?'#94A3B8':_annualYoy>=0?'#16A34A':'#DC2626'}">${_annualYoy===null?'No data':_annualYoy>=0?'Improved':'Declined'}</span>
-        <svg width="40" height="20" viewBox="0 0 40 20" fill="none"><polyline points="2,10 10,13 20,8 30,14 38,11" stroke="${_annualYoy===null?'#94A3B8':_annualYoy>=0?'#16A34A':'#DC2626'}" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+      <div style="font-size:36px;font-weight:900;color:${_annualYoy===null?'#94A3B8':_annualYoy>=0?'#16A34A':'#DC2626'};font-family:var(--mono);line-height:1;margin-bottom:4px">${_annualYoy===null?'—':(_annualYoy>0?'▲ ':'▼ ')+Math.abs(_annualYoy)+'%'}</div>
+      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">Annual avg vs prior year</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #F0F4F8">
+        <span style="font-size:8.5px;font-weight:700;padding:2px 10px;border-radius:12px;background:${_annualYoy===null?'#F1F5F9':_annualYoy>=0?'#DCFCE7':'#FEE2E2'};color:${_annualYoy===null?'#94A3B8':_annualYoy>=0?'#16A34A':'#DC2626'}">${_annualYoy===null?'No data':_annualYoy>=0?'Improved':'Declined'}</span>
+        <svg width="44" height="22" viewBox="0 0 44 22" fill="none"><polyline points="2,11 10,14 20,9 30,15 42,12" stroke="${_annualYoy===null?'#94A3B8':_annualYoy>=0?'#16A34A':'#DC2626'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
       </div>
     </div>
 
@@ -4132,23 +4126,18 @@ function renderExec(){
       const _repeats=_ksi.filter(k=>ok(k)===false).sort((a,b)=>getRepeat(b)-getRepeat(a));
       if(_repeats.length){
         _ei_rep.innerHTML=_repeats.map(function(k){
-          var v=qv(k);
-          var dm=DM[k.dept]||{};
+          var v=qv(k);var dm=DM[k.dept]||{};
           var vStr=v!==null?v.toFixed(1)+'%':'—';
           var trendArr=v!==null?(v>=(k.target||90)?'▲':'▼'):'—';
           var trendCol=v!==null?(v>=(k.target||90)?'#16A34A':'#DC2626'):'#94A3B8';
-          var tier=k.tier||3;
-          var tierCol=tier===1?'#DC2626':tier===2?'#D97706':'#0195af';
+          var tier=k.tier||3;var tierCol=tier===1?'#DC2626':tier===2?'#D97706':'#0195af';
           var tierBg=tier===1?'rgba(220,38,38,.10)':tier===2?'rgba(217,119,6,.10)':'rgba(1,149,175,.10)';
           var deptName=lang==='ar'?(dm.ar||k.dept):(dm.en||k.dept);
-          var deptDot=dm.color?'<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+dm.color+';margin-right:4px"></span>':'';
           var resCol=v!==null&&v<(k.target||90)?'#DC2626':'#16A34A';
           return '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;padding:10px 20px;border-bottom:1px solid #F0F4F8;align-items:center">'
-            +'<div>'
-              +'<div style="font-size:10px;font-weight:800;color:'+(dm.color||'#152538')+';font-family:var(--mono);margin-bottom:2px">'+k.id+'</div>'
-              +'<div style="font-size:10px;color:#334155">'+(lang==='ar'?k.nameAr:k.nameEn)+'</div>'
-            +'</div>'
-            +'<div style="font-size:10px;color:#475569">'+deptDot+deptName+'</div>'
+            +'<div><div style="font-size:10px;font-weight:800;color:'+(dm.color||'#152538')+';font-family:var(--mono);margin-bottom:2px">'+k.id+'</div>'
+            +'<div style="font-size:10px;color:#334155">'+(lang==='ar'?k.nameAr:k.nameEn)+'</div></div>'
+            +'<div style="font-size:10px;color:#475569">'+deptName+'</div>'
             +'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+tierBg+';color:'+tierCol+'">T'+tier+'</span>'
             +'<span style="font-size:14px;font-weight:900;color:'+trendCol+'">'+trendArr+'</span>'
             +'<span style="font-size:11px;font-weight:900;color:'+resCol+';font-family:var(--mono)">'+vStr+'</span>'
@@ -4183,10 +4172,17 @@ function renderExec(){
     const _sd=document.getElementById('eis_desc');
     if(_st){
       const _pct=_ks.filter(k=>ok(k)!==null).length?Math.round(_met.length/_ks.filter(k=>ok(k)!==null).length*100):0;
-      if(_miss.some(k=>(k.tier||3)===1)){_st.textContent='CRITICAL ATTENTION REQUIRED';_st.style.color='#F87171';}
-      else if(_miss.length>_met.length){_st.textContent='ATTENTION REQUIRED';_st.style.color='#FBBF24';}
-      else if(_pct>=80){_st.textContent='ON TRACK';_st.style.color='#4ADE80';}
-      else{_st.textContent='NEEDS IMPROVEMENT';_st.style.color='#FBBF24';}
+      const _hasT1Miss=_miss.some(k=>(k.tier||3)===1);
+      const _missGtMet=_miss.length>_met.length;
+      if(_miss.length===0){
+        _st.textContent='ON TRACK';_st.style.color='#4ADE80';
+      } else if(_hasT1Miss||_missGtMet){
+        _st.textContent='CRITICAL ATTENTION REQUIRED';_st.style.color='#F87171';
+      } else if(_miss.length>4){
+        _st.textContent='ATTENTION REQUIRED';_st.style.color='#F87171';
+      } else {
+        _st.textContent='NEEDS IMPROVEMENT';_st.style.color='#FBBF24';
+      }
       _sd.textContent=_miss.length?'Immediate focus required on '+_miss.length+' missed KPI'+(_miss.length===1?'':'s')+' to meet annual targets.':'Division performing at '+_pct+'% achievement rate.';
     }
 
@@ -4209,14 +4205,8 @@ function renderExec(){
     const _de=document.getElementById('eis_dept');const _ds=document.getElementById('eis_dept_sub');const _db=document.getElementById('eis_dept_badge');
     if(_de){if(_worstDept){_de.textContent=DM[_worstDept].en;_de.style.color=_worstPct<60?'#F87171':'#FBBF24';if(_ds)_ds.textContent='Performance '+_worstPct+'%';if(_db){_db.textContent=_worstPct<60?'Needs recovery':'Needs improvement';_db.style.background=_worstPct<60?'rgba(220,38,38,.25)':'rgba(217,119,6,.25)';_db.style.color=_worstPct<60?'#F87171':'#FBBF24';}}else{_de.textContent='—';}}
 
-    /* Gap Analysis Open — only KPIs WITH gap documented AND action still in-progress */
-    const _gapsMissed=_miss.filter(k=>{
-      const _g=(ST.gaps||{})[k.id];
-      const _a=(ST.actions||{})[k.id];
-      if(!_g||!_g.gapEn)return false; /* no gap documented — skip */
-      if(_a&&_a.status==='closed')return false; /* action closed — skip */
-      return true; /* has gap + action in-progress */
-    });
+    /* Gap Analysis Open — missed KPIs without documented gap */
+    const _gapsMissed=_miss.filter(k=>!((ST.gaps||{})[k.id]&&(ST.gaps||{})[k.id].gapEn));
     const _openAct=_gapsMissed.length;
     const _ae=document.getElementById('eis_actions');if(_ae){_ae.textContent=_openAct;_ae.style.color=_openAct>0?'#FBBF24':'#4ADE80';}
     const _ab=document.getElementById('eis_actions_badge');if(_ab){_ab.textContent=_openAct===0?'All documented':_openAct===1?'1 pending':''+_openAct+' pending';_ab.style.color=_openAct>0?'#FBBF24':'#4ADE80';_ab.style.background=_openAct>0?'rgba(217,119,6,.25)':'rgba(22,163,74,.20)';}
@@ -4225,14 +4215,7 @@ function renderExec(){
     const _evalK=_ks.filter(k=>ok(k)!==null);
     const _forecastPct=_evalK.length?Math.round((_evalK.filter(k=>ok(k)===true).length+_pend.length*0.5)/_ks.length*100):0;
     const _fe=document.getElementById('eis_forecast');if(_fe){_fe.textContent=_forecastPct+'%';_fe.style.color=_forecastPct>=80?'#4ADE80':_forecastPct>=60?'#0195af':'#FBBF24';}
-    /* Current performance */
-    const _curPerfEl=document.getElementById('eis_current_perf');
-    if(_curPerfEl){
-      const _curKs=_ks.filter(k=>ok(k)!==null);
-      const _curPct=_curKs.length?Math.round(_met.length/_curKs.length*100):0;
-      _curPerfEl.textContent='Current: '+_curPct+'%';
-      _curPerfEl.style.color='rgba(255,255,255,.55)';
-    }
+    const _curPerfEl=document.getElementById('eis_current_perf');if(_curPerfEl){const _curKs=_ks.filter(k=>ok(k)!==null);const _curPct=_curKs.length?Math.round(_met.length/_curKs.length*100):0;_curPerfEl.textContent='Current: '+_curPct+'%';_curPerfEl.style.color='rgba(255,255,255,.55)';}
     const _fb=document.getElementById('eis_forecast_badge');if(_fb){_fb.textContent=_forecastPct>=80?'Likely to meet target':_forecastPct>=60?'Moderate risk':'At risk';_fb.style.color=_forecastPct>=80?'#4ADE80':_forecastPct>=60?'#0195af':'#FBBF24';_fb.style.background=_forecastPct>=80?'rgba(22,163,74,.20)':_forecastPct>=60?'rgba(1,149,175,.25)':'rgba(217,119,6,.25)';}
 
     /* At-Risk KPIs */
@@ -4911,11 +4894,7 @@ function renderDept(){
     var latest=[k26?k26.q1:null,k25?k25.q4:null,k25?k25.q3:null,k25?k25.q2:null,k25?k25.q1:null].filter(function(x){return x!=null;})[0]||null;
     var yoyRef=k26&&k26.yoy!=null?k26.yoy:null;
     var yoyDiff=yoyRef!==null&&latest!==null?+(latest-yoyRef).toFixed(1):null;
-    /* Gap uses only the primary KPI's quarters (k = k26||k25) */
-    var _qv=[k.q1,k.q2,k.q3,k.q4].filter(function(v){return v!==null;});
-    var _ravg=_qv.length?+(_qv.reduce(function(a,b){return a+b;},0)/_qv.length).toFixed(2):null;
-    /* For op'=': gap if not exactly at target; for '>=': gap if below target */
-    var gap=_ravg!==null&&(k.op==='='?Math.abs(tgt-_ravg)>0.05:_ravg<tgt)?+(tgt-_ravg<0?(_ravg-tgt):tgt-_ravg).toFixed(1):null;
+    var _qv=[k.q1,k.q2,k.q3,k.q4].filter(function(v){return v!==null;});var _ravg=_qv.length?+(_qv.reduce(function(a,b){return a+b;},0)/_qv.length).toFixed(2):null;var gap=_ravg!==null&&(k.op==='='?Math.abs(tgt-_ravg)>0.05:_ravg<tgt)?+(tgt-_ravg<0?(_ravg-tgt):tgt-_ravg).toFixed(1):null;
     var gd=(ST.gaps||{})[k.id]||{};
     var cid='dt_'+k.id.replace(/[^a-z0-9]/gi,'_');
     setTimeout(function(){
@@ -4978,8 +4957,7 @@ function renderDept(){
       /* Next QTR Forecast — only if next quarter not entered yet */
       +(function(){
         var QTRS=['q1','q2','q3','q4'],QLBLS=['Q1','Q2','Q3','Q4'];
-        var kCur=k26||k25;
-        if(!kCur)return '';
+        var kCur=k26||k25;if(!kCur)return '';
         var lastIdx=-1;
         for(var i=0;i<4;i++){if(kCur[QTRS[i]]!==null&&kCur[QTRS[i]]!==undefined)lastIdx=i;}
         if(lastIdx<0||lastIdx>=3)return '';
