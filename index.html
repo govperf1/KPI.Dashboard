@@ -1007,129 +1007,86 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 
   <!-- ══ Firebase Auth ══ -->
   <script type="module">
-    import { initializeApp }         from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-    import { getAuth, signInWithEmailAndPassword, signOut,
-              onAuthStateChanged, sendPasswordResetEmail }
-                                       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-    import { getFirestore, doc, getDoc, setDoc, addDoc,
-              collection, serverTimestamp }
-                                       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+    import { getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,sendPasswordResetEmail,setPersistence,browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+    import { getFirestore,doc,getDoc,setDoc,addDoc,collection,serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
-    const firebaseConfig = {
-      apiKey:            "AIzaSyAlLWZvsu4UbHn-LncFdrSHlbL3bIAG4no",
-      authDomain:        "qumc-kpi-dashboard-f10dd.firebaseapp.com",
-      projectId:         "qumc-kpi-dashboard-f10dd",
-      storageBucket:     "qumc-kpi-dashboard-f10dd.firebasestorage.app",
-      messagingSenderId: "659971973475",
-      appId:             "1:659971973475:web:483116a0711008a6a97356"
-    };
+    const firebaseConfig={apiKey:"AIzaSyAlLWZvsu4UbHn-LncFdrSHlbL3bIAG4no",authDomain:"qumc-kpi-dashboard-f10dd.firebaseapp.com",projectId:"qumc-kpi-dashboard-f10dd",storageBucket:"qumc-kpi-dashboard-f10dd.firebasestorage.app",messagingSenderId:"659971973475",appId:"1:659971973475:web:483116a0711008a6a97356"};
+    const DPERMS={super_admin:['*'],admin:['manage_users','view_all_departments','view_department','edit_kpi','edit_gap_analysis','edit_actions','edit_targets','approve_changes','lock_quarter','unlock_quarter','view_executive_intelligence','export_reports','manage_dashboard_settings','view_audit_trail'],executive:['view_all_departments','view_department','view_executive_intelligence','export_reports'],department_manager:['view_department','view_executive_intelligence','export_reports'],kpi_owner:['view_department','edit_gap_analysis'],viewer:['view_all_departments','view_department','export_reports']};
 
-    const DEFAULT_PERMS = {
-      super_admin:['*'], admin:['manage_users','view_all_departments','view_department','edit_kpi','edit_gap_analysis','edit_actions','edit_targets','approve_changes','lock_quarter','unlock_quarter','view_executive_intelligence','export_reports','manage_dashboard_settings','view_audit_trail'],
-      executive:['view_all_departments','view_department','view_executive_intelligence','export_reports'],
-      department_manager:['view_department','view_executive_intelligence','export_reports'],
-      kpi_owner:['view_department','edit_gap_analysis'],
-      viewer:['view_all_departments','view_department','export_reports']
-    };
+    const app=initializeApp(firebaseConfig);
+    const auth=getAuth(app);
+    const db=getFirestore(app);
 
-    const app  = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db   = getFirestore(app);
+    /* Session-only persistence — clears on browser close, prevents cached auto-login */
+    setPersistence(auth,browserSessionPersistence).then(()=>console.log('[Auth] Session persistence set')).catch(e=>console.warn('[Auth] Persistence:',e.message));
 
-    /* ── helpers ── */
-    const $= id => document.getElementById(id);
-    const showLogin  = () => { $('_bgLayer').style.display='block'; $('_authOverlay').style.display='flex'; $('_portalOverlay').style.display='none'; $('_forgotOverlay').style.display='none'; console.log('[Auth] showing login'); };
-    const showPortal = (name,role) => { $('_bgLayer').style.display='block'; $('_authOverlay').style.display='none'; $('_portalOverlay').style.display='flex'; $('_forgotOverlay').style.display='none'; $('_portalUserName').textContent=name; const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',viewer:'Viewer'}; $('_portalUserRole').textContent=L[role]||role; console.log('[Auth] showing portal for',role); };
-    const hideAll    = () => { $('_bgLayer').style.display='none'; $('_authOverlay').style.display='none'; $('_portalOverlay').style.display='none'; $('_forgotOverlay').style.display='none'; console.log('[Auth] all overlays hidden'); };
-    const setErr     = msg => { $('_fbErr').textContent=msg; const b=$('_fbLoginBtn'); if(b){b.disabled=false;b.textContent='Sign In';} };
+    const ge=id=>{const e=document.getElementById(id);if(!e)console.warn('[Auth] Missing element:',id);return e;};
+    const showLogin=()=>{console.log('[Auth] showLogin');['_authOverlay'].forEach(id=>{const e=ge(id);if(e)e.style.display='flex';});const po=ge('_portalOverlay');if(po)po.style.display='none';const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
+    const showPortal=(name,role)=>{console.log('[Auth] showPortal:',name,role);const po=ge('_portalOverlay'),lo=ge('_authOverlay');if(lo)lo.style.display='none';if(po){po.style.display='flex';console.log('[Auth] _portalOverlay is now flex');}else{console.error('[Auth] PORTAL OVERLAY NOT FOUND');return;}const nm=ge('_portalUserName'),rl=ge('_portalUserRole');if(nm)nm.textContent=name||'User';if(rl){const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',viewer:'Viewer'};rl.textContent=L[role]||role;}console.log('[Auth] Portal ready');};
+    const setErr=msg=>{console.warn('[Auth] Error:',msg);const e=ge('_fbErr');if(e)e.textContent=msg;const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
 
-    /* ── Sign In ── */
-    window._doLogin = async () => {
-      const email = ($('_fbEmail').value||'').trim();
-      const pass  = ($('_fbPass').value||'');
-      const btn   = $('_fbLoginBtn');
-      $('_fbErr').textContent = '';
-      if(!email||!pass){ setErr('Please enter your email and password.'); return; }
-      try {
-        console.log('[Auth] Login attempt:', email);
-        btn.disabled=true; btn.textContent='Verifying…';
-        const cred = await signInWithEmailAndPassword(auth, email, pass);
-        console.log('[Auth] Firebase auth success:', cred.user.email);
-      } catch(e) {
-        console.error('[Auth] Login failed:', e.code, e.message);
-        const msg = e.code==='auth/wrong-password'||e.code==='auth/invalid-credential'||e.code==='auth/user-not-found' ? 'Incorrect email or password.' :
-                    e.code==='auth/invalid-email'   ? 'Invalid email format.' :
-                    e.code==='auth/too-many-requests'? 'Too many attempts. Please wait.' : 'Login failed: '+e.message;
-        setErr(msg);
+    window._doLogin=async()=>{
+      const em=(ge('_fbEmail')||{value:''}).value.trim();
+      const pw=(ge('_fbPass')||{value:''}).value;
+      const errEl=ge('_fbErr');if(errEl)errEl.textContent='';
+      if(!em||!pw){setErr('Please enter email and password.');return;}
+      console.log('[Auth] Login attempt:',em);
+      try{
+        const b=ge('_fbLoginBtn');if(b){b.disabled=true;b.textContent='Verifying...';}
+        const c=await signInWithEmailAndPassword(auth,em,pw);
+        console.log('[Auth] Firebase accepted:',c.user.email);
+      }catch(e){
+        console.error('[Auth] Login rejected:',e.code,e.message);
+        setErr(e.code==='auth/wrong-password'||e.code==='auth/invalid-credential'||e.code==='auth/user-not-found'?'Incorrect email or password.':e.code==='auth/invalid-email'?'Invalid email format.':e.code==='auth/too-many-requests'?'Too many attempts. Wait a moment.':'Login failed: '+e.message);
       }
     };
 
-    /* ── Sign Out ── */
-    window._doLogout = async () => { await signOut(auth); };
+    window._doLogout=async()=>{console.log('[Auth] Logout');try{await signOut(auth);}catch(e){console.error('[Auth]',e);}};
 
-    /* ── Portal selection ── */
-    window._selectPortal = portal => {
-      if(portal==='performance') {
-        hideAll();
-        if(typeof window.applyRolePermissions==='function') window.applyRolePermissions(window._fbRole,window._fbDept,window._fbPerms);
-        if(typeof window.updateUserBadge==='function')      window.updateUserBadge(window._fbName,window._fbRole,window._fbPerms);
-        if(typeof renderCurrent==='function') renderCurrent();
-        console.log('[Auth] Entered Performance portal');
-      } else {
-        /* Governance — coming soon */
-        const cs=document.createElement('div');
-        cs.style.cssText='position:fixed;inset:0;z-index:10000;background:linear-gradient(135deg,#0a1628,#0f2444);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px';
-        cs.innerHTML=`<div style="font-size:28px;font-weight:900;color:#fff">Governance</div><div style="font-size:13px;color:rgba(255,255,255,.45)">This portal is under development</div><div style="padding:8px 24px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.25);border-radius:20px;font-size:11px;color:#0195af;font-weight:700;letter-spacing:.06em">COMING SOON</div><button onclick="this.parentElement.remove()" style="background:transparent;color:rgba(255,255,255,.35);border:1px solid rgba(255,255,255,.12);border-radius:9px;padding:9px 24px;font-size:11px;cursor:pointer;margin-top:8px">← Back</button>`;
-        document.body.appendChild(cs);
+    window._selectPortal=portal=>{
+      console.log('[Auth] Selected:',portal);
+      if(portal==='performance'){
+        ['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(id=>{const e=ge(id);if(e)e.style.display='none';});
+        if(typeof window.applyRolePermissions==='function')window.applyRolePermissions(window._fbRole,window._fbDept,window._fbPerms);
+        if(typeof window.updateUserBadge==='function')window.updateUserBadge(window._fbName,window._fbRole,window._fbPerms);
+        if(typeof renderCurrent==='function')renderCurrent();
+        console.log('[Auth] Performance portal entered');
+      }else{
+        const cs=document.createElement('div');cs.style.cssText='position:fixed;inset:0;z-index:10000;background:linear-gradient(135deg,#0a1628,#0f2444);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;font-family:inherit';cs.innerHTML='<div style="font-size:28px;font-weight:900;color:#fff">Governance</div><div style="font-size:13px;color:rgba(255,255,255,.45)">Under development</div><div style="padding:8px 24px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.25);border-radius:20px;font-size:11px;color:#0195af;font-weight:700">COMING SOON</div><button onclick="this.parentElement.remove()" style="background:transparent;color:rgba(255,255,255,.4);border:1px solid rgba(255,255,255,.15);border-radius:9px;padding:9px 24px;font-size:11px;cursor:pointer;font-family:inherit;margin-top:8px">← Back</button>';document.body.appendChild(cs);
       }
     };
 
-    /* ── Forgot Password ── */
-    window._openForgot  = () => { $('_forgotOverlay').style.display='flex'; $('_resetEmail').value=''; $('_resetErr').textContent=''; $('_resetOk').textContent=''; $('_resetBtn').disabled=false; $('_resetBtn').textContent='Send Reset Link'; $('_resetEmail').focus(); };
-    window._closeForgot = () => { $('_forgotOverlay').style.display='none'; };
-    window._doResetPassword = async () => {
-      const email=($('_resetEmail').value||'').trim();
-      const btn=$('_resetBtn');
-      $('_resetErr').textContent=''; $('_resetOk').textContent='';
-      if(!email){ $('_resetErr').textContent='Please enter your email.'; return; }
-      try {
-        btn.disabled=true; btn.textContent='Sending…';
-        await sendPasswordResetEmail(auth, email);
-        $('_resetOk').textContent='✓ Reset email sent. Check your inbox (and spam folder).';
-        btn.textContent='Sent ✓';
-        setTimeout(()=>window._closeForgot(), 4000);
-      } catch(e) {
-        const msg = e.code==='auth/user-not-found'  ? 'No account found with this email.' :
-                    e.code==='auth/invalid-email'    ? 'Invalid email format.' :
-                    e.code==='auth/too-many-requests'? 'Too many requests. Try later.' : 'Error: '+e.message;
-        $('_resetErr').textContent=msg;
-        btn.disabled=false; btn.textContent='Send Reset Link';
-      }
+    window._openForgot=()=>{const fo=ge('_forgotOverlay');if(fo)fo.style.display='flex';const re=ge('_resetEmail');if(re){re.value='';setTimeout(()=>re.focus(),100);}['_resetErr','_resetOk'].forEach(id=>{const e=ge(id);if(e)e.textContent='';});const b=ge('_resetBtn');if(b){b.disabled=false;b.textContent='Send Reset Link';}};
+    window._closeForgot=()=>{const fo=ge('_forgotOverlay');if(fo)fo.style.display='none';};
+    window._doResetPassword=async()=>{
+      const em=(ge('_resetEmail')||{value:''}).value.trim();
+      const errEl=ge('_resetErr'),okEl=ge('_resetOk'),btn=ge('_resetBtn');
+      if(errEl)errEl.textContent='';if(okEl)okEl.textContent='';
+      if(!em){if(errEl)errEl.textContent='Please enter your email.';return;}
+      try{if(btn){btn.disabled=true;btn.textContent='Sending...';}await sendPasswordResetEmail(auth,em);console.log('[Auth] Reset sent to:',em);if(okEl)okEl.textContent='Reset link sent. Check inbox and spam.';if(btn)btn.textContent='Sent ✓';setTimeout(()=>window._closeForgot(),4000);}catch(e){console.error('[Auth] Reset failed:',e.code);const msg=e.code==='auth/user-not-found'?'No account found.':e.code==='auth/invalid-email'?'Invalid email.':e.code==='auth/too-many-requests'?'Too many requests.':'Error: '+e.message;if(errEl)errEl.textContent=msg;if(btn){btn.disabled=false;btn.textContent='Send Reset Link';}}
     };
 
-    /* ── Auth State ── */
-    onAuthStateChanged(auth, async user => {
-      if(!user) { console.log('[Auth] No user — showing login'); showLogin(); return; }
+    onAuthStateChanged(auth,async user=>{
+      console.log('[Auth] onAuthStateChanged — user:',user?user.email:'none');
+      if(!user){showLogin();return;}
       const email=user.email||'';
-      console.log('[Auth] User authenticated:', email);
-      try {
-        const snap = await getDoc(doc(db,'users',email));
-        if(!snap.exists()) { await signOut(auth); setErr('Account not registered. Contact admin.'); showLogin(); return; }
+      try{
+        const snap=await getDoc(doc(db,'users',email));
+        if(!snap.exists()){console.warn('[Auth] Not in Firestore:',email);await signOut(auth);setErr('Account not registered. Contact admin.');showLogin();return;}
         const d=snap.data();
-        if(!d.approved) { await signOut(auth); setErr('Account pending approval. Contact admin.'); showLogin(); return; }
-        const role = d.role||'viewer';
-        console.log('[Auth] Role lookup:', role);
-        let perms=[]; try { const rs=await getDoc(doc(db,'config_roles',role)); perms=rs.exists()?(rs.data().permissions||[]):(DEFAULT_PERMS[role]||[]); } catch(_){ perms=DEFAULT_PERMS[role]||[]; }
-        if(d.extraPermissions)   perms=[...new Set([...perms,...d.extraPermissions])];
-        if(d.revokedPermissions) perms=perms.filter(p=>!d.revokedPermissions.includes(p));
-        window._fbUser=email; window._fbRole=role; window._fbDept=d.dept||null;
-        window._fbPerms=perms; window._fbName=d.displayName||email.split('@')[0];
-        window._fbAssignedKpis=d.assignedKpis||null;
-        try{ await setDoc(doc(db,'users',email),{lastLogin:serverTimestamp()},{merge:true}); }catch(_){}
-        try{ await addDoc(collection(db,'activity_log'),{user:email,role,action:'login',timestamp:serverTimestamp()}); }catch(_){}
-        console.log('[Auth] Portal selection loading…');
-        showPortal(window._fbName, role);
-      } catch(e) { console.error('[Auth] Error:',e); setErr('Profile load error. Try again.'); showLogin(); }
+        if(!d.approved){console.warn('[Auth] Not approved:',email);await signOut(auth);setErr('Account pending approval.');showLogin();return;}
+        const role=d.role||'viewer';
+        console.log('[Auth] Role:',role,'Dept:',d.dept||'none');
+        let perms=[];try{const rs=await getDoc(doc(db,'config_roles',role));perms=rs.exists()?(rs.data().permissions||[]):(DPERMS[role]||[]);}catch(_){perms=DPERMS[role]||[];}
+        if(d.extraPermissions)perms=[...new Set([...perms,...d.extraPermissions])];
+        if(d.revokedPermissions)perms=perms.filter(p=>!d.revokedPermissions.includes(p));
+        window._fbUser=email;window._fbRole=role;window._fbDept=d.dept||null;window._fbPerms=perms;window._fbName=d.displayName||email.split('@')[0];window._fbAssignedKpis=d.assignedKpis||null;
+        try{await setDoc(doc(db,'users',email),{lastLogin:serverTimestamp()},{merge:true});}catch(_){}
+        try{await addDoc(collection(db,'activity_log'),{user:email,role,action:'login',timestamp:serverTimestamp()});}catch(_){}
+        console.log('[Auth] All checks passed — showing portal');
+        showPortal(window._fbName,role);
+      }catch(e){console.error('[Auth] Error:',e);setErr('Connection error. Try again.');showLogin();}
     });
 
     console.log('[Auth] Firebase module initialized');
@@ -1185,7 +1142,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 </div>
 
 <!-- Portal Overlay -->
-<div id="_portalOverlay" style="position:fixed;inset:0;z-index:9996;display:none;align-items:center;justify-content:center">
+<div id="_portalOverlay" style="position:fixed;inset:0;z-index:9996;display:none;align-items:center;justify-content:center;background:rgba(5,15,40,.45)">
   <div id="_portalPanel" style="display:flex;flex-direction:column;align-items:center;gap:28px;padding:20px;position:relative;z-index:2">
     <div style="text-align:center">
       <div id="_portalUserName" style="font-size:22px;font-weight:900;color:#fff;margin-bottom:4px">User</div>
@@ -1194,12 +1151,12 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
       <div style="font-size:9px;color:rgba(255,255,255,.35)">Qassim University Medical City · Facilities &amp; Safety Division</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%;max-width:520px">
-      <div onclick="window._selectPortal('performance')" style="background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.14);border-radius:20px;padding:36px 24px;text-align:center;cursor:pointer;transition:all .22s" onmouseover="this.style.background='rgba(74,222,128,.11)';this.style.borderColor='#4ADE80';this.style.transform='translateY(-5px)'" onmouseout="this.style.background='rgba(255,255,255,.07)';this.style.borderColor='rgba(255,255,255,.14)';this.style.transform='none'">
+      <div onclick="window._selectPortal('performance')" style="background:rgba(255,255,255,.10);border:1.5px solid rgba(255,255,255,.25);border-radius:20px;padding:36px 24px;text-align:center;cursor:pointer;transition:all .22s;box-shadow:0 8px 32px rgba(0,0,0,.25)" onmouseover="this.style.background='rgba(74,222,128,.18)';this.style.borderColor='#4ADE80';this.style.transform='translateY(-5px)'" onmouseout="this.style.background='rgba(255,255,255,.10)';this.style.borderColor='rgba(255,255,255,.25)';this.style.transform='none'">
         <div style="width:56px;height:56px;border-radius:16px;background:rgba(74,222,128,.18);margin:0 auto 16px;display:flex;align-items:center;justify-content:center"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
         <div style="font-size:17px;font-weight:900;color:#fff;margin-bottom:7px">Performance</div>
         <div style="font-size:10px;color:rgba(255,255,255,.40);line-height:1.6">KPI Dashboard<br>Performance Tracking</div>
       </div>
-      <div onclick="window._selectPortal('governance')" style="background:rgba(255,255,255,.07);border:1.5px solid rgba(255,255,255,.14);border-radius:20px;padding:36px 24px;text-align:center;cursor:pointer;transition:all .22s" onmouseover="this.style.background='rgba(1,149,175,.12)';this.style.borderColor='#0195af';this.style.transform='translateY(-5px)'" onmouseout="this.style.background='rgba(255,255,255,.07)';this.style.borderColor='rgba(255,255,255,.14)';this.style.transform='none'">
+      <div onclick="window._selectPortal('governance')" style="background:rgba(255,255,255,.10);border:1.5px solid rgba(255,255,255,.25);border-radius:20px;padding:36px 24px;text-align:center;cursor:pointer;transition:all .22s;box-shadow:0 8px 32px rgba(0,0,0,.25)" onmouseover="this.style.background='rgba(1,149,175,.18)';this.style.borderColor='#0195af';this.style.transform='translateY(-5px)'" onmouseout="this.style.background='rgba(255,255,255,.10)';this.style.borderColor='rgba(255,255,255,.25)';this.style.transform='none'">
         <div style="width:56px;height:56px;border-radius:16px;background:rgba(1,149,175,.20);margin:0 auto 16px;display:flex;align-items:center;justify-content:center"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div>
         <div style="font-size:17px;font-weight:900;color:#fff;margin-bottom:7px">Governance</div>
         <div style="font-size:10px;color:rgba(255,255,255,.40);line-height:1.6">Policies · Compliance<br>Standards</div>
