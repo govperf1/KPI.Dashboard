@@ -1009,20 +1009,20 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
   <script type="module">
     import { initializeApp }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged }
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
     import { getFirestore, doc, getDoc, setDoc, addDoc, collection, serverTimestamp }
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     /* ══ PASTE YOUR FIREBASE CONFIG HERE ══════════════════════ */
-   const firebaseConfig = {
-  apiKey: "AIzaSyAlLWZvsu4UbHn-LncFdrSHlbL3bIAG4no",
-  authDomain: "qumc-kpi-dashboard-f10dd.firebaseapp.com",
-  projectId: "qumc-kpi-dashboard-f10dd",
-  storageBucket: "qumc-kpi-dashboard-f10dd.firebasestorage.app",
-  messagingSenderId: "659971973475",
-  appId: "1:659971973475:web:483116a0711008a6a97356"
-};
+    const firebaseConfig = {
+      apiKey:            "YOUR_API_KEY",
+      authDomain:        "YOUR_PROJECT.firebaseapp.com",
+      projectId:         "YOUR_PROJECT_ID",
+      storageBucket:     "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId:             "YOUR_APP_ID"
+    };
     /* ═══════════════════════════════════════════════════════════ */
 
     /* ── Default role permissions (fallback if not in Firestore) ── */
@@ -1272,7 +1272,8 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
           <input type="checkbox" id="_rememberMe" style="width:15px;height:15px;accent-color:#0195af;cursor:pointer"/>
           Remember me
         </label>
-        <span style="font-size:11.5px;color:#0195af;font-weight:600;cursor:pointer"
+        <span onclick="window._openForgot&&window._openForgot()"
+          style="font-size:11.5px;color:#0195af;font-weight:600;cursor:pointer;transition:opacity .15s"
           onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
           Forgot password?
         </span>
@@ -1295,6 +1296,68 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
     </div>
   </div>
 </div>
+
+<!-- ── FORGOT PASSWORD OVERLAY ── -->
+<div id="_forgotOverlay" style="position:fixed;inset:0;z-index:9997;display:none;align-items:center;justify-content:center">
+  <!-- Semi-transparent backdrop -->
+  <div onclick="window._closeForgot&&window._closeForgot()"
+       style="position:absolute;inset:0;background:rgba(5,15,35,.50);backdrop-filter:blur(4px)"></div>
+  <!-- Card -->
+  <div style="position:relative;z-index:2;width:min(420px,88vw);background:rgba(245,247,252,0.98);backdrop-filter:blur(20px);border-radius:22px;padding:30px 34px 26px;box-shadow:0 20px 60px rgba(0,0,0,.40)">
+
+    <!-- Header -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <div>
+        <div style="font-size:16px;font-weight:900;color:#152538;margin-bottom:2px">Reset Password</div>
+        <div style="font-size:11px;color:#94A3B8">Enter your email to receive a reset link</div>
+      </div>
+      <button onclick="window._closeForgot&&window._closeForgot()"
+        style="width:32px;height:32px;border:none;border-radius:50%;background:#F1F5F9;color:#64748B;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:background .15s"
+        onmouseover="this.style.background='#E2E8F0'" onmouseout="this.style.background='#F1F5F9'">
+        ✕
+      </button>
+    </div>
+
+    <!-- Email input -->
+    <div style="margin-bottom:12px">
+      <label style="font-size:11.5px;font-weight:700;color:#334155;display:block;margin-bottom:6px">Email Address</label>
+      <div style="display:flex;align-items:center;background:#fff;border:1.5px solid #E2E8F0;border-radius:11px;padding:0 13px;gap:9px" id="_resetEmailWrap">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" stroke-width="2" stroke-linecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,12 2,6"/></svg>
+        <input id="_resetEmail" type="email" placeholder="name@example.com"
+          style="flex:1;border:none;outline:none;background:transparent;font-size:13px;padding:11px 0;color:#152538"
+          onfocus="document.getElementById('_resetEmailWrap').style.borderColor='#0195af'"
+          onblur="document.getElementById('_resetEmailWrap').style.borderColor='#E2E8F0'"
+          onkeydown="if(event.key==='Enter')window._doResetPassword&&window._doResetPassword()"/>
+      </div>
+    </div>
+
+    <!-- Error / Success messages -->
+    <div id="_resetErr" style="font-size:11px;color:#DC2626;min-height:14px;font-weight:600;margin-bottom:4px"></div>
+    <div id="_resetOk"  style="font-size:11px;color:#16A34A;min-height:14px;font-weight:600;margin-bottom:8px;line-height:1.5"></div>
+
+    <!-- Buttons -->
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button onclick="window._closeForgot&&window._closeForgot()"
+        style="flex:1;background:#F1F5F9;color:#475569;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s"
+        onmouseover="this.style.background='#E2E8F0'" onmouseout="this.style.background='#F1F5F9'">
+        Cancel
+      </button>
+      <button id="_resetBtn" onclick="window._doResetPassword&&window._doResetPassword()"
+        style="flex:2;background:linear-gradient(90deg,#1a3a7c,#0d2563);color:#fff;border:none;border-radius:10px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;transition:opacity .18s"
+        onmouseover="this.style.opacity='.87'" onmouseout="this.style.opacity='1'">
+        Send Reset Link
+      </button>
+    </div>
+
+    <!-- Info note -->
+    <div style="margin-top:14px;padding:10px 13px;background:#F0F9FF;border-radius:9px;border:1px solid #BAE6FD">
+      <div style="font-size:10px;color:#0369A1;line-height:1.55">
+        <strong>Note:</strong> Check your spam folder if you don't see the email within a few minutes. The link expires after 1 hour.
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <!-- ── PORTAL OVERLAY (separate, fixed) ── -->
 <div id="_portalOverlay" style="position:fixed;inset:0;z-index:9996;display:none;align-items:center;justify-content:center">
