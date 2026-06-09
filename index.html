@@ -1004,7 +1004,6 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 }
 </style>
 
-
   <!-- ══ Firebase Auth ══ -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
@@ -1190,7 +1189,6 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
     <div style="margin-top:14px;padding:10px 13px;background:#F0F9FF;border-radius:9px;border:1px solid #BAE6FD"><div style="font-size:10px;color:#0369A1;line-height:1.55"><strong>Note:</strong> Check spam folder. Link expires after 1 hour.</div></div>
   </div>
 </div>
-
 
 
 <!-- ═══ TOPBAR — QUMC Institutional Header ══════════ -->
@@ -1448,7 +1446,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
         <!-- Target / Risk Tier / Year -->
         <div class="af-grid3">
           <div class="af-field">
-            <label class="af-lbl">Target (%)</label>
+            <label class="af-lbl"Target <span style="color:#DC2626;font-size:10px">*</span>t (%)</label>
             <input type="number" class="af-inp" id="eTg" min="0" max="100" step="1" placeholder="e.g. 95">
           </div>
           <div class="af-field">
@@ -1460,7 +1458,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
             </select>
           </div>
           <div class="af-field">
-            <label class="af-lbl">Year</label>
+            <label class="af-lbl">Year <span style="color:#DC2626;font-size:10px">*</span></label>
             <select class="af-sel" id="eYr">
               <option value="2025">2025</option>
               <option value="2026" selected>2026</option>
@@ -1480,7 +1478,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
             </tr></thead>
             <tbody>
               <tr>
-                <td>Q1<span id="eQ1Cur" style="display:none"></span></td>
+                <td>Q1 <span style="color:#DC2626;font-size:10px">*</span><span id="eQ1Cur" style="display:none"></span></td>
                 <td><input type="number" id="eAdQ1_pl" class="pci-pl" placeholder="0" min="0" oninput="calcAdminPCI('q1','eAd')"></td>
                 <td><input type="number" id="eAdQ1_co" class="pci-co" placeholder="0" min="0" oninput="calcAdminPCI('q1','eAd')"></td>
                 <td><input type="number" id="eAdQ1_ic" class="pci-ic" placeholder="—" min="0" readonly style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete"></td>
@@ -1527,7 +1525,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
             <input type="text" class="af-inp" id="aC" placeholder="e.g. MNT-07" style="font-family:var(--mono);font-weight:700;letter-spacing:.04em">
           </div>
           <div class="af-field">
-            <label class="af-lbl">Year</label>
+            <label class="af-lbl">Year <span style="color:#DC2626;font-size:10px">*</span></label>
             <select class="af-sel" id="aY"></select>
           </div>
           <div class="af-field">
@@ -1559,7 +1557,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
         <!-- Row 3: Dept + Target + Tier -->
         <div class="af-grid3">
           <div class="af-field">
-            <label class="af-lbl">Department</label>
+            <label class="af-lbl">Department <span style="color:#DC2626;font-size:10px">*</span></label>
             <select class="af-sel" id="aDp">
               <option value="maintenance">MNT — Maintenance</option>
               <option value="safety">SAF — Safety</option>
@@ -1592,7 +1590,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
               <th style="color:#67E8F9;width:100px">Result</th>
             </tr></thead>
             <tbody>
-              <tr><td>Q1</td><td><input type="number" id="aAdQ1_pl" class="pci-pl" placeholder="0" min="0" oninput="calcAdminPCI('q1','aAd')"></td><td><input type="number" id="aAdQ1_co" class="pci-co" placeholder="0" min="0" oninput="calcAdminPCI('q1','aAd')"></td><td><input type="number" id="aAdQ1_ic" class="pci-ic" placeholder="—" min="0" readonly style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete"></td><td><span id="aAdQ1_res" class="pci-calc">—</span></td></tr>
+              <tr><td>Q1 <span style="color:#DC2626;font-size:10px">*</span></td><td><input type="number" id="aAdQ1_pl" class="pci-pl" placeholder="0" min="0" oninput="calcAdminPCI('q1','aAd')"></td><td><input type="number" id="aAdQ1_co" class="pci-co" placeholder="0" min="0" oninput="calcAdminPCI('q1','aAd')"></td><td><input type="number" id="aAdQ1_ic" class="pci-ic" placeholder="—" min="0" readonly style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete"></td><td><span id="aAdQ1_res" class="pci-calc">—</span></td></tr>
               <tr><td>Q2</td><td><input type="number" id="aAdQ2_pl" class="pci-pl" placeholder="0" min="0" oninput="calcAdminPCI('q2','aAd')"></td><td><input type="number" id="aAdQ2_co" class="pci-co" placeholder="0" min="0" oninput="calcAdminPCI('q2','aAd')"></td><td><input type="number" id="aAdQ2_ic" class="pci-ic" placeholder="—" min="0" readonly style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete"></td><td><span id="aAdQ2_res" class="pci-calc">—</span></td></tr>
               <tr><td>Q3</td><td><input type="number" id="aAdQ3_pl" class="pci-pl" placeholder="0" min="0" oninput="calcAdminPCI('q3','aAd')"></td><td><input type="number" id="aAdQ3_co" class="pci-co" placeholder="0" min="0" oninput="calcAdminPCI('q3','aAd')"></td><td><input type="number" id="aAdQ3_ic" class="pci-ic" placeholder="—" min="0" readonly style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete"></td><td><span id="aAdQ3_res" class="pci-calc">—</span></td></tr>
               <tr><td>Q4</td><td><input type="number" id="aAdQ4_pl" class="pci-pl" placeholder="0" min="0" oninput="calcAdminPCI('q4','aAd')"></td><td><input type="number" id="aAdQ4_co" class="pci-co" placeholder="0" min="0" oninput="calcAdminPCI('q4','aAd')"></td><td><input type="number" id="aAdQ4_ic" class="pci-ic" placeholder="—" min="0" readonly style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete"></td><td><span id="aAdQ4_res" class="pci-calc">—</span></td></tr>
@@ -1649,34 +1647,9 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
         </label>
         <!-- Bilingual text areas -->
         <div class="af-sec-lbl" style="margin-top:4px">Root Cause &amp; Gap Reasons</div>
-        <div class="af-grid2">
-          <div class="af-field" dir="rtl">
-            <label class="af-lbl" style="text-align:right"> أسباب الفجوة</label>
-            <textarea class="af-txt" id="gA" placeholder="أسباب عدم التحقيق…" dir="rtl" rows="4"></textarea>
-          </div>
-          <div class="af-field">
-            <label class="af-lbl"> Root Cause / Gap Reasons</label>
-            <textarea class="af-txt" id="gE" placeholder="Root causes for non-achievement…" rows="4"></textarea>
-          </div>
-        </div>
+        
         <div class="af-sec-lbl">Corrective Actions</div>
-        <div class="af-grid2">
-          <div class="af-field" dir="rtl">
-            <label class="af-lbl" style="text-align:right"> الإجراءات التصحيحية</label>
-            <textarea class="af-txt" id="aA" placeholder="الإجراءات المتخذة…" dir="rtl" rows="4"></textarea>
-          </div>
-          <div class="af-field">
-            <label class="af-lbl"> Corrective Actions</label>
-            <textarea class="af-txt" id="aE" placeholder="Actions taken or planned…" rows="4"></textarea>
-          </div>
-        </div>
-      </div>
-
-      <!-- ════════════════════════════
-           TAB 4: SECURITY
-      ════════════════════════════ -->
-      <div class="ap" id="ap-security">
-        <!-- Change PIN -->
+        
         <div style="background:var(--card-2);border:1px solid var(--border);border-radius:12px;padding:20px 22px;margin-bottom:16px">
           <div class="af-sec-lbl" style="margin-bottom:14px"> Change Administrator PIN</div>
           <div class="af-grid2">
@@ -1787,7 +1760,6 @@ const TIERS={
 const BC=['rgba(255,255,255,.07)','rgba(248,113,113,.80)','rgba(52,211,153,.75)'];
 const BCL=['b0','b1','b4'];
 
-
 /* ══ AUTH PERMISSIONS ══ */
 function hasPermission(p){const pr=window._fbPerms||[];return pr.includes('*')||pr.includes(p);}
 window.hasPermission=hasPermission;
@@ -1811,14 +1783,6 @@ function updateUserBadge(name,role){
 }
 window.applyRolePermissions=applyRolePermissions;
 window.updateUserBadge=updateUserBadge;
-/* Show login on load */
-showLoginOverlay=function(show){
-  const bg=document.getElementById('_bgLayer');
-  const lo=document.getElementById('_authOverlay');
-  const po=document.getElementById('_portalOverlay');
-  if(show){if(bg)bg.style.display='block';if(lo)lo.style.display='flex';if(po)po.style.display='none';}
-  else    {if(bg)bg.style.display='none'; if(lo)lo.style.display='none'; if(po)po.style.display='none';}
-};
 
 const BASE=[
   {id:'MNT-01',dept:'maintenance',yr:2025,nameEn:'Preventive Maintenance Compliance',nameAr:'معدل الالتزام بالصيانة الوقائية',target:90,op:'>=',q1:98.77,q2:98.77,q3:97.72,q4:98.14,type:'core',tier:3},
@@ -3088,7 +3052,7 @@ function renderReport(){
     </div>
     <div style="width:1px;height:22px;background:var(--border)"></div>
     <div style="display:flex;align-items:center;gap:8px">
-      <label style="font-size:10px;font-weight:700;color:var(--t2);white-space:nowrap">KPI:</label>
+      <label style="font-size:10px;font-weight:700;color:var(--t2);white-space:nowrap">KPI: <span style="color:#DC2626">*</span></label>
       <select class="msel" style="min-width:200px;height:34px;font-size:11px" onchange="window._rptKpi=this.value;renderReport()">${kpiOpts}</select>
     </div>
     <div style="width:1px;height:22px;background:var(--border)"></div>
@@ -4141,8 +4105,17 @@ function renderExec(){
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
           <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em">Forecast (YE)</div>
         </div>
-        <div id="eis_forecast" style="font-size:36px;font-weight:900;color:#0195af;font-family:var(--mono);line-height:1;margin-bottom:4px">—</div>
-        <div style="font-size:9px;color:rgba(255,255,255,.40);margin-bottom:4px">Projected YE achievement</div><div id="eis_current_perf" style="font-size:9px;color:rgba(255,255,255,.55);margin-bottom:6px">Current: —</div>
+        <div style="display:grid;grid-template-columns:1fr 1px 1fr;gap:0;margin-bottom:4px">
+          <div style="text-align:center;padding:0 6px">
+            <div style="font-size:8px;color:rgba(255,255,255,.35);margin-bottom:2px">YE</div>
+            <div id="eis_forecast" style="font-size:26px;font-weight:900;color:#0195af;font-family:var(--mono);line-height:1">—</div>
+          </div>
+          <div style="width:1px;background:rgba(255,255,255,.12)"></div>
+          <div style="text-align:center;padding:0 6px">
+            <div style="font-size:8px;color:rgba(255,255,255,.35);margin-bottom:2px">Now</div>
+            <div id="eis_current_perf" style="font-size:26px;font-weight:900;color:rgba(255,255,255,.70);font-family:var(--mono);line-height:1">—</div>
+          </div>
+        </div>
         <div id="eis_forecast_badge" style="display:inline-block;font-size:8px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(1,149,175,.25);color:#0195af">—</div>
       </div>
       <div style="width:1px;height:60px;background:rgba(255,255,255,.10)"></div>
@@ -4401,12 +4374,13 @@ function renderExec(){
     if(_st){
       const _pct=_ks.filter(k=>ok(k)!==null).length?Math.round(_met.length/_ks.filter(k=>ok(k)!==null).length*100):0;
       const _hasT1Miss=_miss.some(k=>(k.tier||3)===1);
-      const _missGtMet=_miss.length>_met.length;
+      const _total=_ks.filter(k=>ok(k)!==null).length;
+      const _missPct=_total>0?(_miss.length/_total):0;
       if(_miss.length===0){
         _st.textContent='ON TRACK';_st.style.color='#4ADE80';
-      } else if(_hasT1Miss||_missGtMet){
+      } else if(_hasT1Miss||_missPct>=0.50){
         _st.textContent='CRITICAL ATTENTION REQUIRED';_st.style.color='#F87171';
-      } else if(_miss.length>4){
+      } else if(_missPct>=0.30){
         _st.textContent='ATTENTION REQUIRED';_st.style.color='#F87171';
       } else {
         _st.textContent='NEEDS IMPROVEMENT';_st.style.color='#FBBF24';
@@ -4450,7 +4424,7 @@ function renderExec(){
     const _evalK=_ks.filter(k=>ok(k)!==null);
     const _forecastPct=_evalK.length?Math.round((_evalK.filter(k=>ok(k)===true).length+_pend.length*0.5)/_ks.length*100):0;
     const _fe=document.getElementById('eis_forecast');if(_fe){_fe.textContent=_forecastPct+'%';_fe.style.color=_forecastPct>=80?'#4ADE80':_forecastPct>=60?'#0195af':'#FBBF24';}
-    const _curPerfEl=document.getElementById('eis_current_perf');if(_curPerfEl){const _curKs=_ks.filter(k=>ok(k)!==null);const _curPct=_curKs.length?Math.round(_met.length/_curKs.length*100):0;_curPerfEl.textContent='Current: '+_curPct+'%';_curPerfEl.style.color='rgba(255,255,255,.55)';}
+    const _curPerfEl=document.getElementById('eis_current_perf');if(_curPerfEl){const _curKs=_ks.filter(k=>ok(k)!==null);const _curPct=_curKs.length?Math.round(_met.length/_curKs.length*100):0;_curPerfEl.textContent=_curPct+'%';_curPerfEl.style.color='rgba(255,255,255,.55)';}
     const _fb=document.getElementById('eis_forecast_badge');if(_fb){_fb.textContent=_forecastPct>=80?'Likely to meet target':_forecastPct>=60?'Moderate risk':'At risk';_fb.style.color=_forecastPct>=80?'#4ADE80':_forecastPct>=60?'#0195af':'#FBBF24';_fb.style.background=_forecastPct>=80?'rgba(22,163,74,.20)':_forecastPct>=60?'rgba(1,149,175,.25)':'rgba(217,119,6,.25)';}
 
     /* At-Risk KPIs */
@@ -5189,7 +5163,7 @@ function renderDept(){
         }).join('')
       +'</div>'
 
-      /* Next QTR Forecast — only if next quarter not entered yet */
+      /* Next QTR Forecast — avg quarterly trend from previous year */
       +(function(){
         var QTRS=['q1','q2','q3','q4'],QLBLS=['Q1','Q2','Q3','Q4'];
         var kCur=k26||k25;if(!kCur)return '';
@@ -5197,11 +5171,14 @@ function renderDept(){
         for(var i=0;i<4;i++){if(kCur[QTRS[i]]!==null&&kCur[QTRS[i]]!==undefined)lastIdx=i;}
         if(lastIdx<0||lastIdx>=3)return '';
         if(kCur[QTRS[lastIdx+1]]!==null&&kCur[QTRS[lastIdx+1]]!==undefined)return '';
+        var curVal=kCur[QTRS[lastIdx]];
         var prevK=allK().filter(function(x){return x.yr===kCur.yr-1&&x.dept===kCur.dept&&x.nameEn===kCur.nameEn;})[0];
         if(!prevK)return '';
-        var pCur=prevK[QTRS[lastIdx]],pNxt=prevK[QTRS[lastIdx+1]];
-        if(pCur==null||pNxt==null)return '';
-        var fc=Math.min(100,Math.max(0,+(kCur[QTRS[lastIdx]]+(pNxt-pCur)).toFixed(1)));
+        /* Avg quarterly change in prev year */
+        var pVals=[prevK.q1,prevK.q2,prevK.q3,prevK.q4].filter(function(v){return v!==null&&v!==undefined;});
+        if(pVals.length<2)return '';
+        var avgDelta=(pVals[pVals.length-1]-pVals[0])/(pVals.length-1);
+        var fc=Math.min(100,Math.max(0,+(curVal+avgDelta).toFixed(1)));
         var fcOk=fc>=tgt;
         var lbl=QLBLS[lastIdx+1]+"'"+(String(kCur.yr).slice(2));
         return '<div style="padding:6px 12px;border-top:1px solid #F0F4F8;display:flex;align-items:center;justify-content:space-between">'
@@ -5558,7 +5535,19 @@ function doPin(){
   }
 }
 
-function openAdmin(){document.getElementById('pinI').value='';document.getElementById('pinE').textContent='';document.getElementById('lockOv').classList.add('open');}
+function openAdmin(){
+  const role=window._fbRole||'';
+  if(role==='super_admin'||role==='admin'){
+    document.getElementById('adminOv').classList.add('open');
+  } else if(!role){
+    /* No Firebase role yet — use PIN fallback */
+    document.getElementById('pinI').value='';
+    document.getElementById('pinE').textContent='';
+    document.getElementById('lockOv').classList.add('open');
+  } else {
+    alert('Access denied. Admin or Super Admin role required.');
+  }
+}
 
 /* FIX 5: Admin session auto-timeout — 5 minutes */
 function resetAdminTimer(){
