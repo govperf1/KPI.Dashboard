@@ -1015,14 +1015,14 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     /* ══ PASTE YOUR FIREBASE CONFIG HERE ══════════════════════ */
-const firebaseConfig = {
-  apiKey: "AIzaSyAlLWZvsu4UbHn-LncFdrSHlbL3bIAG4no",
-  authDomain: "qumc-kpi-dashboard-f10dd.firebaseapp.com",
-  projectId: "qumc-kpi-dashboard-f10dd",
-  storageBucket: "qumc-kpi-dashboard-f10dd.firebasestorage.app",
-  messagingSenderId: "659971973475",
-  appId: "1:659971973475:web:483116a0711008a6a97356"
-};
+    const firebaseConfig = {
+      apiKey:            "YOUR_API_KEY",
+      authDomain:        "YOUR_PROJECT.firebaseapp.com",
+      projectId:         "YOUR_PROJECT_ID",
+      storageBucket:     "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId:             "YOUR_APP_ID"
+    };
     /* ═══════════════════════════════════════════════════════════ */
 
     /* ── Default role permissions (fallback if not in Firestore) ── */
@@ -1133,7 +1133,7 @@ const firebaseConfig = {
         window._fbUser=null; window._fbRole=null;
         window._fbDept=null; window._fbPerms=[];
         window._fbAssignedKpis=null;
-        if(typeof showLoginOverlay==='function') showLoginOverlay(true);
+        if(typeof window.showLoginOverlay==='function') window.showLoginOverlay(true);
         return;
       }
 
@@ -1193,12 +1193,13 @@ const firebaseConfig = {
 
         /* 7. Apply UI */
         /* Show portal selection instead of jumping straight to dashboard */
-        if(typeof showPortalSelection==='function') showPortalSelection();
-        else {
-          if(typeof showLoginOverlay==='function')    showLoginOverlay(false);
-          if(typeof applyRolePermissions==='function') applyRolePermissions(role, userData.dept||null, perms);
-          if(typeof updateUserBadge==='function')      updateUserBadge(window._fbName, role, perms);
-          if(typeof renderCurrent==='function')        renderCurrent();
+        if(typeof window.showPortalSelection==='function'){
+          window.showPortalSelection();
+        } else {
+          window.showLoginOverlay&&window.showLoginOverlay(false);
+          window.applyRolePermissions&&window.applyRolePermissions(role,userData.dept||null,perms);
+          window.updateUserBadge&&window.updateUserBadge(window._fbName,role,perms);
+          typeof renderCurrent==='function'&&renderCurrent();
         }
 
       } catch(e) {
@@ -2722,6 +2723,11 @@ function showPortalSelection(){
   const anim=document.getElementById('_portalAnimTitle');
   if(anim){ anim.textContent=''; }
 }
+window.showPortalSelection = showPortalSelection;
+window.showLoginOverlay    = showLoginOverlay;
+window.showAuthError       = showAuthError;
+window.updateUserBadge     = updateUserBadge;
+window.applyRolePermissions= applyRolePermissions;
 
 window._selectPortal = function(portal){
   if(portal==='performance'){
