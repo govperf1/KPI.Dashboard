@@ -1015,14 +1015,14 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
       from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     /* ══ PASTE YOUR FIREBASE CONFIG HERE ══════════════════════ */
-const firebaseConfig = {
-  apiKey: "AIzaSyAlLWZvsu4UbHn-LncFdrSHlbL3bIAG4no",
-  authDomain: "qumc-kpi-dashboard-f10dd.firebaseapp.com",
-  projectId: "qumc-kpi-dashboard-f10dd",
-  storageBucket: "qumc-kpi-dashboard-f10dd.firebasestorage.app",
-  messagingSenderId: "659971973475",
-  appId: "1:659971973475:web:483116a0711008a6a97356"
-};
+    const firebaseConfig = {
+      apiKey:            "AIzaSyAlLWZvsu4UbHn-LncFdrSHlbL3bIAG4no",
+      authDomain:        "qumc-kpi-dashboard-f10dd.firebaseapp.com",
+      projectId:         "qumc-kpi-dashboard-f10dd",
+      storageBucket:     "qumc-kpi-dashboard-f10dd.firebasestorage.app",
+      messagingSenderId: "659971973475",
+      appId:             "1:659971973475:web:483116a0711008a6a97356"
+    };
     /* ═══════════════════════════════════════════════════════════ */
 
     /* ── Default role permissions (fallback if not in Firestore) ── */
@@ -1192,15 +1192,22 @@ const firebaseConfig = {
         catch(_){}
 
         /* 7. Apply UI */
-        /* Show portal selection instead of jumping straight to dashboard */
-        if(typeof window.showPortalSelection==='function'){
-          window.showPortalSelection();
-        } else {
-          window.showLoginOverlay&&window.showLoginOverlay(false);
-          window.applyRolePermissions&&window.applyRolePermissions(role,userData.dept||null,perms);
-          window.updateUserBadge&&window.updateUserBadge(window._fbName,role,perms);
-          typeof renderCurrent==='function'&&renderCurrent();
-        }
+        /* Show portal selection — direct DOM manipulation (no window dependency) */
+        (function showPortal(){
+          const lo=document.getElementById('_authOverlay');
+          const po=document.getElementById('_portalOverlay');
+          if(lo)lo.style.display='none';
+          if(po){po.style.display='flex';}
+          /* User info in portal */
+          const nm=document.getElementById('_portalUserName');
+          const rl=document.getElementById('_portalUserRole');
+          if(nm)nm.textContent=window._fbName||email.split('@')[0];
+          if(rl){
+            const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',
+                     department_manager:'Dept Manager',kpi_owner:'KPI Owner',viewer:'Viewer'};
+            rl.textContent=L[role]||role;
+          }
+        })();
 
       } catch(e) {
         if(typeof showAuthError==='function')
@@ -1860,6 +1867,8 @@ function showLoginOverlay(show){
     const err=document.getElementById('_fbErr');
     if(err)err.textContent='';
   } else {
+    const bg=document.getElementById('_bgLayer');
+    if(bg)bg.style.display='none';
     if(lo)lo.style.display='none';
     if(po)po.style.display='none';
   }
