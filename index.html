@@ -1521,11 +1521,11 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
         <!-- Row 1: Code + Year + Operator + Type -->
         <div class="af-grid4">
           <div class="af-field">
-            <label class="af-lbl">KPI Code *</label>
+            <label class="af-lbl">KPI Code <span style="color:#DC2626">*</span></label>
             <input type="text" class="af-inp" id="aC" placeholder="e.g. MNT-07" style="font-family:var(--mono);font-weight:700;letter-spacing:.04em">
           </div>
           <div class="af-field">
-            <label class="af-lbl">Year <span style="color:#DC2626;font-size:10px">*</span></label>
+            <label class="af-lbl">Year <span style="color:#DC2626">*</span></label>
             <select class="af-sel" id="aY"></select>
           </div>
           <div class="af-field">
@@ -1536,10 +1536,11 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
             </select>
           </div>
           <div class="af-field">
-            <label class="af-lbl">KPI Type</label>
-            <select class="af-sel" id="aT">
-              <option value="core">Core KPI</option>
-              <option value="dynamic">Dynamic / Project</option>
+            <label class="af-lbl">Risk Tier <span style="color:#DC2626">*</span></label>
+            <select class="af-sel" id="aTier">
+              <option value="1">T1 — Patient Safety</option>
+              <option value="2">T2 — Regulatory</option>
+              <option value="3" selected>T3 — Operational</option>
             </select>
           </div>
         </div>
@@ -1590,12 +1591,40 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
               <th style="color:#67E8F9;width:100px">Result</th>
             </tr></thead>
             <tbody>
-              <tr><td>Q1 <span style="color:#DC2626;font-size:10px">*</span></td><td><input type="number" id="aAdQ1_pl" class="pci-pl" placeholder="0" min="0" oninput="calcAdminPCI('q1','aAd')"></td><td><input type="number" id="aAdQ1_co" class="pci-co" placeholder="0" min="0" oninput="calcAdminPCI('q1','aAd')"></td><td><input type="number" id="aAdQ1_ic" class="pci-ic" placeholder="—" min="0" readonly style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete"></td><td><span id="aAdQ1_res" class="pci-calc">—</span></td></tr>
+              <tr><td>Q1</td><td><input type="number" id="aAdQ1_pl" class="pci-pl" placeholder="0" min="0" oninput="calcAdminPCI('q1','aAd')"></td><td><input type="number" id="aAdQ1_co" class="pci-co" placeholder="0" min="0" oninput="calcAdminPCI('q1','aAd')"></td><td><input type="number" id="aAdQ1_ic" class="pci-ic" placeholder="—" min="0" readonly style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete"></td><td><span id="aAdQ1_res" class="pci-calc">—</span></td></tr>
               <tr><td>Q2</td><td><input type="number" id="aAdQ2_pl" class="pci-pl" placeholder="0" min="0" oninput="calcAdminPCI('q2','aAd')"></td><td><input type="number" id="aAdQ2_co" class="pci-co" placeholder="0" min="0" oninput="calcAdminPCI('q2','aAd')"></td><td><input type="number" id="aAdQ2_ic" class="pci-ic" placeholder="—" min="0" readonly style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete"></td><td><span id="aAdQ2_res" class="pci-calc">—</span></td></tr>
               <tr><td>Q3</td><td><input type="number" id="aAdQ3_pl" class="pci-pl" placeholder="0" min="0" oninput="calcAdminPCI('q3','aAd')"></td><td><input type="number" id="aAdQ3_co" class="pci-co" placeholder="0" min="0" oninput="calcAdminPCI('q3','aAd')"></td><td><input type="number" id="aAdQ3_ic" class="pci-ic" placeholder="—" min="0" readonly style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete"></td><td><span id="aAdQ3_res" class="pci-calc">—</span></td></tr>
               <tr><td>Q4</td><td><input type="number" id="aAdQ4_pl" class="pci-pl" placeholder="0" min="0" oninput="calcAdminPCI('q4','aAd')"></td><td><input type="number" id="aAdQ4_co" class="pci-co" placeholder="0" min="0" oninput="calcAdminPCI('q4','aAd')"></td><td><input type="number" id="aAdQ4_ic" class="pci-ic" placeholder="—" min="0" readonly style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete"></td><td><span id="aAdQ4_res" class="pci-calc">—</span></td></tr>
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- ════════════════════════════
+           TAB: DELETE KPI
+      ════════════════════════════ -->
+      <div class="ap" id="ap-del">
+        <div style="background:rgba(220,38,38,.05);border:1.5px solid rgba(220,38,38,.20);border-radius:12px;padding:20px 22px;margin-bottom:16px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            <span style="font-size:12px;font-weight:800;color:#DC2626">Delete KPI</span>
+          </div>
+          <div class="af-row" style="margin-bottom:12px">
+            <label class="af-lbl">Select KPI to Delete</label>
+            <select class="af-sel" id="delSel" onchange="previewDelKpi(this.value)">
+              <option value="">— Select a KPI —</option>
+            </select>
+          </div>
+          <div id="delPreview" style="display:none;padding:12px 14px;background:#FEF2F2;border:1px solid #FECACA;border-radius:9px;margin-bottom:14px">
+            <div style="font-size:10px;font-weight:700;color:#DC2626;margin-bottom:6px">⚠ You are about to delete:</div>
+            <div id="delPreviewName" style="font-size:12px;font-weight:700;color:#152538;margin-bottom:4px"></div>
+            <div id="delPreviewMeta" style="font-size:10px;color:#64748B"></div>
+          </div>
+          <button onclick="confirmDelKpi()" class="af-btn-danger" style="width:100%;justify-content:center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            Delete Selected KPI Permanently
+          </button>
+          <p style="margin:10px 0 0;font-size:9.5px;color:#DC2626;line-height:1.6">⚠ This cannot be undone. Only added KPIs can be deleted. Base KPIs cannot be deleted.</p>
         </div>
       </div>
 
@@ -1647,8 +1676,15 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
         </label>
         <!-- Bilingual text areas -->
         <div class="af-sec-lbl" style="margin-top:4px">Root Cause &amp; Gap Reasons</div>
-        
+        <div class="af-field" style="margin-bottom:12px">
+          <label class="af-lbl"> Root Cause / Gap Reasons <span style="color:#DC2626">*</span></label>
+          <textarea class="af-txt" id="gE" placeholder="Root causes for non-achievement…" rows="4"></textarea>
+        </div>
         <div class="af-sec-lbl">Corrective Actions</div>
+        <div class="af-field" style="margin-bottom:12px">
+          <label class="af-lbl"> Corrective Actions <span style="color:#DC2626">*</span></label>
+          <textarea class="af-txt" id="aE" placeholder="Actions taken or planned…" rows="4"></textarea>
+        </div>
         
         <div style="background:var(--card-2);border:1px solid var(--border);border-radius:12px;padding:20px 22px;margin-bottom:16px">
           <div class="af-sec-lbl" style="margin-bottom:14px"> Change Administrator PIN</div>
@@ -1759,30 +1795,6 @@ const TIERS={
 /* Binary band: 0=N/A, 1=Missed(red), 2=Met(green) */
 const BC=['rgba(255,255,255,.07)','rgba(248,113,113,.80)','rgba(52,211,153,.75)'];
 const BCL=['b0','b1','b4'];
-
-/* ══ AUTH PERMISSIONS ══ */
-function hasPermission(p){const pr=window._fbPerms||[];return pr.includes('*')||pr.includes(p);}
-window.hasPermission=hasPermission;
-function applyRolePermissions(role,dept,perms){
-  window._fbPerms=perms||[];
-  const isAdmin=role==='super_admin'||role==='admin';
-  const isViewer=role==='viewer'||role==='executive'||role==='department_manager';
-  if(!isAdmin){document.querySelectorAll('.topbar button').forEach(b=>{if(b.innerHTML.includes('M7 11V7'))b.style.display='none';});}
-  if(isViewer){const s=document.createElement('style');s.textContent='[onclick*="openGap"],[onclick*="rptEdit"],[onclick*="saveAdmin"],[id$="-acts"]{display:none!important;}';document.head.appendChild(s);}
-  if((role==='department_manager'||role==='kpi_owner')&&dept){
-    window._lockedDept=dept;const orig=window.setF;
-    window.setF=function(t,v,e){if(t==='dept'&&v!==dept&&v!=='all')return;if(orig)orig(t,v,e);};
-    setTimeout(()=>{if(typeof F!=='undefined')F.dept=dept;document.querySelectorAll('[data-filter="dept"]').forEach(b=>{b.classList.toggle('on',b.dataset.val===dept);if(b.dataset.val!==dept&&b.dataset.val!=='all'){b.style.opacity='.30';b.style.pointerEvents='none';}});if(typeof renderCurrent==='function')renderCurrent();},400);
-  }
-}
-function updateUserBadge(name,role){
-  const b=document.getElementById('_userBadge');if(b)b.style.display='flex';
-  const av=document.getElementById('_userAvatar');if(av)av.textContent=(name||'U')[0].toUpperCase();
-  const nm=document.getElementById('_userName');if(nm)nm.textContent=name||'User';
-  const rl=document.getElementById('_userRole');if(rl){const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',viewer:'Viewer'};rl.textContent=L[role]||role;rl.style.color=role==='super_admin'||role==='admin'?'#F87171':role==='executive'?'#A78BFA':role==='department_manager'?'#4ADE80':'#94A3B8';}
-}
-window.applyRolePermissions=applyRolePermissions;
-window.updateUserBadge=updateUserBadge;
 
 const BASE=[
   {id:'MNT-01',dept:'maintenance',yr:2025,nameEn:'Preventive Maintenance Compliance',nameAr:'معدل الالتزام بالصيانة الوقائية',target:90,op:'>=',q1:98.77,q2:98.77,q3:97.72,q4:98.14,type:'core',tier:3},
@@ -3279,13 +3291,10 @@ function renderReport(){
 }
 
 function rptStartEdit(id){
-  if(!window._adminActive){
-    /* Show a brief tooltip: admin only */
+  const _role=window._fbRole||'';
+  if(_role!=='super_admin'&&_role!=='admin'&&!window._adminActive){
     const wrap=document.getElementById(id+'-w');
-    if(wrap){
-      wrap.style.outline='2px solid #DC2626';wrap.style.borderRadius='6px';
-      setTimeout(()=>{wrap.style.outline='none';},900);
-    }
+    if(wrap){wrap.style.outline='2px solid #DC2626';wrap.style.borderRadius='6px';setTimeout(()=>{wrap.style.outline='none';},900);}
     return;
   }
   const p=document.getElementById(id);
@@ -3647,6 +3656,31 @@ function initSecurity(){
 /* ══════════════════════════════════════════
    STATE
 ══════════════════════════════════════════ */
+/* ══ AUTH PERMISSIONS ══ */
+function hasPermission(p){const pr=window._fbPerms||[];return pr.includes('*')||pr.includes(p);}
+window.hasPermission=hasPermission;
+function applyRolePermissions(role,dept,perms){
+  window._fbPerms=perms||[];
+  const isAdmin=role==='super_admin'||role==='admin';
+  const isViewer=role==='viewer'||role==='executive'||role==='department_manager';
+  if(!isAdmin){document.querySelectorAll('.topbar button').forEach(b=>{if(b.innerHTML.includes('M7 11V7'))b.style.display='none';});}
+  if(isViewer){const s=document.createElement('style');s.textContent='[onclick*="openGap"],[onclick*="rptEdit"],[onclick*="saveAdmin"],[id$="-acts"]{display:none!important;}';document.head.appendChild(s);}
+  if((role==='department_manager'||role==='kpi_owner')&&dept){
+    window._lockedDept=dept;const orig=window.setF;
+    window.setF=function(t,v,e){if(t==='dept'&&v!==dept&&v!=='all')return;if(orig)orig(t,v,e);};
+    setTimeout(()=>{if(typeof F!=='undefined')F.dept=dept;document.querySelectorAll('[data-filter="dept"]').forEach(b=>{b.classList.toggle('on',b.dataset.val===dept);if(b.dataset.val!==dept&&b.dataset.val!=='all'){b.style.opacity='.30';b.style.pointerEvents='none';}});if(typeof renderCurrent==='function')renderCurrent();},400);
+  }
+}
+function updateUserBadge(name,role){
+  const b=document.getElementById('_userBadge');if(b)b.style.display='flex';
+  const av=document.getElementById('_userAvatar');if(av)av.textContent=(name||'U')[0].toUpperCase();
+  const nm=document.getElementById('_userName');if(nm)nm.textContent=name||'User';
+  const rl=document.getElementById('_userRole');if(rl){const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',viewer:'Viewer'};rl.textContent=L[role]||role;rl.style.color=role==='super_admin'||role==='admin'?'#F87171':role==='executive'?'#A78BFA':role==='department_manager'?'#4ADE80':'#94A3B8';}
+}
+window.applyRolePermissions=applyRolePermissions;
+window.updateUserBadge=updateUserBadge;
+
+function htmlEsc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function lLS(){try{return JSON.parse(localStorage.getItem('kpi_v3')||'{}')}catch{return{}}}
 function sLS(d){
   try{localStorage.setItem('kpi_v3',JSON.stringify(d));}
@@ -3671,7 +3705,9 @@ function getLatestPeriod(){
   const yrs=[...new Set(all.map(k=>k.yr))].sort((a,b)=>b-a);
   const ly=yrs[0];
   const qs=['q1','q2','q3','q4'].filter(q=>all.some(k=>k.yr===ly&&k[q]!==null));
-  return{year:String(ly),qtrs:qs.length?qs:['q1']};
+  /* Default to LATEST available quarter only — not all quarters averaged */
+  const latestQ=qs.length?[qs[qs.length-1]]:['q1'];
+  return{year:String(ly),qtrs:latestQ};
 }
 function getAvailableYears(){
   return[...new Set(allK().map(k=>String(k.yr)))].sort();
@@ -5539,6 +5575,7 @@ function openAdmin(){
   const role=window._fbRole||'';
   if(role==='super_admin'||role==='admin'){
     document.getElementById('adminOv').classList.add('open');
+    window._adminActive=true;
   } else if(!role){
     /* No Firebase role yet — use PIN fallback */
     document.getElementById('pinI').value='';
@@ -5673,15 +5710,130 @@ function saveAdmin(){
     const ic=parseFloat(document.getElementById('eAd'+Q+'_ic')?.value)||0;
     if(pl>0||co>0)ST.pci[id][Q.toLowerCase()]={planned:pl,complete:co,incomplete:ic};
   });
-  action='KPI_EDIT';detail=`Edited ${id}`;}
-  else if(ap==='ap-add'){const code=document.getElementById('aC').value.trim();if(!code){toast('Enter code');return;}if(!ST.added)ST.added=[];ST.added=ST.added.filter(k=>k.id!==code);ST.added.push({id:code,dept:document.getElementById('aDp').value,yr:parseInt(document.getElementById('aY').value),nameEn:document.getElementById('aNE').value,nameAr:document.getElementById('aNA').value,target:parseFloat(document.getElementById('aTg').value)||100,op:document.getElementById('aO').value,type:document.getElementById('aT').value,tier:parseInt(document.getElementById('aTier').value)||3,q1:pn(document.getElementById('aQ1').value),q2:pn(document.getElementById('aQ2').value),q3:pn(document.getElementById('aQ3').value),q4:pn(document.getElementById('aQ4').value)});action='KPI_ADD';detail=`Added ${code}`;}
+  const _oldK=allK().find(x=>x.id===id);
+  const _oldVal=_oldK?`Q1:${_oldK.q1||'—'} Q2:${_oldK.q2||'—'} Q3:${_oldK.q3||'—'} Q4:${_oldK.q4||'—'} Target:${_oldK.target||'—'}%`:'new';
+  action='KPI_EDIT';detail=`Edited ${id}`;if(!window._editOldVal)window._editOldVal=_oldVal;}
+  else if(ap==='ap-add'){
+    /* ── Required fields validation ── */
+    const _req=[
+      {id:'aC',lbl:'KPI Code'},
+      {id:'aDp',lbl:'Department'},
+      {id:'aTg',lbl:'Target'},
+      {id:'aY',lbl:'Year'},
+      {id:'aNE',lbl:'KPI Name (EN)'}
+    ];
+    let _reqOk=true;
+    _req.forEach(r=>{
+      const el=document.getElementById(r.id);if(!el)return;
+      const empty=!el.value||!el.value.trim();
+      el.style.borderColor=empty?'#DC2626':'';
+      el.style.boxShadow=empty?'0 0 0 3px rgba(220,38,38,.15)':'';
+      if(empty)_reqOk=false;
+    });
+    if(!_reqOk){
+      /* Show red feedback */
+      const fb=document.getElementById('_addFeedback');
+      if(fb){fb.textContent=' Please fill all required fields (marked *)';fb.style.color='#DC2626';fb.style.display='block';}
+      toast(' Fill all required fields');return;
+    }
+    const code=document.getElementById('aC').value.trim();
+    if(!ST.added)ST.added=[];
+    ST.added=ST.added.filter(k=>k.id!==code);
+    ST.added.push({
+      id:code,
+      dept:document.getElementById('aDp').value,
+      yr:parseInt(document.getElementById('aY').value)||2026,
+      nameEn:document.getElementById('aNE').value,
+      nameAr:document.getElementById('aNA').value||'',
+      target:parseFloat(document.getElementById('aTg').value)||100,
+      op:document.getElementById('aO').value||'>=',
+      type:'core',
+      tier:parseInt(document.getElementById('aTier').value)||3,
+      q1:pn(document.getElementById('aQ1').value),
+      q2:pn(document.getElementById('aQ2').value),
+      q3:pn(document.getElementById('aQ3').value),
+      q4:pn(document.getElementById('aQ4').value)
+    });
+    /* Show green feedback */
+    const fb=document.getElementById('_addFeedback');
+    if(fb){fb.textContent=' KPI added successfully — visible in dashboard';fb.style.color='#16A34A';fb.style.display='block';}
+    action='KPI_ADD';detail=`Added ${code}`;
+    /* Clear form */
+    ['aC','aNE','aNA','aTg','aQ1','aQ2','aQ3','aQ4'].forEach(id=>{const e=document.getElementById(id);if(e){e.value='';e.style.borderColor='';e.style.boxShadow='';}});
+  }
   else if(ap==='ap-gap'){const id=document.getElementById('gS').value;if(!id){toast('Select a KPI');return;}if(!ST.gaps)ST.gaps={};const atRisk=document.getElementById('gAtRisk')?.checked||false;ST.gaps[id]={gapAr:document.getElementById('gA').value,actAr:document.getElementById('aA').value,gapEn:document.getElementById('gE').value,actEn:document.getElementById('aE').value,owner:document.getElementById('gOwner').value,dueDate:document.getElementById('gDue').value,status:document.getElementById('actStatus').value,priority:document.getElementById('actPri').value,atRisk};if(!ST.actions)ST.actions={};ST.actions[id]={...ST.actions[id],owner:document.getElementById('gOwner').value,status:document.getElementById('actStatus').value,dueDate:document.getElementById('gDue').value,priority:document.getElementById('actPri').value,atRisk};action='GAP_EDIT';detail=`Gap for ${id} (${atRisk?'AT RISK':''})`;}
   else if(ap==='ap-actions'||ap==='ap-security'||ap==='ap-auditlog')return;
-  if(action)addAudit(action,detail);
+  if(action)addAudit(action,detail,window._editOldVal||null);window._editOldVal=null;
   sLS(ST);toast(lang==='ar'?' تم الحفظ':' Saved');updateBadge();renderCurrent();
 }
-function addAudit(action,detail){if(!ST.audit)ST.audit=[];ST.audit.unshift({ts:new Date().toISOString(),action,detail});ST.audit=ST.audit.slice(0,50);sLS(ST);}
-function loadAuditLog(){const el=document.getElementById('auditLogList');if(!el)return;const log=ST.audit||[];if(!log.length){el.innerHTML=`<div style="font-size:11px;color:var(--t3);text-align:center;padding:20px">No log entries yet</div>`;return;}el.innerHTML=log.map((e,i)=>{const d=new Date(e.ts);return`<div style="display:flex;align-items:flex-start;gap:12px;padding:9px 14px;border-bottom:1px solid var(--border);background:${i%2===0?'#fff':'var(--card-2)'}"><span style="font-size:9px;color:var(--t3);font-family:var(--mono);white-space:nowrap;padding-top:1px;min-width:120px">${d.toLocaleDateString()} ${d.toLocaleTimeString()}</span><span style="font-size:10.5px;font-weight:700;color:var(--ink);flex-shrink:0">${e.action}</span><span style="font-size:10px;color:var(--t2);flex:1">${e.detail}</span></div>`;}).join('');}
+function previewDelKpi(id){
+  const prev=document.getElementById('delPreview');
+  if(!id){if(prev)prev.style.display='none';return;}
+  const k=allK().find(x=>x.id===id);
+  if(!k){if(prev)prev.style.display='none';return;}
+  if(prev)prev.style.display='block';
+  const nm=document.getElementById('delPreviewName');
+  const mt=document.getElementById('delPreviewMeta');
+  if(nm)nm.textContent=k.id+' — '+k.nameEn;
+  if(mt)mt.textContent='Dept: '+DM[k.dept].en+' | Year: '+k.yr+' | Target: '+k.target+'%'+(k.q1!==null?' | Q1: '+k.q1+'%':'');
+}
+function confirmDelKpi(){
+  const id=document.getElementById('delSel').value;
+  if(!id){toast('Select a KPI to delete');return;}
+  const k=allK().find(x=>x.id===id);
+  if(!k){toast('KPI not found');return;}
+  /* Only allow deleting from ST.added (user-added KPIs) */
+  const inAdded=(ST.added||[]).some(x=>x.id===id);
+  if(!inAdded){toast(' Base KPIs cannot be deleted');return;}
+  if(!confirm('Delete "'+k.nameEn+'" ('+id+')? This cannot be undone.')){return;}
+  ST.added=(ST.added||[]).filter(x=>x.id!==id);
+  /* Also remove overrides and gap data */
+  if(ST.ov&&ST.ov[id])delete ST.ov[id];
+  if(ST.gaps&&ST.gaps[id])delete ST.gaps[id];
+  if(ST.actions&&ST.actions[id])delete ST.actions[id];
+  addAudit('KPI_DEL','Deleted '+id,k.nameEn);
+  sLS(ST);
+  toast(' KPI '+id+' deleted');
+  /* Reset select */
+  const sel=document.getElementById('delSel');if(sel)sel.value='';
+  const prev=document.getElementById('delPreview');if(prev)prev.style.display='none';
+  renderCurrent();
+}
+function addAudit(action,detail,oldVal){
+  if(!ST.audit)ST.audit=[];
+  ST.audit.unshift({
+    ts:new Date().toISOString(),
+    user:window._fbName||'Admin',
+    role:window._fbRole||'admin',
+    action,
+    detail,
+    oldVal:oldVal||null
+  });
+  ST.audit=ST.audit.slice(0,100);
+  sLS(ST);
+}
+function loadAuditLog(){
+  const el=document.getElementById('auditLogList');if(!el)return;
+  const log=ST.audit||[];
+  if(!log.length){el.innerHTML='<div style="font-size:11px;color:var(--t3);text-align:center;padding:20px">No log entries yet</div>';return;}
+  const actionColor={KPI_EDIT:'#0195af',KPI_ADD:'#16A34A',KPI_DEL:'#DC2626',GAP_EDIT:'#D97706',BACKUP_EXPORT:'#64748B',BACKUP_IMPORT:'#7C3AED',LOGIN:'#16A34A',LOGOUT:'#DC2626'};
+  el.innerHTML=`
+    <div style="display:grid;grid-template-columns:140px 100px 100px 1fr 1fr 180px;padding:8px 14px;background:var(--t4);font-size:8.5px;font-weight:700;color:var(--t3);letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--border)">
+      <span>Time</span><span>User</span><span>Role</span><span>Action / Detail</span><span>Before Change</span><span>Action Type</span>
+    </div>
+    ${log.map((e,i)=>{
+      const d=new Date(e.ts);
+      const ts=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      const ac=actionColor[e.action]||'#64748B';
+      return '<div style="display:grid;grid-template-columns:140px 100px 100px 1fr 1fr 180px;padding:9px 14px;border-bottom:1px solid var(--border);align-items:center;background:'+(i%2===0?'transparent':'rgba(0,0,0,.015)')+'">'+
+        '<span style="font-size:9px;color:var(--t2);font-family:var(--mono)">'+ts+'</span>'+
+        '<span style="font-size:10px;font-weight:700;color:var(--ink)">'+htmlEsc(e.user||'—')+'</span>'+
+        '<span style="font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(1,149,175,.10);color:#0195af">'+htmlEsc(e.role||'—')+'</span>'+
+        '<span style="font-size:10px;color:var(--t2)">'+htmlEsc(e.detail||'—')+'</span>'+
+        '<span style="font-size:9px;color:var(--t3);font-style:italic">'+htmlEsc(e.oldVal||'—')+'</span>'+
+        '<span style="display:inline-flex;align-items:center;gap:4px"><span style="padding:2px 8px;border-radius:4px;font-size:8.5px;font-weight:700;background:'+ac+'22;color:'+ac+'">'+htmlEsc(e.action||'—')+'</span></span>'+
+      '</div>';
+    }).join('')}`;el.innerHTML=log.map((e,i)=>{const d=new Date(e.ts);return`<div style="display:flex;align-items:flex-start;gap:12px;padding:9px 14px;border-bottom:1px solid var(--border);background:${i%2===0?'#fff':'var(--card-2)'}"><span style="font-size:9px;color:var(--t3);font-family:var(--mono);white-space:nowrap;padding-top:1px;min-width:120px">${d.toLocaleDateString()} ${d.toLocaleTimeString()}</span><span style="font-size:10.5px;font-weight:700;color:var(--ink);flex-shrink:0">${e.action}</span><span style="font-size:10px;color:var(--t2);flex:1">${e.detail}</span></div>`;}).join('');}
 function clearAudit(){ST.audit=[];sLS(ST);loadAuditLog();toast('Audit log cleared');}
 
 /* ══════════════════════════════════════════
@@ -5804,7 +5956,7 @@ window.addEventListener('storage',e=>{
 </script>
 
 <!-- ══ AI Personal Assistant ══ -->
-<div id="aiFab" onclick="aiToggle()" style="position:fixed;bottom:28px;right:28px;z-index:9990;width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#152538,#00A3C4);box-shadow:0 6px 22px rgba(0,163,196,.42);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s" onmouseover="this.style.transform='scale(1.12)'" onmouseout="this.style.transform='scale(1)'">
+<div id="aiFab" onclick="aiToggle()" style="position:fixed;bottom:28px;right:28px;z-index:9980;width:54px;display:none;height:54px;border-radius:50%;background:linear-gradient(135deg,#152538,#00A3C4);box-shadow:0 6px 22px rgba(0,163,196,.42);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s" onmouseover="this.style.transform='scale(1.12)'" onmouseout="this.style.transform='scale(1)'">
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
 </div>
 <div id="aiWin" style="display:none;position:fixed;bottom:96px;right:28px;z-index:9989;width:385px;max-height:585px;border-radius:18px;background:#fff;box-shadow:0 22px 70px rgba(13,31,60,.22);border:1px solid rgba(0,163,196,.13);overflow:hidden;flex-direction:column">
