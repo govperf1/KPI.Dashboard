@@ -3775,12 +3775,11 @@ function sLS(d){
         :' Storage full. Export a backup immediately before data loss.');
     }
   }
-}
-ST=lLS();
-initSecurity();
   /* Async Firestore sync (non-blocking) */
   if(typeof window._saveToFS==='function') window._saveToFS(d);
 }
+ST=lLS();
+initSecurity();
 
 function resetFilters(){
   /* Reset FILTERS ONLY — no data is changed */
@@ -3951,17 +3950,20 @@ let curPage='exec';
 function switchTab(id,el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
-  el.classList.add('on');document.getElementById('page-'+id).classList.add('on');
-  curPage=id;renderPage(id);
+  el.classList.add('on');
+  const pg=document.getElementById('page-'+id);
+  if(pg)pg.classList.add('on');
+  curPage=id;
+  renderCurrent();
+  updateChips();
 }
 function renderCurrent(){
   try{
-  function renderPage(id){
-    if(id==='exec')renderExec();
-    else if(id==='dept')renderDept();
-    else if(id==='registry')renderRegistry();
-    else if(id==='accountability')renderAcc();
-    else if(id==='report')renderReport();
+    if(curPage==='exec')renderExec();
+    else if(curPage==='dept')renderDept();
+    else if(curPage==='registry')renderRegistry();
+    else if(curPage==='accountability')renderAcc();
+    else if(curPage==='report')renderReport();
   }catch(e){
     console.error('[Dashboard] renderCurrent error:',e);
     const wrap=document.getElementById('pageWrap')||document.getElementById('dash-wrap')||document.querySelector('.page-wrap');
