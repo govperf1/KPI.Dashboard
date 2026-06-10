@@ -1460,8 +1460,11 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
           <div class="af-field">
             <label class="af-lbl">Year <span style="color:#DC2626;font-size:10px">*</span></label>
             <select class="af-sel" id="eYr">
+              <option value="2024">2024</option>
               <option value="2025">2025</option>
               <option value="2026" selected>2026</option>
+              <option value="2027">2027</option>
+              <option value="2028">2028</option>
             </select>
           </div>
         </div>
@@ -1552,7 +1555,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
           </div>
           <div class="af-field" dir="rtl">
             <label class="af-lbl" style="text-align:right">الاسم بالعربية</label>
-            <input type="text" class="af-inp" id="aNA" placeholder="اسم المؤشر…" dir="rtl">
+            <input type="text" class="af-inp" id="aNA" placeholder="اسم المؤشر…" dir="rtl" oninput="this.value=this.value.replace(/[^؀-ۿ٠-٩۰-۹ 0-9]+/g,'')" title="Arabic text and numbers only">
           </div>
         </div>
         <!-- Row 3: Dept + Target + Tier -->
@@ -1569,14 +1572,6 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
           <div class="af-field">
             <label class="af-lbl">Target (%)</label>
             <input type="number" class="af-inp" id="aTg" min="0" max="100" step="1" placeholder="95">
-          </div>
-          <div class="af-field">
-            <label class="af-lbl">Risk Tier</label>
-            <select class="af-sel" id="aTier">
-              <option value="1">T1 — Patient Safety</option>
-              <option value="2">T2 — Regulatory</option>
-              <option value="3" selected>T3 — Operational</option>
-            </select>
           </div>
         </div>
         <!-- Quarterly Table -->
@@ -1669,6 +1664,8 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
             <input type="date" class="af-inp" id="gDue" dir="ltr" style="direction:ltr">
           </div>
         </div>
+        <!-- Feedback div -->
+        <div id="_gapFeedback" style="display:none;font-size:11px;font-weight:600;padding:8px 12px;border-radius:8px;border:1px solid transparent;margin-bottom:8px"></div>
         <!-- At Risk -->
         <label style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(196,43,43,.06);border:1px solid rgba(196,43,43,.20);border-radius:9px;cursor:pointer;user-select:none">
           <input type="checkbox" id="gAtRisk" style="width:16px;height:16px;accent-color:var(--missed);cursor:pointer;flex-shrink:0">
@@ -1686,39 +1683,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
           <textarea class="af-txt" id="aE" placeholder="Actions taken or planned…" rows="4"></textarea>
         </div>
         
-        <div style="background:var(--card-2);border:1px solid var(--border);border-radius:12px;padding:20px 22px;margin-bottom:16px">
-          <div class="af-sec-lbl" style="margin-bottom:14px"> Change Administrator PIN</div>
-          <div class="af-grid2">
-            <div class="af-field">
-              <label class="af-lbl">New PIN (4–6 digits)</label>
-              <input type="password" class="af-inp" id="newPin1" maxlength="6" placeholder="New PIN" inputmode="numeric">
-            </div>
-            <div class="af-field">
-              <label class="af-lbl">Confirm New PIN</label>
-              <input type="password" class="af-inp" id="newPin2" maxlength="6" placeholder="Repeat PIN" inputmode="numeric">
-            </div>
-          </div>
-          <button onclick="changePin()" class="af-btn-primary" style="margin-top:6px"> Update PIN</button>
-          <p style="margin:10px 0 0;font-size:10px;color:var(--t3);line-height:1.6"> All admin actions are timestamped and logged. Changing your PIN will require re-login.</p>
-        </div>
-        <!-- Backup & Restore -->
-        <div style="background:var(--card-2);border:1px solid var(--border);border-radius:12px;padding:20px 22px">
-          <div class="af-sec-lbl" style="margin-bottom:14px"> Encrypted Backup &amp; Restore</div>
-          <div class="af-grid2">
-            <button onclick="exportSnapshot()" class="af-btn-primary" style="width:100%;justify-content:center">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              Export Encrypted Backup
-            </button>
-            <button onclick="importSnapshot()" class="af-btn-secondary" style="width:100%;justify-content:center">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              Restore from Backup
-            </button>
-          </div>
-          <p style="margin:12px 0 0;font-size:9.5px;color:var(--t3);line-height:1.65">Backups are encrypted with AES-256-GCM. File format: <code style="background:var(--t4);padding:1px 5px;border-radius:4px">.qumc</code></p>
-        </div>
-      </div>
-
-      <!-- ════════════════════════════
+        <!-- ════════════════════════════
            TAB 5: AUDIT LOG
       ════════════════════════════ -->
       <div class="ap" id="ap-auditlog">
@@ -5604,15 +5569,6 @@ function resetAdminTimer(){
     ['mousemove','click','keydown'].forEach(ev=>aOv.addEventListener(ev,resetAdminTimer,{passive:true}));
   }
 })();
-function changePin(){
-  const p1=document.getElementById('newPin1').value,p2=document.getElementById('newPin2').value;
-  if(p1.length<4){toast(lang==='ar'?'الرمز 4 أرقام على الأقل':'PIN must be at least 4 digits');return;}
-  if(p1!==p2){toast(lang==='ar'?'الرمزان غير متطابقان':'PINs do not match');return;}
-  ST.pinHash=hashPin(p1);ST.pinDefault=false;sLS(ST);
-  document.getElementById('newPin1').value='';document.getElementById('newPin2').value='';
-  document.getElementById('defWarn').style.display='none';
-  addAudit('PIN_CHANGE','PIN changed');toast(lang==='ar'?' تم تغيير الرمز':' PIN changed successfully');
-}
 function popAdminSels(){
   ['eSel','gS','actSel'].forEach(sid=>{
     const s=document.getElementById(sid);if(!s)return;
@@ -5686,6 +5642,25 @@ const pn=v=>{const n=parseFloat(v);return isNaN(n)?null:n;};
 function saveAdmin(){
   const ap=document.querySelector('.ap.on').id;let action='',detail='';
   if(ap==='ap-edit'){
+  /* Required fields validation */
+  const _eReq=[
+    {id:'eSel',lbl:'KPI'},
+    {id:'eTg',lbl:'Target'},
+    {id:'eTier',lbl:'Risk Tier'}
+  ];
+  let _eOk=true;
+  _eReq.forEach(r=>{
+    const el=document.getElementById(r.id);if(!el)return;
+    const empty=!el.value||!el.value.trim();
+    el.style.borderColor=empty?'#DC2626':'';
+    el.style.boxShadow=empty?'0 0 0 3px rgba(220,38,38,.15)':'';
+    if(empty)_eOk=false;
+  });
+  if(!_eOk){
+    const ef=document.getElementById('_editFeedback');
+    if(ef){ef.textContent=' Please fill all required fields';ef.style.color='#DC2626';ef.style.display='block';ef.style.background='rgba(220,38,38,.06)';}
+    return;
+  }
   /* FIX 6: Validate PCI data integrity */
   let pciValid=true;
   ['Q1','Q2','Q3','Q4'].forEach(Q=>{
@@ -5712,6 +5687,9 @@ function saveAdmin(){
   });
   const _oldK=allK().find(x=>x.id===id);
   const _oldVal=_oldK?`Q1:${_oldK.q1||'—'} Q2:${_oldK.q2||'—'} Q3:${_oldK.q3||'—'} Q4:${_oldK.q4||'—'} Target:${_oldK.target||'—'}%`:'new';
+  const ef2=document.getElementById('_editFeedback');
+  if(ef2){ef2.textContent=' KPI saved successfully';ef2.style.color='#16A34A';ef2.style.display='block';ef2.style.background='rgba(22,163,74,.06)';}
+  _eReq.forEach(r=>{const el=document.getElementById(r.id);if(el){el.style.borderColor='';el.style.boxShadow='';}});
   action='KPI_EDIT';detail=`Edited ${id}`;if(!window._editOldVal)window._editOldVal=_oldVal;}
   else if(ap==='ap-add'){
     /* ── Required fields validation ── */
@@ -5761,9 +5739,51 @@ function saveAdmin(){
     /* Clear form */
     ['aC','aNE','aNA','aTg','aQ1','aQ2','aQ3','aQ4'].forEach(id=>{const e=document.getElementById(id);if(e){e.value='';e.style.borderColor='';e.style.boxShadow='';}});
   }
-  else if(ap==='ap-gap'){const id=document.getElementById('gS').value;if(!id){toast('Select a KPI');return;}if(!ST.gaps)ST.gaps={};const atRisk=document.getElementById('gAtRisk')?.checked||false;ST.gaps[id]={gapAr:document.getElementById('gA').value,actAr:document.getElementById('aA').value,gapEn:document.getElementById('gE').value,actEn:document.getElementById('aE').value,owner:document.getElementById('gOwner').value,dueDate:document.getElementById('gDue').value,status:document.getElementById('actStatus').value,priority:document.getElementById('actPri').value,atRisk};if(!ST.actions)ST.actions={};ST.actions[id]={...ST.actions[id],owner:document.getElementById('gOwner').value,status:document.getElementById('actStatus').value,dueDate:document.getElementById('gDue').value,priority:document.getElementById('actPri').value,atRisk};action='GAP_EDIT';detail=`Gap for ${id} (${atRisk?'AT RISK':''})`;}
+  else if(ap==='ap-gap'){
+    const id=document.getElementById('gS').value;
+    if(!id){toast(' Select a KPI first');return;}
+    /* Required field validation (except At Risk checkbox) */
+    const _gReq=[
+      {id:'gE',lbl:'Root Cause / Gap Reasons'},
+      {id:'aE',lbl:'Corrective Actions'},
+      {id:'gOwner',lbl:'Responsible Person'},
+      {id:'gDue',lbl:'Expected Closure Date'}
+    ];
+    let _gOk=true;
+    _gReq.forEach(r=>{
+      const el=document.getElementById(r.id);if(!el)return;
+      const empty=!el.value||!el.value.trim();
+      el.style.borderColor=empty?'#DC2626':'';
+      el.style.boxShadow=empty?'0 0 0 3px rgba(220,38,38,.15)':'';
+      if(empty)_gOk=false;
+    });
+    if(!_gOk){
+      const fb=document.getElementById('_gapFeedback');
+      if(fb){fb.textContent=' Please fill all required fields';fb.style.color='#DC2626';fb.style.display='block';fb.style.background='rgba(220,38,38,.06)';}
+      return;
+    }
+    if(!ST.gaps)ST.gaps={};
+    const atRisk=document.getElementById('gAtRisk')?.checked||false;
+    const oldGap=ST.gaps[id]?JSON.stringify(ST.gaps[id]):null;
+    ST.gaps[id]={
+      gapEn:document.getElementById('gE').value,
+      actEn:document.getElementById('aE').value,
+      owner:document.getElementById('gOwner').value,
+      dueDate:document.getElementById('gDue').value,
+      status:document.getElementById('actStatus').value,
+      priority:document.getElementById('actPri').value,
+      atRisk
+    };
+    if(!ST.actions)ST.actions={};
+    ST.actions[id]={...ST.actions[id],owner:document.getElementById('gOwner').value,status:document.getElementById('actStatus').value,dueDate:document.getElementById('gDue').value,priority:document.getElementById('actPri').value,atRisk};
+    /* Success feedback */
+    const fb2=document.getElementById('_gapFeedback');
+    if(fb2){fb2.textContent=' Gap Analysis saved successfully';fb2.style.color='#16A34A';fb2.style.display='block';fb2.style.background='rgba(22,163,74,.06)';}
+    /* Reset field styles */
+    _gReq.forEach(r=>{const el=document.getElementById(r.id);if(el){el.style.borderColor='';el.style.boxShadow='';}});
+    action='GAP_EDIT';detail=`Gap for ${id}`;window._editOldVal=oldGap;}
   else if(ap==='ap-actions'||ap==='ap-security'||ap==='ap-auditlog')return;
-  if(action)addAudit(action,detail,window._editOldVal||null);window._editOldVal=null;
+  if(action)addAudit(action,detail,window._editOldVal||null,window._editNewVal||null);window._editOldVal=null;window._editNewVal=null;
   sLS(ST);toast(lang==='ar'?' تم الحفظ':' Saved');updateBadge();renderCurrent();
 }
 function previewDelKpi(id){
@@ -5799,7 +5819,7 @@ function confirmDelKpi(){
   const prev=document.getElementById('delPreview');if(prev)prev.style.display='none';
   renderCurrent();
 }
-function addAudit(action,detail,oldVal){
+function addAudit(action,detail,oldVal,newVal){
   if(!ST.audit)ST.audit=[];
   ST.audit.unshift({
     ts:new Date().toISOString(),
@@ -5807,7 +5827,8 @@ function addAudit(action,detail,oldVal){
     role:window._fbRole||'admin',
     action,
     detail,
-    oldVal:oldVal||null
+    oldVal:oldVal||null,
+    newVal:newVal||null
   });
   ST.audit=ST.audit.slice(0,100);
   sLS(ST);
@@ -5818,22 +5839,32 @@ function loadAuditLog(){
   if(!log.length){el.innerHTML='<div style="font-size:11px;color:var(--t3);text-align:center;padding:20px">No log entries yet</div>';return;}
   const actionColor={KPI_EDIT:'#0195af',KPI_ADD:'#16A34A',KPI_DEL:'#DC2626',GAP_EDIT:'#D97706',BACKUP_EXPORT:'#64748B',BACKUP_IMPORT:'#7C3AED',LOGIN:'#16A34A',LOGOUT:'#DC2626'};
   el.innerHTML=`
-    <div style="display:grid;grid-template-columns:140px 100px 100px 1fr 1fr 180px;padding:8px 14px;background:var(--t4);font-size:8.5px;font-weight:700;color:var(--t3);letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid var(--border)">
-      <span>Time</span><span>User</span><span>Role</span><span>Action / Detail</span><span>Before Change</span><span>Action Type</span>
-    </div>
-    ${log.map((e,i)=>{
-      const d=new Date(e.ts);
-      const ts=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-      const ac=actionColor[e.action]||'#64748B';
-      return '<div style="display:grid;grid-template-columns:140px 100px 100px 1fr 1fr 180px;padding:9px 14px;border-bottom:1px solid var(--border);align-items:center;background:'+(i%2===0?'transparent':'rgba(0,0,0,.015)')+'">'+
-        '<span style="font-size:9px;color:var(--t2);font-family:var(--mono)">'+ts+'</span>'+
-        '<span style="font-size:10px;font-weight:700;color:var(--ink)">'+htmlEsc(e.user||'—')+'</span>'+
-        '<span style="font-size:9px;padding:2px 7px;border-radius:4px;background:rgba(1,149,175,.10);color:#0195af">'+htmlEsc(e.role||'—')+'</span>'+
-        '<span style="font-size:10px;color:var(--t2)">'+htmlEsc(e.detail||'—')+'</span>'+
-        '<span style="font-size:9px;color:var(--t3);font-style:italic">'+htmlEsc(e.oldVal||'—')+'</span>'+
-        '<span style="display:inline-flex;align-items:center;gap:4px"><span style="padding:2px 8px;border-radius:4px;font-size:8.5px;font-weight:700;background:'+ac+'22;color:'+ac+'">'+htmlEsc(e.action||'—')+'</span></span>'+
-      '</div>';
-    }).join('')}`;el.innerHTML=log.map((e,i)=>{const d=new Date(e.ts);return`<div style="display:flex;align-items:flex-start;gap:12px;padding:9px 14px;border-bottom:1px solid var(--border);background:${i%2===0?'#fff':'var(--card-2)'}"><span style="font-size:9px;color:var(--t3);font-family:var(--mono);white-space:nowrap;padding-top:1px;min-width:120px">${d.toLocaleDateString()} ${d.toLocaleTimeString()}</span><span style="font-size:10.5px;font-weight:700;color:var(--ink);flex-shrink:0">${e.action}</span><span style="font-size:10px;color:var(--t2);flex:1">${e.detail}</span></div>`;}).join('');}
+    <div style="overflow-x:auto">
+    <table style="width:100%;border-collapse:collapse;font-size:10px">
+      <thead><tr style="background:var(--t4);font-size:8.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em">
+        <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">Date &amp; Time</th>
+        <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">User</th>
+        <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">Role</th>
+        <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">Action</th>
+        <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">KPI / Record</th>
+        <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);color:#DC2626">Before</th>
+        <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);color:#16A34A">After</th>
+      </tr></thead>
+      <tbody>${log.map((e,i)=>{
+        const d=new Date(e.ts);
+        const ts=d.toLocaleDateString('en-GB',{year:'numeric',month:'short',day:'2-digit'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+        const ac=actionColor[e.action]||'#64748B';
+        return '<tr style="border-bottom:1px solid var(--border);background:'+(i%2===0?'transparent':'rgba(0,0,0,.012)')+'">'
+          +'<td style="padding:8px 12px;font-size:9px;color:var(--t2);font-family:var(--mono);white-space:nowrap">'+ts+'</td>'
+          +'<td style="padding:8px 12px;font-weight:700;color:var(--ink)">'+htmlEsc(e.user||'—')+'</td>'
+          +'<td style="padding:8px 12px"><span style="padding:2px 7px;border-radius:4px;font-size:8.5px;font-weight:700;background:rgba(1,149,175,.10);color:#0195af">'+htmlEsc(e.role||'—')+'</span></td>'
+          +'<td style="padding:8px 12px"><span style="padding:2px 8px;border-radius:4px;font-size:8.5px;font-weight:700;background:'+ac+'22;color:'+ac+'">'+htmlEsc(e.action||'—')+'</span></td>'
+          +'<td style="padding:8px 12px;color:var(--t2);max-width:200px">'+htmlEsc(e.detail||'—')+'</td>'
+          +'<td style="padding:8px 12px;font-size:9px;color:#DC2626;font-style:italic;max-width:160px">'+htmlEsc(e.oldVal||'—')+'</td>'
+          +'<td style="padding:8px 12px;font-size:9px;color:#16A34A;font-style:italic;max-width:160px">'+htmlEsc(e.newVal||'—')+'</td>'
+          +'</tr>';
+      }).join('')}</tbody>
+    </table></div>`;el.innerHTML=log.map((e,i)=>{const d=new Date(e.ts);return`<div style="display:flex;align-items:flex-start;gap:12px;padding:9px 14px;border-bottom:1px solid var(--border);background:${i%2===0?'#fff':'var(--card-2)'}"><span style="font-size:9px;color:var(--t3);font-family:var(--mono);white-space:nowrap;padding-top:1px;min-width:120px">${d.toLocaleDateString()} ${d.toLocaleTimeString()}</span><span style="font-size:10.5px;font-weight:700;color:var(--ink);flex-shrink:0">${e.action}</span><span style="font-size:10px;color:var(--t2);flex:1">${e.detail}</span></div>`;}).join('');}
 function clearAudit(){ST.audit=[];sLS(ST);loadAuditLog();toast('Audit log cleared');}
 
 /* ══════════════════════════════════════════
