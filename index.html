@@ -18,6 +18,19 @@ window.addEventListener('error',function(e){
   }
 },true);
 </script>
+
+<script>
+/* Safe globals used by Firebase/auth before dashboard script finishes loading */
+window.curPage = window.curPage || 'exec';
+window.updateUserBadge = window.updateUserBadge || function(name, role){
+  try{
+    const b=document.getElementById('_userBadge'); if(b) b.style.display='flex';
+    const av=document.getElementById('_userAvatar'); if(av) av.textContent=(name||'U')[0].toUpperCase();
+    const nm=document.getElementById('_userName'); if(nm) nm.textContent=name||'User';
+    const rl=document.getElementById('_userRole'); if(rl) rl.textContent=role||'—';
+  }catch(_){}
+};
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script async src="https://cdn.jsdelivr.net/npm/exceljs@4.3.0/dist/exceljs.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1052,11 +1065,11 @@ window._selectPortal=portal=>{
         if(typeof window.applyRolePermissions==='function')window.applyRolePermissions(window._fbRole,window._fbDept,window._fbPerms);
         if(typeof window.updateUserBadge==='function')window.updateUserBadge(window._fbName,window._fbRole,window._fbPerms);
         /* Render with small delay to ensure DOM is ready */
-        if(typeof renderCurrent==='function'){
-          try{ renderCurrent(); }
+        if(typeof window.renderCurrent==='function'){
+          try{ window.renderCurrent(); }
           catch(e){ console.error('[Auth] Initial render error:',e); }
           /* Second render after any async operations */
-          setTimeout(()=>{try{renderCurrent();}catch(_){}},250);
+          setTimeout(()=>{try{window.renderCurrent();}catch(_){}},250);
         }
         console.log('[Auth] ✓ Performance portal entered');
       }else{
@@ -1779,6 +1792,7 @@ window._selectPortal=portal=>{
 ══════════════════════════════════════════ */
 /* ═══ GLOBAL STATE — declared first to avoid TDZ ═══ */
 let lang='en', CH={};
+var curPage = window.curPage || 'exec'; window.curPage = curPage;  /* Global current page — declared early */
 let _adminTimeout, _failCount=0;
 /* Load persisted data with corruption guard */
 function _loadST(){
@@ -3762,6 +3776,24 @@ function applyRolePermissions(role,dept,perms){
   document.head.appendChild(roleStyle);
 }
 window.applyRolePermissions=applyRolePermissions;
+function updateUserBadge(name, role){
+  const b=document.getElementById('_userBadge');
+  if(b) b.style.display='flex';
+  const av=document.getElementById('_userAvatar');
+  if(av) av.textContent=(name||'U')[0].toUpperCase();
+  const nm=document.getElementById('_userName');
+  if(nm) nm.textContent=name||'User';
+  const rl=document.getElementById('_userRole');
+  if(rl){
+    const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',
+             department_manager:'Dept Manager',kpi_owner:'KPI Owner',viewer:'Viewer'};
+    rl.textContent=L[role]||role||'—';
+    const c=role==='super_admin'||role==='admin'?'#F87171':
+             role==='executive'?'#A78BFA':
+             role==='department_manager'?'#4ADE80':'#94A3B8';
+    rl.style.color=c;
+  }
+}
 window.updateUserBadge=updateUserBadge;
 
 function htmlEsc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -3946,19 +3978,19 @@ function toggleLang(){
   updateChips();renderCurrent();fetchAI();
 }
 
-let curPage='exec';
 function switchTab(id,el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   el.classList.add('on');
   const pg=document.getElementById('page-'+id);
   if(pg)pg.classList.add('on');
-  curPage=id;
+  window.curPage=id; curPage=id;
   renderCurrent();
   updateChips();
 }
 function renderCurrent(){
   try{
+    curPage = window.curPage || curPage || 'exec';
     if(curPage==='exec')renderExec();
     else if(curPage==='dept')renderDept();
     else if(curPage==='registry')renderRegistry();
@@ -3972,6 +4004,12 @@ function renderCurrent(){
     }
   }
 }
+
+
+window.switchTab = switchTab;
+window.renderCurrent = renderCurrent;
+window.resetFilters = resetFilters;
+window.toggleLang = toggleLang;
 
 /* ── CHARTS ── */
 function dch(id){if(CH[id]){try{CH[id].destroy()}catch(e){}delete CH[id];}}
@@ -6107,7 +6145,7 @@ function drilldept(d){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   tabs[1].classList.add('on');document.getElementById('page-dept').classList.add('on');
-  curPage='dept';renderDept();
+  window.curPage='dept'; curPage='dept'; renderDept();
 }
 
 /* ══════════════════════════════════════════
