@@ -1057,13 +1057,18 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
     window._doLogout=async()=>{console.log('[Auth] Logout');try{await signOut(auth);}catch(e){console.error('[Auth]',e);}};
 
     window._backToPortal=()=>{console.log('[Auth] Back to portal');const lo=document.getElementById('_authOverlay'),po=document.getElementById('_portalOverlay'),bg=document.getElementById('_bgLayer');if(lo)lo.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
-window._selectPortal=portal=>{
+window._selectPortal=async portal=>{
       console.log('[Auth] Selected:',portal);
       if(portal==='performance'){
         ['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(id=>{const e=ge(id);if(e)e.style.display='none';});
         console.log('[Auth] Entering Performance portal...');
         if(typeof window.applyRolePermissions==='function')window.applyRolePermissions(window._fbRole,window._fbDept,window._fbPerms);
         if(typeof window.updateUserBadge==='function')window.updateUserBadge(window._fbName,window._fbRole,window._fbPerms);
+        /* Load shared Firestore state BEFORE first render so edits persist across all accounts */
+        if(typeof window._onFSLoaded==='function'){
+          try{ await window._onFSLoaded(); }
+          catch(e){ console.warn('[FS] initial load skipped:',e); }
+        }
         /* Render with small delay to ensure DOM is ready */
         if(typeof window.renderCurrent==='function'){
           try{ window.renderCurrent(); }
@@ -1169,6 +1174,15 @@ window._selectPortal=portal=>{
 
     console.log('[Auth] Firebase module initialized');
   </script>
+
+<style id="_qumc_hotfix_layout">
+/* Hotfix: restore executive summary bar and detailed KPI cards stacking */
+#execGrid{align-items:start!important;}
+#execIntelBar{margin-bottom:16px!important;}
+#execKpiCards{display:block!important;clear:both!important;min-height:260px!important;}
+#execGrid > .card.c12{margin-top:14px!important;position:relative!important;z-index:1!important;}
+#backPortalBtn{font-family:var(--font)!important;}
+</style>
 </head>
 <body>
 <!-- ══ AUTH LAYERS ══ -->
@@ -1308,9 +1322,9 @@ window._selectPortal=portal=>{
       </div>
     </div>
     <div class="tb-vline"></div>
-    <button onclick="window._backToPortal&&window._backToPortal()" title="Back to Portal Selection" style="background:transparent;border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:5px 11px;color:rgba(255,255,255,.65);font-size:11px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:5px;transition:all .18s" onmouseover="this.style.background='rgba(255,255,255,.08)';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='rgba(255,255,255,.65)'"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg> Portal</button>
+    <button id="backPortalBtn" onclick="window._backToPortal&&window._backToPortal()" title="Back to Portal Selection" style="position:fixed;right:18px;bottom:18px;z-index:3000;background:#152538;border:1px solid rgba(1,149,175,.45);border-radius:12px;padding:9px 15px;color:#fff;font-size:11px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:all .18s;box-shadow:0 8px 28px rgba(4,10,20,.24)" onmouseover="this.style.background='#0195af';this.style.transform='translateY(-2px)'" onmouseout="this.style.background='#152538';this.style.transform='none'"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg> Back</button>
   <button class="tb-btn" id="langBtn" onclick="toggleLang()"> عربي</button>
-    <button class="tb-btn" onclick="openLock()" title="Admin Access" style="display:flex;align-items:center;justify-content:center;min-width:36px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>
+    <button class="tb-btn" onclick="openLock()" title="Edit Dashboard / Admin Tools" style="display:flex;align-items:center;justify-content:center;min-width:36px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg></button>
   </div>
 </div>
 
@@ -2358,6 +2372,15 @@ function _buildExcelSimple(){
   br {mso-data-placement:same-cell;}
   td,th {mso-number-format:"@"; vertical-align:middle;}
 </style>
+
+<style id="_qumc_hotfix_layout">
+/* Hotfix: restore executive summary bar and detailed KPI cards stacking */
+#execGrid{align-items:start!important;}
+#execIntelBar{margin-bottom:16px!important;}
+#execKpiCards{display:block!important;clear:both!important;min-height:260px!important;}
+#execGrid > .card.c12{margin-top:14px!important;position:relative!important;z-index:1!important;}
+#backPortalBtn{font-family:var(--font)!important;}
+</style>
 </head>
 <body>
 ${t1}
@@ -3387,6 +3410,8 @@ function rptDoneEdit(id){
   const wrap=document.getElementById(id+'-w');
   if(!p||!wrap)return;
   if(!ST.rptEdits)ST.rptEdits={};const _rCtx=(F.dept||'all')+'_'+(F.year||'all')+'_'+(Array.isArray(F.qtr)?F.qtr.join(''):'all')+'_'+(window._rptKpi||'all');ST.rptEdits[_rCtx+'_'+id]=p.innerHTML;sLS(ST);
+  if(typeof window._saveToFS==='function'){try{window._saveToFS(ST);}catch(_){}}
+  if(typeof toast==='function')toast(lang==='ar'?'تم حفظ تعديل التقرير بشكل دائم':'Report edit saved permanently');
   delete wrap.dataset.editing;
   p.contentEditable='false';
   p.style.outline='none';
@@ -3623,7 +3648,16 @@ function exportWordDoc(){
 .ai-chip{padding:5px 12px;border-radius:20px;border:1.5px solid rgba(0,163,196,.28);background:rgba(0,163,196,.07);color:#00A3C4;font-size:10.5px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit}
 .ai-chip:hover{background:rgba(0,163,196,.18);border-color:#00A3C4;transform:translateY(-1px)}
 @keyframes aiDot{0%,60%,100%{transform:translateY(0);opacity:.35}30%{transform:translateY(-6px);opacity:1}}
-</style></head><body>${doc.innerHTML}</body></html>`;
+</style>
+<style id="_qumc_hotfix_layout">
+/* Hotfix: restore executive summary bar and detailed KPI cards stacking */
+#execGrid{align-items:start!important;}
+#execIntelBar{margin-bottom:16px!important;}
+#execKpiCards{display:block!important;clear:both!important;min-height:260px!important;}
+#execGrid > .card.c12{margin-top:14px!important;position:relative!important;z-index:1!important;}
+#backPortalBtn{font-family:var(--font)!important;}
+</style>
+</head><body>${doc.innerHTML}</body></html>`;
   const blob=new Blob(['﻿'+wordHTML],{type:'application/msword;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;
@@ -4247,7 +4281,7 @@ function renderExec(){
       <div style="padding:16px 20px;text-align:center">
         <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:6px">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg>
-          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em" data-en="Critical Escalations" data-ar="تصعيدات حرجة">Critical Escalations
+          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em" data-en="Critical Escalations" data-ar="تصعيدات حرجة">Critical Escalations</div>
         </div>
         <div id="eis_crit" style="font-size:36px;font-weight:900;color:#F87171;font-family:var(--mono);line-height:1;margin-bottom:4px">—</div>
         <div id="eis_crit_sub" style="font-size:9px;color:rgba(255,255,255,.40);margin-bottom:8px">—</div>
@@ -4280,7 +4314,7 @@ function renderExec(){
       <div style="padding:16px 20px;text-align:center">
         <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:6px">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em" data-en="Gap Analysis Open" data-ar="فجوات قيد المعالجة">Gap Analysis Open
+          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em" data-en="Gap Analysis Open" data-ar="فجوات قيد المعالجة">Gap Analysis Open</div>
         </div>
         <div id="eis_actions" style="font-size:36px;font-weight:900;color:#0195af;font-family:var(--mono);line-height:1;margin-bottom:4px">—</div>
         <div style="font-size:9px;color:rgba(255,255,255,.40);margin-bottom:8px">Missed KPIs without gap analysis</div>
@@ -4295,12 +4329,12 @@ function renderExec(){
         </div>
         <div style="display:grid;grid-template-columns:1fr 1px 1fr;gap:0;margin-bottom:4px">
           <div style="text-align:center;padding:0 6px">
-            <div style="font-size:8px;color:rgba(255,255,255,.35);margin-bottom:2px" data-en="Forecast YE" data-ar="التوقع السنوي">Forecast YE
+            <div style="font-size:8px;color:rgba(255,255,255,.35);margin-bottom:2px" data-en="Forecast YE" data-ar="التوقع السنوي">Forecast YE</div>
             <div id="eis_forecast" style="font-size:26px;font-weight:900;color:#0195af;font-family:var(--mono);line-height:1">—</div>
           </div>
           <div style="width:1px;background:rgba(255,255,255,.12)"></div>
           <div style="text-align:center;padding:0 6px">
-            <div style="font-size:8px;color:rgba(255,255,255,.35);margin-bottom:2px" data-en="Current Performance" data-ar="الأداء الحالي">Current Performance
+            <div style="font-size:8px;color:rgba(255,255,255,.35);margin-bottom:2px" data-en="Current Performance" data-ar="الأداء الحالي">Current Performance</div>
             <div id="eis_current_perf" style="font-size:26px;font-weight:900;color:rgba(255,255,255,.70);font-family:var(--mono);line-height:1">—</div>
           </div>
         </div>
@@ -5689,7 +5723,20 @@ function openReport(){
 /* ══════════════════════════════════════════
    ADMIN
 ══════════════════════════════════════════ */
-function openLock(){document.getElementById('lockOv').classList.add('open')}
+function openLock(){
+  const role=window._fbRole||'';
+  if(role==='super_admin'||role==='admin'){
+    window._adminActive=true;
+    const warn=document.getElementById('defWarn');if(warn)warn.style.display=ST&&ST.pinDefault?'flex':'none';
+    if(typeof popAdminSels==='function')popAdminSels();
+    if(typeof loadAuditLog==='function')loadAuditLog();
+    const admin=document.getElementById('adminOv');if(admin)admin.classList.add('open');
+    if(typeof addAudit==='function'){try{addAudit('ADMIN_OPEN','Admin tools opened by role '+role);}catch(_){}}
+    if(typeof resetAdminTimer==='function')resetAdminTimer();
+    return;
+  }
+  const ov=document.getElementById('lockOv');if(ov)ov.classList.add('open');
+}
 /* PIN lockout (5 attempts) + Session timer */
 
 function doPin(){
