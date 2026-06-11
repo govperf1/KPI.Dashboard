@@ -2386,6 +2386,223 @@ function _buildExcelSimple(){
 ${t1}
 <div style="page-break-before:always;mso-break-type:section-break"></div>
 ${t2}
+
+
+<script id="role_scope_kpi_owner_report_patch">
+(function(){
+  'use strict';
+  if(window.__QUMC_ROLE_SCOPE_PATCH__) return;
+  window.__QUMC_ROLE_SCOPE_PATCH__ = true;
+
+  function normRole(){ return String(window._fbRole||'').toLowerCase(); }
+  function isAdminRole(){ var r=normRole(); return r==='admin'||r==='super_admin'; }
+  function normDept(d){ return String(d||'').trim().toLowerCase(); }
+  function assignedList(){
+    var raw = window._fbAssignedKpis;
+    if(raw==null || raw==='') return [];
+    if(Array.isArray(raw)) return raw.map(String).map(function(x){return x.trim();}).filter(Boolean);
+    if(typeof raw==='string') return raw.split(/[,
+;|]+/).map(function(x){return x.trim();}).filter(Boolean);
+    try{return Object.values(raw).map(String).map(function(x){return x.trim();}).filter(Boolean);}catch(e){return [];}
+  }
+  function roleScopedKpis(list){
+    list = Array.isArray(list) ? list : [];
+    var role = normRole();
+    var dept = normDept(window._fbDept);
+    var assigned = assignedList();
+    if(isAdminRole() || role==='executive') return list;
+    if(role==='department_manager'){
+      return dept ? list.filter(function(k){return normDept(k.dept)===dept;}) : list;
+    }
+    if(role==='kpi_owner'){
+      if(assigned.length){
+        var allowed = new Set(assigned.map(function(x){return x.toLowerCase();}));
+        return list.filter(function(k){
+          return allowed.has(String(k.id||'').toLowerCase()) || allowed.has(String(k.code||'').toLowerCase()) || allowed.has(String(k.nameEn||'').toLowerCase()) || allowed.has(String(k.nameAr||'').toLowerCase());
+        });
+      }
+      return dept ? list.filter(function(k){return normDept(k.dept)===dept;}) : list;
+    }
+    return list;
+  }
+  window.roleScopedKpis = roleScopedKpis;
+
+  function currentLockDept(){
+    var role=normRole(), dept=normDept(window._fbDept);
+    if((role==='department_manager' || role==='kpi_owner') && dept && assignedList().length===0) return dept;
+    if(role==='department_manager' && dept) return dept;
+    return '';
+  }
+
+  // Override allK after original is available: every page/report/export sees only allowed KPIs.
+  function installScope(){
+    if(typeof window.allK === 'function' && !window.__rawAllK){
+      window.__rawAllK = window.allK;
+      window.allK = function(){ return roleScopedKpis(window.__rawAllK()); };
+      try { allK = window.allK; } catch(e) {}
+    }
+  }
+
+  // Force Reset to keep role scope; it no longer exposes all departments.
+  function installReset(){
+    if(typeof window.resetFilters === 'function' && !window.__rawResetFilters){
+      window.__rawResetFilters = window.resetFilters;
+      window.resetFilters = function(){
+        try{ window.__rawResetFilters(); }catch(e){}
+        try{
+          var lock=currentLockDept();
+          if(typeof F !== 'undefined'){
+            if(lock){ F.dept=lock; }
+            else if(!isAdminRole() && normRole()==='kpi_owner' && assignedList().length){ F.dept='all'; }
+          }
+          if(lock){
+            var sel=document.getElementById('deptF'); if(sel) sel.value=lock;
+            document.querySelectorAll('[data-filter="dept"]').forEach(function(b){
+              b.classList.toggle('on', b.dataset.val===lock);
+              if(b.dataset.val!==lock && b.dataset.val!=='all'){ b.style.opacity='.25'; b.style.pointerEvents='none'; }
+            });
+          }
+          if(typeof renderCurrent==='function') renderCurrent();
+        }catch(e){ console.warn('[scope reset]',e); }
+      };
+      try { resetFilters = window.resetFilters; } catch(e) {}
+    }
+  }
+
+  // Stop non-admins from changing dept outside their allowed scope.
+  function installSetF(){
+    if(typeof window.setF === 'function' && !window.__rawSetF){
+      window.__rawSetF = window.setF;
+      window.setF = function(type,val,el){
+        var lock=currentLockDept();
+        if(type==='dept' && lock && val!==lock){ val=lock; }
+        var out = window.__rawSetF(type,val,el);
+        try{
+          if(lock && typeof F!=='undefined') F.dept=lock;
+          if(typeof renderCurrent==='function') renderCurrent();
+        }catch(e){}
+        return out;
+      };
+      try { setF = window.setF; } catch(e) {}
+    }
+  }
+
+  // Wrap report so department managers and KPI owners cannot switch report to all departments.
+  function installReport(){
+    if(typeof window.renderReport === 'function' && !window.__rawRenderReport){
+      window.__rawRenderReport = window.renderReport;
+      window.renderReport = function(){
+        var lock=currentLockDept();
+        if(lock) window._rptDept = lock;
+        // If owner has assigned KPIs, keep dept filter blank because scoping is by KPI ID.
+        if(normRole()==='kpi_owner' && assignedList().length) window._rptDept = '';
+        var result = window.__rawRenderReport();
+        try{
+          var deptSel = document.querySelector('#page-report select[onchange*="_rptDept"], #page-report select');
+          if(lock && deptSel){ deptSel.value=lock; deptSel.disabled=true; deptSel.style.opacity='.65'; }
+          document.querySelectorAll('.rpt-edit-btn,[id$="-acts"]').forEach(function(el){
+            if(!isAdminRole()) el.style.setProperty('display','none','important');
+          });
+        }catch(e){}
+        return result;
+      };
+      try { renderReport = window.renderReport; } catch(e) {}
+    }
+  }
+
+  // Hide admin/edit controls except admin, while keeping Gap Analysis available to KPI Owner.
+  function applyUiPermissions(){
+    var css = document.getElementById('role_scope_css_patch');
+    if(!css){ css=document.createElement('style'); css.id='role_scope_css_patch'; document.head.appendChild(css); }
+    if(isAdminRole()){
+      css.textContent = '';
+    } else if(normRole()==='kpi_owner'){
+      css.textContent = '#adminOv,.rpt-edit-btn,[id$="-acts"],button[onclick*="openAdmin"],button[onclick*="saveAdmin"],button[onclick*="loadEK"],button[onclick*="addKPI"]{display:none!important;} [onclick*="openGap"]{display:inline-flex!important;}';
+    } else {
+      css.textContent = '#adminOv,.rpt-edit-btn,[id$="-acts"],button[onclick*="openAdmin"],button[onclick*="saveAdmin"],button[onclick*="addKPI"],[onclick*="openGap"]{display:none!important;}';
+    }
+  }
+
+  // Give KPI Owner an actual editable Gap Analysis panel, saved to Firestore and visible to everyone.
+  function installGapEditor(){
+    if(typeof window.openGap === 'function' && !window.__rawOpenGap){
+      window.__rawOpenGap = window.openGap;
+      window.openGap = function(id){
+        var scoped = roleScopedKpis((window.__rawAllK?window.__rawAllK():(typeof BASE!=='undefined'?BASE:[])));
+        if(!scoped.some(function(k){return String(k.id)===String(id);})){ return; }
+        window.__rawOpenGap(id);
+        try{
+          var role=normRole(), canEdit=isAdminRole()||role==='kpi_owner';
+          if(!canEdit) return;
+          var gb=document.getElementById('gapB'); if(!gb) return;
+          var gd=(ST.gaps||{})[id]||{};
+          var html = '<div id="gapOwnerEditBox" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">'
+            +'<div style="font-size:10px;font-weight:800;color:#D97706;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Gap Analysis Entry</div>'
+            +'<label style="font-size:10px;font-weight:700;color:var(--t2)">Root Cause / Gap Reasons</label>'
+            +'<textarea id="gapEditReason" style="width:100%;min-height:80px;margin:6px 0 10px;padding:9px;border:1px solid var(--border);border-radius:8px;font-family:inherit">'+(gd.gapEn||'')+'</textarea>'
+            +'<label style="font-size:10px;font-weight:700;color:var(--t2)">Corrective Actions</label>'
+            +'<textarea id="gapEditAction" style="width:100%;min-height:80px;margin:6px 0 10px;padding:9px;border:1px solid var(--border);border-radius:8px;font-family:inherit">'+(gd.actEn||'')+'</textarea>'
+            +'<button onclick="saveScopedGap(\''+String(id).replace(/'/g,"\\'")+'\')" style="background:#D97706;color:#fff;border:0;border-radius:8px;padding:9px 16px;font-weight:800;cursor:pointer">Save Gap Analysis</button>'
+            +'</div>';
+          gb.insertAdjacentHTML('beforeend',html);
+        }catch(e){ console.warn('[gap editor]',e); }
+      };
+      try { openGap = window.openGap; } catch(e) {}
+    }
+  }
+
+  window.saveScopedGap = function(id){
+    try{
+      var scoped = roleScopedKpis((window.__rawAllK?window.__rawAllK():(typeof BASE!=='undefined'?BASE:[])));
+      if(!scoped.some(function(k){return String(k.id)===String(id);})){ alert('Not allowed for this KPI'); return; }
+      if(!ST.gaps) ST.gaps={};
+      ST.gaps[id] = Object.assign({}, ST.gaps[id]||{}, {
+        gapEn: (document.getElementById('gapEditReason')||{}).value || '',
+        actEn: (document.getElementById('gapEditAction')||{}).value || '',
+        updatedBy: window._fbUser || 'user',
+        updatedAt: new Date().toISOString()
+      });
+      if(typeof sLS==='function') sLS(ST);
+      if(typeof window._saveToFS==='function') window._saveToFS(ST);
+      if(typeof toast==='function') toast('Gap Analysis saved'); else alert('Gap Analysis saved');
+      try{ if(typeof renderCurrent==='function') renderCurrent(); }catch(e){}
+    }catch(e){ alert('Save failed: '+(e.message||e)); }
+  };
+
+  // Reinforce report edit save key: per KPI, not per filter/quarter/department.
+  function installReportSaveKeyFix(){
+    if(typeof window.rptStartEdit === 'function' && !window.__reportKeyObserver){
+      window.__reportKeyObserver = true;
+      var rawStart = window.rptStartEdit;
+      window.rptStartEdit = function(id){
+        return rawStart(id);
+      };
+      try { rptStartEdit = window.rptStartEdit; } catch(e) {}
+    }
+  }
+
+  function installAll(){
+    installScope(); installReset(); installSetF(); installReport(); installGapEditor(); installReportSaveKeyFix(); applyUiPermissions();
+    try{
+      var lock=currentLockDept();
+      if(lock && typeof F!=='undefined') F.dept=lock;
+      if(typeof renderCurrent==='function') renderCurrent();
+    }catch(e){}
+  }
+
+  var oldApply = window.applyRolePermissions;
+  window.applyRolePermissions = function(role,dept,perms){
+    var r = oldApply ? oldApply(role,dept,perms) : undefined;
+    setTimeout(installAll, 50);
+    setTimeout(installAll, 400);
+    return r;
+  };
+  try { applyRolePermissions = window.applyRolePermissions; } catch(e) {}
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){setTimeout(installAll,200);});
+  else setTimeout(installAll,200);
+})();
+</script>
+
 </body></html>`;
 
   const blob=new Blob(['\ufeff'+workbook],{type:'application/vnd.ms-excel;charset=utf-8'});
@@ -3074,7 +3291,7 @@ function renderReport(){
   let _eid=0;
   const EP=(txt,style='')=>{
     const id='ep'+(++_eid);
-    const _ctxKey=(typeof reportEditKey==='function'?reportEditKey(id):((window._rptKpi||'all')+'_'+id));const _saved=(ST.rptEdits||{})[_ctxKey];const _content=_saved!==undefined?_saved:txt;
+    const _ctx='kpi_'+(window._rptKpi||'all');const _ctxKey=_ctx+'_'+id;const _saved=(ST.rptEdits||{})[_ctxKey];const _content=_saved!==undefined?_saved:txt;
     return `<div class="rpt-ep" id="${id}-w" style="display:flex;align-items:flex-start;gap:8px;${style}">
       <p id="${id}" style="font-size:12px;color:#334155;line-height:1.85;margin:0;min-height:20px;flex:1">${_content}</p>
       <div id="${id}-acts" style="flex-shrink:0;display:flex;flex-direction:column;gap:4px;padding-top:2px">
@@ -3409,7 +3626,7 @@ function rptDoneEdit(id){
   const p=document.getElementById(id);
   const wrap=document.getElementById(id+'-w');
   if(!p||!wrap)return;
-  if(!ST.rptEdits)ST.rptEdits={};const _rKey=(typeof reportEditKey==='function'?reportEditKey(id):((window._rptKpi||'all')+'_'+id));ST.rptEdits[_rKey]=p.innerHTML;sLS(ST);
+  if(!ST.rptEdits)ST.rptEdits={};const _rCtx='kpi_'+(window._rptKpi||'all');ST.rptEdits[_rCtx+'_'+id]=p.innerHTML;sLS(ST);
   if(typeof window._saveToFS==='function'){try{window._saveToFS(ST);}catch(_){}}
   if(typeof toast==='function')toast(lang==='ar'?'تم حفظ تعديل التقرير بشكل دائم':'Report edit saved permanently');
   delete wrap.dataset.editing;
@@ -3657,7 +3874,224 @@ function exportWordDoc(){
 #execGrid > .card.c12{margin-top:14px!important;position:relative!important;z-index:1!important;}
 #backPortalBtn{font-family:var(--font)!important;}
 </style>
-</head><body>${doc.innerHTML}</body></html>`;
+</head><body>${doc.innerHTML}
+
+<script id="role_scope_kpi_owner_report_patch">
+(function(){
+  'use strict';
+  if(window.__QUMC_ROLE_SCOPE_PATCH__) return;
+  window.__QUMC_ROLE_SCOPE_PATCH__ = true;
+
+  function normRole(){ return String(window._fbRole||'').toLowerCase(); }
+  function isAdminRole(){ var r=normRole(); return r==='admin'||r==='super_admin'; }
+  function normDept(d){ return String(d||'').trim().toLowerCase(); }
+  function assignedList(){
+    var raw = window._fbAssignedKpis;
+    if(raw==null || raw==='') return [];
+    if(Array.isArray(raw)) return raw.map(String).map(function(x){return x.trim();}).filter(Boolean);
+    if(typeof raw==='string') return raw.split(/[,
+;|]+/).map(function(x){return x.trim();}).filter(Boolean);
+    try{return Object.values(raw).map(String).map(function(x){return x.trim();}).filter(Boolean);}catch(e){return [];}
+  }
+  function roleScopedKpis(list){
+    list = Array.isArray(list) ? list : [];
+    var role = normRole();
+    var dept = normDept(window._fbDept);
+    var assigned = assignedList();
+    if(isAdminRole() || role==='executive') return list;
+    if(role==='department_manager'){
+      return dept ? list.filter(function(k){return normDept(k.dept)===dept;}) : list;
+    }
+    if(role==='kpi_owner'){
+      if(assigned.length){
+        var allowed = new Set(assigned.map(function(x){return x.toLowerCase();}));
+        return list.filter(function(k){
+          return allowed.has(String(k.id||'').toLowerCase()) || allowed.has(String(k.code||'').toLowerCase()) || allowed.has(String(k.nameEn||'').toLowerCase()) || allowed.has(String(k.nameAr||'').toLowerCase());
+        });
+      }
+      return dept ? list.filter(function(k){return normDept(k.dept)===dept;}) : list;
+    }
+    return list;
+  }
+  window.roleScopedKpis = roleScopedKpis;
+
+  function currentLockDept(){
+    var role=normRole(), dept=normDept(window._fbDept);
+    if((role==='department_manager' || role==='kpi_owner') && dept && assignedList().length===0) return dept;
+    if(role==='department_manager' && dept) return dept;
+    return '';
+  }
+
+  // Override allK after original is available: every page/report/export sees only allowed KPIs.
+  function installScope(){
+    if(typeof window.allK === 'function' && !window.__rawAllK){
+      window.__rawAllK = window.allK;
+      window.allK = function(){ return roleScopedKpis(window.__rawAllK()); };
+      try { allK = window.allK; } catch(e) {}
+    }
+  }
+
+  // Force Reset to keep role scope; it no longer exposes all departments.
+  function installReset(){
+    if(typeof window.resetFilters === 'function' && !window.__rawResetFilters){
+      window.__rawResetFilters = window.resetFilters;
+      window.resetFilters = function(){
+        try{ window.__rawResetFilters(); }catch(e){}
+        try{
+          var lock=currentLockDept();
+          if(typeof F !== 'undefined'){
+            if(lock){ F.dept=lock; }
+            else if(!isAdminRole() && normRole()==='kpi_owner' && assignedList().length){ F.dept='all'; }
+          }
+          if(lock){
+            var sel=document.getElementById('deptF'); if(sel) sel.value=lock;
+            document.querySelectorAll('[data-filter="dept"]').forEach(function(b){
+              b.classList.toggle('on', b.dataset.val===lock);
+              if(b.dataset.val!==lock && b.dataset.val!=='all'){ b.style.opacity='.25'; b.style.pointerEvents='none'; }
+            });
+          }
+          if(typeof renderCurrent==='function') renderCurrent();
+        }catch(e){ console.warn('[scope reset]',e); }
+      };
+      try { resetFilters = window.resetFilters; } catch(e) {}
+    }
+  }
+
+  // Stop non-admins from changing dept outside their allowed scope.
+  function installSetF(){
+    if(typeof window.setF === 'function' && !window.__rawSetF){
+      window.__rawSetF = window.setF;
+      window.setF = function(type,val,el){
+        var lock=currentLockDept();
+        if(type==='dept' && lock && val!==lock){ val=lock; }
+        var out = window.__rawSetF(type,val,el);
+        try{
+          if(lock && typeof F!=='undefined') F.dept=lock;
+          if(typeof renderCurrent==='function') renderCurrent();
+        }catch(e){}
+        return out;
+      };
+      try { setF = window.setF; } catch(e) {}
+    }
+  }
+
+  // Wrap report so department managers and KPI owners cannot switch report to all departments.
+  function installReport(){
+    if(typeof window.renderReport === 'function' && !window.__rawRenderReport){
+      window.__rawRenderReport = window.renderReport;
+      window.renderReport = function(){
+        var lock=currentLockDept();
+        if(lock) window._rptDept = lock;
+        // If owner has assigned KPIs, keep dept filter blank because scoping is by KPI ID.
+        if(normRole()==='kpi_owner' && assignedList().length) window._rptDept = '';
+        var result = window.__rawRenderReport();
+        try{
+          var deptSel = document.querySelector('#page-report select[onchange*="_rptDept"], #page-report select');
+          if(lock && deptSel){ deptSel.value=lock; deptSel.disabled=true; deptSel.style.opacity='.65'; }
+          document.querySelectorAll('.rpt-edit-btn,[id$="-acts"]').forEach(function(el){
+            if(!isAdminRole()) el.style.setProperty('display','none','important');
+          });
+        }catch(e){}
+        return result;
+      };
+      try { renderReport = window.renderReport; } catch(e) {}
+    }
+  }
+
+  // Hide admin/edit controls except admin, while keeping Gap Analysis available to KPI Owner.
+  function applyUiPermissions(){
+    var css = document.getElementById('role_scope_css_patch');
+    if(!css){ css=document.createElement('style'); css.id='role_scope_css_patch'; document.head.appendChild(css); }
+    if(isAdminRole()){
+      css.textContent = '';
+    } else if(normRole()==='kpi_owner'){
+      css.textContent = '#adminOv,.rpt-edit-btn,[id$="-acts"],button[onclick*="openAdmin"],button[onclick*="saveAdmin"],button[onclick*="loadEK"],button[onclick*="addKPI"]{display:none!important;} [onclick*="openGap"]{display:inline-flex!important;}';
+    } else {
+      css.textContent = '#adminOv,.rpt-edit-btn,[id$="-acts"],button[onclick*="openAdmin"],button[onclick*="saveAdmin"],button[onclick*="addKPI"],[onclick*="openGap"]{display:none!important;}';
+    }
+  }
+
+  // Give KPI Owner an actual editable Gap Analysis panel, saved to Firestore and visible to everyone.
+  function installGapEditor(){
+    if(typeof window.openGap === 'function' && !window.__rawOpenGap){
+      window.__rawOpenGap = window.openGap;
+      window.openGap = function(id){
+        var scoped = roleScopedKpis((window.__rawAllK?window.__rawAllK():(typeof BASE!=='undefined'?BASE:[])));
+        if(!scoped.some(function(k){return String(k.id)===String(id);})){ return; }
+        window.__rawOpenGap(id);
+        try{
+          var role=normRole(), canEdit=isAdminRole()||role==='kpi_owner';
+          if(!canEdit) return;
+          var gb=document.getElementById('gapB'); if(!gb) return;
+          var gd=(ST.gaps||{})[id]||{};
+          var html = '<div id="gapOwnerEditBox" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">'
+            +'<div style="font-size:10px;font-weight:800;color:#D97706;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Gap Analysis Entry</div>'
+            +'<label style="font-size:10px;font-weight:700;color:var(--t2)">Root Cause / Gap Reasons</label>'
+            +'<textarea id="gapEditReason" style="width:100%;min-height:80px;margin:6px 0 10px;padding:9px;border:1px solid var(--border);border-radius:8px;font-family:inherit">'+(gd.gapEn||'')+'</textarea>'
+            +'<label style="font-size:10px;font-weight:700;color:var(--t2)">Corrective Actions</label>'
+            +'<textarea id="gapEditAction" style="width:100%;min-height:80px;margin:6px 0 10px;padding:9px;border:1px solid var(--border);border-radius:8px;font-family:inherit">'+(gd.actEn||'')+'</textarea>'
+            +'<button onclick="saveScopedGap(\''+String(id).replace(/'/g,"\\'")+'\')" style="background:#D97706;color:#fff;border:0;border-radius:8px;padding:9px 16px;font-weight:800;cursor:pointer">Save Gap Analysis</button>'
+            +'</div>';
+          gb.insertAdjacentHTML('beforeend',html);
+        }catch(e){ console.warn('[gap editor]',e); }
+      };
+      try { openGap = window.openGap; } catch(e) {}
+    }
+  }
+
+  window.saveScopedGap = function(id){
+    try{
+      var scoped = roleScopedKpis((window.__rawAllK?window.__rawAllK():(typeof BASE!=='undefined'?BASE:[])));
+      if(!scoped.some(function(k){return String(k.id)===String(id);})){ alert('Not allowed for this KPI'); return; }
+      if(!ST.gaps) ST.gaps={};
+      ST.gaps[id] = Object.assign({}, ST.gaps[id]||{}, {
+        gapEn: (document.getElementById('gapEditReason')||{}).value || '',
+        actEn: (document.getElementById('gapEditAction')||{}).value || '',
+        updatedBy: window._fbUser || 'user',
+        updatedAt: new Date().toISOString()
+      });
+      if(typeof sLS==='function') sLS(ST);
+      if(typeof window._saveToFS==='function') window._saveToFS(ST);
+      if(typeof toast==='function') toast('Gap Analysis saved'); else alert('Gap Analysis saved');
+      try{ if(typeof renderCurrent==='function') renderCurrent(); }catch(e){}
+    }catch(e){ alert('Save failed: '+(e.message||e)); }
+  };
+
+  // Reinforce report edit save key: per KPI, not per filter/quarter/department.
+  function installReportSaveKeyFix(){
+    if(typeof window.rptStartEdit === 'function' && !window.__reportKeyObserver){
+      window.__reportKeyObserver = true;
+      var rawStart = window.rptStartEdit;
+      window.rptStartEdit = function(id){
+        return rawStart(id);
+      };
+      try { rptStartEdit = window.rptStartEdit; } catch(e) {}
+    }
+  }
+
+  function installAll(){
+    installScope(); installReset(); installSetF(); installReport(); installGapEditor(); installReportSaveKeyFix(); applyUiPermissions();
+    try{
+      var lock=currentLockDept();
+      if(lock && typeof F!=='undefined') F.dept=lock;
+      if(typeof renderCurrent==='function') renderCurrent();
+    }catch(e){}
+  }
+
+  var oldApply = window.applyRolePermissions;
+  window.applyRolePermissions = function(role,dept,perms){
+    var r = oldApply ? oldApply(role,dept,perms) : undefined;
+    setTimeout(installAll, 50);
+    setTimeout(installAll, 400);
+    return r;
+  };
+  try { applyRolePermissions = window.applyRolePermissions; } catch(e) {}
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){setTimeout(installAll,200);});
+  else setTimeout(installAll,200);
+})();
+</script>
+
+</body></html>`;
   const blob=new Blob(['﻿'+wordHTML],{type:'application/msword;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;
@@ -6474,173 +6908,221 @@ function updateExecTrend(yr){
 </script>
 
 
-<script id="_qumc_role_scope_hotfix_v3">
-/* QUMC role-scope / report-persistence hotfix v3
-   - Department managers see only their department everywhere (including Reset + Report).
-   - KPI owners see assigned KPIs only; if no assignedKpis, they see all KPIs in their department.
-   - Non-admins never see admin/report edit controls; KPI owners can access Gap Analysis only.
-   - Report edits persist by KPI ID + paragraph ID, not by filters/year/quarter.
-*/
+
+<script id="role_scope_kpi_owner_report_patch">
 (function(){
-  function role(){return window._fbRole||'';}
-  function isAdmin(){const r=role();return r==='super_admin'||r==='admin';}
-  function isDeptRole(){return role()==='department_manager';}
-  function isOwner(){return role()==='kpi_owner';}
-  function dept(){return window._fbDept||null;}
-  function assigned(){
-    const a=window._fbAssignedKpis;
-    if(Array.isArray(a)) return a.map(x=>String(x).trim()).filter(Boolean);
-    if(typeof a==='string') return a.split(',').map(x=>x.trim()).filter(Boolean);
-    return [];
+  'use strict';
+  if(window.__QUMC_ROLE_SCOPE_PATCH__) return;
+  window.__QUMC_ROLE_SCOPE_PATCH__ = true;
+
+  function normRole(){ return String(window._fbRole||'').toLowerCase(); }
+  function isAdminRole(){ var r=normRole(); return r==='admin'||r==='super_admin'; }
+  function normDept(d){ return String(d||'').trim().toLowerCase(); }
+  function assignedList(){
+    var raw = window._fbAssignedKpis;
+    if(raw==null || raw==='') return [];
+    if(Array.isArray(raw)) return raw.map(String).map(function(x){return x.trim();}).filter(Boolean);
+    if(typeof raw==='string') return raw.split(/[,
+;|]+/).map(function(x){return x.trim();}).filter(Boolean);
+    try{return Object.values(raw).map(String).map(function(x){return x.trim();}).filter(Boolean);}catch(e){return [];}
   }
-  function assignedMeansAll(list){return !list.length || list.some(x=>['all','*','ALL','All'].includes(x));}
-  function baseAllK(){
-    const base=(typeof BASE!=='undefined'?BASE:[]).map(k=>{const ov=(window.ST&&ST.ov||{})[k.id];return ov?{...k,...ov}:k});
-    return base.concat((window.ST&&ST.added)||[]);
-  }
-  function inUserScope(k){
-    if(isAdmin()) return true;
-    const r=role();
-    const d=dept();
-    if(r==='department_manager') return d ? k.dept===d : true;
-    if(r==='kpi_owner'){
-      const list=assigned();
-      if(!assignedMeansAll(list)) return list.includes(k.id) || list.includes(String(k.code||'')) || list.includes(String(k.nameEn||''));
-      return d ? k.dept===d : true;
+  function roleScopedKpis(list){
+    list = Array.isArray(list) ? list : [];
+    var role = normRole();
+    var dept = normDept(window._fbDept);
+    var assigned = assignedList();
+    if(isAdminRole() || role==='executive') return list;
+    if(role==='department_manager'){
+      return dept ? list.filter(function(k){return normDept(k.dept)===dept;}) : list;
     }
-    return true;
-  }
-  window.getScopedKpis=function(){return baseAllK().filter(inUserScope);};
-  window.allK=function(){return window.getScopedKpis();};
-  try{ allK=window.allK; }catch(_){ }
-  window.filt=function(){
-    return window.getScopedKpis().filter(k=>{
-      if(window.F){
-        if(F.year!=='all'&&String(k.yr)!==F.year)return false;
-        if(F.dept!=='all'&&k.dept!==F.dept)return false;
-        if(F.status!=='all'){
-          const a=(typeof ok==='function')?ok(k):null;
-          if(F.status==='achieved'&&(a===null||!a))return false;
-          if(F.status==='missed'&&(a===null||a))return false;
-        }
+    if(role==='kpi_owner'){
+      if(assigned.length){
+        var allowed = new Set(assigned.map(function(x){return x.toLowerCase();}));
+        return list.filter(function(k){
+          return allowed.has(String(k.id||'').toLowerCase()) || allowed.has(String(k.code||'').toLowerCase()) || allowed.has(String(k.nameEn||'').toLowerCase()) || allowed.has(String(k.nameAr||'').toLowerCase());
+        });
       }
-      return true;
-    });
-  };
-  try{ filt=window.filt; }catch(_){ }
-  function defaultDeptForRole(){
-    if(isDeptRole()) return dept()||'all';
-    if(isOwner()){
-      const list=assigned();
-      if(assignedMeansAll(list) && dept()) return dept();
-      return 'all';
+      return dept ? list.filter(function(k){return normDept(k.dept)===dept;}) : list;
     }
-    return 'all';
+    return list;
   }
-  function lockDeptUI(){
-    const d=defaultDeptForRole();
-    const locked=!isAdmin() && (isDeptRole() || (isOwner() && d!=='all'));
-    const sel=document.getElementById('deptF');
-    if(sel){
-      if(locked){ sel.value=d; sel.disabled=true; sel.title='Locked by your role'; }
-      else { sel.disabled=false; }
+  window.roleScopedKpis = roleScopedKpis;
+
+  function currentLockDept(){
+    var role=normRole(), dept=normDept(window._fbDept);
+    if((role==='department_manager' || role==='kpi_owner') && dept && assignedList().length===0) return dept;
+    if(role==='department_manager' && dept) return dept;
+    return '';
+  }
+
+  // Override allK after original is available: every page/report/export sees only allowed KPIs.
+  function installScope(){
+    if(typeof window.allK === 'function' && !window.__rawAllK){
+      window.__rawAllK = window.allK;
+      window.allK = function(){ return roleScopedKpis(window.__rawAllK()); };
+      try { allK = window.allK; } catch(e) {}
     }
-    document.querySelectorAll('[data-filter="dept"]').forEach(b=>{
-      if(locked){
-        const isMine=b.dataset.val===d;
-        b.classList.toggle('on',isMine);
-        b.style.display=isMine?'inline-flex':'none';
-      }else{
-        b.style.display='';
-      }
-    });
   }
-  window.resetFilters=function(){
-    const lp=(typeof getLatestPeriod==='function')?getLatestPeriod():{year:'all',qtrs:['q1']};
-    if(typeof F==='undefined') window.F={};
-    F.year=lp.year||'all';
-    F.qtr=Array.isArray(lp.qtrs)&&lp.qtrs.length?lp.qtrs:['q1'];
-    F.status='all';
-    F.dept=defaultDeptForRole();
-    if(typeof renderYearFilter==='function')renderYearFilter();
-    document.querySelectorAll('.fb[data-filter="qtr"]').forEach(b=>{
-      if(b.dataset.val==='all')b.classList.toggle('on',F.qtr.length===4);
-      else b.classList.toggle('on',F.qtr.includes(b.dataset.val));
-    });
-    document.querySelectorAll('.fb[data-filter="status"]').forEach(b=>b.classList.toggle('on',b.dataset.val==='all'));
-    lockDeptUI();
-    if(typeof updateChips==='function')updateChips();
-    if(typeof updateBadge==='function')updateBadge();
-    if(typeof renderCurrent==='function')renderCurrent();
-  };
-  try{ resetFilters=window.resetFilters; }catch(_){ }
-  window.reportEditKey=function(id){
-    const k=(window._rptKpi&&String(window._rptKpi).trim()) || 'all_scoped';
-    return 'kpi_'+k+'__'+String(id||'block');
-  };
-  window.rptDoneEdit=function(id){
-    const p=document.getElementById(id);
-    const wrap=document.getElementById(id+'-w');
-    if(!p||!wrap)return;
-    if(!isAdmin())return;
-    if(!window.ST)window.ST={};
-    if(!ST.rptEdits)ST.rptEdits={};
-    ST.rptEdits[window.reportEditKey(id)]=p.innerHTML;
-    if(typeof sLS==='function')sLS(ST);
-    if(typeof window._saveToFS==='function'){try{window._saveToFS(ST);}catch(_){}}
-    if(typeof toast==='function')toast((window.lang==='ar')?'تم حفظ تعديل التقرير بشكل دائم':'Report edit saved permanently');
-    delete wrap.dataset.editing;
-    p.contentEditable='false';
-    p.style.outline='none';p.style.padding='0';
-    wrap.querySelectorAll('button').forEach(b=>b.remove());
-    const editBtn=document.createElement('button');
-    editBtn.className='rpt-edit-btn';
-    editBtn.style.cssText='position:absolute;top:0;right:0;display:flex;align-items:center;gap:4px;padding:3px 8px;background:rgba(0,163,196,.10);border:1px solid rgba(0,163,196,.25);border-radius:6px;color:#00A3C4;font-size:9.5px;font-weight:700;cursor:pointer;font-family:inherit;opacity:1;transition:opacity .2s';
-    editBtn.innerHTML=' Edit';editBtn.onclick=()=>rptStartEdit(id);wrap.appendChild(editBtn);
-  };
-  try{ rptDoneEdit=window.rptDoneEdit; }catch(_){ }
-  function enforceControls(){
-    const r=role();
-    const admin=isAdmin();
-    document.querySelectorAll('[onclick*="openAdmin"], #lockOv, .lock-card').forEach(el=>{
-      if(!admin){el.style.display='none';el.style.visibility='hidden';}
-    });
-    document.querySelectorAll('.rpt-edit-btn,[onclick*="rptStartEdit"],[id$="-acts"]').forEach(el=>{
-      if(!admin){el.style.display='none';el.style.visibility='hidden';}
-    });
-    document.querySelectorAll('[onclick*="saveAdmin"],[onclick*="addAction"],[onclick*="exportExcel"],[onclick*="exportReport"]').forEach(el=>{
-      if(!admin){el.style.display='none';el.style.visibility='hidden';}
-    });
-    if(r==='kpi_owner'){
-      document.querySelectorAll('[onclick*="openGap"]').forEach(el=>{
-        el.style.display='inline-flex';el.style.visibility='visible';
-        el.style.background='rgba(217,119,6,.15)';el.style.color='#D97706';el.style.border='1px solid rgba(217,119,6,.3)';
-      });
-    }else if(!admin && r!=='department_manager'){
-      document.querySelectorAll('[onclick*="openGap"]').forEach(el=>{el.style.display='none';});
+
+  // Force Reset to keep role scope; it no longer exposes all departments.
+  function installReset(){
+    if(typeof window.resetFilters === 'function' && !window.__rawResetFilters){
+      window.__rawResetFilters = window.resetFilters;
+      window.resetFilters = function(){
+        try{ window.__rawResetFilters(); }catch(e){}
+        try{
+          var lock=currentLockDept();
+          if(typeof F !== 'undefined'){
+            if(lock){ F.dept=lock; }
+            else if(!isAdminRole() && normRole()==='kpi_owner' && assignedList().length){ F.dept='all'; }
+          }
+          if(lock){
+            var sel=document.getElementById('deptF'); if(sel) sel.value=lock;
+            document.querySelectorAll('[data-filter="dept"]').forEach(function(b){
+              b.classList.toggle('on', b.dataset.val===lock);
+              if(b.dataset.val!==lock && b.dataset.val!=='all'){ b.style.opacity='.25'; b.style.pointerEvents='none'; }
+            });
+          }
+          if(typeof renderCurrent==='function') renderCurrent();
+        }catch(e){ console.warn('[scope reset]',e); }
+      };
+      try { resetFilters = window.resetFilters; } catch(e) {}
     }
-    lockDeptUI();
   }
-  window.applyRolePermissions=function(r,d,perms){
-    window._fbPerms=perms||window._fbPerms||[];
-    setTimeout(enforceControls,50);
-    setTimeout(enforceControls,450);
-    setTimeout(()=>{try{if(typeof renderCurrent==='function')renderCurrent();}catch(_){}},80);
-  };
-  try{ applyRolePermissions=window.applyRolePermissions; }catch(_){ }
-  const obs=new MutationObserver(()=>{try{enforceControls();}catch(_){}});
-  function boot(){
-    try{obs.observe(document.body,{childList:true,subtree:true});}catch(_){ }
+
+  // Stop non-admins from changing dept outside their allowed scope.
+  function installSetF(){
+    if(typeof window.setF === 'function' && !window.__rawSetF){
+      window.__rawSetF = window.setF;
+      window.setF = function(type,val,el){
+        var lock=currentLockDept();
+        if(type==='dept' && lock && val!==lock){ val=lock; }
+        var out = window.__rawSetF(type,val,el);
+        try{
+          if(lock && typeof F!=='undefined') F.dept=lock;
+          if(typeof renderCurrent==='function') renderCurrent();
+        }catch(e){}
+        return out;
+      };
+      try { setF = window.setF; } catch(e) {}
+    }
+  }
+
+  // Wrap report so department managers and KPI owners cannot switch report to all departments.
+  function installReport(){
+    if(typeof window.renderReport === 'function' && !window.__rawRenderReport){
+      window.__rawRenderReport = window.renderReport;
+      window.renderReport = function(){
+        var lock=currentLockDept();
+        if(lock) window._rptDept = lock;
+        // If owner has assigned KPIs, keep dept filter blank because scoping is by KPI ID.
+        if(normRole()==='kpi_owner' && assignedList().length) window._rptDept = '';
+        var result = window.__rawRenderReport();
+        try{
+          var deptSel = document.querySelector('#page-report select[onchange*="_rptDept"], #page-report select');
+          if(lock && deptSel){ deptSel.value=lock; deptSel.disabled=true; deptSel.style.opacity='.65'; }
+          document.querySelectorAll('.rpt-edit-btn,[id$="-acts"]').forEach(function(el){
+            if(!isAdminRole()) el.style.setProperty('display','none','important');
+          });
+        }catch(e){}
+        return result;
+      };
+      try { renderReport = window.renderReport; } catch(e) {}
+    }
+  }
+
+  // Hide admin/edit controls except admin, while keeping Gap Analysis available to KPI Owner.
+  function applyUiPermissions(){
+    var css = document.getElementById('role_scope_css_patch');
+    if(!css){ css=document.createElement('style'); css.id='role_scope_css_patch'; document.head.appendChild(css); }
+    if(isAdminRole()){
+      css.textContent = '';
+    } else if(normRole()==='kpi_owner'){
+      css.textContent = '#adminOv,.rpt-edit-btn,[id$="-acts"],button[onclick*="openAdmin"],button[onclick*="saveAdmin"],button[onclick*="loadEK"],button[onclick*="addKPI"]{display:none!important;} [onclick*="openGap"]{display:inline-flex!important;}';
+    } else {
+      css.textContent = '#adminOv,.rpt-edit-btn,[id$="-acts"],button[onclick*="openAdmin"],button[onclick*="saveAdmin"],button[onclick*="addKPI"],[onclick*="openGap"]{display:none!important;}';
+    }
+  }
+
+  // Give KPI Owner an actual editable Gap Analysis panel, saved to Firestore and visible to everyone.
+  function installGapEditor(){
+    if(typeof window.openGap === 'function' && !window.__rawOpenGap){
+      window.__rawOpenGap = window.openGap;
+      window.openGap = function(id){
+        var scoped = roleScopedKpis((window.__rawAllK?window.__rawAllK():(typeof BASE!=='undefined'?BASE:[])));
+        if(!scoped.some(function(k){return String(k.id)===String(id);})){ return; }
+        window.__rawOpenGap(id);
+        try{
+          var role=normRole(), canEdit=isAdminRole()||role==='kpi_owner';
+          if(!canEdit) return;
+          var gb=document.getElementById('gapB'); if(!gb) return;
+          var gd=(ST.gaps||{})[id]||{};
+          var html = '<div id="gapOwnerEditBox" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">'
+            +'<div style="font-size:10px;font-weight:800;color:#D97706;letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px">Gap Analysis Entry</div>'
+            +'<label style="font-size:10px;font-weight:700;color:var(--t2)">Root Cause / Gap Reasons</label>'
+            +'<textarea id="gapEditReason" style="width:100%;min-height:80px;margin:6px 0 10px;padding:9px;border:1px solid var(--border);border-radius:8px;font-family:inherit">'+(gd.gapEn||'')+'</textarea>'
+            +'<label style="font-size:10px;font-weight:700;color:var(--t2)">Corrective Actions</label>'
+            +'<textarea id="gapEditAction" style="width:100%;min-height:80px;margin:6px 0 10px;padding:9px;border:1px solid var(--border);border-radius:8px;font-family:inherit">'+(gd.actEn||'')+'</textarea>'
+            +'<button onclick="saveScopedGap(\''+String(id).replace(/'/g,"\\'")+'\')" style="background:#D97706;color:#fff;border:0;border-radius:8px;padding:9px 16px;font-weight:800;cursor:pointer">Save Gap Analysis</button>'
+            +'</div>';
+          gb.insertAdjacentHTML('beforeend',html);
+        }catch(e){ console.warn('[gap editor]',e); }
+      };
+      try { openGap = window.openGap; } catch(e) {}
+    }
+  }
+
+  window.saveScopedGap = function(id){
     try{
-      if(!isAdmin()){
-        if(typeof F!=='undefined')F.dept=defaultDeptForRole();
-        lockDeptUI();
-      }
-      enforceControls();
-    }catch(_){ }
+      var scoped = roleScopedKpis((window.__rawAllK?window.__rawAllK():(typeof BASE!=='undefined'?BASE:[])));
+      if(!scoped.some(function(k){return String(k.id)===String(id);})){ alert('Not allowed for this KPI'); return; }
+      if(!ST.gaps) ST.gaps={};
+      ST.gaps[id] = Object.assign({}, ST.gaps[id]||{}, {
+        gapEn: (document.getElementById('gapEditReason')||{}).value || '',
+        actEn: (document.getElementById('gapEditAction')||{}).value || '',
+        updatedBy: window._fbUser || 'user',
+        updatedAt: new Date().toISOString()
+      });
+      if(typeof sLS==='function') sLS(ST);
+      if(typeof window._saveToFS==='function') window._saveToFS(ST);
+      if(typeof toast==='function') toast('Gap Analysis saved'); else alert('Gap Analysis saved');
+      try{ if(typeof renderCurrent==='function') renderCurrent(); }catch(e){}
+    }catch(e){ alert('Save failed: '+(e.message||e)); }
+  };
+
+  // Reinforce report edit save key: per KPI, not per filter/quarter/department.
+  function installReportSaveKeyFix(){
+    if(typeof window.rptStartEdit === 'function' && !window.__reportKeyObserver){
+      window.__reportKeyObserver = true;
+      var rawStart = window.rptStartEdit;
+      window.rptStartEdit = function(id){
+        return rawStart(id);
+      };
+      try { rptStartEdit = window.rptStartEdit; } catch(e) {}
+    }
   }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
+
+  function installAll(){
+    installScope(); installReset(); installSetF(); installReport(); installGapEditor(); installReportSaveKeyFix(); applyUiPermissions();
+    try{
+      var lock=currentLockDept();
+      if(lock && typeof F!=='undefined') F.dept=lock;
+      if(typeof renderCurrent==='function') renderCurrent();
+    }catch(e){}
+  }
+
+  var oldApply = window.applyRolePermissions;
+  window.applyRolePermissions = function(role,dept,perms){
+    var r = oldApply ? oldApply(role,dept,perms) : undefined;
+    setTimeout(installAll, 50);
+    setTimeout(installAll, 400);
+    return r;
+  };
+  try { applyRolePermissions = window.applyRolePermissions; } catch(e) {}
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', function(){setTimeout(installAll,200);});
+  else setTimeout(installAll,200);
 })();
 </script>
+
 </body>
 </html>
