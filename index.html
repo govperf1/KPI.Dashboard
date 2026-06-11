@@ -1476,9 +1476,9 @@ window._selectPortal=async portal=>{
   <div class="modal" style="max-width:760px">
     <!-- Header -->
     <div class="mhd">
-      <div>
+      <div style="display:flex;align-items:center;gap:10px">
         <div class="mhd-t"> Admin Control Panel</div>
-
+        <span id="_fsInd" style="display:none;font-size:9.5px;font-weight:700;padding:2px 8px;border-radius:12px;background:rgba(1,149,175,.10)"></span>
       </div>
       <button class="mx" onclick="closOv('adminOv')">✕</button>
     </div>
@@ -1529,11 +1529,7 @@ window._selectPortal=async portal=>{
           <div class="af-field">
             <label class="af-lbl">Year <span style="color:#DC2626;font-size:10px">*</span></label>
             <select class="af-sel" id="eYr">
-              <option value="2024">2024</option>
-              <option value="2025">2025</option>
-              <option value="2026" selected>2026</option>
-              <option value="2027">2027</option>
-              <option value="2028">2028</option>
+              <!-- Populated dynamically by buildYearOptions() -->
             </select>
           </div>
         </div>
@@ -1620,7 +1616,9 @@ window._selectPortal=async portal=>{
         <div class="af-grid2">
           <div class="af-field">
             <label class="af-lbl">Name (English)</label>
-            <input type="text" class="af-inp" id="aNE" placeholder="KPI name in English…">
+            <input type="text" class="af-inp" id="aNE" placeholder="KPI name in English…"
+            oninput="this.value=this.value.replace(/[\u0600-\u06FF]+/g,'');if(/[\u0600-\u06FF]/.test(this.dataset.last||'')){}this.dataset.last=this.value;"
+            title="English letters and numbers only">
           </div>
           <div class="af-field" dir="rtl">
             <label class="af-lbl" style="text-align:right">الاسم بالعربية</label>
@@ -1675,9 +1673,12 @@ window._selectPortal=async portal=>{
           </div>
           <div class="af-row" style="margin-bottom:12px">
             <label class="af-lbl">Select KPI to Delete</label>
-            <select class="af-sel" id="delSel" onchange="previewDelKpi(this.value)">
-              <option value="">— Select a KPI —</option>
+            <select class="af-sel" id="delSel" onchange="previewDelKpi(this.value)" size="8" style="height:auto;min-height:120px;overflow-y:auto">
+              <option value="">— Select a KPI to delete —</option>
             </select>
+            <div id="_delLegend" style="display:none;font-size:9px;color:#64748B;margin-top:4px">
+              ★ = User-added KPI &nbsp;|&nbsp; No star = Base/system KPI
+            </div>
           </div>
           <div id="delPreview" style="display:none;padding:12px 14px;background:#FEF2F2;border:1px solid #FECACA;border-radius:9px;margin-bottom:14px">
             <div style="font-size:10px;font-weight:700;color:#DC2626;margin-bottom:6px">⚠ You are about to delete:</div>
@@ -1744,12 +1745,16 @@ window._selectPortal=async portal=>{
         <div class="af-sec-lbl" style="margin-top:4px">Root Cause &amp; Gap Reasons</div>
         <div class="af-field" style="margin-bottom:12px">
           <label class="af-lbl"> Root Cause / Gap Reasons <span style="color:#DC2626">*</span></label>
-          <textarea class="af-txt" id="gE" placeholder="Root causes for non-achievement…" rows="4"></textarea>
+          <textarea class="af-txt" id="gE" placeholder="Root causes for non-achievement…" rows="4"
+            oninput="this.value=this.value.replace(/[\u0600-\u06FF]+/g,'');"
+            title="English letters and numbers only — Arabic not allowed"></textarea>
         </div>
         <div class="af-sec-lbl">Corrective Actions</div>
         <div class="af-field" style="margin-bottom:12px">
           <label class="af-lbl"> Corrective Actions <span style="color:#DC2626">*</span></label>
-          <textarea class="af-txt" id="aE" placeholder="Actions taken or planned…" rows="4"></textarea>
+          <textarea class="af-txt" id="aE" placeholder="Actions taken or planned…" rows="4"
+            oninput="this.value=this.value.replace(/[\u0600-\u06FF]+/g,'');"
+            title="English letters and numbers only — Arabic not allowed"></textarea>
         </div>
         
         <!-- ════════════════════════════
@@ -3889,8 +3894,17 @@ function sLS(d){
         :' Storage full. Export a backup immediately before data loss.');
     }
   }
-  /* Async Firestore sync (non-blocking) */
-  if(typeof window._saveToFS==='function') window._saveToFS(d);
+  /* Async Firestore sync — always explicit, show indicator */
+  if(typeof window._saveToFS==='function'){
+    const _ind=document.getElementById('_fsInd');
+    if(_ind){_ind.textContent='☁ Saving…';_ind.style.color='#0195af';_ind.style.display='inline';}
+    window._saveToFS(d).then(()=>{
+      if(_ind){_ind.textContent='✓ Saved';_ind.style.color='#16A34A';setTimeout(()=>{_ind.style.display='none';},2500);}
+    }).catch(e=>{
+      if(_ind){_ind.textContent='⚠ Sync failed';_ind.style.color='#DC2626';setTimeout(()=>{_ind.style.display='none';},4000);}
+      console.warn('[FS] sLS sync error:',e);
+    });
+  }
 }
 ST=lLS();
 initSecurity();
@@ -3922,6 +3936,21 @@ function resetFilters(){
   });
   document.querySelectorAll('[data-filter="qtr"]').forEach(b=>b.classList.toggle('on',F.qtr.includes(b.dataset.val)||b.dataset.val==='all'&&F.qtr.length===4));
   renderCurrent();
+}
+function buildYearOptions(selId, selectedYear){
+  const el=document.getElementById(selId);
+  if(!el)return;
+  const currentY=new Date().getFullYear();
+  const existing=[...new Set(allK().map(k=>k.yr))].sort((a,b)=>a-b);
+  /* Range: min of existing or 2024, max of 2060 */
+  const minY=Math.min(2024,...existing);
+  const maxY=2060;
+  let opts='';
+  for(let y=minY;y<=maxY;y++){
+    const sel=String(y)===String(selectedYear||currentY)?'selected':'';
+    opts+=`<option value="${y}" ${sel}>${y}</option>`;
+  }
+  el.innerHTML=opts;
 }
 function allK(){
   const _del=new Set(ST.deleted||[]);  /* KPIs permanently deleted by admin */
@@ -5924,6 +5953,12 @@ function openAdmin(){
     document.getElementById('adminOv').classList.add('open');
     window._adminActive=true;
     console.log('[Admin] Panel opened for',role);
+    /* Build dynamic year options + populate delete list */
+    setTimeout(()=>{
+      buildYearOptions('eYr','2026');
+      buildYearOptions('aY', String(new Date().getFullYear()));
+      populateDelKpiList();
+    },80);
   } else {
     /* Non-admin: show brief shake feedback */
     const btn=document.querySelector('button[onclick*="openAdmin"]');
@@ -6006,6 +6041,8 @@ function swAt(id,el){
   ['_addFeedback','_editFeedback','_delFeedback','_gapFeedback'].forEach(fbId=>{
     const fbEl=document.getElementById(fbId);if(fbEl)fbEl.style.display='none';
   });
+  /* Populate delete list when switching to delete tab */
+  if(id==='del') setTimeout(populateDelKpiList, 50);
   document.querySelectorAll('.atb').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.ap').forEach(p=>{
     p.classList.remove('on');
@@ -6132,6 +6169,23 @@ function saveAdmin(){
   action='KPI_EDIT';detail=`Edited ${id}`;if(!window._editOldVal)window._editOldVal=_oldVal;}
   else if(ap==='ap-add'){
     /* ── Required fields validation ── */
+    /* Language format validation */
+    const _aNEVal=(document.getElementById('aNE')||{}).value||'';
+    const _aNAVal=(document.getElementById('aNA')||{}).value||'';
+    if(_aNEVal && /[\u0600-\u06FF]/.test(_aNEVal)){
+      const el=document.getElementById('aNE');
+      if(el){el.style.borderColor='#DC2626';el.style.boxShadow='0 0 0 3px rgba(220,38,38,.15)';}
+      const fb2=document.getElementById('_addFeedback');
+      if(fb2){fb2.textContent='⚠ KPI Name (English) must contain English letters and numbers only — no Arabic';fb2.style.color='#DC2626';fb2.style.background='rgba(220,38,38,.06)';fb2.style.border='1px solid rgba(220,38,38,.2)';fb2.style.display='block';}
+      return;
+    }
+    if(_aNAVal && !/^[\u0600-\u06FF\u0660-\u0669\u06F0-\u06F9 0-9\-()_/.،,!?]*$/.test(_aNAVal)){
+      const el=document.getElementById('aNA');
+      if(el){el.style.borderColor='#DC2626';el.style.boxShadow='0 0 0 3px rgba(220,38,38,.15)';}
+      const fb2=document.getElementById('_addFeedback');
+      if(fb2){fb2.textContent='⚠ الاسم العربي يجب أن يحتوي على أحرف عربية وأرقام فقط';fb2.style.color='#DC2626';fb2.style.background='rgba(220,38,38,.06)';fb2.style.border='1px solid rgba(220,38,38,.2)';fb2.style.display='block';}
+      return;
+    }
     const _req=[
       {id:'aC',lbl:'KPI Code'},
       {id:'aDp',lbl:'Department'},
@@ -6200,6 +6254,16 @@ function saveAdmin(){
   else if(ap==='ap-gap'){
     const id=document.getElementById('gS').value;
     if(!id){toast(' Select a KPI first');return;}
+    /* Language validation for gap fields */
+    const _gEval=(document.getElementById('gE')||{}).value||'';
+    const _aEval=(document.getElementById('aE')||{}).value||'';
+    if(/[\u0600-\u06FF]/.test(_gEval)||/[\u0600-\u06FF]/.test(_aEval)){
+      const fbG=document.getElementById('_gapFeedback');
+      if(fbG){fbG.textContent='⚠ Gap fields must be in English only — please remove Arabic text';fbG.style.color='#DC2626';fbG.style.background='rgba(220,38,38,.06)';fbG.style.display='block';}
+      if(/[\u0600-\u06FF]/.test(_gEval)){const e=document.getElementById('gE');if(e){e.style.borderColor='#DC2626';e.style.boxShadow='0 0 0 3px rgba(220,38,38,.15)';}}
+      if(/[\u0600-\u06FF]/.test(_aEval)){const e=document.getElementById('aE');if(e){e.style.borderColor='#DC2626';e.style.boxShadow='0 0 0 3px rgba(220,38,38,.15)';}}
+      return;
+    }
     /* Required field validation (except At Risk checkbox) */
     const _gReq=[
       {id:'gE',lbl:'Root Cause / Gap Reasons'},
@@ -6242,7 +6306,41 @@ function saveAdmin(){
     action='GAP_EDIT';detail=`Gap for ${id}`;window._editOldVal=oldGap;}
   else if(ap==='ap-actions'||ap==='ap-auditlog')return;
   if(action)addAudit(action,detail,window._editOldVal||null,window._editNewVal||null);window._editOldVal=null;window._editNewVal=null;
-  sLS(ST);toast(lang==='ar'?'✓ تم الحفظ بنجاح':'✓ Saved successfully');updateBadge();renderCurrent();
+  sLS(ST);  /* triggers _saveToFS automatically */
+  toast(lang==='ar'?'✓ تم الحفظ بنجاح':'✓ Saved successfully');
+  updateBadge();
+  renderYearFilter();  /* ensure year filter stays current */
+  renderCurrent();
+}
+function populateDelKpiList(){
+  const sel=document.getElementById('delSel');
+  if(!sel)return;
+  /* Get ALL visible KPIs (BASE + added, excluding already deleted) */
+  const all=allK().sort((a,b)=>a.dept.localeCompare(b.dept)||a.id.localeCompare(b.id));
+  sel.innerHTML='<option value="">— Select a KPI to delete —</option>';
+  let lastDept='';
+  all.forEach(k=>{
+    if(k.dept!==lastDept){
+      const grp=document.createElement('optgroup');
+      grp.label=(typeof DM!=='undefined'&&DM[k.dept]?DM[k.dept].en:k.dept).toUpperCase();
+      sel.appendChild(grp);
+      lastDept=k.dept;
+    }
+    const o=document.createElement('option');
+    o.value=k.id;
+    const isBase=typeof BASE!=='undefined'&&BASE.some(b=>b.id===k.id);
+    o.textContent=k.id+' — '+k.nameEn+' ('+k.yr+')'+(!isBase?' ★':'');
+    const lastGrp=sel.querySelector('optgroup:last-of-type');
+    if(lastGrp)lastGrp.appendChild(o);
+    else sel.appendChild(o);
+  });
+  if(!all.length){
+    const o=document.createElement('option');o.disabled=true;o.textContent='No KPIs available';
+    sel.appendChild(o);
+  }
+  /* Legend */
+  const leg=document.getElementById('_delLegend');
+  if(leg)leg.style.display=all.length?'block':'none';
 }
 function previewDelKpi(id){
   const prev=document.getElementById('delPreview');
@@ -6293,9 +6391,9 @@ function confirmDelKpi(){
   addAudit('KPI_DEL','Permanently deleted KPI: '+id+' ('+k.nameEn+')',k.nameEn,'DELETED');
   sLS(ST);
   toast('✓ KPI '+id+' permanently deleted everywhere');
-  /* Reset UI */
-  const sel=document.getElementById('delSel');if(sel)sel.value='';
+  /* Reset UI + repopulate list */
   const prev=document.getElementById('delPreview');if(prev)prev.style.display='none';
+  setTimeout(populateDelKpiList,200);  /* refresh list */
   const fb=document.getElementById('_delFeedback');
   if(fb){
     fb.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg> KPI "'+id+'" permanently deleted';
