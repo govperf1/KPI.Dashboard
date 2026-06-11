@@ -1663,6 +1663,11 @@ window._selectPortal=async portal=>{
           </table>
         </div>
       </div>
+          <!-- Hidden computed quarterly values — populated by calcAdminPCI() -->
+          <input type="hidden" id="aQ1" value="">
+          <input type="hidden" id="aQ2" value="">
+          <input type="hidden" id="aQ3" value="">
+          <input type="hidden" id="aQ4" value="">
         <!-- Dedicated Save button for Add KPI -->
         <div style="padding:12px 0 4px;border-top:1px solid var(--border);margin-top:8px">
           <div id="_addFeedback" style="display:none;font-size:11px;font-weight:600;border-radius:8px;margin-bottom:10px;padding:8px 12px"></div>
@@ -6179,20 +6184,36 @@ async function saveNewKPI(){
     _showFb('⚠ KPI Code "'+code+'" already exists — use a unique code',false);return;
   }
 
+  /* ── Defensive field reads with null guards ── */
+  const _gv=(id,fallback='')=>{
+    const el=document.getElementById(id);
+    if(!el){console.error('[saveNewKPI] Missing field: #'+id);return fallback;}
+    return el.value??fallback;
+  };
+
+  /* Verify all critical fields exist before building object */
+  const _critical=['aDp','aY','aNE','aTg','aQ1','aQ2','aQ3','aQ4'];
+  const _missing=_critical.filter(id=>!document.getElementById(id));
+  if(_missing.length){
+    _showFb('⚠ Missing form fields: '+_missing.join(', ')+' — Please reload admin panel',false);
+    console.error('[saveNewKPI] Missing IDs:',_missing);
+    return;
+  }
+
   const kpiObj={
     id:code,
-    dept:document.getElementById('aDp').value,
-    yr:parseInt(document.getElementById('aY').value)||new Date().getFullYear(),
-    nameEn:document.getElementById('aNE').value.trim(),
-    nameAr:document.getElementById('aNA').value.trim()||'',
-    target:parseFloat(document.getElementById('aTg').value)||100,
-    op:document.getElementById('aO').value||'>=',
+    dept:_gv('aDp','unknown'),
+    yr:parseInt(_gv('aY','2026'))||new Date().getFullYear(),
+    nameEn:(_gv('aNE')).trim(),
+    nameAr:(_gv('aNA')).trim()||'',
+    target:parseFloat(_gv('aTg','100'))||100,
+    op:_gv('aO','>='),
     type:'core',
-    tier:parseInt(document.getElementById('aTier').value)||3,
-    q1:pn(document.getElementById('aQ1').value),
-    q2:pn(document.getElementById('aQ2').value),
-    q3:pn(document.getElementById('aQ3').value),
-    q4:pn(document.getElementById('aQ4').value)
+    tier:parseInt(_gv('aTier','3'))||3,
+    q1:pn(_gv('aQ1','')),
+    q2:pn(_gv('aQ2','')),
+    q3:pn(_gv('aQ3','')),
+    q4:pn(_gv('aQ4',''))
   };
 
   /* ── 4. Save locally first (instant UI response) ── */
@@ -6237,8 +6258,18 @@ async function saveNewKPI(){
   /* ── 8. Audit + clear form ── */
   addAudit('KPI_ADD','Added new KPI: '+code+' ('+kpiObj.dept+', '+kpiObj.yr+')',null,'KPI: '+kpiObj.nameEn);
   setTimeout(()=>{
-    ['aC','aNE','aNA','aTg','aQ1','aQ2','aQ3','aQ4'].forEach(id=>{
+    /* Clear visible form fields */
+    ['aC','aNE','aNA','aTg','aAdQ1_pl','aAdQ1_co','aAdQ2_pl','aAdQ2_co',
+     'aAdQ3_pl','aAdQ3_co','aAdQ4_pl','aAdQ4_co'].forEach(id=>{
       const e=document.getElementById(id);if(e){e.value='';e.style.borderColor='';e.style.boxShadow='';}
+    });
+    /* Clear computed hidden fields */
+    ['aQ1','aQ2','aQ3','aQ4'].forEach(id=>{
+      const e=document.getElementById(id);if(e)e.value='';
+    });
+    /* Reset PCI result spans */
+    ['aAdQ1_res','aAdQ2_res','aAdQ3_res','aAdQ4_res'].forEach(id=>{
+      const e=document.getElementById(id);if(e){e.textContent='—';e.style.color='var(--t3)';e.style.background='';}
     });
   },2000);
 }
