@@ -3030,11 +3030,23 @@ function renderReport(){
   if(typeof window._rptKpi==='undefined')window._rptKpi='';
 
   if(typeof window._rptDept==='undefined')window._rptDept='';
-  /* Use allK() so report filters are independent of the global dept filter */
-  const ks_all=allK().filter(k=>F.year==='all'||k.yr===parseInt(F.year));
-  /* Dept filter options */
-  const deptOpts='<option value=""'+(window._rptDept===''?' selected':'')+'>All Departments</option>'+
-    Object.keys(DM).map(d=>'<option value="'+d+'"'+(window._rptDept===d?' selected':'')+'>'+DM[d].en+'</option>').join('');
+  /* Role-aware base set — dept managers / kpi_owners only see their scope */
+  let ks_base=allK();
+  const _rptRole=window._fbRole||'';
+  const _rptLocked=window._lockedDept||null;
+  const _rptAssigned=window._fbAssignedKpis;
+  /* Apply hard dept lock */
+  if(_rptLocked) ks_base=ks_base.filter(k=>k.dept===_rptLocked);
+  /* Apply kpi_owner KPI restriction */
+  if(_rptRole==='kpi_owner'&&Array.isArray(_rptAssigned)&&_rptAssigned.length>0)
+    ks_base=ks_base.filter(k=>_rptAssigned.includes(k.id));
+  /* Lock _rptDept to the locked dept if applicable */
+  if(_rptLocked&&window._rptDept!==_rptLocked) window._rptDept=_rptLocked;
+  const ks_all=ks_base.filter(k=>F.year==='all'||k.yr===parseInt(F.year));
+  /* Dept filter options — locked users see only their dept */
+  const _showAllDepts=!_rptLocked;
+  const deptOpts=(_showAllDepts?'<option value=""'+(window._rptDept===''?' selected':'')+'>All Departments</option>':'')+
+    Object.keys(DM).filter(d=>!_rptLocked||d===_rptLocked).map(d=>'<option value="'+d+'"'+(window._rptDept===d?' selected':'')+'>'+DM[d].en+'</option>').join('');
   /* Filter KPIs by selected report dept */
   const ks_dept=window._rptDept?ks_all.filter(k=>k.dept===window._rptDept):ks_all;
   /* Build KPI options filtered by selected dept */
@@ -3074,7 +3086,11 @@ function renderReport(){
   let _eid=0;
   const EP=(txt,style='')=>{
     const id='ep'+(++_eid);
-    const _ctx=(F.dept||'all')+'_'+(F.year||'all')+'_'+(Array.isArray(F.qtr)?F.qtr.join(''):'all')+'_'+(window._rptKpi||'all');const _ctxKey=_ctx+'_'+id;const _saved=(ST.rptEdits||{})[_ctxKey];const _content=_saved!==undefined?_saved:txt;
+    /* Stable key: based on KPI selection ONLY — not on year/dept/qtr filters */
+    /* This ensures edits persist when user changes filters or returns later */
+    const _stableKpi=window._rptKpi||'_all_';
+    const _ctxKey='rpt_'+_stableKpi+'_'+_eid;
+    const _saved=(ST.rptEdits||{})[_ctxKey];const _content=_saved!==undefined?_saved:txt;
     return `<div class="rpt-ep" id="${id}-w" style="display:flex;align-items:flex-start;gap:8px;${style}">
       <p id="${id}" style="font-size:12px;color:#334155;line-height:1.85;margin:0;min-height:20px;flex:1">${_content}</p>
       <div id="${id}-acts" style="flex-shrink:0;display:flex;flex-direction:column;gap:4px;padding-top:2px">
@@ -3414,7 +3430,13 @@ function rptDoneEdit(id){
   const p=document.getElementById(id);
   const wrap=document.getElementById(id+'-w');
   if(!p||!wrap)return;
-  if(!ST.rptEdits)ST.rptEdits={};const _rCtx=(F.dept||'all')+'_'+(F.year||'all')+'_'+(Array.isArray(F.qtr)?F.qtr.join(''):'all')+'_'+(window._rptKpi||'all');ST.rptEdits[_rCtx+'_'+id]=p.innerHTML;sLS(ST);
+  if(!ST.rptEdits)ST.rptEdits={};
+  /* Build the SAME stable key used when rendering */
+  const _stableKpi=window._rptKpi||'_all_';
+  /* Extract section index from id (format: 'epN') */
+  const _sIdx=parseInt((id||'ep0').replace('ep',''))||0;
+  const _rCtxKey='rpt_'+_stableKpi+'_'+_sIdx;
+  ST.rptEdits[_rCtxKey]=p.innerHTML;sLS(ST);
   if(typeof window._saveToFS==='function'){try{window._saveToFS(ST);}catch(_){}}
   if(typeof toast==='function')toast(lang==='ar'?'تم حفظ تعديل التقرير بشكل دائم':'Report edit saved permanently');
   delete wrap.dataset.editing;
@@ -3937,6 +3959,8 @@ function getRepeat(k){
   return max;
 }
 function filt(){
+  /* Sync F.dept with _lockedDept to prevent drift */
+  if(window._lockedDept && F.dept!==window._lockedDept) F.dept=window._lockedDept;
   return allK().filter(k=>{
     /* ── Hard dept lock (dept_manager and kpi_owner NEVER see other depts) ── */
     if(window._lockedDept && k.dept!==window._lockedDept) return false;
@@ -5613,7 +5637,7 @@ function renderAcc(){
   const openC=missKpis.filter(k=>{const ac=(ST.actions||{})[k.id];return!ac||ac.status==='open';}).length;
   const progC=missKpis.filter(k=>{const ac=(ST.actions||{})[k.id];return ac&&ac.status==='in-progress';}).length;
   const doneC=missKpis.filter(k=>{const ac=(ST.actions||{})[k.id];return ac&&ac.status==='closed';}).length;
-  const repKpis=allK().filter(k=>getRepeat(k)>=2);
+  const repKpis=filt().filter(k=>getRepeat(k)>=2);  /* Use filt() to enforce role-based scoping */
   const g=document.getElementById('accGrid');
   g.innerHTML=`
 <div class="card c4"><div class="ch"> ${lang==='ar'?'مفتوح':'Open'}</div><div class="cb"><div class="mbig" style="color:var(--red)">${openC}</div><div class="mlbl">${lang==='ar'?'إجراءات تصحيحية معلقة':'Corrective Actions Pending'}</div></div></div>
@@ -5706,6 +5730,12 @@ function openGap(id){
   const gd=(ST.gaps||{})[id]||{},ac=(ST.actions||{})[id]||{};
   const na=lang==='ar'?'لم تُدخل بيانات بعد — استخدم لوحة المسؤول.':'No data yet — use Admin Panel.';
   const rc=getRepeat(k);
+  const _gRole=window._fbRole||'';
+  const _gAssigned=window._fbAssignedKpis;
+  const _canEditGap=_gRole==='admin'||_gRole==='super_admin'||
+    (_gRole==='kpi_owner'&&(
+      !Array.isArray(_gAssigned)||_gAssigned.length===0||_gAssigned.includes(id)
+    ));
   document.getElementById('gapT').textContent=(lang==='ar'?'تحليل الفجوة — ':'Gap Analysis — ')+(lang==='ar'?k.nameAr:k.nameEn);
   document.getElementById('gapB').innerHTML=`
     <div style="display:flex;gap:8px;margin-bottom:11px;flex-wrap:wrap">
@@ -5732,6 +5762,65 @@ function openGap(id){
       ${ac.dueDate?`<div style="font-size:11px;color:${new Date(ac.dueDate)<new Date()?'var(--red)':'var(--t2)'}">${lang==='ar'?'الموعد':'Due'}: <strong>${ac.dueDate}</strong>${new Date(ac.dueDate)<new Date()?'  '+(lang==='ar'?'متأخر':'Overdue'):''}</div>`:''}
     </div>`:''}
   `;
+
+  /* ── KPI Owner editable form (injected after read-only view) ── */
+  if(_canEditGap && _gRole==='kpi_owner'){
+    const _gd2=gd; // current gap data
+    const _eForm=document.createElement('div');
+    _eForm.style.cssText='margin-top:16px;padding:16px;background:rgba(217,119,6,.06);border:1px solid rgba(217,119,6,.25);border-radius:12px';
+    _eForm.innerHTML=`
+      <div style="font-size:11px;font-weight:800;color:#D97706;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Edit Gap Analysis
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:10px;font-weight:700;color:#64748B;display:block;margin-bottom:4px">Root Cause / Gap Reasons <span style="color:#DC2626">*</span></label>
+        <textarea id="kpo_gE_${id}" style="width:100%;padding:8px;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;resize:vertical;min-height:60px;font-family:inherit" placeholder="Root causes…">${htmlEsc(_gd2.gapEn||'')}</textarea>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:10px;font-weight:700;color:#64748B;display:block;margin-bottom:4px">Corrective Actions <span style="color:#DC2626">*</span></label>
+        <textarea id="kpo_aE_${id}" style="width:100%;padding:8px;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;resize:vertical;min-height:60px;font-family:inherit" placeholder="Actions planned…">${htmlEsc(_gd2.actEn||'')}</textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <label style="font-size:10px;font-weight:700;color:#64748B;display:block;margin-bottom:4px">Responsible Person <span style="color:#DC2626">*</span></label>
+          <input id="kpo_gOwner_${id}" type="text" value="${htmlEsc(_gd2.owner||window._fbName||'')}" style="width:100%;padding:6px 8px;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;font-family:inherit" placeholder="Name…">
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:#64748B;display:block;margin-bottom:4px">Due Date <span style="color:#DC2626">*</span></label>
+          <input id="kpo_gDue_${id}" type="date" value="${_gd2.dueDate||''}" style="width:100%;padding:6px 8px;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;font-family:inherit">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div>
+          <label style="font-size:10px;font-weight:700;color:#64748B;display:block;margin-bottom:4px">Priority</label>
+          <select id="kpo_actPri_${id}" style="width:100%;padding:6px 8px;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;font-family:inherit">
+            <option value="critical" ${_gd2.priority==='critical'?'selected':''}>Critical</option>
+            <option value="high" ${(!_gd2.priority||_gd2.priority==='high')?'selected':''}>High</option>
+            <option value="medium" ${_gd2.priority==='medium'?'selected':''}>Medium</option>
+            <option value="low" ${_gd2.priority==='low'?'selected':''}>Low</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:10px;font-weight:700;color:#64748B;display:block;margin-bottom:4px">Status</label>
+          <select id="kpo_actStatus_${id}" style="width:100%;padding:6px 8px;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;font-family:inherit">
+            <option value="open" ${(!_gd2.status||_gd2.status==='open')?'selected':''}>Open</option>
+            <option value="in-progress" ${_gd2.status==='in-progress'?'selected':''}>In Progress</option>
+            <option value="closed" ${_gd2.status==='closed'?'selected':''}>Closed</option>
+          </select>
+        </div>
+      </div>
+      <label style="display:flex;align-items:center;gap:8px;margin-bottom:12px;cursor:pointer;font-size:11px;color:#64748B">
+        <input id="kpo_atRisk_${id}" type="checkbox" ${_gd2.atRisk?'checked':''} style="width:14px;height:14px">
+        Mark as At Risk
+      </label>
+      <div id="kpo_fb_${id}" style="display:none;font-size:11px;font-weight:600;padding:6px 10px;border-radius:6px;margin-bottom:8px"></div>
+      <button onclick="saveGapKPO('${id}')" style="width:100%;padding:9px;background:#D97706;border:none;border-radius:8px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+        Save Gap Analysis
+      </button>`;
+    document.getElementById('gapB').appendChild(_eForm);
+  }
   document.getElementById('gapOv').classList.add('open');
 }
 
@@ -5923,6 +6012,60 @@ function populateAddYears(){
   sel.innerHTML=yrs.map(y=>`<option value="${y}"${y===curYear?' selected':''}>${y}</option>`).join('');
 }
 const pn=v=>{const n=parseFloat(v);return isNaN(n)?null:n;};
+/* Dedicated gap-save for KPI Owner (bypasses admin panel) */
+function saveGapKPO(kpiId){
+  const role=window._fbRole||'';
+  if(role!=='kpi_owner'&&role!=='admin'&&role!=='super_admin'){
+    toast(' Access denied');return;
+  }
+  /* Verify kpi_owner has access to this KPI */
+  if(role==='kpi_owner'){
+    const assigned=window._fbAssignedKpis;
+    if(Array.isArray(assigned)&&assigned.length>0&&!assigned.includes(kpiId)){
+      toast(' You are not assigned to this KPI');return;
+    }
+  }
+  const id=kpiId;
+  const gE=document.getElementById('kpo_gE_'+id);
+  const aE=document.getElementById('kpo_aE_'+id);
+  const gOwner=document.getElementById('kpo_gOwner_'+id);
+  const gDue=document.getElementById('kpo_gDue_'+id);
+  const actPri=document.getElementById('kpo_actPri_'+id);
+  const actStatus=document.getElementById('kpo_actStatus_'+id);
+  const atRisk=document.getElementById('kpo_atRisk_'+id);
+  /* Validate required fields */
+  let ok=true;
+  [[gE,'Root Cause'],[aE,'Corrective Actions'],[gOwner,'Responsible Person'],[gDue,'Due Date']].forEach(([el,lbl])=>{
+    if(!el)return;
+    const empty=!el.value||!el.value.trim();
+    el.style.borderColor=empty?'#DC2626':'';
+    el.style.boxShadow=empty?'0 0 0 3px rgba(220,38,38,.15)':'';
+    if(empty)ok=false;
+  });
+  if(!ok){toast(' Fill all required fields');return;}
+  if(!ST.gaps)ST.gaps={};
+  const oldGap=ST.gaps[id]?JSON.stringify(ST.gaps[id]):null;
+  ST.gaps[id]={
+    gapEn:gE?.value||'',
+    actEn:aE?.value||'',
+    owner:gOwner?.value||'',
+    dueDate:gDue?.value||'',
+    status:actStatus?.value||'open',
+    priority:actPri?.value||'high',
+    atRisk:atRisk?.checked||false
+  };
+  if(!ST.actions)ST.actions={};
+  ST.actions[id]={...ST.actions[id],owner:gOwner?.value||'',status:actStatus?.value||'open',dueDate:gDue?.value||'',priority:actPri?.value||'high'};
+  sLS(ST);
+  if(typeof window._saveToFS==='function')window._saveToFS(ST);
+  addAudit('GAP_EDIT','Gap updated by KPI Owner for '+id,oldGap,'See ST.gaps.'+id);
+  /* Show success */
+  const fb=document.getElementById('kpo_fb_'+id);
+  if(fb){fb.textContent='✓ Gap Analysis saved';fb.style.color='#16A34A';fb.style.display='block';}
+  toast(' Gap Analysis saved');
+  /* Refresh gap overlay content */
+  setTimeout(()=>openGap(id),400);
+}
 function saveAdmin(){
   const ap=document.querySelector('.ap.on').id;let action='',detail='';
   if(ap==='ap-edit'){
