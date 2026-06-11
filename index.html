@@ -1153,7 +1153,7 @@ window._selectPortal=async portal=>{
         console.log('[FS] Loaded state from Firestore, keys:',Object.keys(fsData));
         if(typeof ST==='undefined') return;
         /* Safe merge: only merge non-destructive fields */
-        const safeFields=['ov','added','gaps','actions','rptEdits','audit'];
+        const safeFields=['ov','added','gaps','actions','rptEdits','audit','deleted'];
         safeFields.forEach(f=>{
           if(fsData[f]!==undefined) ST[f]=fsData[f];
         });
@@ -1478,7 +1478,7 @@ window._selectPortal=async portal=>{
     <div class="mhd">
       <div>
         <div class="mhd-t"> Admin Control Panel</div>
-        <div id="defWarn" style="display:none;margin-top:5px;font-size:10px;color:#B06000;background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;padding:4px 10px"> Default PIN active — change immediately in Security tab.</div>
+
       </div>
       <button class="mx" onclick="closOv('adminOv')">✕</button>
     </div>
@@ -1487,8 +1487,8 @@ window._selectPortal=async portal=>{
     <div class="atabs" id="adminTabs">
       <button class="atb on" onclick="swAt('edit',this)"> Edit KPI</button>
       <button class="atb" onclick="swAt('add',this)"> Add KPI</button>
+      <button class="atb" onclick="swAt('del',this)"> Delete KPI</button>
       <button class="atb" onclick="swAt('gap',this)"> Gap Analysis</button>
-      <button class="atb" onclick="swAt('security',this)"> Security</button>
       <button class="atb" onclick="swAt('auditlog',this)"> Audit Log</button>
     </div>
 
@@ -1768,6 +1768,10 @@ window._selectPortal=async portal=>{
 
     </div><!-- /mbody -->
 
+    <!-- Feedback area (shown per active tab) -->
+    <div id="_addFeedback" style="display:none;font-size:11px;font-weight:600;border-radius:8px;margin:0 20px 8px;padding:8px 12px"></div>
+    <div id="_editFeedback" style="display:none;font-size:11px;font-weight:600;border-radius:8px;margin:0 20px 8px;padding:8px 12px"></div>
+    <div id="_delFeedback" style="display:none;font-size:11px;font-weight:600;border-radius:8px;margin:0 20px 8px;padding:8px 12px"></div>
     <!-- Footer buttons -->
     <div class="mfoot">
       <button class="af-btn-primary" onclick="saveAdmin()"> Save Changes</button>
@@ -1883,6 +1887,7 @@ const BASE=[
    EXCEL EXPORT (SheetJS)
 ══════════════════════════════════════════ */
 function exportExcel(){
+  addAudit('EXPORT_EXCEL','Excel export downloaded','Filters: dept='+F.dept+' year='+F.year,'Excel file');
   toast(lang==='ar'?'جاري تحضير ملف Excel...':'Building Excel report...');
   setTimeout(()=>_buildExcelFull(),80);
 }
@@ -3919,7 +3924,10 @@ function resetFilters(){
   renderCurrent();
 }
 function allK(){
-  return BASE.map(k=>{const ov=(ST.ov||{})[k.id];return ov?{...k,...ov}:k}).concat(ST.added||[]);
+  const _del=new Set(ST.deleted||[]);  /* KPIs permanently deleted by admin */
+  const base=BASE.filter(k=>!_del.has(k.id)).map(k=>{const ov=(ST.ov||{})[k.id];return ov?{...k,...ov}:k});
+  const added=(ST.added||[]).filter(k=>!_del.has(k.id));
+  return base.concat(added);
 }
 
 /* Auto-detect latest period from data */
@@ -5994,6 +6002,10 @@ function loadGD(){
 }
 function loadActD(){}
 function swAt(id,el){
+  /* Hide all feedback divs when switching tabs */
+  ['_addFeedback','_editFeedback','_delFeedback','_gapFeedback'].forEach(fbId=>{
+    const fbEl=document.getElementById(fbId);if(fbEl)fbEl.style.display='none';
+  });
   document.querySelectorAll('.atb').forEach(t=>t.classList.remove('on'));
   document.querySelectorAll('.ap').forEach(p=>{
     p.classList.remove('on');
@@ -6159,12 +6171,31 @@ function saveAdmin(){
       q3:pn(document.getElementById('aQ3').value),
       q4:pn(document.getElementById('aQ4').value)
     });
-    /* Show green feedback */
+    /* ── Immediate Firestore + Dashboard refresh ── */
+    sLS(ST);  /* triggers _saveToFS automatically */
+    renderYearFilter();  /* update year filter if new year was added */
+    renderCurrent();     /* show KPI immediately in dashboard */
+    updateBadge();
+    /* Show green success feedback */
     const fb=document.getElementById('_addFeedback');
-    if(fb){fb.textContent=' KPI added successfully — visible in dashboard';fb.style.color='#16A34A';fb.style.display='block';}
-    action='KPI_ADD';detail=`Added ${code}`;
-    /* Clear form */
-    ['aC','aNE','aNA','aTg','aQ1','aQ2','aQ3','aQ4'].forEach(id=>{const e=document.getElementById(id);if(e){e.value='';e.style.borderColor='';e.style.boxShadow='';}});
+    if(fb){
+      fb.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg> KPI saved successfully — now visible in Dashboard';
+      fb.style.color='#16A34A';
+      fb.style.background='rgba(22,163,74,.08)';
+      fb.style.border='1px solid rgba(22,163,74,.25)';
+      fb.style.display='flex';
+      fb.style.alignItems='center';
+      fb.style.gap='6px';
+      fb.style.padding='8px 12px';
+      fb.style.borderRadius='8px';
+    }
+    action='KPI_ADD';detail=`Added ${code} (${document.getElementById('aDp').value}, ${document.getElementById('aY').value})`;
+    /* Clear form after brief success display */
+    setTimeout(()=>{
+      ['aC','aNE','aNA','aTg','aQ1','aQ2','aQ3','aQ4'].forEach(id=>{
+        const e=document.getElementById(id);if(e){e.value='';e.style.borderColor='';e.style.boxShadow='';}
+      });
+    },1500);
   }
   else if(ap==='ap-gap'){
     const id=document.getElementById('gS').value;
@@ -6209,7 +6240,7 @@ function saveAdmin(){
     /* Reset field styles */
     _gReq.forEach(r=>{const el=document.getElementById(r.id);if(el){el.style.borderColor='';el.style.boxShadow='';}});
     action='GAP_EDIT';detail=`Gap for ${id}`;window._editOldVal=oldGap;}
-  else if(ap==='ap-actions'||ap==='ap-security'||ap==='ap-auditlog')return;
+  else if(ap==='ap-actions'||ap==='ap-auditlog')return;
   if(action)addAudit(action,detail,window._editOldVal||null,window._editNewVal||null);window._editOldVal=null;window._editNewVal=null;
   sLS(ST);toast(lang==='ar'?'✓ تم الحفظ بنجاح':'✓ Saved successfully');updateBadge();renderCurrent();
 }
@@ -6225,25 +6256,56 @@ function previewDelKpi(id){
   if(mt)mt.textContent='Dept: '+DM[k.dept].en+' | Year: '+k.yr+' | Target: '+k.target+'%'+(k.q1!==null?' | Q1: '+k.q1+'%':'');
 }
 function confirmDelKpi(){
+  const role=window._fbRole||'';
+  if(role!=='admin'&&role!=='super_admin'){toast(' Only Admins can delete KPIs');return;}
   const id=document.getElementById('delSel').value;
   if(!id){toast('Select a KPI to delete');return;}
-  const k=allK().find(x=>x.id===id);
+  /* Use BASE concat added — before deletion filter */
+  const allKPIs=BASE.map(k=>{const ov=(ST.ov||{})[k.id];return ov?{...k,...ov}:k}).concat(ST.added||[]);
+  const k=allKPIs.find(x=>x.id===id);
   if(!k){toast('KPI not found');return;}
-  /* Only allow deleting from ST.added (user-added KPIs) */
-  const inAdded=(ST.added||[]).some(x=>x.id===id);
-  if(!inAdded){toast(' Base KPIs cannot be deleted');return;}
-  if(!confirm('Delete "'+k.nameEn+'" ('+id+')? This cannot be undone.')){return;}
+  /* Custom confirmation dialog */
+  const confirmed=confirm(
+    'PERMANENTLY DELETE KPI\n\n'+
+    '  Code: '+k.id+'\n'+
+    '  Name: '+k.nameEn+'\n'+
+    '  Dept: '+(k.dept||'—')+'\n\n'+
+    'This will remove the KPI from:\n'+
+    '  • Dashboard  • Reports  • Accountability\n'+
+    '  • Filters  • Persistent storage\n\n'+
+    'This action CANNOT be undone.\n\n'+
+    'Type YES in the prompt to confirm.'
+  );
+  if(!confirmed)return;
+  const typed=prompt('Type YES to permanently delete "'+k.nameEn+'" ('+k.id+'):','');
+  if(typed!=='YES'){toast('Deletion cancelled (you must type YES exactly)');return;}
+  /* Add to permanent deleted list */
+  if(!ST.deleted)ST.deleted=[];
+  if(!ST.deleted.includes(id))ST.deleted.push(id);
+  /* Remove from ST.added if present */
   ST.added=(ST.added||[]).filter(x=>x.id!==id);
-  /* Also remove overrides and gap data */
+  /* Clean up all related data */
   if(ST.ov&&ST.ov[id])delete ST.ov[id];
   if(ST.gaps&&ST.gaps[id])delete ST.gaps[id];
   if(ST.actions&&ST.actions[id])delete ST.actions[id];
-  addAudit('KPI_DEL','Deleted '+id,k.nameEn);
+  if(ST.rptEdits){Object.keys(ST.rptEdits).forEach(k2=>{if(k2.includes(id))delete ST.rptEdits[k2];});}
+  /* Audit + persist */
+  addAudit('KPI_DEL','Permanently deleted KPI: '+id+' ('+k.nameEn+')',k.nameEn,'DELETED');
   sLS(ST);
-  toast('✓ KPI ' + id + ' deleted');
-  /* Reset select */
+  toast('✓ KPI '+id+' permanently deleted everywhere');
+  /* Reset UI */
   const sel=document.getElementById('delSel');if(sel)sel.value='';
   const prev=document.getElementById('delPreview');if(prev)prev.style.display='none';
+  const fb=document.getElementById('_delFeedback');
+  if(fb){
+    fb.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg> KPI "'+id+'" permanently deleted';
+    fb.style.color='#16A34A';fb.style.background='rgba(22,163,74,.08)';
+    fb.style.border='1px solid rgba(22,163,74,.25)';
+    fb.style.display='flex';fb.style.alignItems='center';fb.style.gap='6px';
+  }
+  /* Reload selector */
+  if(typeof loadAdminPanel==='function')loadAdminPanel();
+  renderYearFilter();
   renderCurrent();
 }
 function addAudit(action,detail,oldVal,newVal){
