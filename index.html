@@ -3359,9 +3359,14 @@ function renderReport(){
 
 function rptStartEdit(id){
   const _role=window._fbRole||'';
-  if(_role!=='super_admin'&&_role!=='admin'&&!window._adminActive){
+  /* Only super_admin and admin may edit report content */
+  if(_role!=='super_admin'&&_role!=='admin'){
     const wrap=document.getElementById(id+'-w');
-    if(wrap){wrap.style.outline='2px solid #DC2626';wrap.style.borderRadius='6px';setTimeout(()=>{wrap.style.outline='none';},900);}
+    if(wrap){
+      wrap.style.outline='2px solid #DC2626';
+      wrap.style.borderRadius='6px';
+      setTimeout(()=>{wrap.style.outline='none';},900);
+    }
     return;
   }
   const p=document.getElementById(id);
@@ -3757,17 +3762,26 @@ function applyRolePermissions(role,dept,perms){
     });
   }, 300);
 
-  /* ── Hide edit buttons for non-admin viewers ── */
+  /* ── Hide ALL edit controls for non-admin, non-kpi_owner ── */
   if(!isAdmin && role!=='kpi_owner'){
     const s=document.createElement('style');s.id='_permStyle';
-    s.textContent='[onclick*="openGap"],[onclick*="rptEdit"],[onclick*="saveAdmin"],[id$="-acts"],[onclick*="addAction"]{display:none!important;}';
+    s.textContent=
+      '[onclick*="rptStartEdit"],[onclick*="rptEdit"],[onclick*="openGap"],' +
+      '[onclick*="saveAdmin"],[id$="-acts"],[onclick*="addAction"],' +
+      '.rpt-edit-btn{display:none!important;}';
     document.head.appendChild(s);
   }
 
   /* ── kpi_owner: show ONLY Gap Analysis buttons + inject quick-access bar ── */
   if(role==='kpi_owner'){
     const sko=document.createElement('style');sko.id='_koStyle';
-    sko.textContent='[onclick*="rptEdit"],[onclick*="saveAdmin"],[id$="-acts"],[onclick*="addAction"],[onclick*="exportExcel"],[onclick*="exportReport"]{display:none!important;}[onclick*="openGap"]{display:inline-flex!important;background:rgba(217,119,6,.15)!important;color:#D97706!important;border:1px solid rgba(217,119,6,.3)!important;}';
+    sko.textContent=
+      '[onclick*="rptStartEdit"],[onclick*="rptEdit"],[onclick*="saveAdmin"],' +
+      '[id$="-acts"],[onclick*="addAction"],[onclick*="exportExcel"],' +
+      '[onclick*="exportReport"],.rpt-edit-btn:not([data-gap]){display:none!important;}' +
+      '[onclick*="openGap"]{display:inline-flex!important;' +
+      'background:rgba(217,119,6,.15)!important;color:#D97706!important;' +
+      'border:1px solid rgba(217,119,6,.3)!important;}';
     document.head.appendChild(sko);
     /* Inject a prominent Gap Analysis bar at page top */
     setTimeout(()=>{
@@ -3790,11 +3804,18 @@ function applyRolePermissions(role,dept,perms){
     const orig=window.setF;
     window.setF=function(t,v,e){if(t==='dept'&&v!==dept&&v!=='all')return;if(orig)orig(t,v,e);};
     setTimeout(()=>{
-      if(typeof F!=='undefined')F.dept=dept;
+      if(typeof F!=='undefined'){
+        F.dept=dept;  /* Lock filter to assigned dept */
+      }
       document.querySelectorAll('[data-filter="dept"]').forEach(b=>{
         b.classList.toggle('on',b.dataset.val===dept);
-        if(b.dataset.val!==dept&&b.dataset.val!=='all'){
-          b.style.opacity='.30';b.style.pointerEvents='none';
+        if(b.dataset.val!==dept){
+          /* Disable ALL other dept buttons including 'all' */
+          b.style.opacity='.25';
+          b.style.pointerEvents='none';
+          b.style.cursor='not-allowed';
+        } else {
+          b.style.opacity='';b.style.pointerEvents='';b.style.cursor='';
         }
       });
       if(typeof renderCurrent==='function')renderCurrent();
@@ -3857,9 +3878,20 @@ function resetFilters(){
   document.querySelectorAll('[data-filter="year"]').forEach(b=>b.classList.toggle('on',b.dataset.val===F.year));
   document.querySelectorAll('[data-filter="dept"]').forEach(b=>{
     const locked = window._lockedDept;
-    b.classList.toggle('on', locked ? b.dataset.val===locked||b.dataset.val==='all' : b.dataset.val===F.dept);
-    if(locked&&b.dataset.val!==locked&&b.dataset.val!=='all'){b.style.opacity='.30';b.style.pointerEvents='none';}
-    else{b.style.opacity='';b.style.pointerEvents='';}
+    if(locked){
+      /* Locked dept: only show the assigned dept as active, disable All + others */
+      b.classList.toggle('on', b.dataset.val===locked);
+      if(b.dataset.val!==locked){
+        b.style.opacity='.25';
+        b.style.pointerEvents='none';
+        b.style.cursor='not-allowed';
+      } else {
+        b.style.opacity='';b.style.pointerEvents='';b.style.cursor='';
+      }
+    } else {
+      b.classList.toggle('on', b.dataset.val===F.dept);
+      b.style.opacity='';b.style.pointerEvents='';b.style.cursor='';
+    }
   });
   document.querySelectorAll('[data-filter="qtr"]').forEach(b=>b.classList.toggle('on',F.qtr.includes(b.dataset.val)||b.dataset.val==='all'&&F.qtr.length===4));
   renderCurrent();
@@ -3906,6 +3938,16 @@ function getRepeat(k){
 }
 function filt(){
   return allK().filter(k=>{
+    /* ── Hard dept lock (dept_manager and kpi_owner NEVER see other depts) ── */
+    if(window._lockedDept && k.dept!==window._lockedDept) return false;
+
+    /* ── KPI Owner: show only assigned KPIs (or all dept KPIs if none assigned) ── */
+    if(window._fbRole==='kpi_owner'){
+      const assigned=window._fbAssignedKpis;
+      if(Array.isArray(assigned)&&assigned.length>0&&!assigned.includes(k.id)) return false;
+    }
+
+    /* ── Standard filters ── */
     if(F.year!=='all'&&String(k.yr)!==F.year)return false;
     if(F.dept!=='all'&&k.dept!==F.dept)return false;
     if(F.status!=='all'){const a=ok(k);if(F.status==='achieved'&&(a===null||!a))return false;if(F.status==='missed'&&(a===null||a))return false;}
@@ -3986,7 +4028,16 @@ function setF(type,val,el){
   } else {
     F[type]=val;
     if(el){document.querySelectorAll(`.fb[data-filter="${type}"]`).forEach(b=>b.classList.remove('on'));el.classList.add('on');}
-    if(type==='dept')document.getElementById('deptF').value=val;
+    if(type==='dept'){
+    if(window._lockedDept&&val!==window._lockedDept&&val!=='all'){
+      /* Silently block switching to other depts */
+      return;
+    }
+    /* For locked users, 'all' means their dept */
+    if(window._lockedDept&&val==='all') val=window._lockedDept;
+    F.dept=val;
+    document.getElementById('deptF').value=val;
+  }
     if(type==='year')renderYearFilter();
   }
   updateChips();updateBadge();renderCurrent();
