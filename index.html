@@ -1168,7 +1168,9 @@ window._selectPortal=async portal=>{
           });
         }
         try{localStorage.setItem('kpi_v3',JSON.stringify(ST));}catch(_){}
+        if(typeof renderYearFilter==='function') renderYearFilter(); /* update year filters with loaded data */
         if(typeof renderCurrent==='function') renderCurrent();
+        if(typeof updateBadge==='function') updateBadge();
       }catch(e){ console.warn('[FS] onFSLoaded error:',e); }
     };
 
@@ -1661,6 +1663,14 @@ window._selectPortal=async portal=>{
           </table>
         </div>
       </div>
+        <!-- Dedicated Save button for Add KPI -->
+        <div style="padding:12px 0 4px;border-top:1px solid var(--border);margin-top:8px">
+          <div id="_addFeedback" style="display:none;font-size:11px;font-weight:600;border-radius:8px;margin-bottom:10px;padding:8px 12px"></div>
+          <button onclick="saveNewKPI()" style="width:100%;padding:10px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+            Save KPI to Cloud
+          </button>
+        </div>
 
       <!-- ════════════════════════════
            TAB: DELETE KPI
@@ -1774,7 +1784,6 @@ window._selectPortal=async portal=>{
     </div><!-- /mbody -->
 
     <!-- Feedback area (shown per active tab) -->
-    <div id="_addFeedback" style="display:none;font-size:11px;font-weight:600;border-radius:8px;margin:0 20px 8px;padding:8px 12px"></div>
     <div id="_editFeedback" style="display:none;font-size:11px;font-weight:600;border-radius:8px;margin:0 20px 8px;padding:8px 12px"></div>
     <div id="_delFeedback" style="display:none;font-size:11px;font-weight:600;border-radius:8px;margin:0 20px 8px;padding:8px 12px"></div>
     <!-- Footer buttons -->
@@ -6115,6 +6124,125 @@ function saveGapKPO(kpiId){
   /* Refresh gap overlay content */
   setTimeout(()=>openGap(id),400);
 }
+/* ══════════════════════════════════════════════════════════
+   Dedicated Add-KPI save — awaits Firestore confirmation
+   Shows green ONLY after Firestore confirms, red on failure
+   ════════════════════════════════════════════════════════════ */
+async function saveNewKPI(){
+  const fb=document.getElementById('_addFeedback');
+  function _showFb(msg,ok){
+    if(!fb)return;
+    fb.innerHTML=msg;
+    fb.style.color=ok?'#16A34A':'#DC2626';
+    fb.style.background=ok?'rgba(22,163,74,.08)':'rgba(220,38,38,.06)';
+    fb.style.border=ok?'1px solid rgba(22,163,74,.25)':'1px solid rgba(220,38,38,.20)';
+    fb.style.display='flex';fb.style.alignItems='center';fb.style.gap='6px';
+    fb.style.padding='8px 12px';fb.style.borderRadius='8px';fb.style.fontWeight='600';fb.style.fontSize='11px';
+  }
+
+  /* ── 1. Language validation ── */
+  const neVal=(document.getElementById('aNE')||{}).value||'';
+  const naVal=(document.getElementById('aNA')||{}).value||'';
+  if(neVal && /[\u0600-\u06FF]/.test(neVal)){
+    const el=document.getElementById('aNE');
+    if(el){el.style.borderColor='#DC2626';el.style.boxShadow='0 0 0 3px rgba(220,38,38,.15)';}
+    _showFb('⚠ KPI Name (English) must contain English letters and numbers only',false);return;
+  }
+  if(naVal && !/^[\u0600-\u06FF\u0660-\u0669\u06F0-\u06F9 0-9\-()_/.,،!?]*$/.test(naVal)){
+    const el=document.getElementById('aNA');
+    if(el){el.style.borderColor='#DC2626';el.style.boxShadow='0 0 0 3px rgba(220,38,38,.15)';}
+    _showFb('⚠ الاسم العربي يجب أن يحتوي على أحرف عربية وأرقام فقط',false);return;
+  }
+
+  /* ── 2. Required fields validation ── */
+  const _req=[
+    {id:'aC',lbl:'KPI Code'},{id:'aDp',lbl:'Department'},
+    {id:'aTg',lbl:'Target'},{id:'aY',lbl:'Year'},{id:'aNE',lbl:'KPI Name (EN)'}
+  ];
+  let ok=true;
+  _req.forEach(r=>{
+    const el=document.getElementById(r.id);if(!el)return;
+    const empty=!el.value||!el.value.trim();
+    el.style.borderColor=empty?'#DC2626':'';
+    el.style.boxShadow=empty?'0 0 0 3px rgba(220,38,38,.15)':'';
+    if(empty)ok=false;
+  });
+  if(!ok){_showFb('⚠ Please fill all required fields (marked *)',false);return;}
+
+  /* ── 3. Build KPI object ── */
+  const code=document.getElementById('aC').value.trim().toUpperCase();
+  if(!code){_showFb('⚠ KPI Code cannot be empty',false);return;}
+
+  /* Check for duplicate ID */
+  const existing=allK().find(k=>k.id===code);
+  if(existing){
+    _showFb('⚠ KPI Code "'+code+'" already exists — use a unique code',false);return;
+  }
+
+  const kpiObj={
+    id:code,
+    dept:document.getElementById('aDp').value,
+    yr:parseInt(document.getElementById('aY').value)||new Date().getFullYear(),
+    nameEn:document.getElementById('aNE').value.trim(),
+    nameAr:document.getElementById('aNA').value.trim()||'',
+    target:parseFloat(document.getElementById('aTg').value)||100,
+    op:document.getElementById('aO').value||'>=',
+    type:'core',
+    tier:parseInt(document.getElementById('aTier').value)||3,
+    q1:pn(document.getElementById('aQ1').value),
+    q2:pn(document.getElementById('aQ2').value),
+    q3:pn(document.getElementById('aQ3').value),
+    q4:pn(document.getElementById('aQ4').value)
+  };
+
+  /* ── 4. Save locally first (instant UI response) ── */
+  if(!ST.added)ST.added=[];
+  ST.added=ST.added.filter(k=>k.id!==code);
+  ST.added.push(kpiObj);
+
+  /* Update localStorage immediately */
+  try{localStorage.setItem('kpi_v3',JSON.stringify({...ST,_v:3}));}catch(_){}
+
+  /* Refresh dashboard immediately with local data */
+  renderYearFilter();
+  renderCurrent();
+  updateBadge();
+
+  /* ── 5. Show saving state ── */
+  _showFb('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="flex-shrink:0;animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"/></svg> Saving to cloud…',true);
+
+  /* ── 6. Save to Firestore and await confirmation ── */
+  let fsSaved=false;
+  if(typeof window._saveToFS==='function'&&window._fbUser){
+    try{
+      await window._saveToFS(ST);
+      fsSaved=true;
+    }catch(e){
+      console.warn('[saveNewKPI] Firestore error:',e);
+      fsSaved=false;
+    }
+  } else {
+    /* Fallback: try direct Firestore if _saveToFS not ready */
+    console.warn('[saveNewKPI] _saveToFS not available, using localStorage only');
+  }
+
+  /* ── 7. Show result ── */
+  if(fsSaved){
+    _showFb('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg> ✓ KPI "'+code+'" saved to cloud — visible in Dashboard',true);
+  } else {
+    /* Saved locally but not to Firestore */
+    _showFb('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg> KPI saved locally — cloud sync pending (visible after next login sync)',false);
+  }
+
+  /* ── 8. Audit + clear form ── */
+  addAudit('KPI_ADD','Added new KPI: '+code+' ('+kpiObj.dept+', '+kpiObj.yr+')',null,'KPI: '+kpiObj.nameEn);
+  setTimeout(()=>{
+    ['aC','aNE','aNA','aTg','aQ1','aQ2','aQ3','aQ4'].forEach(id=>{
+      const e=document.getElementById(id);if(e){e.value='';e.style.borderColor='';e.style.boxShadow='';}
+    });
+  },2000);
+}
+
 function saveAdmin(){
   const ap=document.querySelector('.ap.on').id;let action='',detail='';
   if(ap==='ap-edit'){
@@ -6207,49 +6335,9 @@ function saveAdmin(){
       if(fb){fb.textContent=lang==='ar'?' يرجى ملء جميع الحقول الإلزامية ('+'*)':'⚠ Please fill all required fields (marked *)';fb.style.color='#DC2626';fb.style.display='block';}
       toast(' Fill all required fields');return;
     }
-    const code=document.getElementById('aC').value.trim();
-    if(!ST.added)ST.added=[];
-    ST.added=ST.added.filter(k=>k.id!==code);
-    ST.added.push({
-      id:code,
-      dept:document.getElementById('aDp').value,
-      yr:parseInt(document.getElementById('aY').value)||2026,
-      nameEn:document.getElementById('aNE').value,
-      nameAr:document.getElementById('aNA').value||'',
-      target:parseFloat(document.getElementById('aTg').value)||100,
-      op:document.getElementById('aO').value||'>=',
-      type:'core',
-      tier:parseInt(document.getElementById('aTier').value)||3,
-      q1:pn(document.getElementById('aQ1').value),
-      q2:pn(document.getElementById('aQ2').value),
-      q3:pn(document.getElementById('aQ3').value),
-      q4:pn(document.getElementById('aQ4').value)
-    });
-    /* ── Immediate Firestore + Dashboard refresh ── */
-    sLS(ST);  /* triggers _saveToFS automatically */
-    renderYearFilter();  /* update year filter if new year was added */
-    renderCurrent();     /* show KPI immediately in dashboard */
-    updateBadge();
-    /* Show green success feedback */
-    const fb=document.getElementById('_addFeedback');
-    if(fb){
-      fb.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg> KPI saved successfully — now visible in Dashboard';
-      fb.style.color='#16A34A';
-      fb.style.background='rgba(22,163,74,.08)';
-      fb.style.border='1px solid rgba(22,163,74,.25)';
-      fb.style.display='flex';
-      fb.style.alignItems='center';
-      fb.style.gap='6px';
-      fb.style.padding='8px 12px';
-      fb.style.borderRadius='8px';
-    }
-    action='KPI_ADD';detail=`Added ${code} (${document.getElementById('aDp').value}, ${document.getElementById('aY').value})`;
-    /* Clear form after brief success display */
-    setTimeout(()=>{
-      ['aC','aNE','aNA','aTg','aQ1','aQ2','aQ3','aQ4'].forEach(id=>{
-        const e=document.getElementById(id);if(e){e.value='';e.style.borderColor='';e.style.boxShadow='';}
-      });
-    },1500);
+    /* ── Delegate to dedicated async function ── */
+    saveNewKPI();
+    return; /* saveNewKPI handles audit + render internally */
   }
   else if(ap==='ap-gap'){
     const id=document.getElementById('gS').value;
