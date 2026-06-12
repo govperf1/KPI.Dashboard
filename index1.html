@@ -3943,6 +3943,13 @@ function resetFilters(){
     }
   });
   document.querySelectorAll('[data-filter="qtr"]').forEach(b=>b.classList.toggle('on',F.qtr.includes(b.dataset.val)||b.dataset.val==='all'&&F.qtr.length===4));
+  F.status='all';
+  document.querySelectorAll('.fb[data-filter="status"]').forEach(b=>b.classList.toggle('on',b.dataset.val==='all'));
+  const deptFEl=document.getElementById('deptF');
+  if(deptFEl)deptFEl.value=F.dept;
+  renderYearFilter();
+  updateChips();
+  updateBadge();
   renderCurrent();
 }
 function buildYearOptions(selId, selectedYear){
@@ -4109,18 +4116,6 @@ function setF(type,val,el){
   }
     if(type==='year')renderYearFilter();
   }
-  updateChips();updateBadge();renderCurrent();
-}
-function resetFilters(){
-  const lp=getLatestPeriod();
-  F={year:lp.year,qtr:lp.qtrs,dept:'all',status:'all'};
-  renderYearFilter();
-  document.querySelectorAll('.fb[data-filter="qtr"]').forEach(b=>{
-    if(b.dataset.val==='all')b.classList.toggle('on',F.qtr.length===4);
-    else b.classList.toggle('on',F.qtr.includes(b.dataset.val));
-  });
-  document.querySelectorAll('.fb[data-filter="dept"],.fb[data-filter="status"]').forEach(b=>{b.classList.toggle('on',b.dataset.val==='all');});
-  document.getElementById('deptF').value='all';
   updateChips();updateBadge();renderCurrent();
 }
 function toggleLang(){
