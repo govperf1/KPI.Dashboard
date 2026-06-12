@@ -1668,14 +1668,7 @@ window._selectPortal=async portal=>{
           <input type="hidden" id="aQ2" value="">
           <input type="hidden" id="aQ3" value="">
           <input type="hidden" id="aQ4" value="">
-        <!-- Dedicated Save button for Add KPI -->
-        <div style="padding:12px 0 4px;border-top:1px solid var(--border);margin-top:8px">
-          <div id="_addFeedback" style="display:none;font-size:11px;font-weight:600;border-radius:8px;margin-bottom:10px;padding:8px 12px"></div>
-          <button onclick="saveNewKPI()" style="width:100%;padding:10px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
-            Save KPI to Cloud
-          </button>
-        </div>
+        <!-- Feedback for Add KPI (shown in footer area) -->
 
       <!-- ════════════════════════════
            TAB: DELETE KPI
@@ -1789,6 +1782,7 @@ window._selectPortal=async portal=>{
     </div><!-- /mbody -->
 
     <!-- Feedback area (shown per active tab) -->
+    <div id="_addFeedback" style="display:none;font-size:11px;font-weight:600;border-radius:8px;margin:0 20px 8px;padding:8px 12px"></div>
     <div id="_editFeedback" style="display:none;font-size:11px;font-weight:600;border-radius:8px;margin:0 20px 8px;padding:8px 12px"></div>
     <div id="_delFeedback" style="display:none;font-size:11px;font-weight:600;border-radius:8px;margin:0 20px 8px;padding:8px 12px"></div>
     <!-- Footer buttons -->
@@ -6321,7 +6315,7 @@ function saveAdmin(){
     if(pl>0||co>0)ST.pci[id][Q.toLowerCase()]={planned:pl,complete:co,incomplete:ic};
   });
   const _oldK=allK().find(x=>x.id===id);
-  const _oldVal=_oldK?`Q1:${_oldK.q1||'—'} Q2:${_oldK.q2||'—'} Q3:${_oldK.q3||'—'} Q4:${_oldK.q4||'—'} Target:${_oldK.target||'—'}%`:'new';
+  const _oldVal=_oldK?`${_oldK.nameEn||_oldK.id} | Target:${_oldK.target||'—'}% | Q1:${_oldK.q1??'—'} | Q2:${_oldK.q2??'—'} | Q3:${_oldK.q3??'—'} | Q4:${_oldK.q4??'—'}`:'new';
   const ef2=document.getElementById('_editFeedback');
   if(ef2){ef2.textContent=' KPI saved successfully';ef2.style.color='#16A34A';ef2.style.display='block';ef2.style.background='rgba(22,163,74,.06)';}
   _eReq.forEach(r=>{const el=document.getElementById(r.id);if(el){el.style.borderColor='';el.style.boxShadow='';}});
@@ -6487,15 +6481,11 @@ function confirmDelKpi(){
     '  Code: '+k.id+'\n'+
     '  Name: '+k.nameEn+'\n'+
     '  Dept: '+(k.dept||'—')+'\n\n'+
-    'This will remove the KPI from:\n'+
-    '  • Dashboard  • Reports  • Accountability\n'+
-    '  • Filters  • Persistent storage\n\n'+
-    'This action CANNOT be undone.\n\n'+
-    'Type YES in the prompt to confirm.'
+    'This will remove the KPI from Dashboard, Reports, Accountability,\n'+
+    'Filters, and Persistent Storage.\n\n'+
+    'This action CANNOT be undone. Click OK to confirm.'
   );
-  if(!confirmed)return;
-  const typed=prompt('Type YES to permanently delete "'+k.nameEn+'" ('+k.id+'):','');
-  if(typed!=='YES'){toast('Deletion cancelled (you must type YES exactly)');return;}
+  if(!confirmed){toast('Deletion cancelled');return;}
   /* Add to permanent deleted list */
   if(!ST.deleted)ST.deleted=[];
   if(!ST.deleted.includes(id))ST.deleted.push(id);
@@ -6530,6 +6520,7 @@ function addAudit(action,detail,oldVal,newVal){
   ST.audit.unshift({
     ts:new Date().toISOString(),
     user:window._fbName||'Admin',
+    email:window._fbUser||'—',
     role:window._fbRole||'admin',
     action,
     detail,
@@ -6539,38 +6530,99 @@ function addAudit(action,detail,oldVal,newVal){
   ST.audit=ST.audit.slice(0,100);
   sLS(ST);
 }
+function clearAuditLog(){
+  if(!confirm('Clear all audit records? This cannot be undone.'))return;
+  ST.audit=[];
+  sLS(ST);
+  loadAuditLog();
+  toast('Audit log cleared');
+}
 function loadAuditLog(){
   const el=document.getElementById('auditLogList');if(!el)return;
   const log=ST.audit||[];
-  if(!log.length){el.innerHTML='<div style="font-size:11px;color:var(--t3);text-align:center;padding:20px">No log entries yet</div>';return;}
-  const actionColor={KPI_EDIT:'#0195af',KPI_ADD:'#16A34A',KPI_DEL:'#DC2626',GAP_EDIT:'#D97706',BACKUP_EXPORT:'#64748B',BACKUP_IMPORT:'#7C3AED',LOGIN:'#16A34A',LOGOUT:'#DC2626'};
-  el.innerHTML=`
-    <div style="overflow-x:auto">
-    <table style="width:100%;border-collapse:collapse;font-size:10px">
-      <thead><tr style="background:var(--t4);font-size:8.5px;font-weight:700;color:var(--t3);text-transform:uppercase;letter-spacing:.05em">
-        <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">Date &amp; Time</th>
-        <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">User</th>
-        <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">Role</th>
-        <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">Action</th>
-        <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)">KPI / Record</th>
-        <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);color:#DC2626">Before</th>
-        <th style="padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);color:#16A34A">After</th>
-      </tr></thead>
-      <tbody>${log.map((e,i)=>{
-        const d=new Date(e.ts);
-        const ts=d.toLocaleDateString('en-GB',{year:'numeric',month:'short',day:'2-digit'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-        const ac=actionColor[e.action]||'#64748B';
-        return '<tr style="border-bottom:1px solid var(--border);background:'+(i%2===0?'transparent':'rgba(0,0,0,.012)')+'">'
-          +'<td style="padding:8px 12px;font-size:9px;color:var(--t2);font-family:var(--mono);white-space:nowrap">'+ts+'</td>'
-          +'<td style="padding:8px 12px;font-weight:700;color:var(--ink)">'+htmlEsc(e.user||'—')+'</td>'
-          +'<td style="padding:8px 12px"><span style="padding:2px 7px;border-radius:4px;font-size:8.5px;font-weight:700;background:rgba(1,149,175,.10);color:#0195af">'+htmlEsc(e.role||'—')+'</span></td>'
-          +'<td style="padding:8px 12px"><span style="padding:2px 8px;border-radius:4px;font-size:8.5px;font-weight:700;background:'+ac+'22;color:'+ac+'">'+htmlEsc(e.action||'—')+'</span></td>'
-          +'<td style="padding:8px 12px;color:var(--t2);max-width:200px">'+htmlEsc(e.detail||'—')+'</td>'
-          +'<td style="padding:8px 12px;font-size:9px;color:#DC2626;font-style:italic;max-width:160px">'+htmlEsc(e.oldVal||'—')+'</td>'
-          +'<td style="padding:8px 12px;font-size:9px;color:#16A34A;font-style:italic;max-width:160px">'+htmlEsc(e.newVal||'—')+'</td>'
-          +'</tr>';
-      }).join('')}</tbody>
-    </table></div>`;el.innerHTML=log.map((e,i)=>{const d=new Date(e.ts);return`<div style="display:flex;align-items:flex-start;gap:12px;padding:9px 14px;border-bottom:1px solid var(--border);background:${i%2===0?'#fff':'var(--card-2)'}"><span style="font-size:9px;color:var(--t3);font-family:var(--mono);white-space:nowrap;padding-top:1px;min-width:120px">${d.toLocaleDateString()} ${d.toLocaleTimeString()}</span><span style="font-size:10.5px;font-weight:700;color:var(--ink);flex-shrink:0">${e.action}</span><span style="font-size:10px;color:var(--t2);flex:1">${e.detail}</span></div>`;}).join('');}
+  const cntEl=document.getElementById('_auditCount');
+  if(cntEl)cntEl.textContent=log.length+' record'+(log.length===1?'':'s');
+
+  if(!log.length){
+    el.innerHTML='<div style="padding:40px;text-align:center;color:var(--t3);font-size:11px"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:block;margin:0 auto 10px;opacity:.3"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>No audit records yet.</div>';
+    return;
+  }
+
+  const AC={KPI_EDIT:'#0195af',KPI_ADD:'#16A34A',KPI_DEL:'#DC2626',GAP_EDIT:'#D97706',LOGIN:'#0F9B58',LOGOUT:'#64748B',EXPORT_EXCEL:'#7C3AED',EXPORT_REPORT:'#7C3AED',ROLE_CHANGE:'#EC4899'};
+  const AL={KPI_EDIT:'Edit KPI',KPI_ADD:'Add KPI',KPI_DEL:'Delete KPI',GAP_EDIT:'Gap Analysis',LOGIN:'Login',LOGOUT:'Logout',EXPORT_EXCEL:'Export Excel',EXPORT_REPORT:'Export Report',ROLE_CHANGE:'Role Change'};
+
+  /* Build rows without template-literal quote conflicts */
+  function mkRow(e, i){
+    const d=new Date(e.ts);
+    const ts=d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+    const ac=AC[e.action]||'#64748B';
+    const al=AL[e.action]||e.action;
+    const bg=i%2===0?'':'rgba(0,0,0,.013)';
+    const tr=document.createElement('tr');
+    tr.style.cssText='border-bottom:1px solid var(--border)'+(bg?';background:'+bg:'');
+    tr.onmouseover=function(){this.style.background='rgba(1,149,175,.05)';};
+    tr.onmouseout=function(){this.style.background=bg;};
+
+    /* User + Email */
+    const td1=document.createElement('td');td1.style.cssText='padding:9px 14px;min-width:170px';
+    const uName=document.createElement('div');uName.style.cssText='font-weight:800;font-size:11px;color:var(--ink)';uName.textContent=e.user||'—';
+    td1.appendChild(uName);
+    if(e.email){const uEmail=document.createElement('div');uEmail.style.cssText='font-size:9px;color:var(--t3);margin-top:1px';uEmail.textContent=e.email;td1.appendChild(uEmail);}
+    tr.appendChild(td1);
+
+    /* Role */
+    const td2=document.createElement('td');td2.style.cssText='padding:9px 10px;white-space:nowrap';
+    const roleSpan=document.createElement('span');roleSpan.style.cssText='padding:2px 8px;border-radius:10px;font-size:8.5px;font-weight:700;background:rgba(1,149,175,.12);color:#0195af';roleSpan.textContent=e.role||'—';
+    td2.appendChild(roleSpan);tr.appendChild(td2);
+
+    /* Action */
+    const td3=document.createElement('td');td3.style.cssText='padding:9px 10px;white-space:nowrap';
+    const actSpan=document.createElement('span');actSpan.style.cssText='padding:3px 9px;border-radius:10px;font-size:8.5px;font-weight:800;background:'+ac+'1a;color:'+ac+';border:1px solid '+ac+'33';actSpan.textContent=al;
+    td3.appendChild(actSpan);tr.appendChild(td3);
+
+    /* Detail */
+    const td4=document.createElement('td');td4.style.cssText='padding:9px 10px;color:var(--t2);font-size:10px;max-width:200px;word-break:break-word';td4.textContent=e.detail||'—';tr.appendChild(td4);
+
+    /* Before */
+    const td5=document.createElement('td');td5.style.cssText='padding:9px 10px;max-width:150px;word-break:break-word';
+    if(e.oldVal){const sp=document.createElement('span');sp.style.cssText='font-size:9px;color:#DC2626;background:rgba(220,38,38,.08);padding:2px 6px;border-radius:4px;font-style:italic';sp.textContent=String(e.oldVal).substring(0,120);td5.appendChild(sp);}
+    else{td5.innerHTML='<span style="color:var(--t4);font-size:9px">—</span>';}
+    tr.appendChild(td5);
+
+    /* After */
+    const td6=document.createElement('td');td6.style.cssText='padding:9px 10px;max-width:150px;word-break:break-word';
+    if(e.newVal){const sp=document.createElement('span');sp.style.cssText='font-size:9px;color:#16A34A;background:rgba(22,163,74,.08);padding:2px 6px;border-radius:4px;font-style:italic';sp.textContent=String(e.newVal).substring(0,120);td6.appendChild(sp);}
+    else{td6.innerHTML='<span style="color:var(--t4);font-size:9px">—</span>';}
+    tr.appendChild(td6);
+
+    /* Timestamp */
+    const td7=document.createElement('td');td7.style.cssText='padding:9px 10px;font-size:9px;color:var(--t3);font-family:var(--mono);text-align:right;white-space:nowrap';td7.textContent=ts;tr.appendChild(td7);
+
+    return tr;
+  }
+
+  /* Build table via DOM (avoids quote-escaping issues) */
+  const wrap=document.createElement('div');wrap.style.cssText='overflow-x:auto;max-height:520px;overflow-y:auto';
+  const tbl=document.createElement('table');tbl.style.cssText='width:100%;border-collapse:collapse;font-size:10.5px;min-width:900px';
+
+  tbl.innerHTML='<thead style="position:sticky;top:0;z-index:2"><tr style="background:var(--card-2);font-size:8.5px;font-weight:800;color:var(--t3);text-transform:uppercase;letter-spacing:.07em">'+
+    '<th style="padding:10px 14px;text-align:left;border-bottom:2px solid var(--border)">👤 User / Email</th>'+
+    '<th style="padding:10px 10px;text-align:left;border-bottom:2px solid var(--border)">🏷 Role</th>'+
+    '<th style="padding:10px 10px;text-align:left;border-bottom:2px solid var(--border)">⚡ Action</th>'+
+    '<th style="padding:10px 10px;text-align:left;border-bottom:2px solid var(--border)">📋 KPI / Detail</th>'+
+    '<th style="padding:10px 10px;text-align:left;border-bottom:2px solid var(--border);color:#DC2626">↩ Before</th>'+
+    '<th style="padding:10px 10px;text-align:left;border-bottom:2px solid var(--border);color:#16A34A">↪ After</th>'+
+    '<th style="padding:10px 10px;text-align:right;border-bottom:2px solid var(--border)">🕐 Date & Time</th>'+
+  '</tr></thead>';
+
+  const tbody=document.createElement('tbody');
+  log.forEach((e,i)=>tbody.appendChild(mkRow(e,i)));
+  tbl.appendChild(tbody);
+  wrap.appendChild(tbl);
+  el.innerHTML='';
+  el.appendChild(wrap);
+}
+
 function clearAudit(){ST.audit=[];sLS(ST);loadAuditLog();toast('Audit log cleared');}
 
 /* ══════════════════════════════════════════
