@@ -6122,6 +6122,35 @@ function saveGapKPO(kpiId){
    Dedicated Add-KPI save — awaits Firestore confirmation
    Shows green ONLY after Firestore confirms, red on failure
    ════════════════════════════════════════════════════════════ */
+function refreshAllViewsAfterKpiChange(reason){
+  console.log('[Dashboard] ── Refreshing all views ── reason:',reason);
+  console.log('[Dashboard] allK() count BEFORE refresh:', allK().length);
+
+  /* 1. Year/Dept filters */
+  if(typeof renderYearFilter==='function') renderYearFilter();
+
+  /* 2. Edit KPI dropdown + Gap KPI dropdown + Action selector */
+  if(typeof popAdminSels==='function') popAdminSels();
+
+  /* 3. Delete KPI dropdown */
+  if(typeof populateDelKpiList==='function') populateDelKpiList();
+
+  /* 4. Gap analysis "missed KPI" selector */
+  if(typeof popGapSel==='function') popGapSel();
+
+  /* 5. Badge / counters */
+  if(typeof updateBadge==='function') updateBadge();
+
+  /* 6. Filter chips */
+  if(typeof updateChips==='function') updateChips();
+
+  /* 7. Main dashboard render (Exec/Dept/Registry/Accountability/Report) */
+  if(typeof renderCurrent==='function') renderCurrent();
+
+  console.log('[Dashboard] allK() count AFTER refresh:', allK().length);
+  console.log('[Dashboard] ── Refresh complete ──');
+}
+
 async function saveNewKPI(){
   const fb=document.getElementById('_addFeedback');
   function _showFb(msg,ok){
@@ -6205,35 +6234,58 @@ async function saveNewKPI(){
     q4:pn(_gv('aQ4',''))
   };
 
-  /* ── 4. Save locally first (instant UI response) ── */
+  /* ── 4. Append to main state array (ST.added) ── */
+  console.log('[saveNewKPI] KPI count BEFORE add:', allK().length);
   if(!ST.added)ST.added=[];
   ST.added=ST.added.filter(k=>k.id!==code);
   ST.added.push(kpiObj);
+  console.log('[saveNewKPI] KPI count AFTER push to ST.added:', allK().length, '| new KPI:', kpiObj.id);
 
   /* Update localStorage immediately */
-  try{localStorage.setItem('kpi_v3',JSON.stringify({...ST,_v:3}));}catch(_){}
+  try{
+    localStorage.setItem('kpi_v3',JSON.stringify({...ST,_v:3}));
+    console.log('[saveNewKPI] localStorage updated ✓');
+  }catch(_){
+    console.warn('[saveNewKPI] localStorage write failed');
+  }
 
-  /* Refresh dashboard immediately with local data */
-  renderYearFilter();
-  renderCurrent();
-  updateBadge();
+  /* Refresh ALL dashboard views with the new local state */
+  refreshAllViewsAfterKpiChange('KPI_ADD:'+code);
+  console.log('[saveNewKPI] Local views refreshed — KPI count now:', allK().length);
 
   /* ── 5. Show saving state ── */
   _showFb('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="flex-shrink:0;animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"/></svg> Saving to cloud…',true);
 
-  /* ── 6. Save to Firestore and await confirmation ── */
+  /* ── 6. Save COMPLETE dashboard state to Firestore and await confirmation ── */
+  console.log('[saveNewKPI] Saving complete ST to Firestore. Keys:', Object.keys(ST), '| ST.added length:', (ST.added||[]).length);
   let fsSaved=false;
   if(typeof window._saveToFS==='function'&&window._fbUser){
     try{
       await window._saveToFS(ST);
       fsSaved=true;
+      console.log('[saveNewKPI] Firestore write CONFIRMED ✓');
+
+      /* ── 6b. Reload state from Firestore to ensure consistency ── */
+      if(typeof window._loadFromFS==='function'){
+        const fsData=await window._loadFromFS();
+        if(fsData){
+          const safeFields=['ov','added','gaps','actions','rptEdits','deleted'];
+          safeFields.forEach(f=>{ if(fsData[f]!==undefined) ST[f]=fsData[f]; });
+          try{localStorage.setItem('kpi_v3',JSON.stringify({...ST,_v:3}));}catch(_){}
+          console.log('[saveNewKPI] Re-synced from Firestore. allK() count:', allK().length);
+          console.log('[saveNewKPI] New KPI present after Firestore reload:', allK().some(k=>k.id===code));
+        }
+      }
+
+      /* ── 6c. Refresh ALL views again with Firestore-confirmed data ── */
+      refreshAllViewsAfterKpiChange('KPI_ADD:'+code+':firestore-synced');
+
     }catch(e){
-      console.warn('[saveNewKPI] Firestore error:',e);
+      console.error('[saveNewKPI] Firestore error:',e.code||e.message,e);
       fsSaved=false;
     }
   } else {
-    /* Fallback: try direct Firestore if _saveToFS not ready */
-    console.warn('[saveNewKPI] _saveToFS not available, using localStorage only');
+    console.warn('[saveNewKPI] _saveToFS not available (user='+(!!window._fbUser)+') — localStorage only');
   }
 
   /* ── 7. Show result ── */
@@ -6244,7 +6296,31 @@ async function saveNewKPI(){
     _showFb('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg> KPI saved locally — cloud sync pending (visible after next login sync)',false);
   }
 
-  /* ── 8. Audit + clear form ── */
+  /* ── 8. Jump filters so the new KPI is immediately VISIBLE on dashboard ── */
+  const _kpiYear=String(kpiObj.yr);
+  let _filtersChanged=false;
+  if(F.year!=='all' && F.year!==_kpiYear){
+    console.log('[saveNewKPI] Switching Year filter from',F.year,'to',_kpiYear,'so new KPI is visible');
+    F.year=_kpiYear;
+    _filtersChanged=true;
+  }
+  if(F.dept!=='all' && F.dept!==kpiObj.dept && !window._lockedDept){
+    console.log('[saveNewKPI] Switching Dept filter from',F.dept,'to',kpiObj.dept);
+    F.dept=kpiObj.dept;
+    _filtersChanged=true;
+  }
+  if(Array.isArray(F.qtr) && kpiObj.q1===null && kpiObj.q2===null && kpiObj.q3===null && kpiObj.q4===null){
+    /* New KPI has no quarterly data yet — switch to "all quarters" so it's not hidden */
+    F.qtr=['q1','q2','q3','q4'];
+    _filtersChanged=true;
+  }
+  if(_filtersChanged){
+    refreshAllViewsAfterKpiChange('KPI_ADD:'+code+':filters-adjusted');
+    console.log('[saveNewKPI] Filters adjusted + views refreshed so',code,'is visible now');
+  }
+  console.log('[saveNewKPI] Final check — is',code,'visible in filt()?',filt().some(k=>k.id===code));
+
+  /* ── 9. Audit + clear form ── */
   addAudit('KPI_ADD','Added new KPI: '+code+' ('+kpiObj.dept+', '+kpiObj.yr+')',null,'KPI: '+kpiObj.nameEn);
   setTimeout(()=>{
     /* Clear visible form fields */
