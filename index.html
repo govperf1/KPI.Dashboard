@@ -1612,21 +1612,25 @@ window._selectPortal=async portal=>{
           </div>
           <div class="af-field">
             <label class="af-lbl">Year <span style="color:#DC2626">*</span></label>
-            <select class="af-sel" id="aY"></select>
+            <select class="af-sel" id="aY" required></select>
           </div>
           <div class="af-field">
-            <label class="af-lbl">Operator</label>
-            <select class="af-sel" id="aO">
+            <label class="af-lbl">Operator <span style="color:#DC2626">*</span></label>
+            <select class="af-sel" id="aO" required>
+              <option value="" selected disabled>— Select operator —</option>
               <option value=">=">≥ At Least</option>
-              <option value="=">=  Exactly Equal</option>
+              <option value=">">Greater than (&gt;)</option>
+              <option value="<">Less than (&lt;)</option>
+              <option value="=">= Exactly Equal</option>
             </select>
           </div>
           <div class="af-field">
             <label class="af-lbl">Risk Tier <span style="color:#DC2626">*</span></label>
-            <select class="af-sel" id="aTier">
+            <select class="af-sel" id="aTier" required>
+              <option value="" selected disabled>— Select risk tier —</option>
               <option value="1">T1 — Patient Safety</option>
               <option value="2">T2 — Regulatory</option>
-              <option value="3" selected>T3 — Operational</option>
+              <option value="3">T3 — Operational</option>
             </select>
           </div>
         </div>
@@ -1647,7 +1651,8 @@ window._selectPortal=async portal=>{
         <div class="af-grid3">
           <div class="af-field">
             <label class="af-lbl">Department <span style="color:#DC2626;font-size:10px">*</span></label>
-            <select class="af-sel" id="aDp">
+            <select class="af-sel" id="aDp" required>
+              <option value="" selected disabled>— Select department —</option>
               <option value="maintenance">MNT — Maintenance</option>
               <option value="safety">SAF — Safety</option>
               <option value="housekeeping">HK — Housekeeping</option>
@@ -1738,17 +1743,20 @@ window._selectPortal=async portal=>{
         <!-- Priority + Status -->
         <div class="af-grid2">
           <div class="af-field">
-            <label class="af-lbl"> Priority</label>
-            <select class="af-sel" id="actPri">
+            <label class="af-lbl"> Priority <span style="color:#DC2626">*</span></label>
+            <select class="af-sel" id="actPri" required>
+              <option value="" selected disabled>— Select priority —</option>
               <option value="critical"> Critical</option>
               <option value="high"> High</option>
-              <option value="medium" selected> Medium</option>
+              <option value="medium"> Medium</option>
               <option value="low"> Low</option>
             </select>
           </div>
           <div class="af-field">
-            <label class="af-lbl"> Action Status</label>
-            <select class="af-sel" id="actStatus">
+            <label class="af-lbl"> Action Status <span style="color:#DC2626">*</span></label>
+            <select class="af-sel" id="actStatus" required>
+              <option value="" selected disabled>— Select action status —</option>
+              <option value="open">Open</option>
               <option value="in-progress">In Progress</option>
               <option value="closed">Closed — Completed</option>
             </select>
@@ -3990,14 +3998,15 @@ function resetFilters(){
 function buildYearOptions(selId, selectedYear){
   const el=document.getElementById(selId);
   if(!el)return;
+  const requireManual=(selId==='aY'&&(selectedYear===''||selectedYear===null||selectedYear===undefined));
   const currentY=new Date().getFullYear();
   const existing=[...new Set(allK().map(k=>k.yr))].sort((a,b)=>a-b);
   /* Range: min of existing or 2024, max of 2060 */
   const minY=Math.min(2024,...existing);
   const maxY=2060;
-  let opts='';
+  let opts=requireManual?'<option value="" selected disabled>— Select year —</option>':'';
   for(let y=minY;y<=maxY;y++){
-    const sel=String(y)===String(selectedYear||currentY)?'selected':'';
+    const sel=(!requireManual&&String(y)===String(selectedYear||currentY))?'selected':'';
     opts+=`<option value="${y}" ${sel}>${y}</option>`;
   }
   el.innerHTML=opts;
@@ -6007,7 +6016,7 @@ function openAdmin(){
     /* Build dynamic year options + populate delete list */
     setTimeout(()=>{
       buildYearOptions('eYr','2026');
-      buildYearOptions('aY', String(new Date().getFullYear()));
+      buildYearOptions('aY', '');
       populateDelKpiList();
     },80);
   } else {
@@ -6086,8 +6095,8 @@ function loadGD(){
   document.getElementById('gA').value=gd.gapAr||'';document.getElementById('aA').value=gd.actAr||'';
   document.getElementById('gE').value=gd.gapEn||'';document.getElementById('aE').value=gd.actEn||'';
   document.getElementById('gOwner').value=gd.owner||ac.owner||'';document.getElementById('gDue').value=gd.dueDate||ac.dueDate||'';
-  document.getElementById('actStatus').value=ac.status||gd.status||'open';
-  document.getElementById('actPri').value=ac.priority||gd.priority||'medium';
+  document.getElementById('actStatus').value=ac.status||gd.status||'';
+  document.getElementById('actPri').value=ac.priority||gd.priority||'';
   const atRisk=document.getElementById('gAtRisk');if(atRisk)atRisk.checked=!!(gd.atRisk||ac.atRisk);
 }
 function loadActD(){}
@@ -6113,7 +6122,7 @@ function populateAddYears(){
   const sel=document.getElementById('aY');if(!sel)return;
   const curYear=new Date().getFullYear();
   const yrs=[];for(let y=2025;y<=2060;y++)yrs.push(y);
-  sel.innerHTML=yrs.map(y=>`<option value="${y}"${y===curYear?' selected':''}>${y}</option>`).join('');
+  sel.innerHTML='<option value="" selected disabled>— Select year —</option>'+yrs.map(y=>`<option value="${y}">${y}</option>`).join('');
 }
 const pn=v=>{const n=parseFloat(v);return isNaN(n)?null:n;};
 /* Dedicated gap-save for KPI Owner (bypasses admin panel) */
@@ -6286,7 +6295,8 @@ async function saveNewKPI(){
   /* ── 2. Required fields validation ── */
   const _req=[
     {id:'aC',lbl:'KPI Code'},{id:'aDp',lbl:'Department'},
-    {id:'aTg',lbl:'Target'},{id:'aY',lbl:'Year'},{id:'aNE',lbl:'KPI Name (EN)'}
+    {id:'aO',lbl:'Operator'},{id:'aTier',lbl:'Risk Tier'},
+    {id:'aTg',lbl:'Target'},{id:'aY',lbl:'Year'},{id:'aNE',lbl:'KPI Name (EN)'},{id:'aNA',lbl:'KPI Name (AR)'}
   ];
   let ok=true;
   _req.forEach(r=>{
@@ -6316,7 +6326,7 @@ async function saveNewKPI(){
   };
 
   /* Verify all critical fields exist before building object */
-  const _critical=['aDp','aY','aNE','aTg','aQ1','aQ2','aQ3','aQ4'];
+  const _critical=['aDp','aO','aTier','aY','aNE','aNA','aTg','aQ1','aQ2','aQ3','aQ4'];
   const _missing=_critical.filter(id=>!document.getElementById(id));
   if(_missing.length){
     _showFb('⚠ Missing form fields: '+_missing.join(', ')+' — Please reload admin panel',false);
@@ -6518,9 +6528,12 @@ function saveAdmin(){
     const _req=[
       {id:'aC',lbl:'KPI Code'},
       {id:'aDp',lbl:'Department'},
+      {id:'aO',lbl:'Operator'},
+      {id:'aTier',lbl:'Risk Tier'},
       {id:'aTg',lbl:'Target'},
       {id:'aY',lbl:'Year'},
-      {id:'aNE',lbl:'KPI Name (EN)'}
+      {id:'aNE',lbl:'KPI Name (EN)'},
+      {id:'aNA',lbl:'KPI Name (AR)'}
     ];
     let _reqOk=true;
     _req.forEach(r=>{
@@ -6555,6 +6568,8 @@ function saveAdmin(){
     }
     /* Required field validation (except At Risk checkbox) */
     const _gReq=[
+      {id:'actPri',lbl:'Priority'},
+      {id:'actStatus',lbl:'Action Status'},
       {id:'gE',lbl:'Root Cause / Gap Reasons'},
       {id:'aE',lbl:'Corrective Actions'},
       {id:'gOwner',lbl:'Responsible Person'},
@@ -6717,8 +6732,8 @@ function loadAuditLog(){
     return;
   }
 
-  const AC={KPI_EDIT:'#0195af',KPI_ADD:'#16A34A',KPI_DEL:'#DC2626',GAP_EDIT:'#D97706',LOGIN:'#0F9B58',LOGOUT:'#64748B',EXPORT_EXCEL:'#7C3AED',EXPORT_REPORT:'#7C3AED',ROLE_CHANGE:'#EC4899'};
-  const AL={KPI_EDIT:'Edit KPI',KPI_ADD:'Add KPI',KPI_DEL:'Delete KPI',GAP_EDIT:'Gap Analysis',LOGIN:'Login',LOGOUT:'Logout',EXPORT_EXCEL:'Export Excel',EXPORT_REPORT:'Export Report',ROLE_CHANGE:'Role Change'};
+  const AC={KPI_EDIT:'#0195af',KPI_ADD:'#16A34A',KPI_DEL:'#DC2626',GAP_EDIT:'#D97706',LOGIN:'#0F9B58',LOGOUT:'#64748B',EXPORT_EXCEL:'#7C3AED',EXPORT_REPORT:'#7C3AED',ROLE_CHANGE:'#EC4899',LOGIN_FAIL:'#DC2626',SESSION_TIMEOUT:'#B45309'};
+  const AL={KPI_EDIT:'Edit KPI',KPI_ADD:'Add KPI',KPI_DEL:'Delete KPI',GAP_EDIT:'Gap Analysis',LOGIN:'Login',LOGIN_FAIL:'Failed Login',LOGOUT:'Logout',SESSION_TIMEOUT:'Session Timeout',EXPORT_EXCEL:'Export Excel',EXPORT_REPORT:'Export Report',ROLE_CHANGE:'Role Change'};
 
   /* Build rows via DOM API (avoids quote-escaping issues) */
   function mkRow(e, i){
@@ -6754,13 +6769,13 @@ function loadAuditLog(){
 
     /* Before */
     const td5=document.createElement('td');td5.style.cssText='padding:9px 10px;max-width:150px;word-break:break-word';
-    if(e.oldVal){const sp=document.createElement('span');sp.style.cssText='font-size:9px;color:#DC2626;background:rgba(220,38,38,.08);padding:2px 6px;border-radius:4px;font-style:italic';sp.textContent=String(e.oldVal).substring(0,120);td5.appendChild(sp);}
+    if(e.oldVal!==null&&e.oldVal!==undefined){const sp=document.createElement('span');sp.style.cssText='font-size:9px;color:#DC2626;background:rgba(220,38,38,.08);padding:2px 6px;border-radius:4px;font-style:italic';sp.textContent=(typeof e.oldVal==='object'?JSON.stringify(e.oldVal):String(e.oldVal)).substring(0,160);td5.appendChild(sp);}
     else{td5.innerHTML='<span style="color:var(--t4);font-size:9px">—</span>';}
     tr.appendChild(td5);
 
     /* After */
     const td6=document.createElement('td');td6.style.cssText='padding:9px 10px;max-width:150px;word-break:break-word';
-    if(e.newVal){const sp=document.createElement('span');sp.style.cssText='font-size:9px;color:#16A34A;background:rgba(22,163,74,.08);padding:2px 6px;border-radius:4px;font-style:italic';sp.textContent=String(e.newVal).substring(0,120);td6.appendChild(sp);}
+    if(e.newVal!==null&&e.newVal!==undefined){const sp=document.createElement('span');sp.style.cssText='font-size:9px;color:#16A34A;background:rgba(22,163,74,.08);padding:2px 6px;border-radius:4px;font-style:italic';sp.textContent=(typeof e.newVal==='object'?JSON.stringify(e.newVal):String(e.newVal)).substring(0,160);td6.appendChild(sp);}
     else{td6.innerHTML='<span style="color:var(--t4);font-size:9px">—</span>';}
     tr.appendChild(td6);
 
