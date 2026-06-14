@@ -1533,7 +1533,7 @@ window._selectPortal=async portal=>{
         <!-- Target / Risk Tier / Year -->
         <div class="af-grid3">
           <div class="af-field">
-            <label class="af-lbl"Target <span style="color:#DC2626;font-size:10px">*</span>t (%)</label>
+            <label class="af-lbl">Target (%)</label>
             <input type="number" class="af-inp" id="eTg" min="0" max="100" step="1" placeholder="e.g. 95">
           </div>
           <div class="af-field">
@@ -1545,7 +1545,7 @@ window._selectPortal=async portal=>{
             </select>
           </div>
           <div class="af-field">
-            <label class="af-lbl">Year <span style="color:#DC2626;font-size:10px">*</span></label>
+            <label class="af-lbl">Year</label>
             <select class="af-sel" id="eYr">
               <!-- Populated dynamically by buildYearOptions() -->
             </select>
@@ -1564,7 +1564,7 @@ window._selectPortal=async portal=>{
             </tr></thead>
             <tbody>
               <tr>
-                <td>Q1 <span style="color:#DC2626;font-size:10px">*</span><span id="eQ1Cur" style="display:none"></span></td>
+                <td>Q1<span id="eQ1Cur" style="display:none"></span></td>
                 <td><input type="number" id="eAdQ1_pl" class="pci-pl" placeholder="0" min="0" oninput="calcAdminPCI('q1','eAd')"></td>
                 <td><input type="number" id="eAdQ1_co" class="pci-co" placeholder="0" min="0" oninput="calcAdminPCI('q1','eAd')"></td>
                 <td><input type="number" id="eAdQ1_ic" class="pci-ic" placeholder="—" min="0" readonly style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete"></td>
@@ -1633,13 +1633,13 @@ window._selectPortal=async portal=>{
         <!-- Row 2: Names -->
         <div class="af-grid2">
           <div class="af-field">
-            <label class="af-lbl">Name (English)</label>
+            <label class="af-lbl">Name (English) <span style="color:#DC2626">*</span></label>
             <input type="text" class="af-inp" id="aNE" placeholder="KPI name in English…"
             oninput="this.value=this.value.replace(/[\u0600-\u06FF]+/g,'');if(/[\u0600-\u06FF]/.test(this.dataset.last||'')){}this.dataset.last=this.value;"
             title="English letters and numbers only">
           </div>
           <div class="af-field" dir="rtl">
-            <label class="af-lbl" style="text-align:right">الاسم بالعربية</label>
+            <label class="af-lbl" style="text-align:right">الاسم بالعربية <span style="color:#DC2626">*</span></label>
             <input type="text" class="af-inp" id="aNA" placeholder="اسم المؤشر…" dir="rtl" oninput="this.value=this.value.replace(/[^؀-ۿ٠-٩۰-۹ 0-9]+/g,'')" title="Arabic text and numbers only">
           </div>
         </div>
@@ -1655,7 +1655,7 @@ window._selectPortal=async portal=>{
             </select>
           </div>
           <div class="af-field">
-            <label class="af-lbl">Target (%)</label>
+            <label class="af-lbl">Target (%) <span style="color:#DC2626">*</span></label>
             <input type="number" class="af-inp" id="aTg" min="0" max="100" step="1" placeholder="95">
           </div>
         </div>
@@ -1704,7 +1704,7 @@ window._selectPortal=async portal=>{
           </div>
           <div class="af-row" style="margin-bottom:12px">
             <label class="af-lbl">Select KPI to Delete</label>
-            <select class="af-sel" id="delSel" onchange="previewDelKpi(this.value)" size="8" style="height:auto;min-height:120px;overflow-y:auto">
+            <select class="af-sel" id="delSel" onchange="previewDelKpi(this.value)">
               <option value="">— Select a KPI to delete —</option>
             </select>
             <div id="_delLegend" style="display:none;font-size:9px;color:#64748B;margin-top:4px">
@@ -1730,7 +1730,7 @@ window._selectPortal=async portal=>{
       <div class="ap" id="ap-gap">
         <!-- Select KPI -->
         <div class="af-row">
-          <label class="af-lbl">Select KPI (Missed)</label>
+          <label class="af-lbl">Select KPI (Missed) <span style="color:#DC2626">*</span></label>
           <select class="af-sel" id="gS" onchange="loadGD()">
             <option value="">— Select a KPI —</option>
           </select>
@@ -1757,11 +1757,11 @@ window._selectPortal=async portal=>{
         <!-- Owner + Date -->
         <div class="af-grid2">
           <div class="af-field">
-            <label class="af-lbl"> Responsible Person</label>
+            <label class="af-lbl"> Responsible Person <span style="color:#DC2626">*</span></label>
             <input type="text" class="af-inp" id="gOwner" placeholder="e.g. Director of Maintenance">
           </div>
           <div class="af-field">
-            <label class="af-lbl"> Expected Closure Date</label>
+            <label class="af-lbl"> Expected Closure Date <span style="color:#DC2626">*</span></label>
             <input type="date" class="af-inp" id="gDue" dir="ltr" style="direction:ltr">
           </div>
         </div>
@@ -4425,7 +4425,7 @@ function renderExec(){
 <div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:14px">
   <div id="execIntelBar" style="background:linear-gradient(135deg,#0f1f35 0%,#152538 60%,#0f1f35 100%);border-radius:14px;padding:0;box-shadow:0 4px 24px rgba(10,22,48,.30);overflow:hidden">
     <!-- Top row: status + 6 stats -->
-    <div style="display:grid;grid-template-columns:auto 1px 1fr 1px 1fr 1px 1fr 1px 1fr 1px 1fr 1px 1fr;align-items:center;border-bottom:1px solid rgba(255,255,255,.08)">
+    <div style="display:grid;grid-template-columns:auto 1px minmax(100px,1fr) 1px minmax(100px,1fr) 1px minmax(100px,1fr) 1px minmax(100px,1fr) 1px minmax(100px,1fr) 1px minmax(100px,1fr) 1px minmax(100px,1fr);grid-auto-flow:column;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);overflow-x:auto">
       <!-- Status block -->
       <div style="padding:18px 24px;min-width:220px">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
@@ -6052,6 +6052,10 @@ function popGapSel(){
 }function loadEK(){
   const id=document.getElementById('eSel').value;if(!id)return;
   const k=allK().find(x=>x.id===id);if(!k)return;
+  /* Rebuild year list using the SAME range as Add KPI, then select this KPI's year */
+  if(typeof buildYearOptions==='function'){
+    buildYearOptions('eYr', String(k.yr));
+  }
   /* Populate quarterly inputs + show current value in label */
   ['Q1','Q2','Q3','Q4'].forEach(q=>{
     const val=k[q.toLowerCase()]; /* k['q1'], k['q2']… NOT k['qq1'] */
