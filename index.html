@@ -1024,7 +1024,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
     import { getFirestore,doc,getDoc,setDoc,addDoc,collection,serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     const firebaseConfig={apiKey:"AIzaSyAlLWZvsu4UbHn-LncFdrSHlbL3bIAG4no",authDomain:"qumc-kpi-dashboard-f10dd.firebaseapp.com",projectId:"qumc-kpi-dashboard-f10dd",storageBucket:"qumc-kpi-dashboard-f10dd.firebasestorage.app",messagingSenderId:"659971973475",appId:"1:659971973475:web:483116a0711008a6a97356"};
-    const DPERMS={super_admin:['*'],admin:['manage_users','view_all_departments','view_department','edit_kpi','edit_gap_analysis','edit_actions','edit_targets','approve_changes','lock_quarter','unlock_quarter','view_executive_intelligence','export_reports','manage_dashboard_settings','view_audit_trail'],executive:['view_all_departments','view_department','view_executive_intelligence','export_reports'],department_manager:['view_department','view_executive_intelligence','export_reports'],kpi_owner:['view_department','edit_gap_analysis'],viewer:['view_all_departments','view_department','export_reports']};
+    const DPERMS={super_admin:['*'],admin:['manage_users','view_all_departments','view_department','edit_kpi','edit_gap_analysis','edit_actions','edit_targets','approve_changes','lock_quarter','unlock_quarter','view_executive_intelligence','export_reports','manage_dashboard_settings','view_audit_trail'],executive:['view_all_departments','view_department','view_executive_intelligence','export_reports'],department_manager:['view_department','view_executive_intelligence','export_reports'],kpi_owner:['view_department','edit_gap_analysis','export_reports'],viewer:['view_all_departments','view_department','export_reports']};
 
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
@@ -1169,7 +1169,7 @@ window._selectPortal=async portal=>{
         console.log('[FS] Loaded state from Firestore, keys:',Object.keys(fsData));
         if(typeof ST==='undefined') return;
         /* Safe merge: only merge non-destructive fields */
-        const safeFields=['ov','added','gaps','actions','rptEdits','audit','deleted'];
+        const safeFields=['ov','added','gaps','actions','rptEdits','audit','deleted','pci'];
         safeFields.forEach(f=>{
           if(fsData[f]!==undefined) ST[f]=fsData[f];
         });
@@ -1618,10 +1618,11 @@ window._selectPortal=async portal=>{
             <label class="af-lbl">Operator <span style="color:#DC2626">*</span></label>
             <select class="af-sel" id="aO" required>
               <option value="" selected disabled>— Select operator —</option>
-              <option value=">=">≥ At Least</option>
-              <option value=">">Greater than (&gt;)</option>
-              <option value="<">Less than (&lt;)</option>
-              <option value="=">= Exactly Equal</option>
+              <option value=">=">At Least (≥)</option>
+              <option value="<=">At Most (≤)</option>
+              <option value="=">Equal To (=)</option>
+              <option value=">">Greater Than (&gt;)</option>
+              <option value="<">Less Than (&lt;)</option>
             </select>
           </div>
           <div class="af-field">
@@ -1689,14 +1690,6 @@ window._selectPortal=async portal=>{
           <input type="hidden" id="aQ2" value="">
           <input type="hidden" id="aQ3" value="">
           <input type="hidden" id="aQ4" value="">
-        <!-- Dedicated Save button for Add KPI -->
-        <div style="padding:12px 0 4px;border-top:1px solid var(--border);margin-top:8px">
-          <div id="_addFeedback" style="display:none;font-size:11px;font-weight:600;border-radius:8px;margin-bottom:10px;padding:8px 12px"></div>
-          <button onclick="saveNewKPI()" style="width:100%;padding:10px;background:var(--accent);border:none;border-radius:10px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
-            Save KPI to Cloud
-          </button>
-        </div>
 
       <!-- ════════════════════════════
            TAB: DELETE KPI
@@ -1756,7 +1749,6 @@ window._selectPortal=async portal=>{
             <label class="af-lbl"> Action Status <span style="color:#DC2626">*</span></label>
             <select class="af-sel" id="actStatus" required>
               <option value="" selected disabled>— Select action status —</option>
-              <option value="open">Open</option>
               <option value="in-progress">In Progress</option>
               <option value="closed">Closed — Completed</option>
             </select>
@@ -1795,6 +1787,7 @@ window._selectPortal=async portal=>{
             oninput="this.value=this.value.replace(/[\u0600-\u06FF]+/g,'');"
             title="English letters and numbers only — Arabic not allowed"></textarea>
         </div>
+      </div><!-- /ap-gap -->
         
         <!-- ════════════════════════════
            TAB 5: AUDIT LOG
@@ -3832,6 +3825,12 @@ window.hasPermission=hasPermission;
 function applyRolePermissions(role,dept,perms){
   window._fbPerms=perms||[];
   const isAdmin=role==='super_admin'||role==='admin';
+  try{document.getElementById('_rolePencilStyle')?.remove();}catch(_){}
+  if(!isAdmin){
+    const ps=document.createElement('style');ps.id='_rolePencilStyle';
+    ps.textContent='.rpt-edit-btn,[onclick*="rptStartEdit"],[onclick*="rptEdit"],button[title="Edit"],.edit-btn{display:none!important;visibility:hidden!important;}';
+    document.head.appendChild(ps);
+  }
 
   /* ── Hide/show admin panel button ── */
   setTimeout(()=>{
@@ -3867,8 +3866,8 @@ function applyRolePermissions(role,dept,perms){
     const sko=document.createElement('style');sko.id='_koStyle';
     sko.textContent=
       '[onclick*="rptStartEdit"],[onclick*="rptEdit"],[onclick*="saveAdmin"],' +
-      '[id$="-acts"],[onclick*="addAction"],[onclick*="exportExcel"],' +
-      '[onclick*="exportReport"],.rpt-edit-btn:not([data-gap]){display:none!important;}' +
+      '[id$="-acts"],[onclick*="addAction"],' +
+      '[onclick*="exportReport"],.rpt-edit-btn,button[title="Edit"],.edit-btn{display:none!important;}' +
       '[onclick*="openGap"]{display:inline-flex!important;' +
       'background:rgba(217,119,6,.15)!important;color:#D97706!important;' +
       'border:1px solid rgba(217,119,6,.3)!important;}';
@@ -4011,18 +4010,42 @@ function buildYearOptions(selId, selectedYear){
   }
   el.innerHTML=opts;
 }
+function normalizeOperator(op){
+  const raw=String(op||'>=').trim().toLowerCase();
+  if(['>=','≥','at least','atleast','min','minimum'].includes(raw))return '>=';
+  if(['<=','≤','at most','atmost','max','maximum'].includes(raw))return '<=';
+  if(['=','==','equal','equal to','exactly equal'].includes(raw))return '=';
+  if(['>','greater than','gt'].includes(raw))return '>';
+  if(['<','less than','lt'].includes(raw))return '<';
+  return '>=';
+}
+function _kpiPnSafe(v){const n=parseFloat(v);return isNaN(n)?null:n;}
+function normalizeKpiRecord(k){
+  const r={...(k||{})};
+  r.id=String(r.id||r.code||'').trim().toUpperCase();
+  r.dept=String(r.dept||r.department||'').trim();
+  r.yr=parseInt(r.yr||r.year)||new Date().getFullYear();
+  r.nameEn=String(r.nameEn||r.name||r.titleEn||r.title||'').trim();
+  r.nameAr=String(r.nameAr||r.titleAr||'').trim();
+  r.target=parseFloat(r.target||r.targetPct||r.targetPercent)||100;
+  r.op=normalizeOperator(r.op||r.operator);
+  r.type=r.type||'core';
+  r.tier=parseInt(r.tier||3)||3;
+  ['q1','q2','q3','q4'].forEach(q=>{r[q]=_kpiPnSafe(r[q]);});
+  return r;
+}
 function allK(){
   const _del=new Set(ST.deleted||[]);  /* KPIs permanently deleted by admin */
-  const base=BASE.filter(k=>!_del.has(k.id)).map(k=>{const ov=(ST.ov||{})[k.id];return ov?{...k,...ov}:k});
-  const added=(ST.added||[]).filter(k=>!_del.has(k.id));
+  const base=BASE.filter(k=>!_del.has(k.id)).map(k=>{const ov=(ST.ov||{})[k.id];return normalizeKpiRecord(ov?{...k,...ov}:k);});
+  const added=(ST.added||[]).map(normalizeKpiRecord).filter(k=>k.id&&!_del.has(k.id));
   return base.concat(added);
 }
 
 /* Auto-detect latest period from data */
 function getLatestPeriod(){
-  const all=BASE;
+  const all=(typeof ST!=='undefined')?allK():BASE;
   const yrs=[...new Set(all.map(k=>k.yr))].sort((a,b)=>b-a);
-  const ly=yrs[0];
+  const ly=yrs[0]||new Date().getFullYear();
   const qs=['q1','q2','q3','q4'].filter(q=>all.some(k=>k.yr===ly&&k[q]!==null));
   /* Default to LATEST available quarter only — not all quarters averaged */
   const latestQ=qs.length?[qs[qs.length-1]]:['q1'];
@@ -5661,9 +5684,15 @@ function renderDept(){
           +trendHtml
         +'</div>'
       +'</div>'
-      +'<div style="padding:14px;display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:stretch">'
-        +groups.map(function(g){return mkCard(g.k25,g.k26,dept);}).join('')
-      +'</div>'
+      +(function(){
+        var _lockedSingle=(window._fbRole==='department_manager'&&window._lockedDept&&(dept==='safety'||dept==='projects'));
+        var _cardGrid=_lockedSingle
+          ? 'display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,320px));justify-content:flex-end;gap:12px;align-items:stretch'
+          : 'display:grid;grid-template-columns:repeat(4,1fr);gap:12px;align-items:stretch';
+        return '<div style="padding:14px;'+_cardGrid+'">'
+          +groups.map(function(g){return mkCard(g.k25,g.k26,dept);}).join('')
+        +'</div>';
+      }())
     +'</div>';
 
     /* Draw charts */
@@ -5867,8 +5896,7 @@ function openGap(id){
     _eForm.style.cssText='margin-top:16px;padding:16px;background:rgba(217,119,6,.06);border:1px solid rgba(217,119,6,.25);border-radius:12px';
     _eForm.innerHTML=`
       <div style="font-size:11px;font-weight:800;color:#D97706;margin-bottom:12px;display:flex;align-items:center;gap:6px">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        Edit Gap Analysis
+        Gap Analysis Update
       </div>
       <div style="margin-bottom:10px">
         <label style="font-size:10px;font-weight:700;color:#64748B;display:block;margin-bottom:4px">Root Cause / Gap Reasons <span style="color:#DC2626">*</span></label>
@@ -5901,8 +5929,7 @@ function openGap(id){
         <div>
           <label style="font-size:10px;font-weight:700;color:#64748B;display:block;margin-bottom:4px">Status</label>
           <select id="kpo_actStatus_${id}" style="width:100%;padding:6px 8px;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;font-family:inherit">
-            <option value="open" ${(!_gd2.status||_gd2.status==='open')?'selected':''}>Open</option>
-            <option value="in-progress" ${_gd2.status==='in-progress'?'selected':''}>In Progress</option>
+            <option value="in-progress" ${(!_gd2.status||_gd2.status==='open'||_gd2.status==='in-progress')?'selected':''}>In Progress</option>
             <option value="closed" ${_gd2.status==='closed'?'selected':''}>Closed</option>
           </select>
         </div>
@@ -6163,12 +6190,12 @@ function saveGapKPO(kpiId){
     actEn:aE?.value||'',
     owner:gOwner?.value||'',
     dueDate:gDue?.value||'',
-    status:actStatus?.value||'open',
+    status:actStatus?.value||'in-progress',
     priority:actPri?.value||'high',
     atRisk:atRisk?.checked||false
   };
   if(!ST.actions)ST.actions={};
-  ST.actions[id]={...ST.actions[id],owner:gOwner?.value||'',status:actStatus?.value||'open',dueDate:gDue?.value||'',priority:actPri?.value||'high'};
+  ST.actions[id]={...ST.actions[id],owner:gOwner?.value||'',status:actStatus?.value||'in-progress',dueDate:gDue?.value||'',priority:actPri?.value||'high'};
   sLS(ST);
   if(typeof window._saveToFS==='function')window._saveToFS(ST);
   addAudit('GAP_EDIT','Gap updated by KPI Owner for '+id,oldGap,'See ST.gaps.'+id);
@@ -6208,7 +6235,9 @@ function showKpoGapStatusPopup(){
     }else if(a===true){
       status=lang==='ar'?'متحقق':'On Track';color='#16A34A';icon='✓';
     }else if(hasGap){
-      status=lang==='ar'?'مكتمل':'Completed';color='#16A34A';icon='✓';
+      const st=(((ST.actions||{})[k.id]||{}).status||gd.status||'in-progress');
+      status=(st==='closed')?(lang==='ar'?'مغلق':'Closed'):(lang==='ar'?'قيد التنفيذ':'In Progress');
+      color=(st==='closed')?'#16A34A':'#D97706';icon=(st==='closed')?'✓':'…';
     }else{
       status=lang==='ar'?'يحتاج إدخال بيانات':'Needs Data Entry';color='#DC2626';icon='⚠';
     }
@@ -6216,14 +6245,21 @@ function showKpoGapStatusPopup(){
     return {k,v,a,status,color,icon,needsAttention};
   });
 
-  const pending=rows.filter(r=>r.needsAttention);
+  /* KPI Owner popup should show ONLY gap KPIs that are still In Progress.
+     Legacy empty/open values are treated as In Progress; Closed is hidden. */
+  const gapRows=rows.filter(r=>{
+    if(r.a!==false)return false;
+    const st=(((ST.actions||{})[r.k.id]||{}).status||((ST.gaps||{})[r.k.id]||{}).status||'in-progress');
+    return st==='in-progress'||st==='open'||!st;
+  });
+  const pending=gapRows.filter(r=>r.needsAttention);
 
   const body=document.getElementById('_kpoStatusBody');
   if(!body)return;
 
-  if(!rows.length){
+  if(!gapRows.length){
     body.innerHTML='<div style="text-align:center;padding:30px;color:var(--t3);font-size:12px">'+
-      (lang==='ar'?'لا توجد مؤشرات مخصصة لك حالياً.':'No KPIs are currently assigned to you.')+'</div>';
+      (lang==='ar'?'لا توجد مؤشرات فجوة قيد التنفيذ ضمن نطاقك حالياً.':'No in-progress gap KPIs are currently assigned to you.')+'</div>';
   } else {
     const summary='<div style="margin-bottom:14px;padding:10px 14px;border-radius:10px;background:'+
       (pending.length?'rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.2)':'rgba(22,163,74,.06);border:1px solid rgba(22,163,74,.2)')+
@@ -6233,7 +6269,7 @@ function showKpoGapStatusPopup(){
         : (lang==='ar' ? 'جميع المؤشرات مكتملة — لا يوجد إجراء مطلوب' : 'All KPIs up to date — no action required')
       )+'</strong></div>';
 
-    const list=rows.map(r=>{
+    const list=gapRows.map(r=>{
       const name=lang==='ar'?r.k.nameAr||r.k.nameEn:r.k.nameEn;
       const resultTxt=r.v!==null?r.v.toFixed(1)+'%':'—';
       const clickable=r.needsAttention?' style="cursor:pointer" onclick="closOv(\'_kpoStatusOv\');openGap(\''+r.k.id+'\')"':'';
@@ -6341,7 +6377,7 @@ async function saveNewKPI(){
     nameEn:(_gv('aNE')).trim(),
     nameAr:(_gv('aNA')).trim()||'',
     target:parseFloat(_gv('aTg','100'))||100,
-    op:_gv('aO','>='),
+    op:normalizeOperator(_gv('aO','>=')),
     type:'core',
     tier:parseInt(_gv('aTier','3'))||3,
     q1:pn(_gv('aQ1','')),
@@ -6355,6 +6391,18 @@ async function saveNewKPI(){
   if(!ST.added)ST.added=[];
   ST.added=ST.added.filter(k=>k.id!==code);
   ST.added.push(kpiObj);
+  /* Save PCI counts in the same dashboard state so KPI cards can reveal planned/complete/incomplete counts */
+  if(!ST.pci)ST.pci={};
+  ST.pci[code]={};
+  ['Q1','Q2','Q3','Q4'].forEach(Q=>{
+    const q=Q.toLowerCase();
+    const planned=pn(_gv('aAd'+Q+'_pl',''));
+    const complete=pn(_gv('aAd'+Q+'_co',''));
+    const incomplete=pn(_gv('aAd'+Q+'_ic',''));
+    if(planned!==null||complete!==null||incomplete!==null){
+      ST.pci[code][q]={planned,complete,incomplete};
+    }
+  });
   console.log('[saveNewKPI] KPI count AFTER push to ST.added:', allK().length, '| new KPI:', kpiObj.id);
 
   /* Update localStorage immediately */
@@ -6385,7 +6433,7 @@ async function saveNewKPI(){
       if(typeof window._loadFromFS==='function'){
         const fsData=await window._loadFromFS();
         if(fsData){
-          const safeFields=['ov','added','gaps','actions','rptEdits','deleted'];
+          const safeFields=['ov','added','gaps','actions','rptEdits','deleted','pci'];
           safeFields.forEach(f=>{ if(fsData[f]!==undefined) ST[f]=fsData[f]; });
           try{localStorage.setItem('kpi_v3',JSON.stringify({...ST,_v:3}));}catch(_){}
           console.log('[saveNewKPI] Re-synced from Firestore. allK() count:', allK().length);
@@ -6425,7 +6473,12 @@ async function saveNewKPI(){
     F.dept=kpiObj.dept;
     _filtersChanged=true;
   }
-  if(Array.isArray(F.qtr) && kpiObj.q1===null && kpiObj.q2===null && kpiObj.q3===null && kpiObj.q4===null){
+  const _newKpiQtrs=['q1','q2','q3','q4'].filter(q=>kpiObj[q]!==null);
+  if(Array.isArray(F.qtr) && _newKpiQtrs.length && !_newKpiQtrs.some(q=>F.qtr.includes(q))){
+    F.qtr=_newKpiQtrs;
+    _filtersChanged=true;
+  }
+  if(Array.isArray(F.qtr) && !_newKpiQtrs.length){
     F.qtr=['q1','q2','q3','q4'];
     _filtersChanged=true;
   }
@@ -6437,6 +6490,8 @@ async function saveNewKPI(){
 
   /* ── 9. Audit + clear form ── */
   addAudit('KPI_ADD','Added new KPI: '+code+' ('+kpiObj.dept+', '+kpiObj.yr+')',null,'KPI: '+kpiObj.nameEn);
+  sLS(ST);
+  refreshAllViewsAfterKpiChange('KPI_ADD:'+code+':audit-persisted');
   setTimeout(()=>{
     /* Clear visible form fields */
     ['aC','aNE','aNA','aTg','aAdQ1_pl','aAdQ1_co','aAdQ2_pl','aAdQ2_co',
@@ -6447,6 +6502,8 @@ async function saveNewKPI(){
     ['aQ1','aQ2','aQ3','aQ4'].forEach(id=>{
       const e=document.getElementById(id);if(e)e.value='';
     });
+    /* Reset required dropdowns to manual selection state */
+    ['aY','aO','aTier','aDp'].forEach(id=>{const e=document.getElementById(id);if(e){e.value='';e.style.borderColor='';e.style.boxShadow='';}});
     /* Reset PCI result spans */
     ['aAdQ1_res','aAdQ2_res','aAdQ3_res','aAdQ4_res'].forEach(id=>{
       const e=document.getElementById(id);if(e){e.textContent='—';e.style.color='var(--t3)';e.style.background='';}
@@ -6720,6 +6777,10 @@ function addAudit(action,detail,oldVal,newVal){
   });
   ST.audit=ST.audit.slice(0,100);
   sLS(ST);
+  try{
+    const tab=document.getElementById('ap-auditlog');
+    if(tab&&tab.classList.contains('on')&&typeof loadAuditLog==='function')setTimeout(loadAuditLog,0);
+  }catch(_){}
 }
 function loadAuditLog(){
   const el=document.getElementById('auditLogList');if(!el)return;
@@ -6732,8 +6793,8 @@ function loadAuditLog(){
     return;
   }
 
-  const AC={KPI_EDIT:'#0195af',KPI_ADD:'#16A34A',KPI_DEL:'#DC2626',GAP_EDIT:'#D97706',LOGIN:'#0F9B58',LOGOUT:'#64748B',EXPORT_EXCEL:'#7C3AED',EXPORT_REPORT:'#7C3AED',ROLE_CHANGE:'#EC4899',LOGIN_FAIL:'#DC2626',SESSION_TIMEOUT:'#B45309'};
-  const AL={KPI_EDIT:'Edit KPI',KPI_ADD:'Add KPI',KPI_DEL:'Delete KPI',GAP_EDIT:'Gap Analysis',LOGIN:'Login',LOGIN_FAIL:'Failed Login',LOGOUT:'Logout',SESSION_TIMEOUT:'Session Timeout',EXPORT_EXCEL:'Export Excel',EXPORT_REPORT:'Export Report',ROLE_CHANGE:'Role Change'};
+  const AC={ADMIN_OPEN:'#0195af',CLEAR_AUDIT:'#DC2626',KPI_EDIT:'#0195af',KPI_ADD:'#16A34A',KPI_DEL:'#DC2626',GAP_EDIT:'#D97706',LOGIN:'#0F9B58',LOGOUT:'#64748B',EXPORT_EXCEL:'#7C3AED',EXPORT_REPORT:'#7C3AED',ROLE_CHANGE:'#EC4899',LOGIN_FAIL:'#DC2626',SESSION_TIMEOUT:'#B45309'};
+  const AL={ADMIN_OPEN:'Open Admin Panel',CLEAR_AUDIT:'Clear Audit Log',KPI_EDIT:'Edit KPI',KPI_ADD:'Add KPI',KPI_DEL:'Delete KPI',GAP_EDIT:'Gap Analysis',LOGIN:'Login',LOGIN_FAIL:'Failed Login',LOGOUT:'Logout',SESSION_TIMEOUT:'Session Timeout',EXPORT_EXCEL:'Export Excel',EXPORT_REPORT:'Export Report',ROLE_CHANGE:'Role Change'};
 
   /* Build rows via DOM API (avoids quote-escaping issues) */
   function mkRow(e, i){
