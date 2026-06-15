@@ -1039,6 +1039,11 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 .qumc-activity-list{padding:0 14px 10px;max-height:150px;overflow:auto}.qumc-act{padding:7px 0;border-bottom:1px solid rgba(10,22,48,.07);font-size:10.5px;color:#334155;line-height:1.35}.qumc-act:last-child{border-bottom:0}.qumc-empty-mini{padding:10px;text-align:center;font-size:10px;color:#94A3B8;background:#F8FAFC;border-radius:10px}
 .qumc-logout-btn{width:calc(100% - 28px);margin:0 14px 14px;padding:10px 12px;border:0;border-radius:11px;background:linear-gradient(135deg,#C42B2B,#9F1D1D);color:#fff;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;box-shadow:0 8px 22px rgba(196,43,43,.20);transition:all .18s ease}.qumc-logout-btn:hover{transform:translateY(-1px);box-shadow:0 12px 26px rgba(196,43,43,.28)}
 
+
+/* Department KPI cards uniform layout fix */
+.dept-kpi-card-grid{grid-template-columns:repeat(auto-fill,minmax(340px,420px))!important;justify-content:start!important;direction:ltr!important;}
+.dept-kpi-uniform-card{width:100%!important;max-width:420px!important;min-height:310px!important;}
+@media(max-width:900px){.dept-kpi-card-grid{grid-template-columns:1fr!important}.dept-kpi-uniform-card{max-width:100%!important}}
 </style>
 
   <!-- ══ Firebase Auth ══ -->
@@ -5677,7 +5682,7 @@ function renderDept(){
       {l:'YoY',v:yoyDiff!==null?(yoyDiff>0?'\u25b2':yoyDiff<0?'\u25bc':'\u2014')+' '+Math.abs(yoyDiff).toFixed(1)+'%':'—',c:yoyDiff===null?'#94A3B8':yoyDiff>=0?'#16A34A':'#DC2626'},
       {l:'Gap',v:gap!==null?gap.toFixed(1)+'%':'—',c:gap!==null?'#DC2626':'#94A3B8'}
     ];
-    return '<div style="background:#fff;border:1px solid '+(isMiss?'rgba(220,38,38,.22)':'#E2E8F0')+';border-radius:10px;overflow:hidden;box-shadow:0 1px 8px rgba(10,22,48,.06);display:flex;flex-direction:column;height:100%">'
+    return '<div class="dept-kpi-uniform-card" style="background:#fff;border:1px solid '+(isMiss?'rgba(220,38,38,.22)':'#E2E8F0')+';border-radius:12px;overflow:hidden;box-shadow:0 1px 8px rgba(10,22,48,.06);display:flex;flex-direction:column;height:100%;min-height:310px;width:100%;max-width:420px">'
       +'<div style="padding:10px 14px 9px;border-bottom:1px solid #F0F4F8;display:flex;gap:10px">'
         +'<div style="width:3px;border-radius:2px;background:'+dC+';flex-shrink:0;align-self:stretch"></div>'
         +'<div style="flex:1;min-width:0">'
@@ -5811,11 +5816,9 @@ function renderDept(){
         +'</div>'
       +'</div>'
       +(function(){
-        var _lockedSingle=((window._fbRole==='department_manager'||window._fbRole==='kpi_owner')&&window._lockedDept&&(dept==='safety'||dept==='projects'));
-        var _cardGrid=_lockedSingle
-          ? 'display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));justify-content:stretch;gap:12px;align-items:stretch;direction:ltr;width:100%'
-          : 'display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;align-items:stretch;direction:ltr;width:100%';
-        return '<div style="padding:14px;'+_cardGrid+'">'
+        /* Fixed-size KPI card layout: all departments use identical card size and start from the left, even with one KPI */
+        var _cardGrid='display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,420px));justify-content:start;gap:14px;align-items:stretch;direction:ltr;width:100%';
+        return '<div class="dept-kpi-card-grid" style="padding:14px;'+_cardGrid+'">'
           +groups.map(function(g){return mkCard(g.k25,g.k26,dept);}).join('')
         +'</div>';
       }())
