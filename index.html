@@ -737,23 +737,27 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <!-- ═══════════════════════════════════════════════════════
-     JS MODULE LOAD ORDER
-     (Each file depends only on earlier entries)
+     JS FILES
+     css/style.css        css/admin.css        css/reports.css
+     js/firebase.js       js/auth.js           js/dashboard.js
+     js/kpi.js            js/notifications.js  js/reports.js
+     js/admin.js          js/translations.js
 
-     1. firebase.js      Firebase init, Firestore R/W, listener
-     2. kpi.js           State, BASE KPIs, utils, permissions
-     3. translations.js  TR table, t(), language toggle
-     4. dashboard.js     Page rendering (exec/dept/registry/acc)
-     5. reports.js       Excel / Word / PDF export
-     6. admin.js         Gap analysis, admin panel, KPI CRUD
-     7. notifications.js Bell badge, profile, AI assistant
-     8. auth.js          Add-KPI save patch (overrides last)
+     Load order (dependency-safe — do not reorder):
+       firebase.js   → Firebase init, Firestore R/W, onSnapshot
+       kpi.js        → State (ST), BASE KPIs, utils, permissions
+       translations.js → TR table, t(), toggleLang, renderCurrent
+       dashboard.js  → renderExec, renderDept, renderRegistry, charts
+       reports.js    → Excel, Word, PDF export, renderReport
+       admin.js      → Gap analysis, admin panel, KPI CRUD
+       notifications.js → Bell badge, profile dropdown, AI widget
+       auth.js       → Add-KPI save patch (must be last)
      ═══════════════════════════════════════════════════════ -->
 
-<!-- 1. Firebase (type=module — ES import syntax required) -->
+<!-- Firebase module (ES import syntax — must be type=module) -->
 <script type="module" src="js/firebase.js"></script>
 
-<!-- 2-8. Application modules (regular scripts, global scope) -->
+<!-- Application modules (loaded in dependency order) -->
 <script src="js/kpi.js"></script>
 <script src="js/translations.js"></script>
 <script src="js/dashboard.js"></script>
