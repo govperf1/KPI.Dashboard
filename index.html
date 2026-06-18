@@ -3091,17 +3091,24 @@ function switchPCIQ(q,btn){
   const pci=((ST.pci||{})[_pciKpiId]||{})[q]||{};
   const pl=pci.planned||0, co=pci.complete||0, ic=pci.incomplete||0;
   const hasData=pl>0||co>0||ic>0;
-  /* Color-coded read-only boxes: Planned=gray, Complete=green, Incomplete=red */
-  const mkBox=(icon,label,val,bg,txt,border)=>`
-    <div style="background:${bg};border:1.5px solid ${border};border-radius:10px;padding:14px 10px;text-align:center">
-      <div style="font-size:8px;font-weight:800;color:${txt};letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px;opacity:.80">${icon} ${label}</div>
-      <div style="font-size:30px;font-weight:800;font-family:var(--mono);color:${txt};line-height:1">${hasData?val:'—'}</div>
-    </div>`;
+  /* Use saved column names/colors from KPI Table Setup */
+  const _kCfg=ST.pciConfig?.kpiTables?.[_pciKpiId];
+  const _defaultCols=[{l:'A',n:'Planned',bg:'rgba(100,116,139,.08)',fc:'#64748B'},{l:'B',n:'Complete',bg:'rgba(5,150,105,.09)',fc:'#059669'},{l:'C',n:'Incomplete',bg:'rgba(220,38,38,.09)',fc:'#DC2626'}];
+  const _kCols=(_kCfg&&_kCfg.cols&&_kCfg.cols.length)?_kCfg.cols:_defaultCols;
+  const _colVals=[pl,co,ic];
   const boxes=document.getElementById('pciBoxes');
-  if(boxes){boxes.innerHTML=
-    mkBox('','Planned',  pl,'rgba(100,116,139,.08)','#64748B','rgba(100,116,139,.22)')
-   +mkBox('', 'Complete', co,'rgba(5,150,105,.09)',  '#059669','rgba(5,150,105,.22)')
-   +mkBox('', 'Incomplete',ic,'rgba(220,38,38,.09)', '#DC2626','rgba(220,38,38,.22)');
+  if(boxes){
+    const visibleCols=_kCols.filter(function(c){return !c.hidden;});
+    boxes.innerHTML=visibleCols.map(function(col,ci){
+      const v=_colVals[ci]!==undefined?_colVals[ci]:0;
+      const dflt=_defaultCols[ci]||_defaultCols[0];
+      const bg=col.bg||dflt.bg;const fc=col.fc||dflt.fc;
+      const border=bg.replace(/[0-9.]+\)$/,'0.3)');
+      return '<div style="background:'+bg+';border:1.5px solid '+border+';border-radius:10px;padding:14px 10px;text-align:center">'
+        +'<div style="font-size:8px;font-weight:800;color:'+fc+';letter-spacing:.07em;text-transform:uppercase;margin-bottom:8px;opacity:.80">'+(col.n||col.l)+'</div>'
+        +'<div style="font-size:30px;font-weight:800;font-family:var(--mono);color:'+fc+';line-height:1">'+(hasData?v:'—')+'</div>'
+        +'</div>';
+    }).join('');
   }
   /* Result bar */
   const pct=pl>0?Math.min(100,+(co/pl*100).toFixed(1)):null;
@@ -4173,15 +4180,15 @@ function applyRolePermissions(role,dept,perms){
       '[id$="-acts"],[onclick*="addAction"],' +
       '[onclick*="exportReport"],.rpt-edit-btn,button[title="Edit"],.edit-btn{display:none!important;}' +
       '[onclick*="openGap"]{display:inline-flex!important;' +
-      'background:rgba(217,119,6,.15)!important;color:#D97706!important;' +
-      'border:1px solid rgba(217,119,6,.3)!important;}';
+      'background:rgba(220,38,38,.09)!important;color:#C42B2B!important;' +
+      'border:1px solid rgba(220,38,38,.25)!important;}';
     document.head.appendChild(sko);
     /* Inject a prominent Gap Analysis bar at page top */
     setTimeout(()=>{
       if(!document.getElementById('_kpoBar')){
         const bar=document.createElement('div');
         bar.id='_kpoBar';
-        bar.style.cssText='position:sticky;top:0;z-index:100;background:linear-gradient(90deg,#D97706,#B45309);padding:10px 20px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)';
+        bar.style.cssText='position:sticky;top:0;z-index:100;background:linear-gradient(90deg,#C42B2B,#991B1B);padding:10px 20px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)';
         bar.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
           +'<span style="color:#fff;font-weight:700;font-size:13px">Gap Analysis Mode</span>'
           +'<span style="color:rgba(255,255,255,.7);font-size:11px">Click a KPI card to open Gap Analysis</span>';
@@ -4760,9 +4767,15 @@ function applyTextEdits(){
   if(!ST.textEdits) return;
   const curLang=(typeof lang!=='undefined'&&lang==='ar')?'ar':'en';
   Object.keys(ST.textEdits).forEach(function(key){
-    const val=ST.textEdits[key][curLang];
+    const saved=ST.textEdits[key];
+    const val=saved[curLang];
     if(!val)return;
+    /* Apply to elements with data-en or data-ar attributes */
     document.querySelectorAll('[data-en="'+key+'"],[data-ar="'+key+'"]').forEach(function(el){
+      el.textContent=val;
+    });
+    /* Also apply to elements with data-te-key attribute */
+    document.querySelectorAll('[data-te-key="'+key+'"]').forEach(function(el){
       el.textContent=val;
     });
   });
@@ -6484,9 +6497,9 @@ function openGapQuarter(id,qtr){
     const _fixedOwner = DEPT_OWNERS[k.dept] || '';
     const _ownerVal = _gd2.owner || _fixedOwner || window._fbName || '';
     const _eForm=document.createElement('div');
-    _eForm.style.cssText='margin-top:16px;padding:16px;background:rgba(217,119,6,.06);border:1px solid rgba(217,119,6,.25);border-radius:12px';
+    _eForm.style.cssText='margin-top:16px;padding:16px;background:rgba(220,38,38,.04);border:1px solid rgba(220,38,38,.18);border-radius:12px';
     _eForm.innerHTML=`
-      <div style="font-size:11px;font-weight:800;color:#D97706;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+      <div style="font-size:11px;font-weight:800;color:#C42B2B;margin-bottom:12px;display:flex;align-items:center;gap:6px">
         ${lang==='ar'?'تحديث تحليل الفجوة':'Gap Analysis Update'} — ${QLBL[qtr]}
       </div>
       <div style="margin-bottom:10px">
@@ -6533,7 +6546,7 @@ function openGapQuarter(id,qtr){
         Mark as At Risk
       </label>
       <div id="kpo_fb_${id}_${qtr}" style="display:none;font-size:11px;font-weight:600;padding:6px 10px;border-radius:6px;margin-bottom:8px"></div>
-      <button onclick="saveGapKPO('${id}','${qtr}')" style="width:100%;padding:9px;background:#D97706;border:none;border-radius:8px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+      <button onclick="saveGapKPO('${id}','${qtr}')" style="width:100%;padding:9px;background:#C42B2B;border:none;border-radius:8px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
         Save Gap Analysis
       </button>`;
@@ -6774,9 +6787,12 @@ function handleKpiNamePreset(langKey){
     inp.value=sel.value;inp.readOnly=true;inp.style.background='#F8FAFC';
     /* Load PCI table config for this KPI */
     if(langKey==='en'){
-      /* Find KPI id by EN name */
+      /* Find KPI id by EN name or value (value = name text from preset) */
       const kpiId=(function(){
-        const k=allK().find(function(x){return x.nameEn===sel.value||x.id===sel.value;});
+        const nm=sel.value;
+        /* Try exact name match first */
+        let k=allK().find(function(x){return x.nameEn===nm||x.id===nm;});
+        if(!k) k=allK().find(function(x){return x.nameEn&&x.nameEn.includes(nm)||nm.includes(x.nameEn||'');});
         return k?k.id:'';
       })();
       if(kpiId) _loadAndRenderAddKpiTable(kpiId);
@@ -7836,8 +7852,13 @@ function _saOpenKpiTable(){
     sel.innerHTML='<option value="">— Select KPI —</option>';
     allK().forEach(function(k){
       const o=document.createElement('option');
-      o.value=k.id;o.textContent=(k.nameEn||(k.nameAr||k.id))+(k.nameAr&&k.nameEn?' / '+k.nameAr:'');
-      sel.appendChild(o);
+      /* Use name as display — ID still as value for config lookup */
+      const displayName=(k.nameEn||(k.nameAr||k.id))+(k.nameAr&&k.nameEn?' / '+k.nameAr:'');
+      o.value=k.id; /* ID as value for Firestore lookup */
+      o.textContent=displayName;
+      /* Avoid duplicate names in dropdown */
+      const isDup=Array.from(sel.options).some(function(opt){return opt.textContent===displayName;});
+      if(!isDup) sel.appendChild(o);
     });
   }
   document.getElementById('_saKpiTableInfo').style.display='block';
