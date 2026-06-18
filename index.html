@@ -1049,7 +1049,7 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
     import { getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,sendPasswordResetEmail,fetchSignInMethodsForEmail,setPersistence,browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-    import { getFirestore,doc,getDoc,setDoc,addDoc,collection,serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { getFirestore,doc,getDoc,setDoc,addDoc,collection,serverTimestamp,onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     const firebaseConfig={apiKey:"AIzaSyAlLWZvsu4UbHn-LncFdrSHlbL3bIAG4no",authDomain:"qumc-kpi-dashboard-f10dd.firebaseapp.com",projectId:"qumc-kpi-dashboard-f10dd",storageBucket:"qumc-kpi-dashboard-f10dd.firebasestorage.app",messagingSenderId:"659971973475",appId:"1:659971973475:web:483116a0711008a6a97356"};
     const DPERMS={super_admin:['*'],admin:['manage_users','view_all_departments','view_department','edit_kpi','edit_gap_analysis','edit_actions','edit_targets','approve_changes','lock_quarter','unlock_quarter','view_executive_intelligence','export_reports','manage_dashboard_settings','view_audit_trail'],executive:['view_all_departments','view_department','view_executive_intelligence','export_reports'],department_manager:['view_department','view_executive_intelligence','export_reports'],kpi_owner:['view_department','edit_gap_analysis','export_reports'],viewer:['view_all_departments','view_department','export_reports']};
@@ -1088,6 +1088,11 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 window._selectPortal=async portal=>{
       console.log('[Auth] Selected:',portal);
       if(portal==='performance'){
+        if(window._fbRole==='super_admin'){
+          ['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(id=>{const e=ge(id);if(e)e.style.display='none';});
+          _showSuperAdminHub();
+          return;
+        }
         ['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(id=>{const e=ge(id);if(e)e.style.display='none';});
         console.log('[Auth] Entering Performance portal...');
         if(typeof window.applyRolePermissions==='function')window.applyRolePermissions(window._fbRole,window._fbDept,window._fbPerms);
@@ -1105,15 +1110,12 @@ window._selectPortal=async portal=>{
           setTimeout(()=>{try{window.renderCurrent();}catch(_){}},250);
         }
         /* KPI Owner: show Gap Analysis status popup every login */
-        if(window._fbRole==='kpi_owner' && typeof window.showKpoGapStatusPopup==='function'){
-          setTimeout(()=>{try{window.showKpoGapStatusPopup();}catch(e){console.warn('[KPO] status popup error:',e);}},700);
+        /* kpi_owner: dashboard renders immediately, no blocking popup */
+        if(window._fbRole==='kpi_owner'){
+          setTimeout(()=>{try{if(typeof window.renderNotifications==='function')window.renderNotifications(true);}catch(e){}},600);
         }
-        /* Show notification badge count immediately after login */
-        setTimeout(()=>{
-          if(typeof window.renderNotifications==='function') window.renderNotifications(true);
-          else if(typeof window.updateAlertUI==='function') window.updateAlertUI();
-          else if(typeof window.refreshUserTopbar==='function') window.refreshUserTopbar();
-        },500);
+        /* Start real-time Firestore listener for cross-user sync */
+        if(typeof _startFSListener==='function') setTimeout(_startFSListener, 800);
         console.log('[Auth] ✓ Performance portal entered');
       }else{
         const cs=document.createElement('div');cs.style.cssText='position:fixed;inset:0;z-index:10000;background:linear-gradient(135deg,#0a1628,#0f2444);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;font-family:inherit';cs.innerHTML='<div style="font-size:28px;font-weight:900;color:#fff">Governance</div><div style="font-size:13px;color:rgba(255,255,255,.45)">Under development</div><div style="padding:8px 24px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.25);border-radius:20px;font-size:11px;color:#0195af;font-weight:700">COMING SOON</div><button onclick="this.parentElement.remove()" style="background:transparent;color:rgba(255,255,255,.4);border:1px solid rgba(255,255,255,.15);border-radius:9px;padding:9px 24px;font-size:11px;cursor:pointer;font-family:inherit;margin-top:8px">← Back</button>';document.body.appendChild(cs);
@@ -1167,11 +1169,13 @@ window._selectPortal=async portal=>{
     });
 
     /* ── Firestore State Persistence ── */
+    window._lastCloudSaveTime = 0; /* track own saves to ignore echo */
     window._saveToFS = async (data) => {
       if(!window._fbUser||!db) return;
       try {
         // Split large objects to avoid 1MB limit
         const {audit=[], ...rest} = data;
+        window._lastCloudSaveTime = Date.now();
         await setDoc(doc(db,'kpi_dashboard','state'),
           {...rest, _by:window._fbUser, _at:serverTimestamp()}, {merge:true});
         // Save audit separately (collection for scalability)
@@ -1179,7 +1183,10 @@ window._selectPortal=async portal=>{
           await setDoc(doc(db,'kpi_dashboard','audit'),
             {log:audit.slice(0,2000)}, {merge:false});
         }
-      } catch(e){ console.warn('[FS] Save error:',e.code||e.message); }
+      } catch(e){
+        console.error('[FS] Save error:',e.code||e.message, e);
+        throw e; /* Let callers know the save failed */
+      }
     };
 
     window._loadFromFS = async () => {
@@ -1196,6 +1203,69 @@ window._selectPortal=async portal=>{
       } catch(e){ console.warn('[FS] Load error:',e.code||e.message); return null; }
     };
 
+    /* ══ Real-time Firestore listener — syncs all clients ══ */
+    let _fsSnapshotUnsub = null;
+    function _startFSListener(){
+      if(_fsSnapshotUnsub || !db) return;
+      try{
+        _fsSnapshotUnsub = onSnapshot(
+          doc(db,'kpi_dashboard','state'),
+          function(snap){
+            if(!snap.exists()) return;
+            const fsData = snap.data();
+            if(!fsData || !window._fbUser) return; /* not logged in yet */
+            /* Merge Firestore data into local ST */
+            const safeFields=['ov','added','gaps','actions','rptEdits','deleted','pci','codeOv','textEdits','pciConfig','requests','audit'];
+            let changed=false;
+            safeFields.forEach(function(f){
+              if(fsData[f]!==undefined){
+                const local=JSON.stringify(ST[f]||null);
+                const remote=JSON.stringify(fsData[f]);
+                if(local!==remote){ ST[f]=fsData[f]; changed=true; }
+              }
+            });
+            if(!changed) return; /* no actual change, skip render */
+            /* Persist merged state locally */
+            try{ if(typeof sLS==='function') sLS(ST); }catch(_){}
+            /* Rebuild year filter (new KPI year may have appeared) */
+            try{ if(typeof renderYearFilter==='function') renderYearFilter(); }catch(_){}
+            /* Re-render current page — skip if this is our own echo */
+            const _msSinceSave = Date.now() - (window._lastCloudSaveTime||0);
+            if(_msSinceSave > 4000) {
+              try{ if(typeof renderCurrent==='function') renderCurrent(); }catch(_){}
+            } else {
+              console.log('[FS Snapshot] Own echo ignored (',Math.round(_msSinceSave),'ms since save)');
+            }
+            /* Update badge */
+            try{ if(typeof updateBadge==='function') updateBadge(); }catch(_){}
+            /* Refresh SA KPI selector if panel is open */
+            try{
+              const saPanel=document.getElementById('_saKpiPanel');
+              if(saPanel&&saPanel.style.display!=='none'){
+                const sel=document.getElementById('_saKpiSel');
+                if(sel&&typeof allK==='function'){
+                  const prev=sel.value;
+                  sel.innerHTML='<option value="">— Select KPI —</option>';
+                  allK().forEach(function(k){
+                    const o=document.createElement('option');
+                    o.value=k.id;
+                    o.textContent=(k.nameEn||(k.nameAr||k.id))+(k.nameAr&&k.nameEn?' / '+k.nameAr:'');
+                    sel.appendChild(o);
+                  });
+                  if(prev)sel.value=prev;
+                }
+              }
+            }catch(_){}
+            console.log('[FS Snapshot] Remote change applied — KPIs now:',Array.isArray(ST.added)?ST.added.length:0);
+          },
+          function(err){ console.warn('[FS Snapshot] Listener error:',err.code||err.message); }
+        );
+        console.log('[FS] Real-time listener started');
+      }catch(e){ console.warn('[FS] Could not start onSnapshot:',e.message); }
+    }
+    /* Start listener only once user is logged in */
+    window._startFSListener = _startFSListener;
+
     /* Hook into onAuthStateChanged success to load FS data */
     const _origSelectPortal = window._selectPortal;
     window._onFSLoaded = async () => {
@@ -1205,7 +1275,7 @@ window._selectPortal=async portal=>{
         console.log('[FS] Loaded state from Firestore, keys:',Object.keys(fsData));
         if(typeof ST==='undefined') return;
         /* Safe merge: only merge non-destructive fields */
-        const safeFields=['ov','added','gaps','actions','rptEdits','audit','deleted','pci','codeOv','textEdits','pciConfig'];
+        const safeFields=['ov','added','gaps','actions','rptEdits','audit','deleted','pci','codeOv'];
         safeFields.forEach(f=>{
           if(fsData[f]!==undefined) ST[f]=fsData[f];
         });
@@ -1220,14 +1290,17 @@ window._selectPortal=async portal=>{
           });
         }
         try{localStorage.setItem('kpi_v3',JSON.stringify(ST));}catch(_){}
-        const _savedPage=window.curPage||'exec'; /* preserve active page */
-        if(typeof renderYearFilter==='function') renderYearFilter(); /* update year filters with loaded data */
+        if(typeof renderYearFilter==='function') renderYearFilter();
         if(typeof renderCurrent==='function'){
-          window.curPage=_savedPage; /* stay on same page after sync */
+          const _savedPg=window.curPage||'exec';
           renderCurrent();
+          /* Restore tab highlight */
+          window.curPage=_savedPg;
+          document.querySelectorAll('.tabnav .tab').forEach(function(t){
+            t.classList.toggle('on',(t.getAttribute('onclick')||'').indexOf("'"+_savedPg+"'")>=0);
+          });
         }
         if(typeof updateBadge==='function') updateBadge();
-        if(typeof applyTextEdits==='function') applyTextEdits(); /* apply admin text edits */
       }catch(e){ console.warn('[FS] onFSLoaded error:',e); }
     };
 
@@ -1341,7 +1414,7 @@ window._selectPortal=async portal=>{
 <!-- ═══ TOPBAR — QUMC Institutional Header ══════════ -->
 <div class="topbar">
 <!-- Back to Portal Selection (moved here for visibility, no overlap with content) -->
-<button id="backPortalBtn" onclick="window._backToPortal&amp;&amp;window._backToPortal()" style="background:linear-gradient(135deg,#152538,#0195af);border:1px solid #0195af;border-radius:12px;padding:8px 14px;color:#fff;font-size:11px;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:all .18s;flex-shrink:0;margin-right:10px;min-width:72px" title="Back to Portal Selection">← Back</button>
+<button id="backPortalBtn" onclick="_saBackNav()" style="background:linear-gradient(135deg,#152538,#0195af);border:1px solid #0195af;border-radius:12px;padding:8px 14px;color:#fff;font-size:11px;font-weight:900;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:all .18s;flex-shrink:0;margin-right:10px;min-width:72px" title="Back to Portal Selection">← Back</button>
 <!-- Brand: Logo + Identity -->
 <div class="tb-brand">
 <div class="tb-logo"><img alt="QUMC" id="logoImg" src=""/></div>
@@ -1377,7 +1450,7 @@ window._selectPortal=async portal=>{
 </div>
 </div>
 <button class="tb-btn" id="langBtn" onclick="toggleLang()"> عربي</button>
-<button class="tb-btn" id="textEditModeBtn" onclick="toggleTextEditMode()" title="Edit dashboard text labels (Admin only)" style="display:none;font-size:10px">✏ Edit Text</button>
+<button class="tb-btn" id="textEditModeBtn" onclick="toggleTextEditMode()" style="display:none;font-size:10px;background:rgba(1,149,175,.08);border-color:rgba(1,149,175,.3);color:#0195af" title="Edit all text labels (EN/AR) — Admin only">✏ Edit Text</button>
 <button class="tb-btn" onclick="openLock()" style="display:flex;align-items:center;justify-content:center;min-width:36px" title="Edit Dashboard / Admin Tools"><svg fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewbox="0 0 24 24" width="15"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg></button>
 <div class="qumc-top-user-wrap" id="userNotifyWidget" style="display:flex;align-items:center;gap:8px;margin-right:6px">
 <div class="qumc-user-badge" id="topUserBadge" title="User account">
@@ -1407,6 +1480,7 @@ window._selectPortal=async portal=>{
 <span>Department</span><b id="profileDeptRow">—</b>
 <span>Last Login</span><b id="profileLastLoginRow">Current session</b>
 </div>
+<button onclick="openRequestForm()" style="width:100%;margin-bottom:8px;padding:9px;background:rgba(251,191,36,.08);border:1px solid rgba(251,191,36,.2);border-radius:10px;color:#FBBF24;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Send Request to Admin</button>
 <button class="qumc-logout-btn" id="profileLogoutBtn" type="button">
 <svg fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewbox="0 0 24 24" width="15"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" x2="9" y1="12" y2="12"></line></svg>
         Logout
@@ -1421,7 +1495,7 @@ window._selectPortal=async portal=>{
 </div>
 <!-- ═══ FILTER STRIP ══════════════════════════════════ -->
 <div class="filter-strip">
-<span class="fs-lbl" data-ar="السنة" data-en="Year" data-ar="السنة">Year</span>
+<span class="fs-lbl" data-ar="السنة" data-en="Year">Year</span>
 <div id="yearBtns" style="display:flex;gap:4px"></div>
 <div class="tb-vline" style="height:14px"></div>
 <span class="fs-lbl" data-ar="الأرباع" data-en="Quarters">Quarters</span>
@@ -1448,10 +1522,10 @@ window._selectPortal=async portal=>{
 </div>
 <!-- ═══ TABS ════════════════════════════════════════ -->
 <div class="tabnav">
-<div class="tab on" onclick="switchTab('exec',this)"> <span data-ar="لوحة القيادة التنفيذية" data-en="Executive Command" data-ar="لوحة القيادة التنفيذية">Executive Command</span></div>
-<div class="tab" onclick="switchTab('dept',this)"> <span data-ar="عرض الأقسام" data-en="Departments" data-ar="عرض الأقسام">Departments</span></div>
-<div class="tab" onclick="switchTab('registry',this)"> <span data-ar="سجل المؤشرات" data-en="KPI Register" data-ar="سجل المؤشرات">KPI Register</span></div>
-<div class="tab" onclick="switchTab('accountability',this)"> <span data-ar="المساءلة والمتابعة" data-en="Accountability" data-ar="المساءلة والإجراءات">Accountability</span> <span class="tab-badge" id="accBadge" style="display:none">0</span></div>
+<div class="tab on" onclick="switchTab('exec',this)"> <span data-ar="لوحة القيادة التنفيذية" data-en="Executive Command">Executive Command</span></div>
+<div class="tab" onclick="switchTab('dept',this)"> <span data-ar="عرض الأقسام" data-en="Departments">Departments</span></div>
+<div class="tab" onclick="switchTab('registry',this)"> <span data-ar="سجل المؤشرات" data-en="KPI Register">KPI Register</span></div>
+<div class="tab" onclick="switchTab('accountability',this)"> <span data-ar="المساءلة والمتابعة" data-en="Accountability">Accountability</span> <span class="tab-badge" id="accBadge" style="display:none">0</span></div>
 </div>
 <!-- ═══ PAGES ════════════════════════════════════════ -->
 <div class="dashwrap">
@@ -1635,21 +1709,10 @@ window._selectPortal=async portal=>{
 <table class="pci-table">
 <thead><tr>
 <th style="width:42px;text-align:left;padding-left:12px">QTR</th>
-<th><input id="aColA" value="Planned" style="background:transparent;border:none;border-bottom:1px dashed rgba(147,197,253,.6);color:#93C5FD;font-weight:700;font-size:11px;width:80px;text-align:center;cursor:pointer" title="Click to rename column" oninput="saveColNames()"></th>
-<th><input id="aColB" value="Complete" style="background:transparent;border:none;border-bottom:1px dashed rgba(110,231,183,.6);color:#6EE7B7;font-weight:700;font-size:11px;width:80px;text-align:center;cursor:pointer" title="Click to rename column" oninput="saveColNames()"></th>
-<th><input id="aColC" value="Incomplete" style="background:transparent;border:none;border-bottom:1px dashed rgba(252,165,165,.6);color:#FCA5A5;font-weight:700;font-size:11px;width:80px;text-align:center;cursor:pointer" title="Click to rename column" oninput="saveColNames()"></th>
-<th style="width:130px">
-  <div style="font-size:9px;color:#67E8F9;font-weight:700;margin-bottom:2px">Result Formula</div>
-  <select id="aResultFormula" onchange="recalcAllPCI()" style="background:#1a3a5c;border:1px solid rgba(103,232,249,.3);color:#67E8F9;font-size:9px;border-radius:4px;padding:1px 3px;width:100%">
-    <option value="div">A ÷ B × 100%</option>
-    <option value="sub">A − B</option>
-    <option value="add">A + B</option>
-    <option value="mul">A × B</option>
-    <option value="pct_b">B ÷ A × 100%</option>
-    <option value="custom">Custom…</option>
-  </select>
-  <input id="aCustomFormula" placeholder="e.g. (A-B)/A*100" style="display:none;background:#1a3a5c;border:1px solid rgba(103,232,249,.3);color:#67E8F9;font-size:9px;border-radius:4px;padding:1px 3px;width:100%;margin-top:2px" oninput="recalcAllPCI()">
-</th>
+<th style="color:#93C5FD"> Planned</th>
+<th style="color:#6EE7B7"> Complete</th>
+<th style="color:#FCA5A5"> Incomplete</th>
+<th style="color:#67E8F9;width:100px">Result</th>
 </tr></thead>
 <tbody>
 <tr>
@@ -1759,20 +1822,12 @@ window._selectPortal=async portal=>{
 <table class="pci-table">
 <thead><tr>
 <th style="width:42px;text-align:left;padding-left:12px">QTR</th>
-<th><input id="eColA" value="Planned" style="background:transparent;border:none;border-bottom:1px dashed rgba(147,197,253,.6);color:#93C5FD;font-weight:700;font-size:11px;width:80px;text-align:center;cursor:pointer" title="Click to rename column" oninput="saveColNamesEdit()"></th>
-<th><input id="eColB" value="Complete" style="background:transparent;border:none;border-bottom:1px dashed rgba(110,231,183,.6);color:#6EE7B7;font-weight:700;font-size:11px;width:80px;text-align:center;cursor:pointer" title="Click to rename column" oninput="saveColNamesEdit()"></th>
-<th><input id="eColC" value="Incomplete" style="background:transparent;border:none;border-bottom:1px dashed rgba(252,165,165,.6);color:#FCA5A5;font-weight:700;font-size:11px;width:80px;text-align:center;cursor:pointer" title="Click to rename column" oninput="saveColNamesEdit()"></th>
-<th style="width:130px">
-  <div style="font-size:9px;color:#67E8F9;font-weight:700;margin-bottom:2px">Result Formula</div>
-  <select id="eResultFormula" onchange="recalcAllEditPCI()" style="background:#1a3a5c;border:1px solid rgba(103,232,249,.3);color:#67E8F9;font-size:9px;border-radius:4px;padding:1px 3px;width:100%">
-    <option value="div">A ÷ B × 100%</option>
-    <option value="sub">A − B</option>
-    <option value="add">A + B</option>
-    <option value="mul">A × B</option>
-    <option value="pct_b">B ÷ A × 100%</option>
-    <option value="custom">Custom…</option>
-  </select>
-  <input id="eCustomFormula" placeholder="e.g. (A-B)/A*100" style="display:none;background:#1a3a5c;border:1px solid rgba(103,232,249,.3);color:#67E8F9;font-size:9px;border-radius:4px;padding:1px 3px;width:100%;margin-top:2px" oninput="recalcAllEditPCI()">
+<th style="color:#93C5FD"> Planned</th>
+<th style="color:#6EE7B7"> Complete</th>
+<th style="color:#FCA5A5"> Incomplete</th>
+<th style="color:#67E8F9;width:130px">
+  <div style="font-size:9px;color:#67E8F9;font-weight:700;margin-bottom:3px">Result</div>
+  <input id="aResultFormula" value="B/A*100" title="Formula: A=Planned, B=Complete, C=Incomplete" placeholder="e.g. B/A*100" oninput="recalcAllAddPCI()" style="background:#1a3a5c;border:1px solid rgba(103,232,249,.3);color:#67E8F9;font-size:9px;border-radius:4px;padding:2px 5px;width:100%;box-sizing:border-box">
 </th>
 </tr></thead>
 <tbody>
@@ -1903,12 +1958,73 @@ window._selectPortal=async portal=>{
 <!-- Feedback area (shown per active tab) -->
 <div id="_editFeedback" style="display:none;font-size:11px;font-weight:600;border-radius:8px;margin:0 20px 8px;padding:8px 12px"></div>
 <div id="_delFeedback" style="display:none;font-size:11px;font-weight:600;border-radius:8px;margin:0 20px 8px;padding:8px 12px"></div>
+<!-- Feedback area -->
+<div id="_addFeedback" style="display:none;font-size:11px;font-weight:600;border-radius:8px;margin:0 16px 8px;padding:8px 12px"></div>
 <!-- Footer buttons -->
 <div class="mfoot">
 <button class="af-btn-primary" onclick="saveAdmin()"> Save Changes</button>
 <button class="af-btn-secondary" onclick="closOv('adminOv')">✕ Close</button>
 </div>
 </div>
+</div>
+<!-- ═══ SUPER ADMIN PERFORMANCE HUB ═══ -->
+<div id="_saHub" style="display:none;position:fixed;inset:0;z-index:9997;background:linear-gradient(135deg,#060f1e 0%,#0a1e38 60%,#091828 100%);overflow-y:auto">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 28px;border-bottom:1px solid rgba(255,255,255,.07)">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#0195af,#4ADE80);display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></div>
+      <div><div style="font-size:15px;font-weight:900;color:#fff">Performance Hub</div><div style="font-size:10px;color:#0195af;font-weight:600">Super Admin Control Center</div></div>
+    </div>
+    <button onclick="_saHubBack()" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:7px 16px;color:rgba(255,255,255,.7);font-size:11px;cursor:pointer;font-family:inherit">← Back to Portal</button>
+  </div>
+  <div style="max-width:900px;margin:40px auto;padding:0 24px">
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px">
+      <!-- Dashboard Card -->
+      <div onclick="_saOpenDashboard()" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:28px 20px;cursor:pointer;transition:all .2s;text-align:center" onmouseover="this.style.background='rgba(1,149,175,.12)';this.style.borderColor='rgba(1,149,175,.4)';this.style.transform='translateY(-3px)'" onmouseout="this.style.background='rgba(255,255,255,.04)';this.style.borderColor='rgba(255,255,255,.1)';this.style.transform='none'">
+        <div style="width:52px;height:52px;border-radius:14px;background:rgba(1,149,175,.15);border:1px solid rgba(1,149,175,.3);display:flex;align-items:center;justify-content:center;margin:0 auto 16px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg></div>
+        <div style="font-size:14px;font-weight:800;color:#fff;margin-bottom:8px">Dashboard</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.45);line-height:1.5">View & edit KPI dashboard. Modify text labels in Arabic & English.</div>
+        <div style="margin-top:14px;display:inline-block;padding:5px 14px;background:rgba(1,149,175,.15);border:1px solid rgba(1,149,175,.3);border-radius:20px;font-size:10px;color:#0195af;font-weight:700">Open Dashboard →</div>
+      </div>
+      <!-- KPI Table Card -->
+      <div onclick="_saOpenKpiTable()" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:28px 20px;cursor:pointer;transition:all .2s;text-align:center" onmouseover="this.style.background='rgba(74,222,128,.08)';this.style.borderColor='rgba(74,222,128,.35)';this.style.transform='translateY(-3px)'" onmouseout="this.style.background='rgba(255,255,255,.04)';this.style.borderColor='rgba(255,255,255,.1)';this.style.transform='none'">
+        <div style="width:52px;height:52px;border-radius:14px;background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.25);display:flex;align-items:center;justify-content:center;margin:0 auto 16px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg></div>
+        <div style="font-size:14px;font-weight:800;color:#fff;margin-bottom:8px">KPI Table Setup</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.45);line-height:1.5">Design quarterly tables — columns, formulas, colors. Link to specific KPIs.</div>
+        <div style="margin-top:14px;display:inline-block;padding:5px 14px;background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.25);border-radius:20px;font-size:10px;color:#4ADE80;font-weight:700">Configure Tables →</div>
+      </div>
+      <!-- User Requests Card -->
+      <div onclick="_saOpenRequests()" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:16px;padding:28px 20px;cursor:pointer;transition:all .2s;text-align:center;position:relative" onmouseover="this.style.background='rgba(251,191,36,.08)';this.style.borderColor='rgba(251,191,36,.35)';this.style.transform='translateY(-3px)'" onmouseout="this.style.background='rgba(255,255,255,.04)';this.style.borderColor='rgba(255,255,255,.1)';this.style.transform='none'">
+        <div id="_saReqBadge" style="display:none;position:absolute;top:14px;right:14px;background:#DC2626;color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:10px"></div>
+        <div style="width:52px;height:52px;border-radius:14px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.25);display:flex;align-items:center;justify-content:center;margin:0 auto 16px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" stroke-width="2" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+        <div style="font-size:14px;font-weight:800;color:#fff;margin-bottom:8px">User Requests</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.45);line-height:1.5">Review permission & change requests from users. Approve or reject.</div>
+        <div style="margin-top:14px;display:inline-block;padding:5px 14px;background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.25);border-radius:20px;font-size:10px;color:#FBBF24;font-weight:700">View Requests →</div>
+      </div>
+    </div>
+    <!-- KPI Table Panel -->
+    <div id="_saKpiPanel" style="display:none;margin-top:24px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;overflow:hidden">
+      <div style="padding:14px 20px;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;gap:10px">
+        <button onclick="document.getElementById('_saKpiPanel').style.display='none'" style="background:transparent;border:0;color:rgba(255,255,255,.4);font-size:12px;cursor:pointer">← Back</button>
+        <span style="font-size:13px;font-weight:800;color:#fff">KPI Table Setup</span>
+        <div style="flex:1"></div>
+        <select id="_saKpiSel" onchange="_saKpiTableLoad()" style="background:#1a3a5c;border:1px solid rgba(255,255,255,.15);border-radius:6px;color:#fff;font-size:11px;padding:4px 8px;min-width:200px"><option value="">— Select KPI —</option></select>
+        <button onclick="_saKpiTableSave()" style="background:linear-gradient(135deg,#152538,#0195af);border:0;border-radius:8px;padding:7px 18px;color:#fff;font-size:11px;font-weight:700;cursor:pointer"> Save Config</button>
+      </div>
+      <div style="padding:16px">
+        <div id="_saKpiTableInfo" style="font-size:11px;color:rgba(255,255,255,.3);text-align:center;padding:30px">Select a KPI above to configure its quarterly table</div>
+        <div style="overflow-x:auto"><table id="_saKpiTableEl" style="border-collapse:collapse;width:100%;display:none"></table></div>
+      </div>
+    </div>
+    <!-- User Requests Panel -->
+    <div id="_saReqPanel" style="display:none;margin-top:24px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:16px;overflow:hidden">
+      <div style="padding:14px 20px;border-bottom:1px solid rgba(255,255,255,.07);display:flex;align-items:center;gap:10px">
+        <button onclick="document.getElementById('_saReqPanel').style.display='none'" style="background:transparent;border:0;color:rgba(255,255,255,.4);font-size:12px;cursor:pointer">← Back</button>
+        <span style="font-size:13px;font-weight:800;color:#fff">User Requests</span>
+        <div id="_saReqCount" style="background:rgba(220,38,38,.2);border:1px solid rgba(220,38,38,.3);border-radius:10px;padding:2px 8px;font-size:10px;color:#EF4444;font-weight:700;display:none"></div>
+      </div>
+      <div id="_saReqList" style="padding:16px"></div>
+    </div>
+  </div>
 </div>
 <!-- GAP VIEW -->
 <div class="overlay" id="gapOv">
@@ -3040,35 +3156,48 @@ function calcAdminPCI(q,prefix){
   const pl=parseFloat(plRaw)||0;
   const co=parseFloat(coRaw);
 
-  /* Always clear if Complete not yet entered */
-  if(coRaw.trim()===''){clearAll();clearErr();return;}
-
-  /* Planned must also be filled */
+  /* If planned is empty → clear all */
   if(plRaw.trim()===''){clearAll();clearErr();return;}
 
-  /* Validate range: 0 ≤ Complete ≤ Planned */
-  if(co<0){showErr('Min: 0 — cannot be negative');return;}
-  if(co>pl){showErr('Max: '+pl+' — cannot exceed Planned');return;}
+  /* Complete defaults to 0 if empty (still show result) */
+  const coFinal=coRaw.trim()===''?0:(isNaN(co)?0:co);
 
-  clearErr();
-
-  /* Now show Incomplete and Result */
-  if(icEl)icEl.value=Math.max(0,pl-co)||'';
-
-  /* Apply user-selected formula */
-  const _fSel=document.getElementById(prefix==='eAd'?'eResultFormula':'aResultFormula');
-  const _fCustom=document.getElementById(prefix==='eAd'?'eCustomFormula':'aCustomFormula');
-  const _formula=_fSel?_fSel.value:'div';
-  if(_fSel&&_fCustom){_fCustom.style.display=_formula==='custom'?'block':'none';}
-  let pct;
-  if(_formula==='sub') pct=+(pl-co).toFixed(2);
-  else if(_formula==='add') pct=+(pl+co).toFixed(2);
-  else if(_formula==='mul') pct=+(pl*co).toFixed(2);
-  else if(_formula==='pct_b') pct=co>0?+(pl/co*100).toFixed(1):0;
-  else if(_formula==='custom'&&_fCustom?.value?.trim()){
-    try{pct=+Function('"use strict";const A='+pl+',B='+co+';return '+_fCustom.value)().toFixed(2);}catch(e){pct=0;}
+  /* Validate: no negatives */
+  if(coFinal<0){showErr('Min: 0 — cannot be negative');return;}
+  /* Warning only if co>pl (don't clear, just warn) */
+  if(coFinal>pl && pl>0){
+    if(coEl){coEl.style.borderColor='#FBBF24';coEl.style.boxShadow='0 0 0 3px rgba(251,191,36,.15)';}
   } else {
-    pct=pl>0?+(co/pl*100).toFixed(1):0;
+    clearErr();
+  }
+
+  /* Show Incomplete = Planned − Complete */
+  if(icEl)icEl.value=Math.max(0,pl-coFinal)||'';
+
+  /* Use saved formula from KPI Table Setup if available */
+  let pct=0;
+  try{
+    /* Read formula from the table's own input, OR from saved config */
+    const _formulaInput=document.getElementById(prefix==='eAd'?'eResultFormula':'aResultFormula');
+    const _formulaFromInput=_formulaInput?(_formulaInput.value||'').trim():'';
+    const _kpidSel=document.getElementById(prefix==='eAd'?'eSel':'');
+    const _kpid=_kpidSel?_kpidSel.value:'';
+    const _savedFormula=_formulaFromInput||((_kpid&&ST.pciConfig?.kpiTables?.[_kpid]?.formula)||null);
+    if(_savedFormula){
+      /* Map column letters: A=pl, B=co, C=ic */
+      const _savedCols=(ST.pciConfig.kpiTables[_kpid].cols)||[{l:'A'},{l:'B'},{l:'C'}];
+      const _vals={};
+      _savedCols.forEach(function(c,ci){
+        _vals[c.l]=[pl,coFinal,Math.max(0,pl-coFinal)][ci]||0;
+      });
+      const _vNames=Object.keys(_vals);const _vVals=_vNames.map(function(k){return _vals[k];});
+      const _r=new Function(..._vNames,'"use strict";return ('+_savedFormula+');')(..._vVals);
+      pct=typeof _r==='number'&&isFinite(_r)?+_r.toFixed(2):0;
+    } else {
+      pct=pl>0?+(coFinal/pl*100).toFixed(1):0;
+    }
+  }catch(_formulaErr){
+    pct=pl>0?+(coFinal/pl*100).toFixed(1):0;
   }
   const tgtEl=document.getElementById(prefix==='eAd'?'eTg':'aTg');
   const tgt=tgtEl?parseFloat(tgtEl.value)||0:0;
@@ -3085,21 +3214,51 @@ function calcAdminPCI(q,prefix){
   if(inp)inp.value=pct;
 }
 
-function saveColNamesEdit(){
-  const a=document.getElementById('eColA')?.value||'Planned';
-  const b=document.getElementById('eColB')?.value||'Complete';
-  const c=document.getElementById('eColC')?.value||'Incomplete';
-  if(!ST.pciConfig)ST.pciConfig={};
-  const kpid=document.getElementById('eSel')?.value;
-  if(kpid){
-    if(!ST.pciConfig.kpiCols)ST.pciConfig.kpiCols={};
-    ST.pciConfig.kpiCols[kpid]={a,b,c};
-    sLS(ST);
-  }
+function _rebuildEditKpiTable(cols,formula,resultType){
+  const visibleCols=cols.filter(function(c){return !c.hidden;});
+  const thead=document.querySelector('#ap-edit .pci-table thead');
+  const tbody=document.querySelector('#ap-edit .pci-table tbody');
+  if(!thead||!tbody)return;
+  const hRow=thead.querySelector('tr');if(!hRow)return;
+  const qtrTh=hRow.querySelector('th:first-child');
+  const resTh=hRow.querySelector('th:last-child');
+  while(hRow.children.length>1) hRow.removeChild(hRow.lastChild);
+  visibleCols.forEach(function(col){
+    const th=document.createElement('th');
+    const bg=col.bg||'';const fc=col.fc||'#93C5FD';
+    th.style.cssText='min-width:80px;padding:4px 6px'+(bg?';background:'+bg:'');
+    th.innerHTML='<div style="font-size:10px;font-weight:900;color:'+fc+'">'+col.l+'</div>'
+      +'<div style="font-size:9px;color:'+(fc||'#94A3B8')+'">'+col.n+'</div>';
+    hRow.appendChild(th);
+  });
+  hRow.appendChild(resTh);
+  const rows=Array.from(tbody.querySelectorAll('tr'));
+  rows.forEach(function(row,ri){
+    const Q=['Q1','Q2','Q3','Q4'][ri];if(!Q)return;
+    const resCell=row.querySelector('td:last-child');
+    while(row.children.length>1) row.removeChild(row.lastChild);
+    visibleCols.forEach(function(col,ci){
+      const td=document.createElement('td');td.style.padding='2px 4px';
+      const inp=document.createElement('input');
+      inp.type='number';inp.min='0';inp.placeholder='0';
+      const bg=col.bg||'rgba(255,255,255,.04)';const fc=col.fc||'#E2E8F0';
+      inp.style.cssText='width:100%;background:'+bg+';border:1px solid rgba(255,255,255,.08);border-radius:4px;color:'+fc+';font-size:11px;padding:4px 6px;box-sizing:border-box;text-align:right';
+      inp.id='eAd'+Q+'_'+(['pl','co','ic'][ci]||('c'+ci));
+      inp.addEventListener('input',function(){calcAdminPCI(Q.toLowerCase(),'eAd');});
+      td.appendChild(inp);row.appendChild(td);
+    });
+    if(resCell)row.appendChild(resCell);
+  });
+  const eFInp=document.getElementById('eResultFormula');
+  if(eFInp)eFInp.value=formula||'B/A*100';
+  recalcAllEditPCI();
 }
-function recalcAllEditPCI(){ ['q1','q2','q3','q4'].forEach(q=>calcAdminPCI(q,'eAd')); }
-function recalcAllPCI(){ ['q1','q2','q3','q4'].forEach(q=>calcAdminPCI(q,'aAd')); }
-
+function recalcAllAddPCI(){
+  ['q1','q2','q3','q4'].forEach(function(q){calcAdminPCI(q,'aAd');});
+}
+function recalcAllEditPCI(){
+  ['q1','q2','q3','q4'].forEach(function(q){calcAdminPCI(q,'eAd');});
+}
 /* ══ Context-aware empty state ══ */
 function emptyStateExec(dept,status){
   const dm=dept&&dept!=='all'?DM[dept]:null;
@@ -3980,9 +4139,9 @@ function applyRolePermissions(role,dept,perms){
         if(isAdmin){
           b.style.setProperty('display','inline-flex','important');
           b.style.setProperty('visibility','visible','important');
-          /* Show Text Edit button for admin */
+          /* Show text edit button ONLY for super_admin (not regular admin) */
           const teb=document.getElementById('textEditModeBtn');
-          if(teb)teb.style.display='inline-flex';
+          if(teb) teb.style.display=(role==='super_admin')?'inline-flex':'none';
           /* Replace lock icon with gear icon */
           b.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
           b.title='Admin Control Panel';
@@ -4014,9 +4173,22 @@ function applyRolePermissions(role,dept,perms){
       '[id$="-acts"],[onclick*="addAction"],' +
       '[onclick*="exportReport"],.rpt-edit-btn,button[title="Edit"],.edit-btn{display:none!important;}' +
       '[onclick*="openGap"]{display:inline-flex!important;' +
-      'background:rgba(220,38,38,.09)!important;color:#C42B2B!important;' +
-      'border:1px solid rgba(220,38,38,.25)!important;}';
+      'background:rgba(217,119,6,.15)!important;color:#D97706!important;' +
+      'border:1px solid rgba(217,119,6,.3)!important;}';
     document.head.appendChild(sko);
+    /* Inject a prominent Gap Analysis bar at page top */
+    setTimeout(()=>{
+      if(!document.getElementById('_kpoBar')){
+        const bar=document.createElement('div');
+        bar.id='_kpoBar';
+        bar.style.cssText='position:sticky;top:0;z-index:100;background:linear-gradient(90deg,#D97706,#B45309);padding:10px 20px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)';
+        bar.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
+          +'<span style="color:#fff;font-weight:700;font-size:13px">Gap Analysis Mode</span>'
+          +'<span style="color:rgba(255,255,255,.7);font-size:11px">Click a KPI card to open Gap Analysis</span>';
+        const mainEl=document.querySelector('.main,.page-wrap,main')||document.body.firstElementChild;
+        if(mainEl)mainEl.prepend(bar);
+      }
+    }, 500);
   }
 
   /* ── Dept lock for dept_manager and kpi_owner ── */
@@ -4336,364 +4508,265 @@ function setF(type,val,el){
   }
   updateChips();updateBadge();renderCurrent();
 }
-/* Comprehensive Arabic translations used by render functions */
-const _TRANS_AR={
-  'Executive Command':'لوحة القيادة التنفيذية',
-  'Departments':'عرض الأقسام',
-  'KPI Register':'سجل المؤشرات الكامل',
-  'Accountability':'المساءلة والإجراءات التصحيحية',
-  'Gap Analysis':'تحليل الفجوة',
-  'All KPIs Are Met!':'جميع المؤشرات محققة!',
-  'No KPIs Met Target in This Period':'لا توجد مؤشرات محققة في هذه الفترة',
-  'No Data Available':'لا توجد بيانات لهذه الفترة',
-  'On Track':'في المسار',
-  'Missed':'غير محقق',
-  'Met':'محقق',
-  'Pending':'معلق',
-  'Target':'الهدف',
-  'Result':'النتيجة',
-  'Gap':'الفجوة',
-  'KPIs':'مؤشرات',
-  'Overall Performance':'الأداء العام',
-  'Current Performance':'الأداء الحالي',
-  'Forecast YE':'التوقع السنوي',
-  'All Departments':'كل الأقسام',
-  'All Quarters':'كل الأرباع',
-  'Reset':'إعادة تعيين',
-  'Maintenance':'الصيانة',
-  'Safety':'السلامة',
-  'Housekeeping':'خدمات النظافة',
-  'Project Management':'إدارة المشاريع',
-  'Patient Safety':'سلامة المريض',
-  'Regulatory':'تنظيمي',
-  'Operational':'تشغيلي',
-  'Open':'مفتوح',
-  'In Progress':'جاري التنفيذ',
-  'Completed':'مكتمل',
-  'Critical':'حرج',
-  'High':'عالي',
-  'Medium':'متوسط',
-  'Low':'منخفض',
-  'Responsible':'المسؤول',
-  'Due':'الموعد',
-  'Overdue':'متأخر',
-  'Not entered yet.':'لم تُدخل بعد.',
-  'No data yet — use the form below.':'لا توجد بيانات — استخدم النموذج أدناه.',
-  'Root Cause / Gap Reasons':'أسباب الفجوة',
-  'Corrective Actions':'الإجراءات التصحيحية',
-  'Gap Analysis Update':'تحديث تحليل الفجوة',
-  'All quarters':'كل الأرباع',
-  'Select a quarter to view full gap details:':'اختر الربع لعرض تفاصيل الفجوة الكاملة:',
-  'Data entered':'تم إدخال البيانات',
-  'Needs data':'يحتاج بيانات',
-  'No quarters with a gap for this KPI — all reported quarters meet target.':'لا توجد أرباع بها فجوة لهذا المؤشر — جميع الأرباع محققة.',
-  'Actual':'الفعلي',
-  'Responsible Person':'الشخص المسؤول',
-  'Expected Closure Date':'تاريخ الإغلاق المتوقع',
-  'Priority':'الأولوية',
-  'Status':'الحالة',
-  'Save Gap Analysis':'حفظ تحليل الفجوة',
-  'Fixed for this department':'ثابت لهذا القسم',
-  'Mark as At Risk':'تحديد كمعرض للخطر',
-  'Select Priority —':'— اختر الأولوية —',
-  'Select Status —':'— اختر الحالة —',
-  'Open — Not Started':'مفتوح — لم يبدأ',
-  'Closed — Completed':'مغلق — مكتمل',
-  'No important notifications.':'لا توجد إشعارات مهمة.',
-  'Missed target for':'أخفق في تحقيق الهدف لـ',
-  'consecutive quarters':'أرباع متتالية',
-  'Gap Analysis Mode':'وضع تحليل الفجوة',
-  'Click a KPI card to open Gap Analysis':'اضغط على بطاقة المؤشر لفتح تحليل الفجوة',
-  'DETAILED KPI PERFORMANCE CARDS':'بطاقات الأداء التفصيلية',
-  'Quarterly Achievement':'الإنجاز الربعي',
-  'Quarterly Trend by Department':'الاتجاه الربعي حسب القسم',
-  'Risk Tiers':'مستويات المخاطر',
-  'KPI Trend Analysis':'تحليل اتجاه المؤشرات',
-  'RAG Status Matrix':'مصفوفة RAG للحالة',
-  'Accountability & Corrective Action Register':'سجل المساءلة والإجراءات التصحيحية',
-  'Repeat Miss Alert — Chronic Underperformance':'تنبيه التكرار — ضعف الأداء المزمن',
-  'Sorted by risk tier & repeat miss':'مرتب حسب مستوى المخاطر والتكرار',
-};
-window._TRANS=_TRANS_AR;
-
+function _applyLangToDOM(){
+  /* Apply lang to all data-en/data-ar elements */
+  const isAr=(typeof lang!=='undefined'&&lang==='ar');
+  document.querySelectorAll('[data-en],[data-ar]').forEach(function(el){
+    const val=isAr?(el.getAttribute('data-ar')||el.getAttribute('data-en')||el.textContent)
+                  :(el.getAttribute('data-en')||el.textContent);
+    if(val)el.textContent=val;
+  });
+  /* Apply saved text edits */
+  if(typeof applyTextEdits==='function')applyTextEdits();
+  /* RTL */
+  document.body.classList.toggle('qumc-rtl',isAr);
+  document.body.style.direction=isAr?'rtl':'ltr';
+}
 function toggleLang(){
   lang=lang==='en'?'ar':'en';
-  try{localStorage.setItem('qumc_lang',lang);}catch(_){}
-  const r=document.getElementById('root');
-  if(r){r.lang=lang;r.dir=lang==='ar'?'rtl':'ltr';}
-  document.documentElement.dir=lang==='ar'?'rtl':'ltr';
-  document.documentElement.lang=lang;
-  const lb=document.getElementById('langBtn');
-  if(lb)lb.textContent=lang==='ar'?'EN':'عربي';
-  /* Translate all data-en/data-ar elements */
-  document.querySelectorAll('[data-en][data-ar]').forEach(e=>{
-    e.textContent=lang==='ar'?e.dataset.ar:e.dataset.en;
-  });
-  document.querySelectorAll('select option[data-en]').forEach(o=>{
-    o.textContent=lang==='ar'?o.dataset.ar:o.dataset.en;
-  });
-  /* Translate all elements with data-ar-text attribute (dashboard dynamic elements) */
-  document.querySelectorAll('[data-ar-key]').forEach(el=>{
-    const k=el.dataset.arKey;
-    if(window._TRANS&&window._TRANS[k]) el.textContent=lang==='ar'?window._TRANS[k]:el.dataset.enText||el.textContent;
-  });
-  if(typeof updateChips==='function') updateChips();
-  if(typeof updateBadge==='function') updateBadge();
-  if(typeof renderCurrent==='function') renderCurrent();
-  /* Re-render report if visible */
-  const rptPage=document.getElementById('page-report');
-  if(rptPage&&rptPage.classList.contains('on')&&typeof renderReport==='function') renderReport();
-  /* Full RTL layout flip */
-  const isAr=lang==='ar';
-  document.body.style.direction=isAr?'rtl':'ltr';
-  document.body.style.textAlign=isAr?'right':'left';
-  /* flip margins/paddings using class */
-  document.body.classList.toggle('qumc-rtl',isAr);
+  const r=document.getElementById('root');r.lang=lang;r.dir=lang==='ar'?'rtl':'ltr';
+  document.getElementById('langBtn').textContent=lang==='ar'?'EN':'عربي';
+  document.querySelectorAll('[data-en][data-ar]').forEach(e=>e.textContent=lang==='ar'?e.dataset.ar:e.dataset.en);
+  document.querySelectorAll('select option[data-en]').forEach(o=>o.textContent=lang==='ar'?o.dataset.ar:o.dataset.en);
+  updateChips();renderCurrent();fetchAI();
 }
-/* Load lang preference on startup */
-(function(){
-  try{const s=localStorage.getItem('qumc_lang');if(s==='ar'){lang='ar';document.documentElement.dir='rtl';document.documentElement.lang='ar';const lb=document.getElementById('langBtn');if(lb)lb.textContent='EN';}}catch(_){}
-})();
 
-/* ══ Translation Edit Mode ══
-   Admin can toggle a mode where every [data-en][data-ar] element gets a ✏ pencil.
-   Clicking it opens an inline editor for both EN and AR text.
-   Edits are persisted in ST.textEdits[key] and synced via Firestore.
-   All users see the same text on next render/refresh.
-*/
+function switchTab(id,el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
+  el.classList.add('on');
+  const pg=document.getElementById('page-'+id);
+  if(pg)pg.classList.add('on');
+  window.curPage=id; curPage=id;
+  renderCurrent();
+  updateChips();
+}
+function renderCurrent(){
+  try{
+    curPage = window.curPage || curPage || 'exec';
+    if(curPage==='exec')renderExec();
+    else if(curPage==='dept')renderDept();
+    else if(curPage==='registry')renderRegistry();
+    else if(curPage==='accountability')renderAcc();
+    else if(curPage==='report')renderReport();
+  }catch(e){
+    console.error('[Dashboard] renderCurrent error:',e);
+    const wrap=document.getElementById('pageWrap')||document.getElementById('dash-wrap')||document.querySelector('.page-wrap');
+    if(wrap&&!wrap.innerHTML.trim()){
+      wrap.innerHTML='<div style="padding:40px;text-align:center;color:#DC2626"><p>⚠ Dashboard render error. Please refresh.</p><p style="font-size:11px;color:#64748B">'+e.message+'</p></div>';
+    }
+  }
+}
+
+
+window.switchTab = switchTab;
+window.renderCurrent = renderCurrent;
+window.resetFilters = resetFilters;
+window.toggleLang = toggleLang;
+
+/* ══════════════════════════════════════════════════════
+   TEXT EDIT MODE — Super Admin only
+   Allows editing EN/AR labels directly on the dashboard
+   Saved in ST.textEdits[key] = {en, ar}
+   ══════════════════════════════════════════════════════ */
+
 let _textEditMode=false;
+let _teClickHandlers=[];
 
 function toggleTextEditMode(){
-  const role=window._fbRole||'';
-  if(role!=='admin'&&role!=='super_admin'){toast(' Admins only');return;}
+  if(window._fbRole!=='super_admin'){
+    if(typeof toast==='function') toast('⚠ Text editing is only for Super Admin');
+    return;
+  }
   _textEditMode=!_textEditMode;
   const btn=document.getElementById('textEditModeBtn');
   if(btn){
-    btn.textContent=_textEditMode?'✏ Exit Edit':'✏ Edit Text';
-    btn.style.background=_textEditMode?'rgba(220,38,38,.15)':'';
-    btn.style.borderColor=_textEditMode?'#DC2626':'';
-    btn.style.color=_textEditMode?'#DC2626':'';
-    btn.title=_textEditMode?'Hover any text and click ✏ to edit — changes apply to all users':'Enable text editing mode';
+    btn.style.background=_textEditMode?'rgba(1,149,175,.25)':'rgba(1,149,175,.08)';
+    btn.style.borderColor=_textEditMode?'#0195af':'rgba(1,149,175,.3)';
+    btn.textContent=_textEditMode?'✏ Editing...':'✏ Edit Text';
   }
   if(_textEditMode){
-    document.body.classList.add('qumc-text-edit-mode');
-    _attachAllTextPencils();
-    toast(' Edit mode ON — hover any text to edit it');
+    _attachTextEditPencils();
+    if(typeof toast==='function') toast('✏ Text edit mode ON — click any text to edit');
   } else {
-    document.body.classList.remove('qumc-text-edit-mode');
-    _removeAllTextPencils();
+    _removeTextEditPencils();
     const box=document.getElementById('_textEditorBox');if(box)box.remove();
-    toast('Edit mode OFF');
+    if(typeof toast==='function') toast('Text edit mode OFF');
   }
 }
 
-function _isEditableEl(el){
-  if(!el||!el.parentNode)return false;
-  const tag=(el.tagName||'').toUpperCase();
-  const SKIP=['SCRIPT','STYLE','HEAD','META','LINK','INPUT','TEXTAREA','SELECT','BUTTON','SVG','PATH','CIRCLE','LINE','POLYLINE','POLYGON','RECT','G','DEFS'];
-  if(SKIP.includes(tag))return false;
-  if(el.closest&&(el.closest('#_textEditorBox')||el.closest('#adminOv')||el.closest('.overlay')))return false;
-  const txt=(el.textContent||'').replace(/✏/g,'').trim();
-  if(txt.length<2||txt.length>300)return false;
-  if(/^[\d\s%.,\-:\/()]+$/.test(txt))return false;
-  if(el.dataset&&el.dataset.editAttached)return false;
-  return true;
-}
-
-function _getTextKey(el){
-  const txt=(el.textContent||'').replace(/✏/g,'').trim().substring(0,40).replace(/[^a-zA-Z0-9\u0600-\u06FF]/g,'_');
-  return 'tx_'+txt;
-}
-
-function _attachAllTextPencils(){
-  const root=document.getElementById('root')||document.getElementById('page-exec')?.parentElement||document.body;
-  /* Find all leaf-ish text-containing elements */
-  const all=root.querySelectorAll('div,span,p,h1,h2,h3,h4,th,td,label,a');
-  let count=0;
-  all.forEach(el=>{
-    if(!_isEditableEl(el))return;
-    /* Must have at least one direct text node with content */
-    const hasDirect=[...el.childNodes].some(c=>c.nodeType===3&&c.textContent.trim().length>1);
-    if(!hasDirect)return;
-    if(count>800)return; /* limit */
-    count++;
-    el.dataset.editAttached='1';
-    el.style.position='relative';
-    const pencil=document.createElement('span');
-    pencil.className='_qumc_pencil';
-    pencil.textContent='✏';
-    pencil.title='Click to edit this text';
-    pencil.style.cssText='display:none;position:absolute;top:-1px;right:-1px;background:#0195af;border-radius:3px;cursor:pointer;font-size:8px;padding:1px 3px;color:#fff;line-height:1.2;z-index:9998;white-space:nowrap';
-    pencil.onclick=(ev)=>{ev.preventDefault();ev.stopPropagation();_openTextEditor(el);};
-    el.appendChild(pencil);
-    el.addEventListener('mouseenter',function(){if(_textEditMode)pencil.style.display='inline';});
-    el.addEventListener('mouseleave',function(){pencil.style.display='none';});
+function _attachTextEditPencils(){
+  _removeTextEditPencils();
+  _teClickHandlers=[];
+  /* Cover ALL visible text elements in the dashboard */
+  const SKIP_TAGS=new Set(['SCRIPT','STYLE','INPUT','TEXTAREA','SELECT','BUTTON','OPTION','SVG','PATH','G','CIRCLE','LINE','POLYLINE','RECT','IMG','BR','HR']);
+  const SKIP_IDS=new Set(['_textEditorBox','_teEditableField','adminOv','_saHub','_portalOverlay','_authOverlay']);
+  function walkDOM(node){
+    if(!node) return;
+    /* Skip hidden/script/style elements */
+    if(node.nodeType===1){
+      if(SKIP_TAGS.has(node.tagName)) return;
+      const id=node.id||'';
+      for(const skip of SKIP_IDS){ if(id.startsWith(skip)&&id!=='') return; }
+      const style=window.getComputedStyle(node);
+      if(style.display==='none'||style.visibility==='hidden'||parseFloat(style.opacity)<0.1) return;
+    }
+    /* Check if this is a leaf element with meaningful text */
+    if(node.nodeType===1){
+      const kids=Array.from(node.childNodes);
+      const hasOnlyText=kids.every(function(c){return c.nodeType===3;});
+      const txt=(node.textContent||'').trim();
+      if(hasOnlyText&&txt.length>1&&txt.length<200){
+        /* Make it editable on click */
+        node.style.cursor='pointer';
+        node.style.outline='1px dashed rgba(1,149,175,.35)';
+        /* Generate a stable key */
+        const key=node.getAttribute('data-te-key')||node.getAttribute('data-en')||txt.substring(0,60).replace(/\s+/g,'_').replace(/[^A-Za-z0-9_؀-ۿ]/g,'');
+        if(!node.getAttribute('data-te-key')) node.setAttribute('data-te-key',key);
+        const handler=function(ev){
+          if(!_textEditMode)return;
+          ev.stopPropagation();ev.preventDefault();
+          _openTextEditorFor(node);
+        };
+        node.addEventListener('click',handler,true);
+        _teClickHandlers.push({el:node,handler});
+        return; /* don't go deeper into this node */
+      }
+    }
+    /* Recurse into children */
+    if(node.childNodes) Array.from(node.childNodes).forEach(walkDOM);
+  }
+  /* Walk the main content areas only (not overlays) */
+  const roots=['root','page-exec','page-dept','page-registry','page-accountability','page-report'];
+  roots.forEach(function(id){
+    const el=document.getElementById(id);
+    if(el) walkDOM(el);
   });
-  console.log('[EditMode] Attached pencils to',count,'elements');
+  /* Also walk the topbar */
+  const topbar=document.querySelector('.topbar');
+  if(topbar) walkDOM(topbar);
+  console.log('[TextEdit] Attached to',_teClickHandlers.length,'text elements');
 }
 
-function _removeAllTextPencils(){
-  document.querySelectorAll('._qumc_pencil').forEach(p=>p.remove());
-  document.querySelectorAll('[data-edit-attached]').forEach(el=>{
-    el.style.position='';
-    delete el.dataset.editAttached;
+function _removeTextEditPencils(){
+  _teClickHandlers.forEach(function(h){
+    h.el.style.cursor='';h.el.title='';h.el.style.outline='';
+    h.el.removeEventListener('click',h.handler,true);
   });
-}
-
-function _openTextEditor(el){
-  const curText=(el.textContent||'').replace(/✏/g,'').trim();
-  const key=_getTextKey(el);
-  const saved=(ST.textEdits||{})[key]||{};
-  const old=document.getElementById('_textEditorBox');if(old)old.remove();
-  const box=document.createElement('div');
-  box.id='_textEditorBox';
-  box.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2147483646;background:#fff;border:2px solid #0195af;border-radius:16px;padding:20px;min-width:360px;max-width:500px;box-shadow:0 28px 80px rgba(4,10,20,.30);font-family:inherit';
-  /* Page is currently in English or Arabic? */
-  var _isAr=(typeof lang!=='undefined')&&lang==='ar';
-  /* If EN page: EN is editable, AR is shown fixed. If AR page: AR is editable, EN is fixed. */
-  var _enEditable=!_isAr, _arEditable=_isAr;
-  var _savedEn=saved.en||((_isAr)?'':curText);
-  var _savedAr=saved.ar||((_isAr)?curText:'');
-  box.innerHTML='<div style="font-size:12px;font-weight:900;color:#152538;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center"><span>\u270F Edit Text \u2014 saves for all users</span><button onclick="this.closest(\'#_textEditorBox\').remove()" style="background:transparent;border:0;font-size:20px;cursor:pointer;color:#64748B;line-height:1">\u2715</button></div>'
-    /* English field */
-    +'<div style="margin-bottom:8px">'
-      +'<label style="font-size:10px;font-weight:700;display:block;margin-bottom:4px;color:'+(_enEditable?'#0195af':'#94A3B8')+'">English (EN)'+(_enEditable?' \u270F':' \ud83d\udd12 (read-only)')+'</label>'
-      +(_enEditable
-        ?'<textarea id="_txEn" rows="2" style="width:100%;padding:8px;border:1.5px solid #0195af;border-radius:8px;font-size:12px;resize:vertical;font-family:inherit;box-sizing:border-box">'+_hesc(_savedEn)+'</textarea>'
-        :'<div style="padding:8px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;color:#94A3B8;min-height:36px">'+_hesc(_savedEn||curText)+'</div><input type="hidden" id="_txEn" value="'+_hesc(_savedEn||curText)+'">'
-      )
-    +'</div>'
-    /* Arabic field */
-    +'<div style="margin-bottom:12px">'
-      +'<label style="font-size:10px;font-weight:700;display:block;margin-bottom:4px;color:'+(_arEditable?'#0195af':'#94A3B8')+'">Arabic \u2014 \u0627\u0644\u0639\u0631\u0628\u064a\u0629 (AR)'+(_arEditable?' \u270F':' \ud83d\udd12 (read-only)')+'</label>'
-      +(_arEditable
-        ?'<textarea id="_txAr" rows="2" style="width:100%;padding:8px;border:1.5px solid #0195af;border-radius:8px;font-size:12px;resize:vertical;font-family:inherit;direction:rtl;box-sizing:border-box">'+_hesc(_savedAr)+'</textarea>'
-        :'<div style="padding:8px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;font-size:12px;color:#94A3B8;min-height:36px;direction:rtl">'+_hesc(_savedAr||curText)+'</div><input type="hidden" id="_txAr" value="'+_hesc(_savedAr||curText)+'">'
-      )
-    +'</div>'
-    +'<div style="font-size:9.5px;color:#94A3B8;margin-bottom:10px;text-align:center">'
-      +(_isAr?'Currently editing Arabic. Switch to English to edit English text.':'Currently editing English. Switch to Arabic to edit Arabic text.')
-    +'</div>'
-    +'<div style="display:flex;gap:8px"><button onclick="_saveTextEdit(\''+_hesc(key)+'\',this.closest(\'#_textEditorBox\'))" style="flex:2;padding:10px;background:linear-gradient(135deg,#152538,#0195af);border:0;border-radius:9px;color:#fff;font-size:12px;font-weight:700;cursor:pointer">Save for All Users</button><button onclick="this.closest(\'#_textEditorBox\').remove()" style="flex:1;padding:10px;background:#F1F5F9;border:0;border-radius:9px;color:#475569;font-size:12px;cursor:pointer">Cancel</button></div>';
-  document.body.appendChild(box);
-  setTimeout(()=>document.addEventListener('click',function _cle(e){if(!box.contains(e.target)){box.remove();document.removeEventListener('click',_cle);}},true),150);
+  _teClickHandlers=[];
 }
 
 function _hesc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 
-function _saveTextEdit(key,box){
-  const en=(document.getElementById('_txEn')?.value||'').trim();
-  const ar=(document.getElementById('_txAr')?.value||'').trim();
-  if(!en&&!ar){toast('Enter at least one value');return;}
+function _openTextEditorFor(el){
+  const old=document.getElementById('_textEditorBox');if(old)old.remove();
+  /* Determine the key for this element */
+  const key=el.getAttribute('data-te-key')||el.getAttribute('data-en')||el.textContent.trim().substring(0,40)||('te_'+Date.now());
+  const saved=(ST.textEdits&&ST.textEdits[key])||{};
+  const _isAr=(typeof lang!=='undefined')&&lang==='ar';
+  /* Current displayed text */
+  const curText=el.textContent.trim();
+  /* For EN mode: editable=EN, fixed=AR. For AR mode: editable=AR, fixed=EN */
+  const _savedEn=saved.en||(el.getAttribute('data-en')||(!_isAr?curText:''));
+  const _savedAr=saved.ar||(el.getAttribute('data-ar')||(_isAr?curText:''));
+  const _editableVal=_isAr?(_savedAr||curText):(_savedEn||curText);
+  const _fixedVal=_isAr?_savedEn:_savedAr;
+  const box=document.createElement('div');
+  box.id='_textEditorBox';
+  box.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2147483646;background:#0f2444;border:2px solid rgba(1,149,175,.4);border-radius:14px;padding:20px;min-width:360px;max-width:460px;box-shadow:0 28px 80px rgba(0,0,0,.5);font-family:inherit';
+  /* Build editor dialog using DOM (avoids quote-escaping issues) */
+  var closeBtn=document.createElement('button');
+  closeBtn.style.cssText='background:transparent;border:0;color:rgba(255,255,255,.4);font-size:18px;cursor:pointer';
+  closeBtn.textContent='✕';
+  closeBtn.onclick=function(){document.getElementById('_textEditorBox').remove();};
+  var hdr=document.createElement('div');
+  hdr.style.cssText='font-size:13px;font-weight:900;color:#fff;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center';
+  var titleSpan=document.createElement('span');titleSpan.textContent='✏ Edit Text Label';
+  hdr.appendChild(titleSpan);hdr.appendChild(closeBtn);
+  var keyNote=document.createElement('div');
+  keyNote.style.cssText='font-size:9px;color:#64748B;margin-bottom:12px';
+  keyNote.innerHTML='Key: <code style="color:#0195af">'+_hesc(key)+'</code>';
+  /* Editable field */
+  var editLabel=document.createElement('label');
+  editLabel.style.cssText='font-size:10px;font-weight:700;color:#0195af;display:block;margin-bottom:4px';
+  editLabel.textContent=(_isAr?'Arabic (AR) ✏':'English (EN) ✏');
+  var editArea=document.createElement('textarea');
+  editArea.id='_teEditableField';editArea.rows=2;editArea.value=_editableVal;
+  editArea.style.cssText='width:100%;padding:9px;background:#1a3a5c;border:1.5px solid #0195af;border-radius:8px;color:#E2E8F0;font-size:12px;resize:vertical;box-sizing:border-box;font-family:inherit;direction:'+(_isAr?'rtl':'ltr');
+  var editWrap=document.createElement('div');editWrap.style.marginBottom='10px';
+  editWrap.appendChild(editLabel);editWrap.appendChild(editArea);
+  /* Fixed reference field */
+  var fixedLabel=document.createElement('label');
+  fixedLabel.style.cssText='font-size:10px;font-weight:700;color:#64748B;display:block;margin-bottom:4px';
+  fixedLabel.textContent=(_isAr?'English (EN) — reference':'Arabic (AR) — reference');
+  var fixedDiv=document.createElement('div');
+  fixedDiv.style.cssText='padding:9px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:'+(_fixedVal?'#94A3B8':'#475569')+';font-size:12px;min-height:36px;direction:'+(_isAr?'ltr':'rtl');
+  if(_fixedVal){fixedDiv.textContent=_fixedVal;}
+  else{var em=document.createElement('em');em.style.color='#475569';em.textContent='Not saved yet — switch language to add';fixedDiv.appendChild(em);}
+  var fixedInp=document.createElement('input');fixedInp.type='hidden';fixedInp.id='_teFixedField';fixedInp.value=_fixedVal||'';
+  var fixedWrap=document.createElement('div');fixedWrap.style.marginBottom='14px';
+  fixedWrap.appendChild(fixedLabel);fixedWrap.appendChild(fixedDiv);fixedWrap.appendChild(fixedInp);
+  /* Save button */
+  var saveBtn=document.createElement('button');
+  saveBtn.style.cssText='flex:2;padding:10px;background:linear-gradient(135deg,#152538,#0195af);border:0;border-radius:9px;color:#fff;font-size:12px;font-weight:700;cursor:pointer';
+  saveBtn.textContent='Save for All Users';
+  saveBtn.onclick=function(){_saveTextEditFor(key,(_isAr?'ar':'en'));};
+  var cancelBtn=document.createElement('button');
+  cancelBtn.style.cssText='flex:1;padding:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:9px;color:#94A3B8;font-size:12px;cursor:pointer';
+  cancelBtn.textContent='Cancel';
+  cancelBtn.onclick=function(){document.getElementById('_textEditorBox').remove();};
+  var btnRow=document.createElement('div');btnRow.style.cssText='display:flex;gap:8px';
+  btnRow.appendChild(saveBtn);btnRow.appendChild(cancelBtn);
+  box.appendChild(hdr);box.appendChild(keyNote);box.appendChild(editWrap);box.appendChild(fixedWrap);box.appendChild(btnRow);
+  document.body.appendChild(box);
+}
+
+async function _saveTextEditFor(key, lang2){
+  const editField=document.getElementById('_teEditableField');
+  const fixedField=document.getElementById('_teFixedField');
+  if(!editField)return;
+  const editVal=editField.value.trim();
+  const fixedVal=fixedField?fixedField.value:'';
   if(!ST.textEdits)ST.textEdits={};
-  ST.textEdits[key]={en,ar};
-  applyTextEdits();
-  sLS(ST);
-  if(typeof window._saveToFS==='function')window._saveToFS(ST);
-  if(typeof addAudit==='function')addAudit('TEXT_EDIT','Edited: '+key.substring(3,40),null,(lang==='ar'?ar:en)?.substring(0,60));
-  if(box)box.remove();
-  toast('\u2713 Text saved for all users');
+  const existing=ST.textEdits[key]||{};
+  if(lang2==='ar'){
+    ST.textEdits[key]={en:fixedVal||existing.en||'',ar:editVal};
+  } else {
+    ST.textEdits[key]={en:editVal,ar:fixedVal||existing.ar||''};
+  }
+  /* Apply immediately to DOM elements */
+  document.querySelectorAll('[data-en="'+key+'"],[data-ar="'+key+'"]').forEach(function(el){
+    const curLang=(typeof lang!=='undefined'&&lang==='ar')?'ar':'en';
+    const val=ST.textEdits[key][curLang];
+    if(val)el.textContent=val;
+  });
+  /* Save to Firestore */
+  if(typeof window._saveToFS==='function'&&window._fbUser){
+    try{
+      await window._saveToFS(ST);
+      if(typeof toast==='function') toast('✓ Text saved for all users');
+    }catch(e){
+      alert('Cloud save failed: '+(e.code||e.message));
+      return;
+    }
+  } else {
+    try{if(typeof sLS==='function')sLS(ST);}catch(_){}
+    if(typeof toast==='function') toast('⚠ Saved locally only');
+  }
+  const box=document.getElementById('_textEditorBox');if(box)box.remove();
 }
 
 function applyTextEdits(){
-  if(!ST.textEdits||!Object.keys(ST.textEdits).length)return;
-  /* Apply to data-en/data-ar static elements */
-  document.querySelectorAll('[data-en][data-ar]').forEach(el=>{
-    const k=_getTextKey(el);
-    const s=ST.textEdits[k];
-    if(!s)return;
-    if(s.en)el.dataset.en=s.en;
-    if(s.ar)el.dataset.ar=s.ar;
-    el.textContent=lang==='ar'?(s.ar||el.dataset.ar):(s.en||el.dataset.en);
-  });
-  /* Apply to dynamically rendered elements by key match */
-  const root=document.getElementById('root')||document.body;
-  root.querySelectorAll('div,span,p,h1,h2,h3,h4,td,th,label').forEach(el=>{
-    const k=_getTextKey(el);
-    const s=ST.textEdits[k];
-    if(!s)return;
-    const replacement=lang==='ar'?(s.ar||s.en):(s.en||s.ar);
-    if(!replacement)return;
-    /* Only touch direct text nodes */
-    [...el.childNodes].forEach(c=>{
-      if(c.nodeType===3&&c.textContent.trim().length>1)c.textContent=replacement;
+  if(!ST.textEdits) return;
+  const curLang=(typeof lang!=='undefined'&&lang==='ar')?'ar':'en';
+  Object.keys(ST.textEdits).forEach(function(key){
+    const val=ST.textEdits[key][curLang];
+    if(!val)return;
+    document.querySelectorAll('[data-en="'+key+'"],[data-ar="'+key+'"]').forEach(function(el){
+      el.textContent=val;
     });
   });
 }
-/* Hook renderCurrent to call applyTextEdits after each render */
-(function(){
-  const _orig=window.renderCurrent;
-  if(!_orig)return;
-  window.renderCurrent=function(){
-    const r=_orig.apply(this,arguments);
-    setTimeout(()=>{
-      if(typeof applyTextEdits==='function') applyTextEdits();
-      if(typeof _textEditMode!=='undefined'&&_textEditMode&&typeof _attachTextEditPencils==='function') _attachTextEditPencils();
-    },30);
-    return r;
-  };
-})();
-
-/* ══════════════════════════════
-   CORE NAVIGATION — switchTab + renderCurrent
-   These were missing — restoring them
-   ══════════════════════════════ */
-function switchTab(page, el){
-  /* Update tab highlight */
-  document.querySelectorAll('.tabnav .tab').forEach(t=>t.classList.remove('on'));
-  if(el) el.classList.add('on');
-  else {
-    /* Find matching tab by onclick */
-    const found=document.querySelector(`.tabnav .tab[onclick*="'${page}'"]`);
-    if(found)found.classList.add('on');
-  }
-
-  /* Show/hide pages via .on class (matches .page{display:none} / .page.on{display:block}) */
-  document.querySelectorAll('.page').forEach(d=>d.classList.remove('on'));
-  const target=document.getElementById('page-'+page);
-  if(target) target.classList.add('on');
-
-  /* Update global state */
-  curPage=page;
-  window.curPage=page;
-
-  renderCurrent();
-}
-
-function renderCurrent(){
-  const page=window.curPage||curPage||'exec';
-  /* Ensure the active page div is visible */
-  document.querySelectorAll('.page').forEach(d=>d.classList.remove('on'));
-  const target=document.getElementById('page-'+page);
-  if(target)target.classList.add('on');
-
-  try{
-    if(page==='exec'||page==='executive'){
-      if(typeof renderExec==='function') renderExec();
-    } else if(page==='dept'||page==='departments'){
-      if(typeof renderDept==='function') renderDept();
-    } else if(page==='registry'){
-      if(typeof renderRegistry==='function') renderRegistry();
-    } else if(page==='accountability'){
-      if(typeof renderAcc==='function') renderAcc();
-      else if(typeof renderAcct==='function') renderAcct();
-    } else if(page==='report'){
-      if(typeof renderReport==='function') renderReport();
-    }
-  }catch(e){ console.warn('[renderCurrent] Error rendering page:',page,e); }
-
-  /* Apply saved text translations */
-  if(typeof applyTextEdits==='function') setTimeout(applyTextEdits,15);
-  /* Re-attach edit pencils if edit mode on */
-  if(typeof _textEditMode!=='undefined'&&_textEditMode&&typeof _attachAllTextPencils==='function') setTimeout(_attachAllTextPencils,30);
-}
-
-/* Export to window scope (needed by Firebase module + notification blocks) */
-window.switchTab=switchTab;
-window.renderCurrent=renderCurrent;
-window.updateBadge=typeof updateBadge!=='undefined'?updateBadge:function(){};
-window.updateChips=typeof updateChips!=='undefined'?updateChips:function(){};
-window.renderYearFilter=typeof renderYearFilter!=='undefined'?renderYearFilter:function(){};
 
 /* ── CHARTS ── */
 function dch(id){if(CH[id]){try{CH[id].destroy()}catch(e){}delete CH[id];}}
@@ -6064,7 +6137,7 @@ function renderDept(){
       }())
       +'<div style="margin-top:auto;padding:7px 12px;border-top:1px solid '+(isMiss?'rgba(220,38,38,.10)':'#F0F4F8')+';background:'+(isMiss?'rgba(220,38,38,.02)':'#FAFBFC')+';display:flex;align-items:center;justify-content:space-between;min-height:36px">'
         +(isMiss?'<span style="font-size:9px;color:#64748B">'+(gd.gapEn?gd.gapEn.slice(0,40)+'…':'Root cause not documented')+'</span><button onclick="openGap(\''+k.id+'\')" style="font-size:9px;font-weight:700;color:#DC2626;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.18);border-radius:6px;padding:4px 9px;cursor:pointer;font-family:inherit">Gap »</button>'
-        :'<span style="font-size:9px;color:#94A3B8">'+(a===true?'\u2713 Met':'\u23f3 Pending')+'</span>'+(_qtrGapHas?'<button onclick="openGap(\''+k.id+'\')\" style="font-size:9px;font-weight:700;color:#C42B2B;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.18);border-radius:6px;padding:4px 9px;cursor:pointer;font-family:inherit">\u26a0\ufe0f Quarter Gap \u00bb</button>':''))
+        :'<span style="font-size:9px;color:#94A3B8">'+(a===true?'\u2713 Met':'\u23f3 Pending')+'</span>'+(_qtrGapHas?'<button onclick="openGap(\''+k.id+'\')\" style="font-size:9px;font-weight:700;color:#D97706;background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.2);border-radius:6px;padding:4px 9px;cursor:pointer;font-family:inherit">\u26a0\ufe0f Quarter Gap \u00bb</button>':''))
       +'</div>'
     +'</div>';
   }
@@ -6411,9 +6484,9 @@ function openGapQuarter(id,qtr){
     const _fixedOwner = DEPT_OWNERS[k.dept] || '';
     const _ownerVal = _gd2.owner || _fixedOwner || window._fbName || '';
     const _eForm=document.createElement('div');
-    _eForm.style.cssText='margin-top:16px;padding:16px;background:rgba(220,38,38,.04);border:1px solid rgba(220,38,38,.20);border-radius:12px';
+    _eForm.style.cssText='margin-top:16px;padding:16px;background:rgba(217,119,6,.06);border:1px solid rgba(217,119,6,.25);border-radius:12px';
     _eForm.innerHTML=`
-      <div style="font-size:11px;font-weight:800;color:#C42B2B;margin-bottom:12px;display:flex;align-items:center;gap:6px">
+      <div style="font-size:11px;font-weight:800;color:#D97706;margin-bottom:12px;display:flex;align-items:center;gap:6px">
         ${lang==='ar'?'تحديث تحليل الفجوة':'Gap Analysis Update'} — ${QLBL[qtr]}
       </div>
       <div style="margin-bottom:10px">
@@ -6460,7 +6533,7 @@ function openGapQuarter(id,qtr){
         Mark as At Risk
       </label>
       <div id="kpo_fb_${id}_${qtr}" style="display:none;font-size:11px;font-weight:600;padding:6px 10px;border-radius:6px;margin-bottom:8px"></div>
-      <button onclick="saveGapKPO('${id}','${qtr}')" style="width:100%;padding:9px;background:#C42B2B;border:none;border-radius:8px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+      <button onclick="saveGapKPO('${id}','${qtr}')" style="width:100%;padding:9px;background:#D97706;border:none;border-radius:8px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
         Save Gap Analysis
       </button>`;
@@ -6582,6 +6655,16 @@ function openLock(){
     if(typeof popAdminSels==='function')popAdminSels();
     if(typeof loadAuditLog==='function')loadAuditLog();
     const admin=document.getElementById('adminOv');if(admin)admin.classList.add('open');
+    /* Ensure at least one tab is active (default: Add KPI) */
+    setTimeout(()=>{
+      const hasActive=document.querySelector('.ap.on');
+      if(!hasActive){
+        const defaultTab=document.getElementById('ap-add');
+        if(defaultTab){defaultTab.classList.add('on');}
+        const defaultBtn=document.querySelector('.atb[onclick*="add"]');
+        if(defaultBtn){document.querySelectorAll('.atb').forEach(t=>t.classList.remove('on'));defaultBtn.classList.add('on');}
+      }
+    },50);
     if(typeof addAudit==='function'){try{addAudit('ADMIN_OPEN','Admin tools opened by role '+role);}catch(_){}}
     if(typeof resetAdminTimer==='function')resetAdminTimer();
     return;
@@ -6679,22 +6762,94 @@ function populateKpiNamePresets(){
   if(en)en.innerHTML='<option value="" selected disabled>— Select KPI name —</option>'+bank.en.map(v=>`<option value="${htmlEsc(v)}">${htmlEsc(v)}</option>`).join('')+'<option value="__other__">Other — add new name</option>';
   if(ar)ar.innerHTML='<option value="" selected disabled>— اختر اسم المؤشر —</option>'+bank.ar.map(v=>`<option value="${htmlEsc(v)}">${htmlEsc(v)}</option>`).join('')+'<option value="__other__">Other — إضافة اسم جديد</option>';
 }
-function _loadPciColsForKpi(kpid){
-  if(!kpid||kpid==='other'||!ST.pciConfig?.kpiCols?.[kpid])return;
-  const cols=ST.pciConfig.kpiCols[kpid];
-  const a=document.getElementById('aColA');if(a&&cols.a)a.value=cols.a;
-  const b=document.getElementById('aColB');if(b&&cols.b)b.value=cols.b;
-  const c=document.getElementById('aColC');if(c&&cols.c)c.value=cols.c;
-}
 function handleKpiNamePreset(langKey){
   const sel=document.getElementById(langKey==='en'?'aNEPreset':'aNAPreset');
   const inp=document.getElementById(langKey==='en'?'aNE':'aNA');
   if(!sel||!inp)return;
   if(sel.value==='__other__'){
-    inp.value='';inp.readOnly=false;inp.style.background='#fff';inp.placeholder=langKey==='en'?'Type a new English KPI name…':'اكتب اسم مؤشر عربي جديد…';inp.focus();
+    inp.value='';inp.readOnly=false;inp.style.background='#fff';
+    inp.placeholder=langKey==='en'?'Type a new English KPI name…':'اكتب اسم مؤشر عربي جديد…';
+    inp.focus();
   }else{
     inp.value=sel.value;inp.readOnly=true;inp.style.background='#F8FAFC';
+    /* Load PCI table config for this KPI */
+    if(langKey==='en'){
+      /* Find KPI id by EN name */
+      const kpiId=(function(){
+        const k=allK().find(function(x){return x.nameEn===sel.value||x.id===sel.value;});
+        return k?k.id:'';
+      })();
+      if(kpiId) _loadAndRenderAddKpiTable(kpiId);
+    }
   }
+}
+
+function _loadAndRenderAddKpiTable(kpiId){
+  const config=ST.pciConfig?.kpiTables?.[kpiId];
+  if(!config)return;
+  const cols=config.cols||[];
+  const formula=config.formula||'B/A*100';
+  const resultType=config.resultType||'formula';
+  /* Update formula input */
+  const fInp=document.getElementById('aResultFormula');
+  if(fInp)fInp.value=formula;
+  /* Rebuild table columns */
+  _rebuildAddKpiTable(cols,formula,resultType);
+}
+
+function _rebuildAddKpiTable(cols,formula,resultType){
+  const tbody=document.querySelector('#pci-add-wrap table tbody, .pci-table tbody');
+  const thead=document.querySelector('#pci-add-wrap table thead, .pci-table thead');
+  if(!thead||!tbody)return;
+  const visibleCols=cols.filter(function(c){return !c.hidden;});
+  /* Rebuild header */
+  const hRow=thead.querySelector('tr');
+  if(!hRow)return;
+  /* Keep QTR th, rebuild data cols, keep Result */
+  const ths=Array.from(hRow.querySelectorAll('th'));
+  const qtrTh=ths[0];
+  const resTh=ths[ths.length-1];
+  /* Remove old data column headers */
+  while(hRow.children.length>1) hRow.removeChild(hRow.lastChild);
+  /* Add new data column headers */
+  visibleCols.forEach(function(col){
+    const th=document.createElement('th');
+    const bg=col.bg||'';const fc=col.fc||'';
+    th.style.cssText='min-width:80px;padding:4px 6px'+(bg?';background:'+bg:'');
+    th.innerHTML='<div style="font-size:10px;font-weight:900;color:'+(fc||'#93C5FD')+'">'+col.l+'</div>'
+      +'<div style="font-size:9px;color:'+(fc||'#94A3B8')+'">'+col.n+'</div>';
+    hRow.appendChild(th);
+  });
+  /* Add Result header back */
+  hRow.appendChild(resTh);
+  /* Rebuild data rows */
+  const rows=Array.from(tbody.querySelectorAll('tr'));
+  rows.forEach(function(row,ri){
+    const cells=Array.from(row.querySelectorAll('td'));
+    const qtrCell=cells[0];
+    const resCell=cells[cells.length-1];
+    const Q=['Q1','Q2','Q3','Q4'][ri];if(!Q)return;
+    while(row.children.length>1) row.removeChild(row.lastChild);
+    visibleCols.forEach(function(col,ci){
+      const td=document.createElement('td');
+      td.style.padding='2px 4px';
+      const inp=document.createElement('input');
+      inp.type='number';inp.min='0';inp.placeholder='0';
+      const bg=col.bg||'rgba(255,255,255,.04)';const fc=col.fc||'#E2E8F0';
+      inp.style.cssText='width:100%;background:'+bg+';border:1px solid rgba(255,255,255,.08);border-radius:4px;color:'+fc+';font-size:11px;padding:4px 6px;box-sizing:border-box;text-align:right';
+      /* Map col letter to existing inputs */
+      const legacyId='aAd'+Q+'_'+(['pl','co','ic'][ci]||('c'+ci));
+      inp.id=legacyId;
+      inp.addEventListener('input',function(){calcAdminPCI(Q.toLowerCase(),'aAd');});
+      td.appendChild(inp);
+      row.appendChild(td);
+    });
+    row.appendChild(resCell);
+  });
+  /* Update formula in calcAdminPCI's read target */
+  const fInp=document.getElementById('aResultFormula');
+  if(fInp)fInp.value=formula||'B/A*100';
+  recalcAllAddPCI();
 }
 function persistKpiNameToBank(enName,arName){
   const bank=getKpiNameBank();
@@ -6736,13 +6891,6 @@ function parseGapKey(v){
 function loadEK(){
   const id=document.getElementById('eSel').value;if(!id)return;
   const k=allK().find(x=>x.id===id);if(!k)return;
-  /* Load saved PCI column names for this KPI */
-  const _savedCols=ST.pciConfig?.kpiCols?.[id];
-  if(_savedCols){
-    const ea=document.getElementById('eColA');if(ea&&_savedCols.a)ea.value=_savedCols.a;
-    const eb=document.getElementById('eColB');if(eb&&_savedCols.b)eb.value=_savedCols.b;
-    const ec=document.getElementById('eColC');if(ec&&_savedCols.c)ec.value=_savedCols.c;
-  }
   /* Populate editable Code + Name fields */
   const eCEl=document.getElementById('eC');if(eCEl)eCEl.value=k.id;
   const eNEEl=document.getElementById('eNE');if(eNEEl)eNEEl.value=k.nameEn||'';
@@ -6773,6 +6921,19 @@ function loadEK(){
   const meta=document.getElementById('eKpiMeta');if(meta){
     const v=qv(k),a=ok(k);
     meta.innerHTML=`<span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span><span style="font-size:9px;color:var(--t3)">${DM[k.dept]?.en||k.dept} · ${k.yr}</span><span class="${a===null?'pill-pend':a?'pill-ok':'pill-miss'}" style="font-size:8.5px">${a===null?'Pending':a?' Met':' Missed'}</span>${v!==null?`<span style="font-size:10px;font-weight:700;color:${metStatus(k,v)?'var(--green)':'var(--red)'};background:${metStatus(k,v)?'var(--green-dim)':'var(--red-dim)'};padding:2px 7px;border-radius:4px">${v.toFixed(1)}% / ${k.target}%</span>`:''}`;
+  }
+
+  /* Load PCI table config for this KPI from ST.pciConfig */
+  const _sCfg=ST.pciConfig?.kpiTables?.[id];
+  if(_sCfg&&typeof _rebuildEditKpiTable==='function'){
+    const eCols=_sCfg.cols||[];
+    const eFormula=_sCfg.formula||'B/A*100';
+    const eResType=_sCfg.resultType||'formula';
+    setTimeout(function(){
+      const eFInp=document.getElementById('eResultFormula');
+      if(eFInp)eFInp.value=eFormula;
+      _rebuildEditKpiTable(eCols,eFormula,eResType);
+    },80);
   }
 }
 function loadGD(){
@@ -6900,9 +7061,11 @@ function refreshAllViewsAfterKpiChange(reason){
   console.log('[Dashboard] ── Refresh complete ──');
 }
 
-async function saveNewKPI(){
+async function _saveNewKPILegacy_DO_NOT_CALL(){
   const fb=document.getElementById('_addFeedback');
   function _showFb(msg,ok){
+    /* Always show via toast as fallback */
+    if(typeof toast==='function') toast((ok?'✓ ':'⚠ ')+msg.replace(/<[^>]+>/g,''));
     if(!fb)return;
     fb.innerHTML=msg;
     fb.style.color=ok?'#16A34A':'#DC2626';
@@ -6930,8 +7093,8 @@ async function saveNewKPI(){
   const _req=[
     {id:'aC',lbl:'KPI Code'},{id:'aDp',lbl:'Department'},
     {id:'aO',lbl:'Operator'},{id:'aTier',lbl:'Risk Tier'},
-    {id:'aTg',lbl:'Target'},{id:'aY',lbl:'Year'},{id:'aNE',lbl:'KPI Name (EN)'},{id:'aNA',lbl:'KPI Name (AR)'}
-  ];
+    {id:'aTg',lbl:'Target'},{id:'aY',lbl:'Year'},{id:'aNE',lbl:'KPI Name (EN)'}
+  ]; /* aNA optional */
   let ok=true;
   _req.forEach(r=>{
     const el=document.getElementById(r.id);if(!el)return;
@@ -6960,7 +7123,7 @@ async function saveNewKPI(){
   };
 
   /* Verify all critical fields exist before building object */
-  const _critical=['aDp','aO','aTier','aY','aNE','aNA','aTg','aQ1','aQ2','aQ3','aQ4'];
+  const _critical=['aDp','aO','aTier','aY','aNE','aTg']; /* aNA optional; aQ1-aQ4 computed */
   const _missing=_critical.filter(id=>!document.getElementById(id));
   if(_missing.length){
     _showFb('⚠ Missing form fields: '+_missing.join(', ')+' — Please reload admin panel',false);
@@ -6989,7 +7152,7 @@ async function saveNewKPI(){
   if(!ST.added)ST.added=[];
   ST.added=ST.added.filter(k=>k.id!==code);
   ST.added.push(kpiObj);
-  /* Save PCI counts in the same dashboard state so KPI cards can reveal planned/complete/incomplete counts */
+  /* Save PCI counts */
   if(!ST.pci)ST.pci={};
   ST.pci[code]={};
   ['Q1','Q2','Q3','Q4'].forEach(Q=>{
@@ -7001,7 +7164,21 @@ async function saveNewKPI(){
       ST.pci[code][q]={planned,complete,incomplete};
     }
   });
-  console.log('[saveNewKPI] KPI count AFTER push to ST.added:', allK().length, '| new KPI:', kpiObj.id);
+  console.log('[saveNewKPI] KPI count AFTER push:', allK().length, '| new KPI:', kpiObj.id);
+
+  /* ── 4b. Adjust filters FIRST so new KPI is visible on first render ── */
+  (function _adjustFiltersNow(){
+    const _yr=String(kpiObj.yr);
+    /* Always show the year of the new KPI */
+    F.year=_yr;
+    /* Always show all quarters so KPI is visible even with no data */
+    F.qtr=['q1','q2','q3','q4'];
+    /* Show the dept of the new KPI (unless user is locked to another dept) */
+    if(!window._lockedDept){
+      F.dept=kpiObj.dept;
+    }
+    console.log('[saveNewKPI] Filters pre-set to year='+_yr+' dept='+F.dept);
+  })();
 
   /* Update localStorage immediately */
   try{
@@ -7011,7 +7188,7 @@ async function saveNewKPI(){
     console.warn('[saveNewKPI] localStorage write failed');
   }
 
-  /* Refresh ALL dashboard views with the new local state */
+  /* Refresh ALL dashboard views — filters already correct so new KPI shows immediately */
   refreshAllViewsAfterKpiChange('KPI_ADD:'+code);
   console.log('[saveNewKPI] Local views refreshed — KPI count now:', allK().length);
 
@@ -7027,17 +7204,8 @@ async function saveNewKPI(){
       fsSaved=true;
       console.log('[saveNewKPI] Firestore write CONFIRMED ✓');
 
-      /* ── 6b. Reload state from Firestore to ensure consistency ── */
-      if(typeof window._loadFromFS==='function'){
-        const fsData=await window._loadFromFS();
-        if(fsData){
-          const safeFields=['ov','added','gaps','actions','rptEdits','deleted','pci'];
-          safeFields.forEach(f=>{ if(fsData[f]!==undefined) ST[f]=fsData[f]; });
-          try{localStorage.setItem('kpi_v3',JSON.stringify({...ST,_v:3}));}catch(_){}
-          console.log('[saveNewKPI] Re-synced from Firestore. allK() count:', allK().length);
-          console.log('[saveNewKPI] New KPI present after Firestore reload:', allK().some(k=>k.id===code));
-        }
-      }
+      /* ── 6b. Re-render immediately with confirmed Firestore data ── */
+      console.log('[saveNewKPI] Firestore confirmed — re-rendering dashboard');
 
       /* ── 6c. Refresh ALL views again with Firestore-confirmed data ── */
       refreshAllViewsAfterKpiChange('KPI_ADD:'+code+':firestore-synced');
@@ -7058,32 +7226,9 @@ async function saveNewKPI(){
     _showFb('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg> KPI saved locally — cloud sync pending (visible after next login sync)',false);
   }
 
-  /* ── 8. Jump filters so the new KPI is immediately VISIBLE on dashboard ── */
-  const _kpiYear=String(kpiObj.yr);
-  let _filtersChanged=false;
-  if(F.year!=='all' && F.year!==_kpiYear){
-    console.log('[saveNewKPI] Switching Year filter from',F.year,'to',_kpiYear,'so new KPI is visible');
-    F.year=_kpiYear;
-    _filtersChanged=true;
-  }
-  if(F.dept!=='all' && F.dept!==kpiObj.dept && !window._lockedDept){
-    console.log('[saveNewKPI] Switching Dept filter from',F.dept,'to',kpiObj.dept);
-    F.dept=kpiObj.dept;
-    _filtersChanged=true;
-  }
-  const _newKpiQtrs=['q1','q2','q3','q4'].filter(q=>kpiObj[q]!==null);
-  if(Array.isArray(F.qtr) && _newKpiQtrs.length && !_newKpiQtrs.some(q=>F.qtr.includes(q))){
-    F.qtr=_newKpiQtrs;
-    _filtersChanged=true;
-  }
-  if(Array.isArray(F.qtr) && !_newKpiQtrs.length){
-    F.qtr=['q1','q2','q3','q4'];
-    _filtersChanged=true;
-  }
-  if(_filtersChanged){
-    refreshAllViewsAfterKpiChange('KPI_ADD:'+code+':filters-adjusted');
-    console.log('[saveNewKPI] Filters adjusted + views refreshed so',code,'is visible now');
-  }
+  /* ── 8. Final render confirmation ── */
+  /* Filters were already set in step 4b, just re-render to confirm */
+  refreshAllViewsAfterKpiChange('KPI_ADD:'+code+':confirmed');
   console.log('[saveNewKPI] Final check — is',code,'visible in filt()?',filt().some(k=>k.id===code));
 
   /* ── 9. Audit + clear form ── */
@@ -7112,7 +7257,16 @@ async function saveNewKPI(){
 }
 
 function saveAdmin(){
-  const ap=document.querySelector('.ap.on').id;let action='',detail='';
+  const _apEl=document.querySelector('.ap.on');
+  if(!_apEl){
+    /* No active tab — auto-detect which tab has visible content */
+    const _tabs=['ap-add','ap-edit','ap-del','ap-gap','ap-auditlog'];
+    const _visible=_tabs.find(id=>{ const el=document.getElementById(id); return el&&el.classList.contains('on'); });
+    if(!_visible){ if(typeof toast==='function') toast('⚠ Please select a tab first'); return; }
+    const _apElFallback=document.getElementById(_visible);
+    if(_apElFallback&&_visible==='ap-add'){ saveNewKPI(); return; }
+  }
+  const ap=_apEl?_apEl.id:'ap-add';let action='',detail='';
   if(ap==='ap-edit'){
   /* Required fields validation */
   const _eReq=[
@@ -7631,42 +7785,348 @@ window.addEventListener('storage',e=>{
     }catch{}
   }
 });
-</script>
-<!-- ══ AI Personal Assistant ══ -->
-<div id="aiFab" onclick="aiToggle()" onmouseout="this.style.transform='scale(1)'" onmouseover="this.style.transform='scale(1.12)'" style="position:fixed;bottom:28px;right:28px;z-index:9980;width:54px;display:none;height:54px;border-radius:50%;background:linear-gradient(135deg,#152538,#00A3C4);box-shadow:0 6px 22px rgba(0,163,196,.42);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s">
-<svg fill="none" height="24" stroke="#fff" stroke-width="2.2" viewbox="0 0 24 24" width="24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-</div>
-<div id="aiWin" style="display:none;position:fixed;bottom:96px;right:28px;z-index:9989;width:385px;max-height:585px;border-radius:18px;background:#fff;box-shadow:0 22px 70px rgba(13,31,60,.22);border:1px solid rgba(0,163,196,.13);overflow:hidden;flex-direction:column">
-<div style="background:linear-gradient(135deg,#152538,#1E3356);padding:15px 18px 13px;display:flex;align-items:center;gap:12px;flex-shrink:0">
-<div style="width:40px;height:40px;border-radius:12px;background:rgba(0,163,196,.2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0"></div>
-<div style="flex:1"><div style="font-size:13px;font-weight:800;color:#fff">QUMC AI Assistant</div><div style="font-size:9.5px;color:rgba(1,149,175,.70);margin-top:1px">محلل بيانات ذكي · Smart KPI Analyst</div></div>
-<div style="display:flex;align-items:center;gap:5px"><div style="width:7px;height:7px;border-radius:50%;background:#34D399;box-shadow:0 0 6px #34D399"></div><span style="font-size:9px;color:rgba(255,255,255,.50)">Live</span></div>
-<button onclick="aiToggle()" onmouseout="this.style.background='rgba(255,255,255,.1)'" onmouseover="this.style.background='rgba(255,255,255,.2)'" style="background:rgba(255,255,255,.1);border:none;color:rgba(255,255,255,.75);cursor:pointer;font-size:17px;width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-left:4px;transition:background .15s">×</button>
-</div>
-<div id="aiSugg" style="padding:10px 14px 9px;background:#F8FAFC;border-bottom:1px solid rgba(0,163,196,.09);flex-shrink:0">
-<div style="font-size:9px;font-weight:700;color:#94A3B8;letter-spacing:.08em;text-transform:uppercase;margin-bottom:7px">اقتراحات سريعة</div>
-<div style="display:flex;flex-wrap:wrap;gap:6px">
-<button class="ai-chip" onclick="aiAsk('الأداء العام')"> الأداء العام</button>
-<button class="ai-chip" onclick="aiAsk('المؤشرات غير المحققة')"> غير المحققة</button>
-<button class="ai-chip" onclick="aiAsk('مقارنة الأقسام')"> مقارنة</button>
-<button class="ai-chip" onclick="aiAsk('توصيات لتحسين الأداء')"> توصيات</button>
-<button class="ai-chip" onclick="aiAsk('الأداء الربعي')"> ربعي</button>
-</div>
-</div>
-<div id="aiMsgs" style="flex:1;overflow-y:auto;padding:14px 13px;display:flex;flex-direction:column;gap:11px;min-height:190px;max-height:310px;background:#fff">
-<div style="display:flex;gap:9px;align-items:flex-start">
-<div style="width:30px;height:30px;border-radius:10px;background:linear-gradient(135deg,#152538,#00A3C4);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0"></div>
-<div style="background:#F0F9FF;border:1px solid #BFDBFE;border-radius:4px 14px 14px 14px;padding:11px 13px;font-size:12px;color:#1E293B;line-height:1.70;max-width:87%">مرحباً! أنا مساعدك الذكي لتحليل بيانات <strong>QUMC KPI Dashboard</strong>.<br/>اسألني عن الأداء، الأقسام، المؤشرات، أو اطلب توصيات </div>
-</div>
-</div>
-<div style="padding:11px 13px;border-top:1px solid rgba(0,163,196,.10);background:#FAFBFC;display:flex;gap:8px;align-items:flex-end;flex-shrink:0">
-<textarea id="aiInp" onblur="this.style.borderColor='#E2E8F0'" onfocus="this.style.borderColor='#00A3C4'" onkeydown="if(event.key==='Enter'&amp;&amp;!event.shiftKey){event.preventDefault();aiSend();}" placeholder="اسأل عن الداشبورد... (عربي أو إنجليزي)" rows="2" style="flex:1;border:1.5px solid #E2E8F0;border-radius:11px;padding:9px 12px;font-family:inherit;font-size:12px;resize:none;outline:none;color:#1E293B;line-height:1.5;background:#fff;transition:border-color .2s"></textarea>
-<button id="aiSendBtn" onclick="aiSend()" onmouseout="this.style.transform='none'" onmouseover="this.style.transform='translateY(-1px)'" style="width:40px;height:40px;background:linear-gradient(135deg,#152538,#00A3C4);border:none;border-radius:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 3px 10px rgba(0,163,196,.30);transition:all .2s">
-<svg fill="none" height="15" stroke="#fff" stroke-width="2.5" viewbox="0 0 24 24" width="15"><line x1="22" x2="11" y1="2" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-</button>
-</div>
-</div>
-<script>
+
+/* ══ SUPER ADMIN HUB FUNCTIONS ══ */
+function _saHesc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+
+function _showSuperAdminHub(){
+  const doShow=function(){
+    const hub=document.getElementById('_saHub');if(!hub)return;
+    hub.style.display='block';
+    /* Pending badge */
+    const reqs=(ST.requests||[]).filter(function(r){return r.status==='pending';});
+    const badge=document.getElementById('_saReqBadge');
+    const cnt=document.getElementById('_saReqCount');
+    if(badge){badge.textContent=reqs.length+' pending';badge.style.display=reqs.length?'block':'none';}
+    if(cnt){cnt.textContent=reqs.length+' Pending';cnt.style.display=reqs.length?'block':'none';}
+  };
+  if(typeof window._onFSLoaded==='function'){window._onFSLoaded().then(doShow).catch(doShow);}
+  else{doShow();}
+}
+function _saBackNav(){
+  /* Super Admin goes back to Performance Hub, others go to portal */
+  if(window._fbRole==='super_admin'){
+    /* Hide dashboard, show SA hub */
+    const hub=document.getElementById('_saHub');
+    if(hub){hub.style.display='block';}
+    else {if(typeof window._backToPortal==='function')window._backToPortal();}
+  } else {
+    if(typeof window._backToPortal==='function')window._backToPortal();
+  }
+}
+function _saHubBack(){
+  document.getElementById('_saHub').style.display='none';
+  ['_bgLayer','_portalOverlay'].forEach(function(id){const el=document.getElementById(id);if(el)el.style.display='flex';});
+}
+function _saOpenDashboard(){
+  document.getElementById('_saHub').style.display='none';
+  const root=document.getElementById('root');if(root)root.style.display='';
+  (async function(){
+    if(typeof window.applyRolePermissions==='function')window.applyRolePermissions(window._fbRole,window._fbDept,window._fbPerms);
+    if(typeof window.updateUserBadge==='function')window.updateUserBadge(window._fbName,window._fbRole,window._fbPerms);
+    if(typeof window._onFSLoaded==='function'){try{await window._onFSLoaded();}catch(e){}}
+    if(typeof window.renderCurrent==='function')window.renderCurrent();
+    setTimeout(function(){if(typeof window.renderNotifications==='function')window.renderNotifications(true);},500);
+  })();
+}
+function _saOpenKpiTable(){
+  document.getElementById('_saKpiPanel').style.display='block';
+  const sel=document.getElementById('_saKpiSel');
+  if(sel&&typeof allK==='function'){
+    sel.innerHTML='<option value="">— Select KPI —</option>';
+    allK().forEach(function(k){
+      const o=document.createElement('option');
+      o.value=k.id;o.textContent=(k.nameEn||(k.nameAr||k.id))+(k.nameAr&&k.nameEn?' / '+k.nameAr:'');
+      sel.appendChild(o);
+    });
+  }
+  document.getElementById('_saKpiTableInfo').style.display='block';
+  document.getElementById('_saKpiTableEl').style.display='none';
+}
+function _saKpiTableLoad(){
+  const kpid=document.getElementById('_saKpiSel')?.value;
+  const tbl=document.getElementById('_saKpiTableEl');
+  const info=document.getElementById('_saKpiTableInfo');
+  if(!kpid){if(tbl)tbl.style.display='none';if(info)info.style.display='block';return;}
+  if(info)info.style.display='none';
+  /* Load saved config */
+  const saved=ST.pciConfig?.kpiTables?.[kpid]||null;
+  const cols=saved?.cols||[{l:'A',n:'Planned',bg:'',fc:'',hidden:false},{l:'B',n:'Complete',bg:'',fc:'',hidden:false},{l:'C',n:'Incomplete',bg:'',fc:'',hidden:false}];
+  const resultType=saved?.resultType||'formula';
+  const formula=saved?.formula||'B/A*100';
+  /* Render editable table with column settings (REQ 2+3) */
+  var head='<tr><th style="padding:6px 10px;background:#0f2444;color:#94A3B8;font-size:10px;width:50px">QTR</th>';
+  cols.forEach(function(col){
+    var bgPrev=col.bg||'';var fcPrev=col.fc||'#93C5FD';
+    head+='<th style="padding:5px 4px;background:#0f2444;min-width:110px'+(col.hidden?';opacity:.4':'')+'">'
+      +'<div style="font-size:11px;font-weight:900;color:'+fcPrev+';text-align:center;margin-bottom:3px">'+_saHesc(col.l)+'</div>'
+      +'<input data-col-name="'+_saHesc(col.l)+'" value="'+_saHesc(col.n)+'" placeholder="EN Name" title="Column English Name" style="width:100%;background:#1a3a5c;border:1px solid rgba(147,197,253,.3);color:#93C5FD;font-size:9px;border-radius:4px;padding:2px 4px;box-sizing:border-box;margin-bottom:3px">'
+      +'<div style="display:flex;gap:3px;margin-bottom:3px">'
+        +'<div style="flex:1"><div style="font-size:7px;color:#64748B;margin-bottom:1px">BG</div><input type="color" data-col-bg="'+_saHesc(col.l)+'" value="'+(col.bg||'#1a3a5c')+'" style="width:100%;height:20px;border:0;border-radius:3px;cursor:pointer"></div>'
+        +'<div style="flex:1"><div style="font-size:7px;color:#64748B;margin-bottom:1px">Text</div><input type="color" data-col-fc="'+_saHesc(col.l)+'" value="'+(col.fc||'#93C5FD')+'" style="width:100%;height:20px;border:0;border-radius:3px;cursor:pointer"></div>'
+      +'</div>'
+      +'<label style="display:flex;align-items:center;gap:3px;font-size:8px;color:#64748B;cursor:pointer"><input type="checkbox" data-col-hide="'+_saHesc(col.l)+'"'+(col.hidden?' checked':'')+' style="width:10px;height:10px"> Hide Column</label>'
+    +'</th>';
+  });
+  /* Result column */
+  var resType=resultType||'formula';
+  head+='<th style="padding:5px 4px;background:#0f2444;min-width:140px">'
+    +'<div style="font-size:10px;font-weight:800;color:#67E8F9;margin-bottom:4px">Result</div>'
+    +'<select id="_saResType" onchange="_saToggleResType()" style="width:100%;background:#1a3a5c;border:1px solid rgba(103,232,249,.3);color:#67E8F9;font-size:9px;border-radius:4px;padding:2px 4px;margin-bottom:4px">'
+      +'<option value="formula"'+(resType==='formula'?' selected':'')+'>Formula</option>'
+      +'<option value="manual"'+(resType==='manual'?' selected':'')+'>Manual Input</option>'
+    +'</select>'
+    +'<div id="_saFormulaWrap" style="display:'+(resType==='formula'?'block':'none')+'">'
+      +'<div style="font-size:7px;color:#64748B;margin-bottom:2px">Use column letters (A,B,C…) as variables</div>'
+      +'<input id="_saFormula" value="'+_saHesc(formula)+'" placeholder="e.g. B/A*100" style="width:100%;background:#1a3a5c;border:1px solid rgba(103,232,249,.3);color:#67E8F9;font-size:9px;border-radius:4px;padding:2px 4px;box-sizing:border-box">'
+    +'</div>'
+    +'<div id="_saManualNote" style="display:'+(resType==='manual'?'block':'none')+';font-size:8px;color:#94A3B8;line-height:1.4">Users enter result value directly in cells</div>'
+  +'</th></tr>';
+  var body=['Q1','Q2','Q3','Q4'].map(function(q){
+    var row='<tr><td style="padding:5px 8px;font-size:10px;font-weight:700;color:#94A3B8">'+q+'</td>';
+    cols.forEach(function(col){
+      var bg=col.bg||'rgba(255,255,255,.04)';var fc=col.fc||'#E2E8F0';
+      var hidden=col.hidden?'opacity:.3;':''
+      row+='<td style="padding:2px;'+hidden+'"><input type="number" min="0" placeholder="0"'+(col.hidden?' disabled':'')+' style="width:100%;background:'+bg+';border:1px solid rgba(255,255,255,.08);border-radius:4px;color:'+fc+';font-size:11px;padding:4px 5px;box-sizing:border-box;text-align:right"></td>';
+    });
+    row+='<td style="padding:5px;text-align:center"><span style="font-size:11px;font-weight:800;color:#67E8F9">—</span></td></tr>';
+    return row;
+  }).join('');
+  var footer='<tr><td colspan="'+(cols.length+2)+'" style="padding:8px 10px">'
+    +'<button onclick="_saAddCol(\''+kpid+'\')" style="background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.3);border-radius:5px;color:#0195af;font-size:9px;font-weight:700;cursor:pointer;padding:3px 10px;margin-right:6px">+ Add Column</button>'
+    +'<button onclick="_saRemoveCol(\''+kpid+'\')" style="background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.2);border-radius:5px;color:#EF4444;font-size:9px;font-weight:700;cursor:pointer;padding:3px 10px">− Remove Last</button>'
+  +'</td></tr>';
+  tbl.innerHTML='<thead>'+head+'</thead><tbody>'+body+'</tbody><tfoot>'+footer+'</tfoot>';
+  tbl.style.display='table';
+  tbl.dataset.kpid=kpid;
+  tbl.dataset.cols=JSON.stringify(cols);
+}
+function _saToggleResType(){
+  var t=document.getElementById('_saResType')?.value;
+  var fw=document.getElementById('_saFormulaWrap');
+  var mn=document.getElementById('_saManualNote');
+  if(fw)fw.style.display=t==='formula'?'block':'none';
+  if(mn)mn.style.display=t==='manual'?'block':'none';
+}
+function _saAddCol(kpid){
+  const letters='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const tbl=document.getElementById('_saKpiTableEl');
+  if(!tbl)return;
+  let cols=JSON.parse(tbl.dataset.cols||'[]');
+  const used=cols.map(function(c){return c.l;});
+  const next=letters.split('').find(function(l){return!used.includes(l);})||null;
+  if(!next)return;
+  cols.push({l:next,n:''});
+  tbl.dataset.cols=JSON.stringify(cols);
+  /* Save and re-render */
+  if(!ST.pciConfig)ST.pciConfig={};if(!ST.pciConfig.kpiTables)ST.pciConfig.kpiTables={};
+  ST.pciConfig.kpiTables[kpid]={cols:cols,formula:document.getElementById('_saFormula')?.value||'B/A*100'};
+  sLS(ST);
+  document.getElementById('_saKpiSel').value=kpid;
+  _saKpiTableLoad();
+}
+function _saRemoveCol(kpid){
+  const tbl=document.getElementById('_saKpiTableEl');if(!tbl)return;
+  let cols=JSON.parse(tbl.dataset.cols||'[]');
+  if(cols.length<=1)return;
+  cols.pop();
+  tbl.dataset.cols=JSON.stringify(cols);
+  if(!ST.pciConfig)ST.pciConfig={};if(!ST.pciConfig.kpiTables)ST.pciConfig.kpiTables={};
+  ST.pciConfig.kpiTables[kpid]={cols:cols,formula:document.getElementById('_saFormula')?.value||'B/A*100'};
+  sLS(ST);
+  document.getElementById('_saKpiSel').value=kpid;
+  _saKpiTableLoad();
+}
+async function _saKpiTableSave(){
+  const tbl=document.getElementById('_saKpiTableEl');if(!tbl||!tbl.dataset.kpid){alert('No KPI selected.');return;}
+  const kpid=tbl.dataset.kpid;
+  let cols=JSON.parse(tbl.dataset.cols||'[]');
+  /* Read all column settings */
+  tbl.querySelectorAll('input[data-col-name]').forEach(function(inp){
+    const l=inp.getAttribute('data-col-name');
+    const col=cols.find(function(c){return c.l===l;});
+    if(col)col.n=inp.value||col.l;
+  });
+  tbl.querySelectorAll('input[data-col-bg]').forEach(function(inp){
+    const l=inp.getAttribute('data-col-bg');
+    const col=cols.find(function(c){return c.l===l;});
+    if(col)col.bg=inp.value||'';
+  });
+  tbl.querySelectorAll('input[data-col-fc]').forEach(function(inp){
+    const l=inp.getAttribute('data-col-fc');
+    const col=cols.find(function(c){return c.l===l;});
+    if(col)col.fc=inp.value||'';
+  });
+  tbl.querySelectorAll('input[data-col-hide]').forEach(function(inp){
+    const l=inp.getAttribute('data-col-hide');
+    const col=cols.find(function(c){return c.l===l;});
+    if(col)col.hidden=inp.checked;
+  });
+  const resultType=document.getElementById('_saResType')?.value||'formula';
+  const formula=(document.getElementById('_saFormula')?.value||'').trim()||'B/A*100';
+  /* Validate formula before saving */
+  if(resultType==='formula'&&formula&&formula!=='B/A*100'){
+    try{
+      const testVars=cols.reduce(function(acc,c){acc[c.l]=10;return acc;},{});
+      const varNames=Object.keys(testVars);const varVals=varNames.map(function(k){return testVars[k];});
+      const testResult=new Function(...varNames,'"use strict";return ('+formula+');')(...varVals);
+      if(typeof testResult!=='number'||!isFinite(testResult)){
+        alert('Formula error: result is not a valid number. Please correct the formula.');return;
+      }
+    }catch(err){
+      alert('Formula error: '+err.message+' | Examples: B/A*100, A-B, (A+B)/2');return;
+    }
+  }
+  ST.pciConfig.kpiTables[kpid]={cols:cols,resultType:resultType,formula:formula};
+  sLS(ST);
+  if(typeof window._saveToFS==='function' && window._fbUser){
+    try{
+      await window._saveToFS(ST);
+      if(typeof addAudit==='function')addAudit('TABLE_CONFIG','Table saved for '+kpid,'','Cols: '+cols.map(function(c){return c.l+'='+c.n+(c.hidden?'[hidden]':'');}).join(', ')+' | Result: '+resultType+(resultType==='formula'?' / '+formula:''));
+      /* Reflect immediately in Add KPI and Edit KPI tables if that KPI is currently selected */
+      try{
+        /* Reflect in Add KPI table if it's the same KPI */
+        const addSel=document.getElementById('aNEPreset');
+        if(addSel){
+          const addK=allK().find(function(x){return x.id===kpid;});
+          if(addK&&addSel.value===addK.nameEn){
+            _rebuildAddKpiTable(cols,formula,resultType);
+          }
+        }
+        /* Reflect in Edit KPI table if it's the same KPI */
+        const editSel=document.getElementById('eSel');
+        if(editSel&&editSel.value===kpid){
+          _rebuildEditKpiTable(cols,formula,resultType);
+        }
+      }catch(_){}
+      if(typeof toast==='function')toast('✓ Table config saved — reflected in Add/Edit KPI tables');
+    }catch(e){
+      alert('Cloud save failed: '+(e.code||e.message||String(e))+'. Check Firebase permissions.');
+      console.error('[_saKpiTableSave] Firestore error:',e);
+    }
+  } else {
+    if(typeof toast==='function')toast('⚠ Saved locally only — no Firestore connection');
+  }
+}
+async function _saOpenRequests(){
+  document.getElementById('_saReqPanel').style.display='block';
+  /* Show loading state */
+  const list=document.getElementById('_saReqList');
+  if(list)list.innerHTML='<div style="text-align:center;padding:20px;color:rgba(255,255,255,.3)">Loading...</div>';
+  /* Re-read from Firestore to get latest requests */
+  if(typeof window._loadFromFS==='function'){
+    try{
+      const fresh=await window._loadFromFS();
+      if(fresh&&fresh.requests) ST.requests=fresh.requests;
+    }catch(e){console.warn('[SA Requests] FS read failed:',e.message);}
+  }
+  _saRenderRequests();
+  /* Update badge */
+  const pending=(ST.requests||[]).filter(function(r){return r.status==='pending';});
+  const cnt=document.getElementById('_saReqCount');
+  if(cnt){cnt.textContent=pending.length+' Pending';cnt.style.display=pending.length?'block':'none';}
+}
+function _saRenderRequests(){
+  const list=document.getElementById('_saReqList');if(!list)return;
+  const reqs=ST.requests||[];
+  if(!reqs.length){list.innerHTML='<div style="text-align:center;padding:40px;color:rgba(255,255,255,.3);font-size:12px">No user requests yet.</div>';return;}
+  const sc={pending:'#FBBF24',approved:'#10B981',rejected:'#EF4444'};
+  list.innerHTML=reqs.slice().reverse().map(function(r,_i){
+    const i=reqs.length-1-_i;
+    const c=sc[r.status]||'#94A3B8';
+    const hasReply=r.reply&&r.reply.trim();
+    return '<div style="border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:10px;background:rgba(255,255,255,.02)">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'
+        +'<div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#152538,#0195af);display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:800;flex-shrink:0">'+_saHesc((r.userName||'?').charAt(0).toUpperCase())+'</div>'
+        +'<div style="flex:1"><div style="font-size:12px;font-weight:800;color:#fff">'+_saHesc(r.userName||'Unknown')+'</div><div style="font-size:10px;color:#64748B">'+_saHesc(r.userEmail||'')+'  ·  '+_saHesc(r.userRole||'')+'</div></div>'
+        +'<span style="padding:3px 10px;border-radius:10px;font-size:9.5px;font-weight:800;background:'+c+'22;color:'+c+';border:1px solid '+c+'44">'+_saHesc(r.status||'pending')+'</span>'
+      +'</div>'
+      +'<div style="font-size:11px;color:#94A3B8;margin-bottom:4px;font-weight:700">'+_saHesc(r.type||'General')+'</div>'
+      +'<div style="font-size:11px;color:#CBD5E1;line-height:1.6;padding:8px;background:rgba(0,0,0,.15);border-radius:7px;margin-bottom:10px">'+_saHesc(r.message||'—')+'</div>'
+      +(hasReply?'<div style="padding:8px;background:rgba(1,149,175,.08);border-left:2px solid #0195af;border-radius:0 6px 6px 0;margin-bottom:8px"><div style="font-size:9px;color:#0195af;font-weight:700;margin-bottom:2px">💬 Super Admin Reply:</div><div style="font-size:11px;color:#94A3B8">'+_saHesc(r.reply)+'</div></div>':'')
+      +(r.status==='pending'?'<textarea id="_saReply_'+i+'" placeholder="Write reply/comment (optional)…" rows="2" style="width:100%;padding:7px;background:#1a3a5c;border:1px solid rgba(255,255,255,.1);border-radius:7px;color:#E2E8F0;font-size:11px;resize:vertical;margin-bottom:8px;box-sizing:border-box;font-family:inherit"></textarea>':'')
+      +'<div style="display:flex;align-items:center;justify-content:space-between">'
+        +'<span style="font-size:9.5px;color:#475569"> '+_saHesc(r.createdAt||'')+'</span>'
+        +(r.status==='pending'
+          ?'<div style="display:flex;gap:8px"><button onclick="_saDecide('+i+',\'rejected\')" style="padding:5px 14px;background:rgba(220,38,38,.12);border:1px solid rgba(220,38,38,.3);border-radius:7px;color:#EF4444;font-size:11px;font-weight:700;cursor:pointer">✕ Reject</button><button onclick="_saDecide('+i+',\'approved\')" style="padding:5px 14px;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);border-radius:7px;color:#10B981;font-size:11px;font-weight:700;cursor:pointer">✓ Approve</button></div>'
+          :'<span style="font-size:10px;color:#475569">Decided '+_saHesc(r.decidedAt||'')+(r.decidedBy?' by '+_saHesc(r.decidedBy):'')+'</span>'
+        )
+      +'</div></div>';
+  }).join('');
+}
+
+function _saDecide(idx,decision){
+  if(!ST.requests||!ST.requests[idx])return;
+  const replyBox=document.getElementById('_saReply_'+idx);
+  const reply=replyBox?replyBox.value.trim():'';
+  ST.requests[idx].status=decision;
+  ST.requests[idx].decidedAt=new Date().toLocaleString();
+  ST.requests[idx].decidedBy=window._fbName||'Super Admin';
+  if(reply)ST.requests[idx].reply=reply;
+  sLS(ST);if(typeof window._saveToFS==='function')window._saveToFS(ST);
+  if(typeof toast==='function')toast(decision==='approved'?'✓ Request Approved':'✕ Request Rejected');
+  _saRenderRequests();
+  const pending=(ST.requests||[]).filter(function(r){return r.status==='pending';});
+  const badge=document.getElementById('_saReqBadge');if(badge){badge.textContent=pending.length+' pending';badge.style.display=pending.length?'block':'none';}
+}
+function submitUserRequest(type,message){
+  if(!ST.requests)ST.requests=[];
+  ST.requests.push({id:'req_'+Date.now(),userName:window._fbName||'Unknown',userEmail:window._fbUser||'',userRole:window._fbRole||'',type:type||'General',message:message||'',status:'pending',createdAt:new Date().toLocaleString()});
+  sLS(ST);if(typeof window._saveToFS==='function')window._saveToFS(ST);
+  if(typeof toast==='function')toast('✓ Request submitted');
+}
+async function openRequestForm(){
+  /* Re-read Firestore to get latest requests/replies */
+  if(typeof window._loadFromFS==='function'){
+    try{
+      const fresh=await window._loadFromFS();
+      if(fresh&&fresh.requests) ST.requests=fresh.requests;
+    }catch(e){console.warn('[Requests] FS read:',e.message);}
+  }
+  const old=document.getElementById('_reqBox');if(old)old.remove();
+  /* Build my requests list */
+  const myEmail=window._fbUser||'';
+  const myReqs=(ST.requests||[]).filter(function(r){return r.userEmail===myEmail;});
+  const myReqsHTML=myReqs.length===0?'':('<div style="margin-bottom:14px"><div style="font-size:10px;font-weight:700;color:#64748B;margin-bottom:8px">MY PREVIOUS REQUESTS</div>'
+    +myReqs.slice(-3).reverse().map(function(r,i){
+      const sc={pending:'#FBBF24',approved:'#10B981',rejected:'#EF4444'};
+      const c=sc[r.status]||'#94A3B8';
+      const realIdx=(ST.requests||[]).findIndex(function(x){return x.id===r.id;});
+      return '<div style="padding:8px 10px;border:1px solid rgba(255,255,255,.08);border-radius:8px;margin-bottom:5px;display:flex;align-items:center;gap:8px">'
+        +'<div style="flex:1"><div style="font-size:11px;color:#E2E8F0;font-weight:600">'+_saHesc(r.type||'General')+'</div><div style="font-size:9px;color:#64748B">'+_saHesc(r.createdAt||'')+'</div></div>'
+        +'<span style="font-size:9px;font-weight:800;padding:2px 8px;border-radius:8px;background:'+c+'22;color:'+c+'">'+_saHesc(r.status)+'</span>'
+        +'<button onclick="_viewMyRequest('+realIdx+')" style="padding:3px 10px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.3);border-radius:6px;color:#0195af;font-size:10px;cursor:pointer">View</button>'
+      +'</div>';
+    }).join('')
+  +'</div>');
+  const box=document.createElement('div');box.id='_reqBox';
+  box.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2147483646;background:#0f2444;border:2px solid rgba(1,149,175,.4);border-radius:16px;padding:22px;min-width:360px;max-width:480px;box-shadow:0 28px 80px rgba(0,0,0,.5);font-family:inherit;max-height:85vh;overflow-y:auto';
+  box.innerHTML='<div style="font-size:13px;font-weight:900;color:#fff;margin-bottom:14px;display:flex;justify-content:space-between"><span>📨 Send Request to Admin</span><button onclick="document.getElementById(\'_reqBox\').remove()" style="background:transparent;border:0;color:rgba(255,255,255,.4);font-size:18px;cursor:pointer">✕</button></div>'
+    +myReqsHTML
+    +'<select id="_rqType" style="width:100%;padding:8px;background:#1a3a5c;border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#E2E8F0;font-size:12px;margin-bottom:10px;font-family:inherit"><option>Permission Change</option><option>Data Correction</option><option>KPI Edit Request</option><option>Access Request</option><option>General Request</option></select>'
+    +'<textarea id="_rqMsg" rows="4" placeholder="Describe your request…" style="width:100%;padding:9px;background:#1a3a5c;border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#E2E8F0;font-size:12px;margin-bottom:12px;resize:vertical;box-sizing:border-box;font-family:inherit"></textarea>'
+    +'<div style="display:flex;gap:8px"><button onclick="const m=document.getElementById(\'_rqMsg\')?.value?.trim();if(!m){document.getElementById(\'_rqMsg\').style.borderColor=\'#EF4444\';return;}submitUserRequest(document.getElementById(\'_rqType\')?.value,m);document.getElementById(\'_reqBox\').remove();" style="flex:2;padding:10px;background:linear-gradient(135deg,#152538,#0195af);border:0;border-radius:9px;color:#fff;font-size:12px;font-weight:700;cursor:pointer">Send Request</button><button onclick="document.getElementById(\'_reqBox\').remove()" style="flex:1;padding:10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:9px;color:#94A3B8;font-size:12px;cursor:pointer">Cancel</button></div>';
+  document.body.appendChild(box);
+}
+function _viewMyRequest(idx){
+  const r=(ST.requests||[])[idx];if(!r)return;
+  const old=document.getElementById('_reqViewBox');if(old)old.remove();
+  const sc={pending:'#FBBF24',approved:'#10B981',rejected:'#EF4444'};
+  const c=sc[r.status]||'#94A3B8';
+  const box=document.createElement('div');box.id='_reqViewBox';
+  box.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2147483647;background:#0f2444;border:2px solid rgba(1,149,175,.4);border-radius:16px;padding:22px;min-width:340px;max-width:460px;box-shadow:0 28px 80px rgba(0,0,0,.6);font-family:inherit';
+  box.innerHTML='<div style="font-size:13px;font-weight:900;color:#fff;margin-bottom:16px;display:flex;justify-content:space-between"><span>📋 Request Details</span><button onclick="document.getElementById(\'_reqViewBox\').remove()" style="background:transparent;border:0;color:rgba(255,255,255,.4);font-size:18px;cursor:pointer">✕</button></div>'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px"><span style="font-size:12px;font-weight:800;color:#fff">'+_saHesc(r.type||'General')+'</span><span style="padding:4px 12px;border-radius:10px;font-size:11px;font-weight:800;background:'+c+'22;color:'+c+';border:1px solid '+c+'44">'+_saHesc(r.status)+'</span></div>'
+    +'<div style="padding:10px;background:rgba(0,0,0,.2);border-radius:8px;margin-bottom:12px"><div style="font-size:9px;color:#64748B;margin-bottom:4px">MESSAGE</div><div style="font-size:12px;color:#CBD5E1;line-height:1.6">'+_saHesc(r.message||'—')+'</div></div>'
+    +(r.reply?'<div style="padding:10px;background:rgba(1,149,175,.08);border-left:2px solid #0195af;border-radius:0 8px 8px 0;margin-bottom:12px"><div style="font-size:9px;color:#0195af;font-weight:700;margin-bottom:4px">💬 ADMIN REPLY</div><div style="font-size:12px;color:#E2E8F0;line-height:1.6">'+_saHesc(r.reply)+'</div></div>':'<div style="padding:8px 10px;background:rgba(251,191,36,.05);border:1px dashed rgba(251,191,36,.2);border-radius:7px;margin-bottom:12px;font-size:11px;color:#94A3B8">No reply from admin yet</div>')
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">'
+      +'<div style="background:rgba(255,255,255,.03);border-radius:7px;padding:8px"><div style="font-size:9px;color:#64748B">Submitted</div><div style="font-size:11px;color:#E2E8F0">'+_saHesc(r.createdAt||'—')+'</div></div>'
+      +(r.decidedAt?'<div style="background:rgba(255,255,255,.03);border-radius:7px;padding:8px"><div style="font-size:9px;color:#64748B">Decision Date</div><div style="font-size:11px;color:#E2E8F0">'+_saHesc(r.decidedAt)+'</div></div>':'')
+    +'</div>'
+    +'<button onclick="document.getElementById(\'_reqViewBox\').remove()" style="width:100%;padding:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:9px;color:#94A3B8;font-size:12px;cursor:pointer">Close</button>';
+  document.body.appendChild(box);
+}
+
 function aiToggle(){
   const w=document.getElementById('aiWin');
   if(!w)return;
@@ -7885,8 +8345,7 @@ function updateExecTrend(yr){
 }
 </script>
 <script id="qumc_user_alerts_and_portal_fix">
-(function(){
-  if(window.__QUMC_FINAL_REQUEST_FIX_V3__)return;
+(function(){if(window.__QUMC_FINAL_REQUEST_FIX_V3__)return;
   function roleLabel(role){
     return ({super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',viewer:'Viewer'})[role]||role||'—';
   }
@@ -7983,7 +8442,7 @@ function updateExecTrend(yr){
     replacePerformanceIcon();
     applyPortalBackground();
     refreshUserTopbar();
-    setInterval(refreshUserTopbar,5000);
+    setInterval(refreshUserTopbar,30000); /* reduced from 5s to 30s */
   });
   setTimeout(function(){replacePerformanceIcon();applyPortalBackground();refreshUserTopbar();},600);
 })();
@@ -8000,24 +8459,7 @@ function updateExecTrend(yr){
 #aiSugg{background:#F8FAFC!important;border-bottom:1px solid #E2E8F0!important;padding:12px 14px!important}.ai-chip{background:#fff!important;border:1px solid #DDE8F0!important;border-radius:999px!important;padding:7px 10px!important;font-size:10.5px!important;font-weight:800!important;color:#152538!important;box-shadow:0 2px 8px rgba(10,22,48,.05)!important;transition:all .15s ease!important}.ai-chip:hover{border-color:#0195af!important;color:#0195af!important;transform:translateY(-1px)!important;box-shadow:0 5px 14px rgba(1,149,175,.15)!important}
 #aiMsgs{background:linear-gradient(180deg,#F8FAFC,#FFFFFF)!important;padding:16px!important;gap:12px!important;max-height:340px!important}.ai-msg-bubble{border-radius:16px!important;padding:11px 13px!important;font-size:12px!important;line-height:1.7!important;box-shadow:0 4px 14px rgba(10,22,48,.06)!important}.ai-msg-bubble.assistant{background:#FFFFFF!important;border:1px solid #DDE8F0!important;color:#1E293B!important}.ai-msg-bubble.user{background:linear-gradient(135deg,#0195af,#00BFE0)!important;color:#fff!important;border:none!important;margin-left:auto!important}
 #aiInp{border-radius:15px!important;border:1.5px solid #DDE8F0!important;background:#fff!important;box-shadow:0 2px 8px rgba(10,22,48,.04)!important}#aiSendBtn{border-radius:15px!important;width:44px!important;height:44px!important;background:linear-gradient(135deg,#152538,#0195af)!important;box-shadow:0 8px 18px rgba(1,149,175,.26)!important}
-.qumc-nrow-hover:hover{background:#F8FAFC !important;}
 .qumc-left-card-grid{justify-content:flex-start!important;grid-template-columns:repeat(auto-fit,minmax(270px,320px))!important;}
-/* ══ ARABIC RTL MODE ══ */
-body.qumc-rtl{direction:rtl;text-align:right}
-body.qumc-rtl .topbar,.qumc-rtl .topbar *{direction:rtl}
-body.qumc-rtl .tb-brand{margin-right:0;margin-left:auto}
-body.qumc-rtl .tb-space,.qumc-rtl .tb-rule{order:-1}
-body.qumc-rtl .eis-bar,.qumc-rtl .eis-stat{text-align:right;direction:rtl}
-body.qumc-rtl .tabnav{direction:rtl;text-align:right}
-body.qumc-rtl .filter-chips,.qumc-rtl .fb{direction:rtl}
-body.qumc-rtl .card,.qumc-rtl .c12,.qumc-rtl .gg{direction:rtl;text-align:right}
-body.qumc-rtl .mhd,.qumc-rtl .mbody,.qumc-rtl .mfoot{direction:rtl;text-align:right}
-body.qumc-rtl .af-row,.qumc-rtl .af-grid2,.qumc-rtl .af-grid3{direction:rtl}
-body.qumc-rtl input,body.qumc-rtl textarea,body.qumc-rtl select{text-align:right;direction:rtl}
-body.qumc-rtl .atabs{direction:rtl}
-body.qumc-rtl td,body.qumc-rtl th{text-align:right!important}
-body.qumc-rtl .qumc-alert-drop-modern,.qumc-rtl #userAlertDrop{direction:rtl;left:auto;right:12px!important}
-body.qumc-rtl .userProfileDrop,body.qumc-rtl #userProfileDrop{direction:rtl;left:auto;right:12px!important}
 </style>
 
 <style id="qumc_final_visual_stability_patch">
@@ -8106,7 +8548,7 @@ button[onclick*="Back"],button[onclick*="back"],.back-btn,#backBtn{background:li
 .dept-kpi-card-grid{justify-content:start!important;direction:ltr!important;width:100%!important;grid-template-columns:repeat(auto-fill,minmax(340px,420px))!important}.dept-kpi-uniform-card{max-width:420px!important;width:100%!important}
 </style>
 <script id="qumc_requested_safe_js">
-(function(){if(window.__QUMC_FINAL_REQUEST_FIX_V3__)return;/* superseded by final block */
+(function(){if(window.__QUMC_FINAL_REQUEST_FIX_V3__)return; /* superseded */
   'use strict';
   var $=function(id){return document.getElementById(id);};
   function text(v){return String(v==null?'':v).replace(/[&<>\"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c];});}
@@ -8242,7 +8684,7 @@ body.gap-owner .pill-miss,body.gap-owner .acc-open{color:#C42B2B!important;backg
 body.gap-owner .repeat-b{background:rgba(196,43,43,.09)!important;color:#C42B2B!important;border-color:rgba(196,43,43,.18)!important}
 </style>
 <script id="qumc_user_order_notifications_logout_final_patch_js">
-(function(){if(window.__QUMC_FINAL_REQUEST_FIX_V3__)return;/* superseded by final block */
+(function(){if(window.__QUMC_FINAL_REQUEST_FIX_V3__)return; /* superseded */
   'use strict';
   var $=function(id){return document.getElementById(id);};
   function safe(v){return String(v==null?'':v).replace(/[&<>\"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[c];});}
@@ -8437,103 +8879,14 @@ body.kpi-owner [class*="orange"], body.kpi_owner [class*="orange"], body.kpi-own
     drop.style.position='fixed';drop.style.width=w+'px';drop.style.right='auto';drop.style.top=(r.bottom+10)+'px';drop.style.left=Math.max(10,Math.min(window.innerWidth-w-10,r.right-w))+'px';drop.style.zIndex='2147483646';
   }
   function renderNotifications(force){
-    var allNotifs=collectNotifications();
-    var seen=readSeen();
-    var unseenCount=allNotifs.filter(function(n){return seen.indexOf(n.id)<0;}).length;
-
-    /* ── Badge update ── */
-    var c=$('userAlertCount');
-    if(c){c.textContent=unseenCount;c.style.display=unseenCount>0?'flex':'none';}
-
-    /* ── List update ── */
-    var list=$('userAlertList');
-    if(!list)return;
-
-    if(!allNotifs.length){
-      list.innerHTML='<div style="padding:28px 20px;text-align:center;color:#94A3B8;font-size:11px">'
-        +'<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="display:block;margin:0 auto 8px;opacity:.35"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>'
-        +'No notifications</div>';
-      return;
+    var arr=getNotifications(!!force), c=$('userAlertCount'), list=$('userAlertList');
+    if(c){c.textContent=arr.length;c.style.display=arr.length?'flex':'none';}
+    if(list){
+      if(!arr.length){list.innerHTML='<div class="qumc-n-empty-final">No important notifications.</div>';}
+      else{list.innerHTML=arr.map(function(n){return '<div class="qumc-nrow-final" data-nid="'+esc(n.id)+'"><span class="qumc-n-dot-final" style="background:#C42B2B"></span><div><div class="qumc-n-title-final">'+esc(n.title)+'</div><div class="qumc-n-meta-final">'+esc(n.meta)+'</div></div></div>';}).join('');}
+      Array.prototype.forEach.call(list.querySelectorAll('.qumc-nrow-final'),function(row){row.onclick=function(ev){ev.preventDefault();ev.stopPropagation();var id=row.getAttribute('data-nid');var seen=readSeen();seen.push(id);writeSeen(seen);notifCache=(notifCache||[]).filter(function(n){return n.id!==id;});renderNotifications(false);};});
     }
-
-    /* Build all rows at once */
-    var html2=allNotifs.map(function(n){
-      var isRead=seen.indexOf(n.id)>=0;
-      var dot=n.level==='red'?'#C42B2B':n.level==='orange'?'#D97706':'#0195af';
-      var bg=isRead?'rgba(0,0,0,.02)':'#fff';
-      var fw=isRead?'500':'800';
-      var tc=isRead?'#94A3B8':'#152538';
-      var mc=isRead?'#CBD5E1':'#64748B';
-      var nid=esc(n.id);
-      return '<div class="qumc-nrow-v2" data-nid="'+nid+'" style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-bottom:1px solid #F1F5F9;background:'+bg+';cursor:pointer;transition:background .12s">'
-        +'<span style="margin-top:3px;flex-shrink:0;display:inline-block;width:8px;height:8px;border-radius:50%;background:'+(isRead?'#E2E8F0':dot)+'"></span>'
-        +'<div style="flex:1;min-width:0">'
-          +'<div style="font-size:11px;font-weight:'+fw+';color:'+tc+';line-height:1.4">'+esc(n.title)+'</div>'
-          +'<div style="font-size:10px;color:'+mc+';margin-top:1px">'+esc(n.meta)+'</div>'
-        +'</div>'
-        +'<button class="qmrb" data-rid="'+nid+'" style="flex-shrink:0;background:transparent;border:0;cursor:pointer;color:#CBD5E1;font-size:15px;padding:0 0 0 4px;line-height:1;opacity:.6" title="Dismiss">\xd7</button>'
-      +'</div>';
-    }).join('');
-    list.innerHTML=html2;
-
-    /* Wire dismiss (X) buttons via event delegation */
-    list.querySelectorAll('.qmrb').forEach(function(btn){
-      btn.addEventListener('click',function(ev){
-        ev.stopPropagation();ev.preventDefault();
-        var id=btn.getAttribute('data-rid');
-        var s2=readSeen();if(s2.indexOf(id)<0){s2.push(id);writeSeen(s2);}
-        var row=btn.closest('.qumc-nrow-v2');
-        if(row){row.style.opacity='0.4';row.style.pointerEvents='none';}
-        setTimeout(function(){renderNotifications(false);},300);
-      });
-    });
-
-    /* Wire row click → show detail in same panel */
-    list.querySelectorAll('.qumc-nrow-v2').forEach(function(row){
-      row.addEventListener('click',function(ev){
-        if(ev.target.classList.contains('qmrb'))return;
-        var id=row.getAttribute('data-nid');
-        var n=allNotifs.filter(function(x){return x.id===id;})[0];
-        if(!n)return;
-        var s2=readSeen();if(s2.indexOf(id)<0){s2.push(id);writeSeen(s2);}
-        /* Show detail overlay inside the panel */
-        var d=$('userAlertDrop');
-        if(!d)return;
-        var detail=document.createElement('div');
-        detail.id='qNotifDetail';
-        detail.style.cssText='position:absolute;inset:0;background:#fff;z-index:10;border-radius:inherit;display:flex;flex-direction:column;padding:0;overflow:hidden';
-        var dot2=n.level==='red'?'#C42B2B':n.level==='orange'?'#D97706':'#0195af';
-        detail.innerHTML='<div style="padding:11px 13px;background:#152538;color:#fff;display:flex;align-items:center;gap:8px">'
-          +'<button onclick="var d=document.getElementById(\'qNotifDetail\');if(d)d.remove();renderNotifications(false);" style="background:rgba(255,255,255,.15);border:0;border-radius:6px;color:#fff;cursor:pointer;font-size:11px;padding:3px 8px">\u2190 Back</button>'
-          +'<span style="flex:1;font-size:11px;font-weight:700">Notification</span>'
-          +'</div>'
-          +'<div style="flex:1;padding:16px;overflow-y:auto">'
-            +'<div style="border-left:3px solid '+dot2+';padding:12px;background:#F8FAFC;border-radius:0 8px 8px 0;margin-bottom:12px">'
-              +'<div style="font-size:13px;font-weight:900;color:#152538;margin-bottom:4px">'+esc(n.title)+'</div>'
-              +'<div style="font-size:11px;color:#64748B;line-height:1.6">'+esc(n.meta)+'</div>'
-            +'</div>'
-          +'</div>'
-          +'<div style="padding:12px;border-top:1px solid #F1F5F9">'
-            +'<button onclick="var s2=window._QMCS||{};var rl=JSON.parse(localStorage.getItem(\'qumc_seen_notifs_\'+email())||\'[]\');if(rl.indexOf(\''+esc(n.id)+'\')<0){rl.push(\''+esc(n.id)+'\');localStorage.setItem(\'qumc_seen_notifs_\'+email(),JSON.stringify(rl));}var d2=document.getElementById(\'qNotifDetail\');if(d2)d2.remove();renderNotifications(false);" style="width:100%;padding:9px;background:#152538;border:0;border-radius:8px;color:#fff;font-size:11px;font-weight:700;cursor:pointer">Mark as Read \u2713</button>'
-          +'</div>';
-        /* Position relative to userAlertDrop */
-        d.style.position='fixed'; /* already fixed */
-        d.style.overflow='hidden';
-        d.appendChild(detail);
-      });
-    });
-
-    /* Clear all button */
-    var clr=$('qumcClearNotifs');
-    if(clr){
-      clr.onclick=function(ev){
-        ev.preventDefault();ev.stopPropagation();
-        var s2=readSeen();
-        allNotifs.forEach(function(n){if(s2.indexOf(n.id)<0)s2.push(n.id);});
-        writeSeen(s2);
-        renderNotifications(false);
-      };
-    }
+    var clear=$('qumcClearNotifs'); if(clear){clear.onclick=function(ev){ev.preventDefault();ev.stopPropagation();writeSeen(readSeen().concat(getNotifications(false).map(function(n){return n.id;})));notifCache=[];renderNotifications(false);};}
   }
   window.renderNotifications=renderNotifications;
   window.updateAlertUI=function(){renderNotifications(false);};
@@ -8626,19 +8979,32 @@ body.kpi-owner [class*="orange"], body.kpi_owner [class*="orange"], body.kpi-own
     try{ if(typeof render==='function') render(); }catch(_){}
   }
   window.saveNewKPI = async function(){
-    var required=['aC','aDp','aO','aTier','aTg','aY','aNE','aNA'];
+    /* Required fields — aNA (Arabic name) is OPTIONAL */
+    var required=['aC','aDp','aO','aTier','aTg','aY','aNE'];
     var ok=true;
-    required.forEach(function(id){var e=byId(id); if(!e) return; var empty=!String(e.value||'').trim(); e.style.borderColor=empty?'#C42B2B':''; e.style.boxShadow=empty?'0 0 0 3px rgba(196,43,43,.14)':''; if(empty) ok=false;});
+    required.forEach(function(id){
+      var e=byId(id); if(!e) return;
+      var empty=!String(e.value||'').trim();
+      e.style.borderColor=empty?'#C42B2B':'';
+      e.style.boxShadow=empty?'0 0 0 3px rgba(196,43,43,.14)':'';
+      if(empty) ok=false;
+    });
     if(!ok){showAddMsg('Please fill all required fields.',false);return false;}
+
     var code=val('aC').toUpperCase();
     if(!code){showAddMsg('KPI Code cannot be empty.',false);return false;}
+
     var nameEn=val('aNE'), nameAr=val('aNA');
     if(/[\u0600-\u06FF]/.test(nameEn)){showAddMsg('KPI Name (English) must be English only.',false);return false;}
     if(nameAr && !/^[\u0600-\u06FF\u0660-\u0669\u06F0-\u06F9 0-9\-()_/.،,!?]*$/.test(nameAr)){showAddMsg('Arabic KPI name must be Arabic/numbers only.',false);return false;}
+
     var exists=false;
     try{ exists=(typeof allK==='function'?allK():[]).some(function(k){return String(k.id||'').toUpperCase()===code;}); }catch(_){exists=false;}
-    if(exists){showAddMsg('KPI Code already exists: '+code,false);return false;}
-    if(typeof ST==='undefined'){showAddMsg('Dashboard state is not ready. Please reload the page.',false);return false;}
+    if(exists){showAddMsg('KPI Code "'+code+'" already exists. Use a unique code.',false);return false;}
+
+    if(typeof ST==='undefined'){showAddMsg('Dashboard not ready. Please reload.',false);return false;}
+
+    /* Build KPI object */
     if(!Array.isArray(ST.added)) ST.added=[];
     var k={
       id:code,
@@ -8652,18 +9018,18 @@ body.kpi-owner [class*="orange"], body.kpi_owner [class*="orange"], body.kpi-own
       tier:parseInt(val('aTier'),10)||3,
       q1:num('aQ1'), q2:num('aQ2'), q3:num('aQ3'), q4:num('aQ4')
     };
+
+    /* Add to local state */
     ST.added=ST.added.filter(function(x){return String(x.id||'').toUpperCase()!==code;});
     ST.added.push(k);
     if(!ST.pci) ST.pci={};
     ST.pci[code]={};
     ['Q1','Q2','Q3','Q4'].forEach(function(Q){
       var q=Q.toLowerCase(), pl=num('aAd'+Q+'_pl'), co=num('aAd'+Q+'_co'), ic=num('aAd'+Q+'_ic');
-      if(pl!=null || co!=null || ic!=null) ST.pci[code][q]={planned:pl,complete:co,incomplete:ic};
+      if(pl!=null||co!=null||ic!=null) ST.pci[code][q]={planned:pl,complete:co,incomplete:ic};
     });
-    saveStateLocal();
-    try{ if(typeof window._saveToFS==='function' && window._fbUser) await window._saveToFS(ST); }catch(e){ console.warn('[Add KPI Patch] cloud save failed; kept local',e); }
-    try{ if(typeof persistKpiNameToBank==='function') persistKpiNameToBank(nameEn,nameAr); }catch(_){}
-    try{ if(typeof addAudit==='function') addAudit('KPI_ADD','Added new KPI: '+code,null,'KPI: '+nameEn); }catch(_){}
+
+    /* Set filters so KPI is visible immediately */
     try{
       if(typeof F!=='undefined'){
         F.year=String(k.yr);
@@ -8672,13 +9038,53 @@ body.kpi-owner [class*="orange"], body.kpi_owner [class*="orange"], body.kpi-own
         if(!F.status) F.status='all';
       }
     }catch(_){}
-    refreshViews('KPI_ADD:'+code);
-    showAddMsg('KPI '+code+' saved successfully and added to dashboard.',true);
-    return true;
+
+    /* Save locally first (fallback) */
+    saveStateLocal();
+
+    /* Show saving indicator */
+    showAddMsg('Saving to cloud…',true);
+
+    /* Save to Firestore — MUST succeed before showing success */
+    if(typeof window._saveToFS==='function' && window._fbUser){
+      try{
+        await window._saveToFS(ST);
+        /* Only reach here if Firestore confirmed */
+        try{ if(typeof persistKpiNameToBank==='function') persistKpiNameToBank(nameEn,nameAr); }catch(_){}
+        try{ if(typeof addAudit==='function') addAudit('KPI_ADD','Added KPI: '+code,null,'KPI: '+nameEn); }catch(_){}
+        refreshViews('KPI_ADD:'+code);
+        showAddMsg('✓ KPI "'+code+'" saved to cloud and added to dashboard.',true);
+        return true;
+      }catch(e){
+        /* Firestore failed — roll back ST.added so state is honest */
+        ST.added=ST.added.filter(function(x){return String(x.id||'').toUpperCase()!==code;});
+        saveStateLocal();
+        var errMsg='Cloud save failed: '+(e.code||e.message||'unknown error')+'. Check Firebase permissions/rules.';
+        showAddMsg(errMsg, false);
+        alert('Cloud save failed. Please check Firebase permissions/rules. Details: '+(e.code||e.message||String(e)));
+        console.error('[saveNewKPI] Firestore error:', e);
+        return false;
+      }
+    } else {
+      /* No Firestore connection — save locally only */
+      try{ if(typeof persistKpiNameToBank==='function') persistKpiNameToBank(nameEn,nameAr); }catch(_){}
+      try{ if(typeof addAudit==='function') addAudit('KPI_ADD','Added KPI (local): '+code,null,'KPI: '+nameEn); }catch(_){}
+      refreshViews('KPI_ADD:'+code);
+      showAddMsg('⚠ KPI saved locally only (no cloud connection). It may not appear for other users.',false);
+      return true;
+    }
   };
   var oldSaveAdmin=window.saveAdmin;
   window.saveAdmin=function(){
-    try{ var ap=document.querySelector('.ap.on'); if(ap && ap.id==='ap-add'){ window.saveNewKPI(); return false; } }catch(e){ console.error('[Add KPI Patch] saveAdmin add branch failed',e); }
+    try{
+      var ap=document.querySelector('.ap.on');
+      /* If no active tab, check if Add KPI has content */
+      if(!ap){
+        var addPanel=document.getElementById('ap-add');
+        if(addPanel){addPanel.classList.add('on');ap=addPanel;}
+      }
+      if(ap && ap.id==='ap-add'){ window.saveNewKPI(); return false; }
+    }catch(e){ console.error('[Add KPI Patch] saveAdmin error:',e); }
     if(typeof oldSaveAdmin==='function') return oldSaveAdmin.apply(this,arguments);
   };
   console.log('[Add KPI Patch] active');
