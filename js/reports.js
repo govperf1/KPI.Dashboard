@@ -939,7 +939,7 @@ async function _buildWordDoc(){
   toast(lang==='ar'?` تم تحميل: ${fname}`:` Downloaded: ${fname}`);
 }
 /* == PCI BREAKDOWN — Read-Only View (data entered via Admin Panel) == */
-let _pciKpiId=null, _pciQ=null;
+var _pciKpiId=null, _pciQ=null;
 
 /* == Context-aware empty state == */
 function emptyStateExec(dept,status){
