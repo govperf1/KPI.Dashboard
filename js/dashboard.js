@@ -84,6 +84,8 @@ function _cached(k){
 }
 
 function renderExec(){
+  /* Guard: ensure F is always a valid object before rendering */
+  if(!window.F||typeof window.F!=='object'){console.warn('[Dashboard] F not ready, skipping renderExec');return;}
   _clearCache();
   const ks=filt();
   const evaluated=ks.filter(k=>ok(k)!==null);
@@ -1189,6 +1191,7 @@ function renderRAG(ks){
 
 
 function renderDept(){
+  if(!window.F||typeof window.F!=='object'){console.warn('[Dashboard] F not ready, skipping renderDept');return;}
   const el=document.getElementById('deptGrid');
   if(!el)return;
   const depts=F.dept==='all'?['maintenance','safety','housekeeping','projects']:[F.dept];

@@ -451,8 +451,11 @@ function normalizeKpiRecord(k){
 }
 function allK(){
   const _del=new Set(ST.deleted||[]);  /* KPIs permanently deleted by admin */
-  const base=BASE.filter(k=>!_del.has(k.id)).map(k=>{const ov=(ST.ov||{})[k.id];return normalizeKpiRecord(ov?{...k,...ov}:k);});
-  const added=(ST.added||[]).map(normalizeKpiRecord).filter(k=>k.id&&!_del.has(k.id));
+  const base=BASE.filter(k=>k!=null&&typeof k==='object'&&!_del.has(k.id)).map(k=>{const ov=(ST.ov||{})[k.id];return normalizeKpiRecord(ov?{...k,...ov}:k);}).filter(k=>k&&k.id);  /* guard malformed BASE entries */
+  /* Log and skip malformed Firestore records for diagnosis */
+  const _rawAdded=(ST.added||[]);
+  _rawAdded.forEach((r,i)=>{if(r==null||typeof r!=='object'){console.warn('[KPI] ST.added['+i+'] is malformed:',r);}});
+  const added=_rawAdded.filter(k=>k!=null&&typeof k==='object').map(normalizeKpiRecord).filter(k=>k&&k.id&&!_del.has(k.id));
   let all=base.concat(added);
   /* Apply display-code renames (ST.codeOv: {realId: newDisplayCode}) */
   if(ST.codeOv){
@@ -479,10 +482,16 @@ function getLatestPeriod(){
   return{year:String(ly),qtrs:latestQ};
 }
 function getAvailableYears(){
-  return[...new Set(allK().map(k=>String(k.yr)))].sort();
+  return[...new Set(allK().filter(k=>k&&k.yr!=null).map(k=>String(k.yr)))].sort();  /* guard missing yr */
 }
 const _lp=getLatestPeriod();
 var F ={year:_lp.year||'all',qtr:Array.isArray(_lp.qtrs)&&_lp.qtrs.length?_lp.qtrs:['q1'],dept:'all',status:'all'};
+/* Safety guard: F must always be a valid object with known properties */
+if(!F||typeof F!=='object'){F={year:'all',qtr:['q1','q2','q3','q4'],dept:'all',status:'all'};}
+if(!F.year)F.year='all';
+if(!Array.isArray(F.qtr))F.qtr=['q1','q2','q3','q4'];
+if(!F.dept)F.dept='all';
+if(!F.status)F.status='all';
 
 /* ==========================================
    UTILS
@@ -514,7 +523,7 @@ function getRepeat(k){
 function filt(){
   /* Sync F.dept with _lockedDept to prevent drift */
   if(window._lockedDept && F.dept!==window._lockedDept) F.dept=window._lockedDept;
-  return allK().filter(k=>{
+  return allK().filter(k=>{ if(!k||typeof k!=='object')return false; /* skip malformed records */
     /* ── Hard dept lock (dept_manager and kpi_owner NEVER see other depts) ── */
     if(window._lockedDept && k.dept!==window._lockedDept) return false;
 
@@ -525,7 +534,7 @@ function filt(){
     }
 
     /* ── Standard filters ── */
-    if(F.year!=='all'&&String(k.yr)!==F.year)return false;
+    if(F&&F.year&&F.year!=='all'&&String(k.yr)!==F.year)return false;
     if(F.dept!=='all'&&k.dept!==F.dept)return false;
     if(F.status!=='all'){const a=ok(k);if(F.status==='achieved'&&(a===null||!a))return false;if(F.status==='missed'&&(a===null||a))return false;}
     return true;
@@ -567,9 +576,10 @@ function emptyState(ctx){
 function renderYearFilter(){
   const el=document.getElementById('yearBtns');if(!el)return;
   const yrs=getAvailableYears().slice().reverse(); /* descending: 2026, 2025... */
+  const _fy=(F&&F.year)||'all';  /* safe F.year accessor */
   el.innerHTML=
-    yrs.map(y=>`<button class="fb${F.year===y?' on':''}" data-filter="year" data-val="${y}" onclick="setF('year','${y}',this)">${y}</button>`).join('')+
-    `<button class="fb${F.year==='all'?' on':''}" data-filter="year" data-val="all" onclick="setF('year','all',this)">${lang==='ar'?'الكل':'All'}</button>`;
+    yrs.map(y=>`<button class="fb${_fy===y?' on':''}" data-filter="year" data-val="${y}" onclick="setF('year','${y}',this)">${y}</button>`).join('')+
+    `<button class="fb${_fy==='all'?' on':''}" data-filter="year" data-val="all" onclick="setF('year','all',this)">${lang==='ar'?'الكل':'All'}</button>`;
 }
 function updateChips(){
   const el=document.getElementById('filterChips');if(!el)return;
