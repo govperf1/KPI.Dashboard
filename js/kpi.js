@@ -824,12 +824,11 @@ setInterval(updateClock,1000);updateClock();
    INIT
 ========================================== */
 
-/* -- Boot: run after ALL scripts are loaded (window load event) -- */
-/* updateChips/renderYearFilter/populateAddYears are defined in kpi.js — safe now */
+/* -- Boot: synchronous calls (functions defined in THIS file only) -- */
+/* updateChips / updateBadge / renderYearFilter are all defined in kpi.js */
 updateChips();
 updateBadge();
 renderYearFilter();
-populateAddYears();
 /* Set initial quarter button states */
 document.querySelectorAll('.fb[data-filter="qtr"]').forEach(function(b){
   const _q=F&&Array.isArray(F.qtr)?F.qtr:[];
@@ -837,9 +836,12 @@ document.querySelectorAll('.fb[data-filter="qtr"]').forEach(function(b){
   else b.classList.toggle('on', _q.includes(b.dataset.val));
 });
 
-/* renderExec / renderCurrent need dashboard.js + translations.js which load after kpi.js.
-   Defer first render until all scripts are ready. */
+/* Cross-file calls: deferred until ALL scripts are loaded.
+   populateAddYears  → defined in admin.js
+   renderCurrent     → defined in translations.js
+   renderExec        → defined in dashboard.js                       */
 window.addEventListener('load', function(){
+  if(typeof populateAddYears==='function') populateAddYears();
   if(typeof renderCurrent==='function') renderCurrent();
   else if(typeof renderExec==='function') renderExec();
 });
