@@ -314,7 +314,7 @@ function applyRolePermissions(role,dept,perms){
     window.setF=function(t,v,e){if(t==='dept'&&v!==dept&&v!=='all')return;if(orig)orig(t,v,e);};
     setTimeout(()=>{
       if(typeof F!=='undefined'){
-        F.dept=dept;  /* Lock filter to assigned dept */
+        if(F&&typeof F==='object')F.dept=dept;  /* Lock filter to assigned dept */
       }
       document.querySelectorAll('[data-filter="dept"]').forEach(b=>{
         b.classList.toggle('on',b.dataset.val===dept);
@@ -474,7 +474,8 @@ function realId(displayId){
 /* Auto-detect latest period from data */
 function getLatestPeriod(){
   const all=(typeof ST!=='undefined')?allK():BASE;
-  const yrs=[...new Set(all.map(k=>k.yr))].sort((a,b)=>b-a);
+  /* Guard: skip any record missing yr before sorting */
+  const yrs=[...new Set(all.filter(k=>k&&k.yr!=null).map(k=>k.yr))].sort((a,b)=>b-a);
   const ly=yrs[0]||new Date().getFullYear();
   const qs=['q1','q2','q3','q4'].filter(q=>all.some(k=>k.yr===ly&&k[q]!==null));
   /* Default to LATEST available quarter only — not all quarters averaged */
@@ -484,8 +485,19 @@ function getLatestPeriod(){
 function getAvailableYears(){
   return[...new Set(allK().filter(k=>k&&k.yr!=null).map(k=>String(k.yr)))].sort();  /* guard missing yr */
 }
-const _lp=getLatestPeriod();
-var F ={year:_lp.year||'all',qtr:Array.isArray(_lp.qtrs)&&_lp.qtrs.length?_lp.qtrs:['q1'],dept:'all',status:'all'};
+/* F must always be a valid object — wrap in try/catch so a bad Firestore
+   record in ST can never prevent F from being initialised */
+var _lp;
+try { _lp = getLatestPeriod(); } catch(e) { console.warn('[KPI] getLatestPeriod failed:',e); _lp = {}; }
+var F;
+try {
+  F = {year:(_lp&&_lp.year)||'all',
+       qtr:(Array.isArray(_lp&&_lp.qtrs)&&_lp.qtrs.length)?_lp.qtrs:['q1','q2','q3','q4'],
+       dept:'all', status:'all'};
+} catch(e) {
+  console.warn('[KPI] F initialisation failed:',e);
+  F = {year:'all', qtr:['q1','q2','q3','q4'], dept:'all', status:'all'};
+}
 /* Safety guard: F must always be a valid object with known properties */
 if(!F||typeof F!=='object'){F={year:'all',qtr:['q1','q2','q3','q4'],dept:'all',status:'all'};}
 if(!F.year)F.year='all';
@@ -521,31 +533,52 @@ function getRepeat(k){
   return max;
 }
 function filt(){
-  /* Sync F.dept with _lockedDept to prevent drift */
-  if(window._lockedDept && F.dept!==window._lockedDept) F.dept=window._lockedDept;
-  return allK().filter(k=>{ if(!k||typeof k!=='object')return false; /* skip malformed records */
-    /* ── Hard dept lock (dept_manager and kpi_owner NEVER see other depts) ── */
-    if(window._lockedDept && k.dept!==window._lockedDept) return false;
+  /* Safe filter object — never access F directly; use FF throughout */
+  const FF = (typeof F !== 'undefined' && F && typeof F === 'object')
+    ? F
+    : { year:'all', qtr:['q1','q2','q3','q4'], dept:'all', status:'all' };
 
-    /* ── KPI Owner: show only assigned KPIs (or all dept KPIs if none assigned) ── */
-    if(window._fbRole==='kpi_owner'){
-      const assigned=window._fbAssignedKpis;
-      if(Array.isArray(assigned)&&assigned.length>0&&!assigned.includes(k.id)) return false;
+  /* Sync FF.dept with role lock to prevent drift */
+  if(window._lockedDept && FF.dept !== window._lockedDept) FF.dept = window._lockedDept;
+
+  return allK().filter(k=>{
+    /* Guard: skip any record that is not a plain object */
+    if(!k || typeof k !== 'object') return false;
+
+    /* Guard individual fields used below */
+    const kId   = k.id   != null ? String(k.id)   : '';
+    const kDept = k.dept != null ? String(k.dept)  : '';
+    const kYr   = k.yr   != null ? String(k.yr)    : '';
+    /* k.owner and k.code are normalised by normalizeKpiRecord so just guard presence */
+    const kOwner= k.owner != null ? String(k.owner) : '';
+    const kCode = k.code  != null ? String(k.code)  : '';
+
+    /* ── Hard dept lock: dept_manager and kpi_owner never see other depts ── */
+    if(window._lockedDept && kDept !== window._lockedDept) return false;
+
+    /* ── KPI Owner: show only assigned KPIs ── */
+    if(window._fbRole === 'kpi_owner'){
+      const assigned = window._fbAssignedKpis;
+      if(Array.isArray(assigned) && assigned.length > 0 && !assigned.includes(kId)) return false;
     }
 
-    /* ── Standard filters ── */
-    if(F&&F.year&&F.year!=='all'&&String(k.yr)!==F.year)return false;
-    if(F.dept!=='all'&&k.dept!==F.dept)return false;
-    if(F.status!=='all'){const a=ok(k);if(F.status==='achieved'&&(a===null||!a))return false;if(F.status==='missed'&&(a===null||a))return false;}
+    /* ── Standard filters using FF (safe) ── */
+    if(FF.year && FF.year !== 'all' && kYr !== FF.year) return false;
+    if(FF.dept && FF.dept !== 'all' && kDept !== FF.dept) return false;
+    if(FF.status && FF.status !== 'all'){
+      const a = ok(k);
+      if(FF.status === 'achieved' && (a === null || !a)) return false;
+      if(FF.status === 'missed'   && (a === null ||  a)) return false;
+    }
     return true;
   });
 }
 
 /* Contextual empty state — no "No Data" */
 function emptyState(ctx){
-  const dn=F.dept!=='all'?(lang==='ar'?DM[F.dept].ar:DM[F.dept].en):'';
-  const qStr=F.qtr.includes('all')?'':F.qtr.map(q=>q.toUpperCase()).join(' & ');
-  const yStr=F.year!=='all'?F.year:'';
+  const dn=(F&&F.dept&&F.dept!=='all'&&DM&&DM[F.dept])?(lang==='ar'?DM[F.dept].ar:DM[F.dept].en):'';
+  const _fqtr=(F&&Array.isArray(F.qtr))?F.qtr:['q1'];const qStr=_fqtr.includes('all')?'':_fqtr.map(q=>q.toUpperCase()).join(' & ');
+  const yStr=(F&&F.year&&F.year!=='all')?F.year:'';
   const period=[yStr,qStr].filter(Boolean).join(' ');
   if(ctx==='missed'||F.status==='missed'){
     /* Check if really all Met */
@@ -576,29 +609,38 @@ function emptyState(ctx){
 function renderYearFilter(){
   const el=document.getElementById('yearBtns');if(!el)return;
   const yrs=getAvailableYears().slice().reverse(); /* descending: 2026, 2025... */
-  const _fy=(F&&F.year)||'all';  /* safe F.year accessor */
+  const _fy=(typeof F!=='undefined'&&F&&F.year)||'all'; /* FF pattern */
   el.innerHTML=
     yrs.map(y=>`<button class="fb${_fy===y?' on':''}" data-filter="year" data-val="${y}" onclick="setF('year','${y}',this)">${y}</button>`).join('')+
     `<button class="fb${_fy==='all'?' on':''}" data-filter="year" data-val="all" onclick="setF('year','all',this)">${lang==='ar'?'الكل':'All'}</button>`;
 }
 function updateChips(){
   const el=document.getElementById('filterChips');if(!el)return;
+  /* Safe filter object — mirrors the FF pattern in filt() */
+  const FF = (typeof F !== 'undefined' && F && typeof F === 'object')
+    ? F
+    : { year:'all', qtr:['q1','q2','q3','q4'], dept:'all', status:'all' };
   const active=[];
-  if(F.year!=='all')active.push(F.year);
-  const _qt=Array.isArray(F.qtr)?F.qtr:['q1'];
-  if(!_qt.includes('all')&&_qt.length)active.push(_qt.map(q=>q.toUpperCase()).join('+'));
-  if(F.dept!=='all')active.push(lang==='ar'?DM[F.dept].ar:DM[F.dept].en);
-  if(F.status!=='all')active.push(F.status==='achieved'?'Met':'Missed');
+  if(FF.year   && FF.year   !== 'all') active.push(FF.year);
+  const _qt = Array.isArray(FF.qtr) ? FF.qtr : ['q1'];
+  if(!_qt.includes('all') && _qt.length) active.push(_qt.map(q=>q.toUpperCase()).join('+'));
+  if(FF.dept   && FF.dept   !== 'all' && DM && DM[FF.dept])
+    active.push(lang==='ar' ? DM[FF.dept].ar : DM[FF.dept].en);
+  if(FF.status && FF.status !== 'all')
+    active.push(FF.status === 'achieved' ? 'Met' : 'Missed');
   const ks=filt();
   el.innerHTML=active.map(a=>`<span class="fchip">${a}</span>`).join('')+
     `<span class="fchip dim">${ks.length} ${lang==='ar'?'مؤشر':'KPIs'}</span>`;
 }
 function updateBadge(){
-  const miss=filt().filter(k=>ok(k)===false).length;
+  /* filt() already returns [] when F is not ready */
+  const ks=filt();
+  const miss=ks.filter(k=>k&&typeof k==='object'&&ok(k)===false).length;
   const b=document.getElementById('accBadge');
   if(b){b.textContent=miss;b.style.display=miss>0?'':'none';}
 }
 function setF(type,val,el){
+  if(!F||typeof F!=='object'){console.warn('[KPI] setF: F not ready');return;}
   if(type==='qtr'){
     /* Multi-select: toggle quarter */
     if(val==='all'){F.qtr=['q1','q2','q3','q4'];}
@@ -782,8 +824,9 @@ renderYearFilter();
 populateAddYears();
 /* Set initial quarter button states */
 document.querySelectorAll('.fb[data-filter="qtr"]').forEach(function(b){
-  if(b.dataset.val==='all') b.classList.toggle('on', F.qtr.length===4);
-  else b.classList.toggle('on', F.qtr.includes(b.dataset.val));
+  const _q=F&&Array.isArray(F.qtr)?F.qtr:[];
+  if(b.dataset.val==='all') b.classList.toggle('on', _q.length===4);
+  else b.classList.toggle('on', _q.includes(b.dataset.val));
 });
 
 /* renderExec / renderCurrent need dashboard.js + translations.js which load after kpi.js.
