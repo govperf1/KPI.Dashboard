@@ -138,20 +138,25 @@ window._selectPortal=async portal=>{
        Debounced 800ms to prevent double-clicks firing twice.
        ══════════════════════════════════════════════════════ */
     let _fsSaveTimer=null, _fsPending=null;
+    /* Queue of resolvers for the debounced write — allows callers to await real completion */
+    var _fsResolveQueue=[];
     window._saveToFS = async (data) => {
       if(!window._fbUser||!db){
         console.warn('[FS] Write skipped — not authenticated');
-        return;
+        return Promise.reject(new Error('not authenticated'));
       }
-      /* Debounce: if called twice within 800ms, only write once */
+      /* Debounce: batch multiple rapid writes into one */
       _fsPending=data;
-      if(_fsSaveTimer) return;
+      /* Return a Promise that resolves ONLY when the Firestore write completes */
+      var writePromise=new Promise(function(res,rej){_fsResolveQueue.push({resolve:res,reject:rej});});
+      if(_fsSaveTimer) return writePromise; /* already scheduled — queue the resolver */
       _fsSaveTimer=setTimeout(async()=>{
         _fsSaveTimer=null;
         const d=_fsPending; _fsPending=null;
         if(!d) return;
         window._lastCloudSaveTime=Date.now();
         console.log('[FS WRITE] kpi_dashboard/state — triggered by user action');
+        const _localQueue=_fsResolveQueue.splice(0); /* capture resolvers before async work */
       try {
         const {audit=[], ...rest} = d;
         console.log('[FS WRITE] kpi_dashboard/state');
@@ -163,8 +168,15 @@ window._selectPortal=async portal=>{
           await setDoc(doc(db,'kpi_dashboard','audit'),
             {log:audit.slice(0,2000)}, {merge:false});
         }
-      } catch(e){ console.warn('[FS] Save error:',e.code||e.message); throw e; }
+        /* Firestore write successful — resolve all waiting callers */
+        _localQueue.forEach(function(p){p.resolve();});
+      } catch(e){
+        console.error('[FS WRITE ERROR]',e.code||e.message,e);
+        _localQueue.forEach(function(p){p.reject(e);});
+        throw e;
+      }
       }, 800); /* 800ms debounce — prevents double-click double-write */
+      return writePromise; /* caller awaits this — resolves when write completes */
     };
 
     /* ══════════════════════════════════════════════════════

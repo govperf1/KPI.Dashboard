@@ -861,20 +861,9 @@ async function saveNewKPI(){
       fsSaved=true;
       console.log('[saveNewKPI] Firestore write CONFIRMED ✓');
 
-      /* ── 6b. Reload state from Firestore to ensure consistency ── */
-      if(typeof window._loadFromFS==='function'){
-        const fsData=await window._loadFromFS();
-        if(fsData){
-          const safeFields=['ov','added','gaps','actions','rptEdits','deleted','pci'];
-          safeFields.forEach(f=>{ if(fsData[f]!==undefined) ST[f]=fsData[f]; });
-          try{localStorage.setItem('kpi_v3',JSON.stringify({...ST,_v:3}));}catch(_){}
-          console.log('[saveNewKPI] Re-synced from Firestore. allK() count:', allK().length);
-          console.log('[saveNewKPI] New KPI present after Firestore reload:', allK().some(k=>k.id===code));
-        }
-      }
-
-      /* ── 6c. Refresh ALL views again with Firestore-confirmed data ── */
-      refreshAllViewsAfterKpiChange('KPI_ADD:'+code+':firestore-synced');
+      /* NOTE: Do NOT reload from Firestore here — the write may not be complete yet.
+         The onSnapshot listener will propagate the write to all users automatically. */
+      refreshAllViewsAfterKpiChange('KPI_ADD:'+code+':firestore-confirmed');
 
     }catch(e){
       console.error('[saveNewKPI] Firestore error:',e.code||e.message,e);
@@ -988,7 +977,20 @@ function saveAdmin(){
   if(!ST.ov)ST.ov={};
   const _gQV=Q=>{const pl=parseFloat(document.getElementById('eAd'+Q+'_pl')?.value)||0;const co=parseFloat(document.getElementById('eAd'+Q+'_co')?.value);return(pl>0&&!isNaN(co)&&co!==null)?+(co/pl*100).toFixed(1):null;};
   if(!ST.ov[id])ST.ov[id]={};
-  ST.ov[id]={...ST.ov[id],q1:_gQV('Q1'),q2:_gQV('Q2'),q3:_gQV('Q3'),q4:_gQV('Q4'),target:parseFloat(document.getElementById('eTg').value)||90,tier:parseInt(document.getElementById('eTier').value)||3};
+  const _eYrEl=document.getElementById('eYr');
+  const _eYrVal=_eYrEl?parseInt(_eYrEl.value)||null:null;
+  ST.ov[id]={...ST.ov[id],
+    q1:_gQV('Q1'),q2:_gQV('Q2'),q3:_gQV('Q3'),q4:_gQV('Q4'),
+    target:parseFloat(document.getElementById('eTg').value)||90,
+    tier:parseInt(document.getElementById('eTier').value)||3
+  };
+  /* Year: update in ST.ov AND in ST.added if this KPI was user-added */
+  if(_eYrVal) ST.ov[id].yr=_eYrVal;
+  /* If this KPI exists in ST.added, update yr there too (for added KPIs) */
+  if(_eYrVal && Array.isArray(ST.added)){
+    const _addedIdx=ST.added.findIndex(function(k){return String(k.id||'').toUpperCase()===id.toUpperCase();});
+    if(_addedIdx>=0) ST.added[_addedIdx].yr=_eYrVal;
+  }
   /* ── KPI Code / Name (EN/AR) edits ── */
   const _newCode=(document.getElementById('eC')?.value||'').trim().toUpperCase();
   const _newNE=(document.getElementById('eNE')?.value||'').trim();

@@ -40,61 +40,19 @@
     ['render','renderExec','renderDept','renderRegistry','renderAcc','syncFilterUI'].forEach(function(fn){try{ if(typeof window[fn]==='function') window[fn](); }catch(_){}});
     try{ if(typeof render==='function') render(); }catch(_){}
   }
-  window.saveNewKPI = async function(){
-    var required=['aC','aDp','aO','aTier','aTg','aY','aNE','aNA'];
-    var ok=true;
-    required.forEach(function(id){var e=byId(id); if(!e) return; var empty=!String(e.value||'').trim(); e.style.borderColor=empty?'#C42B2B':''; e.style.boxShadow=empty?'0 0 0 3px rgba(196,43,43,.14)':''; if(empty) ok=false;});
-    if(!ok){showAddMsg('Please fill all required fields.',false);return false;}
-    var code=val('aC').toUpperCase();
-    if(!code){showAddMsg('KPI Code cannot be empty.',false);return false;}
-    var nameEn=val('aNE'), nameAr=val('aNA');
-    if(/[\u0600-\u06FF]/.test(nameEn)){showAddMsg('KPI Name (English) must be English only.',false);return false;}
-    if(nameAr && !/^[\u0600-\u06FF\u0660-\u0669\u06F0-\u06F9 0-9\-()_/.،,!?]*$/.test(nameAr)){showAddMsg('Arabic KPI name must be Arabic/numbers only.',false);return false;}
-    var exists=false;
-    try{ exists=(typeof allK==='function'?allK():[]).some(function(k){return String(k.id||'').toUpperCase()===code;}); }catch(_){exists=false;}
-    if(exists){showAddMsg('KPI Code already exists: '+code,false);return false;}
-    if(typeof ST==='undefined'){showAddMsg('Dashboard state is not ready. Please reload the page.',false);return false;}
-    if(!Array.isArray(ST.added)) ST.added=[];
-    var k={
-      id:code,
-      dept:val('aDp')||'maintenance',
-      yr:parseInt(val('aY'),10)||new Date().getFullYear(),
-      nameEn:nameEn,
-      nameAr:nameAr,
-      target:(num('aTg')!=null?num('aTg'):100),
-      op:(typeof normalizeOperator==='function'?normalizeOperator(val('aO')||'>='):(val('aO')||'>=')),
-      type:'core',
-      tier:parseInt(val('aTier'),10)||3,
-      q1:num('aQ1'), q2:num('aQ2'), q3:num('aQ3'), q4:num('aQ4')
-    };
-    ST.added=ST.added.filter(function(x){return String(x.id||'').toUpperCase()!==code;});
-    ST.added.push(k);
-    if(!ST.pci) ST.pci={};
-    ST.pci[code]={};
-    ['Q1','Q2','Q3','Q4'].forEach(function(Q){
-      var q=Q.toLowerCase(), pl=num('aAd'+Q+'_pl'), co=num('aAd'+Q+'_co'), ic=num('aAd'+Q+'_ic');
-      if(pl!=null || co!=null || ic!=null) ST.pci[code][q]={planned:pl,complete:co,incomplete:ic};
-    });
-    saveStateLocal();
-    /* USER ACTION: Add KPI Save button (patch) → Firestore write */
-    try{ if(typeof window._saveToFS==='function' && window._fbUser) await window._saveToFS(ST); }catch(e){ console.warn('[Add KPI Patch] cloud save failed; kept local',e); }
-    try{ if(typeof persistKpiNameToBank==='function') persistKpiNameToBank(nameEn,nameAr); }catch(_){}
-    try{ if(typeof addAudit==='function') addAudit('KPI_ADD','Added new KPI: '+code,null,'KPI: '+nameEn); }catch(_){}
-    try{
-      if(typeof F!=='undefined'){
-        F.year=String(k.yr);
-        if(!window._lockedDept) F.dept=k.dept;
-        F.qtr=['q1','q2','q3','q4'];
-        if(!F.status) F.status='all';
-      }
-    }catch(_){}
-    refreshViews('KPI_ADD:'+code);
-    showAddMsg('KPI '+code+' saved successfully and added to dashboard.',true);
-    return true;
-  };
+  /* window.saveNewKPI: removed — admin.js function saveNewKPI() is the correct implementation
+     and is already globally accessible. The auth.js IIFE override was overwriting it. */
   var oldSaveAdmin=window.saveAdmin;
-  window.saveAdmin=function(){
-    try{ var ap=document.querySelector('.ap.on'); if(ap && ap.id==='ap-add'){ window.saveNewKPI(); return false; } }catch(e){ console.error('[Add KPI Patch] saveAdmin add branch failed',e); }
+  /* Make saveAdmin async so it can properly await saveNewKPI() */
+  window.saveAdmin=async function(){
+    try{
+      var ap=document.querySelector('.ap.on');
+      if(ap && ap.id==='ap-add'){
+        /* Call the admin.js function declaration (correct, complete version) */
+        if(typeof saveNewKPI==='function') await saveNewKPI();
+        return false;
+      }
+    }catch(e){ console.error('[Add KPI Patch] saveAdmin add branch failed',e); }
     if(typeof oldSaveAdmin==='function') return oldSaveAdmin.apply(this,arguments);
   };
   console.log('[Add KPI Patch] active');
