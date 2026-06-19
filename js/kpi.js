@@ -500,6 +500,8 @@ try {
 }
 /* Safety guard: F must always be a valid object with known properties */
 if(!F||typeof F!=='object'){F={year:'all',qtr:['q1','q2','q3','q4'],dept:'all',status:'all'};}
+/* Expose on window so dashboard.js and other modules can access F directly */
+window.F=F;
 if(!F.year)F.year='all';
 if(!Array.isArray(F.qtr))F.qtr=['q1','q2','q3','q4'];
 if(!F.dept)F.dept='all';
@@ -510,10 +512,14 @@ if(!F.status)F.status='all';
 ========================================== */
 var f2 =(v,d=1)=>v==null?'\u2014':v.toFixed(d)+'%';
 function qv(k){
-  /* F.qtr is now an array e.g. ['q1','q2'] */
-  const _qtr=Array.isArray(F.qtr)?F.qtr:['q1'];
+  /* Guard: skip malformed KPI records */
+  if(!k||typeof k!=='object') return null;
+  /* Safe filter object — never read F.qtr directly */
+  const FF=(typeof F!=='undefined'&&F&&typeof F==='object')
+    ?F:{year:'all',qtr:['q1','q2','q3','q4'],dept:'all',status:'all'};
+  const _qtr=Array.isArray(FF.qtr)?FF.qtr:['q1','q2','q3','q4'];
   const qs=_qtr.includes('all')?['q1','q2','q3','q4']:_qtr;
-  const vs=qs.map(q=>k[q]).filter(v=>v!==null);
+  const vs=qs.map(q=>k[q]).filter(v=>v!==null&&v!==undefined&&typeof v==='number');
   return vs.length?vs.reduce((a,b)=>a+b)/vs.length:null;
 }
 /* Unified met/missed check — respects k.op (>=, <=, =) */
@@ -580,10 +586,11 @@ function emptyState(ctx){
   const _fqtr=(F&&Array.isArray(F.qtr))?F.qtr:['q1'];const qStr=_fqtr.includes('all')?'':_fqtr.map(q=>q.toUpperCase()).join(' & ');
   const yStr=(F&&F.year&&F.year!=='all')?F.year:'';
   const period=[yStr,qStr].filter(Boolean).join(' ');
-  if(ctx==='missed'||F.status==='missed'){
+  const _FF=(typeof F!=='undefined'&&F&&typeof F==='object')?F:{year:'all',qtr:['q1','q2','q3','q4'],dept:'all',status:'all'};
+  if(ctx==='missed'||_FF.status==='missed'){
     /* Check if really all Met */
     const filtKpis=filt();
-    const evalKpis=filtKpis.filter(k=>ok(k)!==null);
+    const evalKpis=filtKpis.filter(k=>k&&ok(k)!==null);
     const reallyAllMet=evalKpis.length>0&&evalKpis.every(k=>ok(k)===true);
     if(reallyAllMet||ctx==='missed'){
       const dept=dn?` for ${dn}`:'';
@@ -596,7 +603,7 @@ function emptyState(ctx){
   if(ctx==='kpis'){
     const evalAll=allK().filter(k=>ok(k)!==null);
     const metAll=evalAll.length>0&&evalAll.every(k=>ok(k)===true);
-    if(metAll&&F.status==='missed')
+    if(metAll&&_FF.status==='missed')
       return lang==='ar'?' جميع الأهداف محققة! لا توجد مؤشرات Missed.':' All Targets Achieved! No missed KPIs.';
     return lang==='ar'
       ?' لا توجد مؤشرات تطابق الفلتر المحدد.<br>جرب تغيير السنة أو الربع أو الحالة.'

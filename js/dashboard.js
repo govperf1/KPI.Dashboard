@@ -84,12 +84,19 @@ function _cached(k){
 }
 
 function renderExec(){
-  /* Guard: F must be initialised — retry in 150ms if not yet ready */
+  /* Guard: F must be initialised. Retry up to 5×150ms then stop. */
   if(typeof F==='undefined'||!F||typeof F!=='object'){
-    console.warn('[Dashboard] F not yet initialised — retrying renderExec in 150ms');
-    setTimeout(renderExec, 150);
+    renderExec._retries=(renderExec._retries||0)+1;
+    if(renderExec._retries<=5){
+      console.warn('[Dashboard] F not ready — retry '+renderExec._retries+'/5');
+      setTimeout(renderExec,150);
+    } else {
+      console.error('[Dashboard] F never initialised — giving up after 5 retries.');
+      renderExec._retries=0;
+    }
     return;
   }
+  renderExec._retries=0;
   _clearCache();
   const ks=filt();
   const evaluated=ks.filter(k=>ok(k)!==null);
@@ -1196,10 +1203,17 @@ function renderRAG(ks){
 
 function renderDept(){
   if(typeof F==='undefined'||!F||typeof F!=='object'){
-    console.warn('[Dashboard] F not yet initialised — retrying renderDept in 150ms');
-    setTimeout(renderDept, 150);
+    renderDept._retries=(renderDept._retries||0)+1;
+    if(renderDept._retries<=5){
+      console.warn('[Dashboard] F not ready — retry '+renderDept._retries+'/5');
+      setTimeout(renderDept,150);
+    } else {
+      console.error('[Dashboard] F never initialised — giving up.');
+      renderDept._retries=0;
+    }
     return;
   }
+  renderDept._retries=0;
   const el=document.getElementById('deptGrid');
   if(!el)return;
   const depts=F.dept==='all'?['maintenance','safety','housekeeping','projects']:[F.dept];
