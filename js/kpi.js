@@ -339,7 +339,8 @@ function applyRolePermissions(role,dept,perms){
   document.head.appendChild(roleStyle);
 }
 window.applyRolePermissions=applyRolePermissions;
-window.showKpoGapStatusPopup=showKpoGapStatusPopup;
+/* showKpoGapStatusPopup is defined in admin.js (loads after kpi.js).
+   Function declarations there become global automatically — no assignment needed here. */
 function updateUserBadge(name, role){
   const b=document.getElementById('_userBadge');
   if(b) b.style.display='flex';
