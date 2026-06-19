@@ -1127,7 +1127,11 @@ function saveAdmin(){
     action='GAP_EDIT';detail=`Gap for ${kpiId}${qtr?' · '+qtr.toUpperCase():''}`;window._editOldVal=oldGap;}
   else if(ap==='ap-actions'||ap==='ap-auditlog')return;
   if(action)addAudit(action,detail,window._editOldVal||null,window._editNewVal||null);window._editOldVal=null;window._editNewVal=null;
-  sLS(ST);  /* triggers _saveToFS automatically */
+  sLS(ST);  /* localStorage — always */
+  /* USER ACTION: Save button → Firestore write (persists for ALL users) */
+  if(typeof window._saveToFS==='function' && window._fbUser){
+    window._saveToFS(ST).catch(function(e){console.warn('[saveAdmin] Firestore write error:',e);});
+  }
   toast(lang==='ar'?'✓ تم الحفظ بنجاح':'✓ Saved successfully');
   updateBadge();
   renderYearFilter();  /* ensure year filter stays current */
@@ -1222,4 +1226,148 @@ function confirmDelKpi(){
   if(typeof loadAdminPanel==='function')loadAdminPanel();
   renderYearFilter();
   renderCurrent();
+}
+
+
+/* ══════════════════════════════════════════════════════════════
+   Super Admin Hub
+   Called from firebase.js after SA selects the Performance portal.
+   Opens the Admin Panel immediately and selects the SA overview tab.
+   ══════════════════════════════════════════════════════════════ */
+function _showSuperAdminHub(){
+  /* Populate admin selects first */
+  try{ if(typeof popAdminSels==='function') popAdminSels(); }catch(_){}
+  try{ if(typeof loadAuditLog==='function') loadAuditLog(); }catch(_){}
+  try{ if(typeof populateAddYears==='function') populateAddYears(); }catch(_){}
+
+  /* Ensure the admin panel overlay is open */
+  const adminOv=document.getElementById('adminOv');
+  if(adminOv) adminOv.classList.add('open');
+
+  /* Show SA-specific User Requests section if it exists */
+  const reqTab=document.getElementById('ap-requests');
+  if(reqTab){ swAt('ap-requests'); }
+
+  /* Inject SA hub controls into admin header if not already there */
+  const hdr=document.querySelector('#adminOv .mhd-t');
+  if(hdr && !document.getElementById('_saHubTag')){
+    const tag=document.createElement('span');
+    tag.id='_saHubTag';
+    tag.style.cssText='font-size:9px;padding:2px 8px;border-radius:10px;background:rgba(248,113,113,.15);color:#F87171;font-weight:700;margin-left:8px;';
+    tag.textContent='SUPER ADMIN';
+    hdr.appendChild(tag);
+  }
+
+  /* Build text editor tab if ST.textEdits capability present */
+  _ensureSaTextEditorTab();
+
+  /* Audit */
+  try{ addAudit('SA_HUB_OPEN','Super Admin hub opened'); }catch(_){}
+  console.log('[SA Hub] Super Admin hub opened');
+}
+window._showSuperAdminHub = _showSuperAdminHub;
+
+/* Inject a Text Editor tab into the admin panel for SA */
+function _ensureSaTextEditorTab(){
+  if(document.getElementById('ap-textedit')) return; /* already injected */
+
+  /* Tab button */
+  const tabs=document.getElementById('adminTabs');
+  if(!tabs) return;
+  const btn=document.createElement('button');
+  btn.className='atb';
+  btn.textContent= typeof lang!=='undefined'&&lang==='ar'?'محرر النصوص':'Text Editor';
+  btn.onclick=function(){ swAt('ap-textedit',this); };
+  tabs.appendChild(btn);
+
+  /* Tab content panel */
+  const mbody=document.querySelector('#adminOv .mbody');
+  if(!mbody) return;
+  const panel=document.createElement('div');
+  panel.id='ap-textedit';
+  panel.className='ap';
+  panel.style.display='none';
+  panel.innerHTML=_buildTextEditorUI();
+  mbody.appendChild(panel);
+}
+
+/* Build the SA text editor panel HTML */
+function _buildTextEditorUI(){
+  if(typeof window.TR==='undefined') return '<p style="padding:16px;color:#888">Translation system not loaded.</p>';
+  const isAr=(typeof lang!=='undefined'&&lang==='ar');
+  const rows=Object.keys(window.TR).map(function(key){
+    const both=(typeof tBoth==='function')?tBoth(key):{en:window.TR[key].en,ar:window.TR[key].ar};
+    return '<tr data-tekey="'+htmlEsc(key)+'">'
+      +'<td style="padding:4px 8px;font-size:10px;color:#888;white-space:nowrap">'+htmlEsc(key)+'</td>'
+      +'<td style="padding:4px"><input class="te-en" style="width:100%;padding:4px 6px;border:1px solid rgba(255,255,255,.1);border-radius:4px;background:rgba(255,255,255,.05);color:#fff;font-size:11px" value="'+htmlEsc(both.en||'')+'"></td>'
+      +'<td style="padding:4px"><input class="te-ar" style="width:100%;padding:4px 6px;border:1px solid rgba(255,255,255,.1);border-radius:4px;background:rgba(255,255,255,.05);color:#fff;font-size:11px;direction:rtl" value="'+htmlEsc(both.ar||'')+'"></td>'
+      +'</tr>';
+  }).join('');
+  return '<div style="padding:12px">'
+    +'<h3 style="font-size:12px;font-weight:700;color:#0195af;margin:0 0 8px">'+( isAr?'محرر نصوص الواجهة':'Dashboard Text Editor (Super Admin Only)')+'</h3>'
+    +'<p style="font-size:10px;color:#999;margin:0 0 10px">'+( isAr?'عدّل النص وانقر حفظ — يُطبَّق على جميع المستخدمين':'Edit labels then click Save — changes apply to all users immediately.')+'</p>'
+    +'<div style="max-height:380px;overflow-y:auto">'
+    +'<table style="width:100%;border-collapse:collapse">'
+    +'<thead><tr>'
+    +'<th style="padding:4px 8px;font-size:10px;text-align:left;color:#888">Key</th>'
+    +'<th style="padding:4px 8px;font-size:10px;text-align:left;color:#888">English</th>'
+    +'<th style="padding:4px 8px;font-size:10px;text-align:left;color:#888">Arabic</th>'
+    +'</tr></thead>'
+    +'<tbody>'+rows+'</tbody>'
+    +'</table></div>'
+    +'<div id="teEditFeedback" style="margin:8px 0;min-height:20px"></div>'
+    +'<button onclick="_saveTextEdits()" style="padding:8px 20px;background:#0195af;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:700;font-size:11px">'
+    +(isAr?'حفظ التعديلات':'Save Text Changes')+'</button>'
+    +'</div>';
+}
+window._buildTextEditorUI = _buildTextEditorUI;
+
+/* Save text editor changes to ST.textEdits → Firestore */
+function _saveTextEdits(){
+  const panel=document.getElementById('ap-textedit');
+  if(!panel) return;
+  if(!ST.textEdits) ST.textEdits={};
+  let changed=0;
+  panel.querySelectorAll('tr[data-tekey]').forEach(function(row){
+    const key=row.getAttribute('data-tekey');
+    const en=row.querySelector('.te-en');
+    const ar=row.querySelector('.te-ar');
+    if(!key||!en||!ar) return;
+    const enVal=en.value.trim();
+    const arVal=ar.value.trim();
+    if(enVal || arVal){
+      const old=JSON.stringify(ST.textEdits[key]||{});
+      ST.textEdits[key]={en:enVal,ar:arVal};
+      if(JSON.stringify(ST.textEdits[key])!==old) changed++;
+    }
+  });
+  if(!changed){ _teFeedback('No changes detected.', false); return; }
+  /* Apply to TR immediately (single source of truth) */
+  if(typeof tSet==='function'){
+    Object.keys(ST.textEdits).forEach(function(key){
+      tSet(key, ST.textEdits[key].en, ST.textEdits[key].ar);
+    });
+  } else if(typeof applyDOMTranslations==='function'){
+    applyDOMTranslations();
+  }
+  /* Save to localStorage + Firestore */
+  sLS(ST);
+  if(typeof window._saveToFS==='function' && window._fbUser){
+    window._saveToFS(ST)
+      .then(function(){ _teFeedback('Saved! Changes will appear for all users.', true); })
+      .catch(function(e){ _teFeedback('Saved locally. Cloud sync failed: '+e.message, false); });
+  } else {
+    _teFeedback('Saved locally only (not logged in to Firestore).', false);
+  }
+  addAudit('TEXT_EDIT','Updated '+changed+' text label(s)');
+}
+window._saveTextEdits = _saveTextEdits;
+
+function _teFeedback(msg,ok){
+  const el=document.getElementById('teEditFeedback');
+  if(!el) return;
+  el.textContent=msg;
+  el.style.color=ok?'#16A34A':'#D97706';
+  el.style.fontSize='10px';
+  el.style.fontWeight='600';
 }

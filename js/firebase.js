@@ -59,6 +59,21 @@ window._selectPortal=async portal=>{
         if(window._fbRole==='kpi_owner' && typeof window.showKpoGapStatusPopup==='function'){
           setTimeout(()=>{try{window.showKpoGapStatusPopup();}catch(e){console.warn('[KPO] status popup error:',e);}},700);
         }
+        /* Super Admin: open admin hub immediately after entering Performance portal */
+        if(window._fbRole==='super_admin'){
+          setTimeout(()=>{
+            try{
+              if(typeof window._showSuperAdminHub==='function'){
+                window._showSuperAdminHub();
+              } else {
+                /* Fallback: open the standard admin panel */
+                const adminOv=document.getElementById('adminOv');
+                if(adminOv) adminOv.classList.add('open');
+                if(typeof popAdminSels==='function') popAdminSels();
+              }
+            }catch(e){console.warn('[SA] hub open error:',e);}
+          },400);
+        }
         /* Start read-only Firestore listener for cross-user updates */
         if(typeof window._startReadListener==='function') setTimeout(window._startReadListener, 800);
         console.log('[Auth] ✓ Performance portal entered');

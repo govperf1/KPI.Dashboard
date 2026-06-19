@@ -561,7 +561,8 @@ function updateExecTrend(yr){
     var key=userKey();
     if(force||key!==notifCacheKey||!notifCache){notifCacheKey=key;notifCache=rawNotifications();}
     var seen=readSeen();
-    return (notifCache||[]).filter(function(n){return seen.indexOf(n.id)===-1;});
+    /* force=true: unread only (badge count); force=false: all (list display) */
+    return force?(notifCache||[]).filter(function(n){return seen.indexOf(n.id)===-1;}):(notifCache||[]);
   }
   function positionDrop(drop,btn,width){
     if(!drop||!btn)return;
@@ -569,12 +570,44 @@ function updateExecTrend(yr){
     drop.style.position='fixed';drop.style.width=w+'px';drop.style.right='auto';drop.style.top=(r.bottom+10)+'px';drop.style.left=Math.max(10,Math.min(window.innerWidth-w-10,r.right-w))+'px';drop.style.zIndex='2147483646';
   }
   function renderNotifications(force){
-    var arr=getNotifications(!!force), c=$('userAlertCount'), list=$('userAlertList');
-    if(c){c.textContent=arr.length;c.style.display=arr.length?'flex':'none';}
+    /* Badge count = UNREAD only; list shows all with read/unread visual */
+    var unreadArr=getNotifications(true), c=$('userAlertCount'), list=$('userAlertList');
+    if(c){c.textContent=unreadArr.length;c.style.display=unreadArr.length?'flex':'none';}
+    var arr=getNotifications(false);  /* all (for list display) */
     if(list){
-      if(!arr.length){list.innerHTML='<div class="qumc-n-empty-final">No important notifications.</div>';}
-      else{list.innerHTML=arr.map(function(n){return '<div class="qumc-nrow-final" data-nid="'+esc(n.id)+'"><span class="qumc-n-dot-final" style="background:#C42B2B"></span><div><div class="qumc-n-title-final">'+esc(n.title)+'</div><div class="qumc-n-meta-final">'+esc(n.meta)+'</div></div></div>';}).join('');}
-      Array.prototype.forEach.call(list.querySelectorAll('.qumc-nrow-final'),function(row){row.onclick=function(ev){ev.preventDefault();ev.stopPropagation();var id=row.getAttribute('data-nid');var seen=readSeen();seen.push(id);writeSeen(seen);notifCache=(notifCache||[]).filter(function(n){return n.id!==id;});renderNotifications(false);};});
+      if(!unreadArr.length && !arr.length){list.innerHTML='<div class="qumc-n-empty-final">No important notifications.</div>';}
+      else{
+  /* Show ALL notifications (read + unread); dim read ones */
+  var allNotifs=getNotifications(true);
+  var seen=readSeen();
+  list.innerHTML=allNotifs.map(function(n){
+    var isRead=seen.indexOf(n.id)>=0;
+    var col=isRead?'#555':(n.level==='red'?'#C42B2B':(n.level==='orange'?'#D97706':'#0195af'));
+    var opacity=isRead?'0.6':'1';
+    return '<div class="qumc-nrow-final" data-nid="'+esc(n.id)+'" style="opacity:'+opacity+'">'
+      +'<span class="qumc-n-dot-final" style="background:'+col+'"></span>'
+      +'<div><div class="qumc-n-title-final">'+esc(n.title)+(isRead?' <span style="font-size:9px;color:#555">(read)</span>':'')+'</div>'
+      +'<div class="qumc-n-meta-final">'+esc(n.meta)+'</div></div>'
+      +'</div>';
+  }).join('');
+}
+      Array.prototype.forEach.call(list.querySelectorAll('.qumc-nrow-final'),function(row){
+        var id=row.getAttribute('data-nid');
+        var seen=readSeen();
+        var isRead=seen.indexOf(id)>=0;
+        /* Visual: dim the dot for already-read items */
+        var dot=row.querySelector('.qumc-n-dot-final');
+        if(dot && isRead) dot.style.background='#555';
+        row.onclick=function(ev){
+          ev.preventDefault();ev.stopPropagation();
+          /* Mark as read — do NOT remove from list or notifCache */
+          var s=readSeen(); if(s.indexOf(id)<0){s.push(id);writeSeen(s);}
+          /* Dim the dot to show it has been read */
+          if(dot) dot.style.background='#555';
+          /* Update badge count (unread only) */
+          renderNotifications(false);
+        };
+      });
     }
     var clear=$('qumcClearNotifs'); if(clear){clear.onclick=function(ev){ev.preventDefault();ev.stopPropagation();writeSeen(readSeen().concat(getNotifications(false).map(function(n){return n.id;})));notifCache=[];renderNotifications(false);};}
   }
