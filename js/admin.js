@@ -820,9 +820,19 @@ async function saveNewKPI(){
   /* ── 4. Append to main state array (ST.added) ── */
   console.log('[SAVE CALLED] saveNewKPI — code:', code, 'ST.added before push:', (ST.added||[]).length);
   console.log('[saveNewKPI] KPI count BEFORE add:', allK().length);
+  console.log('[saveNewKPI] kpiObj to push:', JSON.stringify(kpiObj));
   if(!ST.added)ST.added=[];
-  ST.added=ST.added.filter(k=>k.id!==code);
+  /* Filter uses case-sensitive compare — code is already uppercase */
+  const _beforeFilter=ST.added.length;
+  ST.added=ST.added.filter(function(k){
+    const match=String(k.id||'').toUpperCase()===code;
+    if(match) console.log('[saveNewKPI] dedup: removing existing ST.added entry id='+k.id);
+    return !match;
+  });
+  console.log('[saveNewKPI] after dedup: ST.added.length='+ST.added.length+' (was '+_beforeFilter+')');
   ST.added.push(kpiObj);
+  console.log('[saveNewKPI] after push: ST.added.length='+ST.added.length+' | allK()='+allK().length);
+  console.log('[saveNewKPI] kpiObj in ST.added?', ST.added.some(function(k){return String(k.id||'').toUpperCase()===code;}));
   /* Save PCI counts in the same dashboard state so KPI cards can reveal planned/complete/incomplete counts */
   if(!ST.pci)ST.pci={};
   ST.pci[code]={};
@@ -908,7 +918,25 @@ async function saveNewKPI(){
     refreshAllViewsAfterKpiChange('KPI_ADD:'+code+':filters-adjusted');
     console.log('[saveNewKPI] Filters adjusted + views refreshed so',code,'is visible now');
   }
-  console.log('[saveNewKPI] Final check — is',code,'visible in filt()?',filt().some(k=>k.id===code));
+  /* Detailed final check */
+  const _allKResults=allK();
+  const _filtResults=filt();
+  const _inAllK=_allKResults.some(function(k){return String(k.id||'').toUpperCase()===code;});
+  const _inFilt=_filtResults.some(function(k){return String(k.id||'').toUpperCase()===code;});
+  console.log('[saveNewKPI] Final check — allK() total:', _allKResults.length, '| has '+code+'?', _inAllK);
+  console.log('[saveNewKPI] Final check — filt() total:', _filtResults.length, '| has '+code+'?', _inFilt);
+  if(_inAllK && !_inFilt){
+    const _k=_allKResults.find(function(k){return String(k.id||'').toUpperCase()===code;});
+    const _FF=(typeof F!=='undefined'&&F&&typeof F==='object')?F:{year:'all',qtr:['q1','q2','q3','q4'],dept:'all',status:'all'};
+    console.warn('[saveNewKPI] '+code+' is in allK but NOT in filt — checking filters:');
+    console.warn('  F.year='+_FF.year+' kpiYr='+(_k?String(_k.yr):'?')+' match?',!_FF.year||_FF.year==='all'||String(_k&&_k.yr)===_FF.year);
+    console.warn('  F.dept='+_FF.dept+' kpiDept='+(_k?_k.dept:'?')+' match?',!_FF.dept||_FF.dept==='all'||(_k&&_k.dept)===_FF.dept);
+    console.warn('  window._lockedDept='+window._lockedDept+' kpiDept='+(_k?_k.dept:'?'));
+  }
+  if(!_inAllK){
+    console.error('[saveNewKPI] '+code+' NOT in allK() — ST.added IDs:', (ST.added||[]).map(function(k){return k&&k.id;}).filter(Boolean));
+    console.error('[saveNewKPI] ST.deleted:', ST.deleted||[]);
+  }
 
   /* ── 9. Audit + clear form ── */
   persistKpiNameToBank(kpiObj.nameEn,kpiObj.nameAr);

@@ -452,13 +452,29 @@ function normalizeKpiRecord(k){
 }
 function allK(){
   const _del=new Set(ST.deleted||[]);  /* KPIs permanently deleted by admin */
-  const base=BASE.filter(k=>k!=null&&typeof k==='object'&&!_del.has(k.id)).map(k=>{const ov=(ST.ov||{})[k.id];return normalizeKpiRecord(ov?{...k,...ov}:k);}).filter(k=>k&&k.id);  /* guard malformed BASE entries */
-  /* Log and skip malformed Firestore records for diagnosis */
+  /* ── BASE KPIs ── */
+  const base=BASE.filter(k=>k!=null&&typeof k==='object'&&!_del.has(k.id)).map(k=>{const ov=(ST.ov||{})[k.id];return normalizeKpiRecord(ov?{...k,...ov}:k);}).filter(k=>k&&k.id);
+  /* ── ST.added KPIs ── */
   const _rawAdded=(ST.added||[]);
+  /* Diagnostic: log every time added[] is inspected */
+  if(_rawAdded.length || allK._dbg){
+    console.log('[allK] ST.added.length='+_rawAdded.length+' BASE.length='+base.length+' deleted='+_del.size);
+  }
   _rawAdded.forEach((r,i)=>{if(r==null||typeof r!=='object'){console.warn('[KPI] ST.added['+i+'] is malformed:',r);}});
-  const added=_rawAdded.filter(k=>k!=null&&typeof k==='object').map(normalizeKpiRecord).filter(k=>k&&k.id&&!_del.has(k.id));
+  const _step1=_rawAdded.filter(k=>k!=null&&typeof k==='object');
+  const _step2=_step1.map(normalizeKpiRecord);
+  const _step3=_step2.filter(k=>k&&k.id&&!_del.has(k.id));
+  if(_rawAdded.length!==_step3.length){
+    console.warn('[allK] added[] filtered: raw='+_rawAdded.length+' → step1='+_step1.length+' → step2='+_step2.length+' → step3='+_step3.length);
+    _step2.forEach(function(k,i){
+      if(!k){console.warn('[allK] step2['+i+']=null after normalizeKpiRecord');}
+      else if(!k.id){console.warn('[allK] step2['+i+'] id empty, raw was:',JSON.stringify(_rawAdded[i]));}
+      else if(_del.has(k.id)){console.warn('[allK] step2['+i+'] id='+k.id+' is in deleted set!');}
+    });
+  }
+  const added=_step3;
   let all=base.concat(added);
-  /* Apply display-code renames (ST.codeOv: {realId: newDisplayCode}) */
+  /* Apply display-code renames */
   if(ST.codeOv){
     all=all.map(k=>ST.codeOv[k.id]?{...k,id:ST.codeOv[k.id]}:k);
   }
