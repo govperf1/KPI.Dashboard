@@ -145,6 +145,11 @@ window._selectPortal=async portal=>{
         console.warn('[FS] Write skipped — not authenticated');
         return Promise.reject(new Error('not authenticated'));
       }
+      /* Suppress onSnapshot echoes from NOW — before the debounce even fires.
+         Without this, a remote snapshot arriving in the 800ms window would
+         overwrite ST.added with old Firestore data, erasing local changes. */
+      window._lastCloudSaveTime = Date.now();
+      console.log('[SAVE CALLED] _saveToFS called — echo suppression active');
       /* Debounce: batch multiple rapid writes into one */
       _fsPending=data;
       /* Return a Promise that resolves ONLY when the Firestore write completes */
@@ -154,12 +159,12 @@ window._selectPortal=async portal=>{
         _fsSaveTimer=null;
         const d=_fsPending; _fsPending=null;
         if(!d) return;
-        window._lastCloudSaveTime=Date.now();
-        console.log('[FS WRITE] kpi_dashboard/state — triggered by user action');
+        console.log('[FS WRITE START] kpi_dashboard/state — writing ST.added length:', (d.added||[]).length);
+        console.log('[ST BEFORE SAVE] added IDs:', (d.added||[]).map(function(k){return k&&k.id;}).filter(Boolean));
         const _localQueue=_fsResolveQueue.splice(0); /* capture resolvers before async work */
       try {
         const {audit=[], ...rest} = d;
-        console.log('[FS WRITE] kpi_dashboard/state');
+        console.log('[FS SAVE CALLED] setDoc kpi_dashboard/state with fields:', Object.keys(rest));
         await setDoc(doc(db,'kpi_dashboard','state'),
           {...rest, _by:window._fbUser, _at:serverTimestamp()}, {merge:true});
         // Save audit separately (collection for scalability)
@@ -168,10 +173,11 @@ window._selectPortal=async portal=>{
           await setDoc(doc(db,'kpi_dashboard','audit'),
             {log:audit.slice(0,2000)}, {merge:false});
         }
+        console.log('[FS WRITE SUCCESS] kpi_dashboard/state — added[] length now:', (d.added||[]).length);
         /* Firestore write successful — resolve all waiting callers */
         _localQueue.forEach(function(p){p.resolve();});
       } catch(e){
-        console.error('[FS WRITE ERROR]',e.code||e.message,e);
+        console.error('[FS WRITE ERROR]',e.code||e.message,'added[] length:', (d.added||[]).length, e);
         _localQueue.forEach(function(p){p.reject(e);});
         throw e;
       }
@@ -200,13 +206,27 @@ window._selectPortal=async portal=>{
           }
           console.log('[FS READ] onSnapshot: remote change — merging + updating UI');
           /* MERGE into ST — localStorage only, ZERO Firestore write */
-          const safe=['ov','added','gaps','actions','rptEdits','audit','deleted','pci','codeOv','textEdits','pciConfig','requests'];
+          const safe=['ov','gaps','actions','rptEdits','audit','deleted','pci','codeOv','textEdits','pciConfig','requests'];
           let changed=false;
+          /* Non-array fields: direct replace if changed */
           safe.forEach(function(f){
             if(fsData[f]!==undefined){
               try{ if(JSON.stringify(ST[f])!==JSON.stringify(fsData[f])){ST[f]=fsData[f];changed=true;} }catch(_){ST[f]=fsData[f];changed=true;}
             }
           });
+          /* `added` array: UNION merge by id — never drop local entries that Firestore doesn't know about yet.
+             This prevents an incoming snapshot from erasing a just-added KPI during the 800ms debounce window. */
+          if(fsData.added!==undefined){
+            var localAdded = Array.isArray(ST.added) ? ST.added : [];
+            var remoteAdded = Array.isArray(fsData.added) ? fsData.added : [];
+            /* Start with all remote entries */
+            var mergedMap = {};
+            remoteAdded.forEach(function(k){ if(k&&k.id) mergedMap[String(k.id).toUpperCase()]=k; });
+            /* Add local entries NOT yet in remote (new local adds during the 800ms window) */
+            localAdded.forEach(function(k){ if(k&&k.id&&!mergedMap[String(k.id).toUpperCase()]) mergedMap[String(k.id).toUpperCase()]=k; });
+            var merged = Object.values(mergedMap);
+            try{ if(JSON.stringify(ST.added)!==JSON.stringify(merged)){ST.added=merged;changed=true;} }catch(_){ST.added=merged;changed=true;}
+          }
           if(!changed){ console.log('[FS READ] onSnapshot: no data change, skip render'); return; }
           /* Save to localStorage (NO Firestore!) */
           try{ localStorage.setItem('kpi_v3',JSON.stringify({...ST,_v:3})); }catch(_){}
@@ -252,10 +272,12 @@ window._selectPortal=async portal=>{
         console.log('[FS] Loaded state from Firestore, keys:',Object.keys(fsData));
         if(typeof ST==='undefined') return;
         /* Safe merge: only merge non-destructive fields */
+        console.log('[FS LOAD] _onFSLoaded merging fields — remote added[] length:', (fsData.added||[]).length, 'local added[] length:', (ST.added||[]).length);
         const safeFields=['ov','added','gaps','actions','rptEdits','audit','deleted','pci','codeOv'];
         safeFields.forEach(f=>{
           if(fsData[f]!==undefined) ST[f]=fsData[f];
         });
+        console.log('[FS LOAD] After merge — ST.added[] length:', (ST.added||[]).length);
         /* Clean nulls from ov (same protection as _loadST) */
         if(ST.ov){
           Object.keys(ST.ov).forEach(kId=>{

@@ -818,6 +818,7 @@ async function saveNewKPI(){
   };
 
   /* ── 4. Append to main state array (ST.added) ── */
+  console.log('[SAVE CALLED] saveNewKPI — code:', code, 'ST.added before push:', (ST.added||[]).length);
   console.log('[saveNewKPI] KPI count BEFORE add:', allK().length);
   if(!ST.added)ST.added=[];
   ST.added=ST.added.filter(k=>k.id!==code);
@@ -1130,9 +1131,15 @@ function saveAdmin(){
   else if(ap==='ap-actions'||ap==='ap-auditlog')return;
   if(action)addAudit(action,detail,window._editOldVal||null,window._editNewVal||null);window._editOldVal=null;window._editNewVal=null;
   sLS(ST);  /* localStorage — always */
-  /* USER ACTION: Save button → Firestore write (persists for ALL users) */
+  /* USER ACTION: Save/Edit button → Firestore write (persists for ALL users) */
+  console.log('[SAVE CALLED] saveAdmin — ST.added length:', (ST.added||[]).length, 'ST.ov keys:', Object.keys(ST.ov||{}).length);
   if(typeof window._saveToFS==='function' && window._fbUser){
-    window._saveToFS(ST).catch(function(e){console.warn('[saveAdmin] Firestore write error:',e);});
+    /* await in async context — saveAdmin is declared async via auth.js override */
+    window._saveToFS(ST)
+      .then(function(){ console.log('[FS WRITE SUCCESS] saveAdmin edit persisted to Firestore'); })
+      .catch(function(e){ console.error('[FS WRITE ERROR] saveAdmin:', e.code||e.message, e); });
+  } else {
+    console.warn('[FS WRITE] saveAdmin: _saveToFS not available (fbUser='+(!!window._fbUser)+')');
   }
   toast(lang==='ar'?'✓ تم الحفظ بنجاح':'✓ Saved successfully');
   updateBadge();
