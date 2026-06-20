@@ -1588,61 +1588,83 @@ window._deactivateSaEditMode = _deactivateSaEditMode;
 
 function _scanDashboardForEditable(){
   if(!_saEditModeActive) return;
+  /* Bind click handlers to spans already marked by t() in edit mode */
+  document.querySelectorAll('[data-tkey]:not([data-sa-bound])').forEach(function(el){
+    el.setAttribute('data-sa-bound','1');
+    var key = el.getAttribute('data-tkey');
+    el.onclick = function(e){ e.stopPropagation(); _showTextKeyPopup(key, el); };
+  });
   if(typeof window.TR === 'undefined') return;
   var isAr = (typeof lang !== 'undefined' && lang === 'ar');
-  /* Build reverse map: current lang text value → TR key */
+  /* Build reverse map: lang text → TR key */
   var valToKey = {};
   Object.keys(window.TR).forEach(function(key){
     var stored = ST.textEdits && ST.textEdits[key];
-    var val = stored ? (stored[isAr?'ar':'en'] || stored.en) : (window.TR[key][isAr?'ar':'en'] || window.TR[key].en);
-    if(val && val.trim().length >= 2 && !val.includes('<')){
-      if(!valToKey[val.trim()]) valToKey[val.trim()] = key;
+    var val = stored ? (stored[isAr?'ar':'en'] || stored.en)
+                     : (window.TR[key][isAr?'ar':'en'] || window.TR[key].en);
+    if(val && val.trim().length >= 2 && !/</.test(val)){
+      valToKey[val.trim().toLowerCase()] = {key:key, displayVal:val.trim()};
     }
   });
-  /* Scan dashboard containers */
-  var containers = ['page-exec','page-reg','page-dept'].map(function(id){return document.getElementById(id);}).filter(Boolean);
-  if(!containers.length) containers = [document.querySelector('.page-content, .dash-main, main, #root')||document.body];
+  /* Scan dashboard — find LEAF elements (whole text = one editable phrase) */
+  var SKIP_TAGS = {SCRIPT:1,STYLE:1,INPUT:1,TEXTAREA:1,SELECT:1,OPTION:1,SVG:1,PATH:1,BUTTON:1};
+  var containers = [];
+  ['page-exec','page-reg','page-dept','page-acc'].forEach(function(id){
+    var el = document.getElementById(id); if(el) containers.push(el);
+  });
+  if(!containers.length){
+    var m = document.querySelector('.page.on, .page-content, main');
+    if(m) containers.push(m); else return;
+  }
   containers.forEach(function(container){
-    _walkAndMark(container, valToKey);
+    /* Walk all elements; if element has no child ELEMENTS (leaf), treat its text as one unit */
+    var allEls = container.querySelectorAll('*');
+    allEls.forEach(function(el){
+      if(el.getAttribute('data-tkey')) return; /* already marked */
+      if(SKIP_TAGS[el.tagName]) return;
+      /* Leaf = no child elements (only text nodes) */
+      var hasChildEl = false;
+      for(var i=0;i<el.childNodes.length;i++){
+        if(el.childNodes[i].nodeType===1){hasChildEl=true;break;}
+      }
+      if(hasChildEl) return;
+      var text = (el.textContent||'').trim();
+      if(!text || text.length < 2 || text.length > 120) return;
+      /* Look up in TR */
+      var entry = valToKey[text.toLowerCase()];
+      if(!entry){
+        /* Try partial match for longer phrases */
+        Object.keys(valToKey).forEach(function(v){
+          if(!entry && text.toLowerCase().indexOf(v)===0 && v.length>4) entry=valToKey[v];
+        });
+      }
+      if(!entry){
+        /* Auto-generate a key for hardcoded text not yet in TR */
+        var autoKey = 'auto_'+text.replace(/[^a-zA-Z0-9؀-ۿ]/g,'_').toLowerCase().substring(0,40);
+        if(!window.TR) window.TR={};
+        if(!window.TR[autoKey]){
+          window.TR[autoKey]={en:text, ar:text}; /* will be edited by SA */
+          if(ST.textEdits&&ST.textEdits[autoKey]) {
+            window.TR[autoKey].en=ST.textEdits[autoKey].en||text;
+            window.TR[autoKey].ar=ST.textEdits[autoKey].ar||text;
+          }
+        }
+        entry={key:autoKey, displayVal:text};
+      }
+      var key = entry.key;
+      el.setAttribute('data-tkey', key);
+      el.setAttribute('data-sa-bound','1');
+      el.onclick = function(e){ e.stopPropagation(); _showTextKeyPopup(key, el); };
+      /* If AR mode and we have an AR translation, update the element text */
+      if(isAr){
+        var stored = ST.textEdits&&ST.textEdits[key];
+        var arVal = stored ? (stored.ar||stored.en) : (window.TR[key]?window.TR[key].ar:'');
+        if(arVal && arVal!==text) el.textContent = arVal;
+      }
+    });
   });
 }
 window._scanDashboardForEditable = _scanDashboardForEditable;
-
-function _walkAndMark(node, valToKey){
-  if(!node || node.nodeType === 8) return; /* skip comments */
-  if(node.nodeType === 3){ /* text node */
-    var text = node.textContent || '';
-    var matched = false;
-    Object.keys(valToKey).forEach(function(val){
-      if(matched) return;
-      var idx = text.indexOf(val);
-      if(idx >= 0){
-        matched = true;
-        var key = valToKey[val];
-        var before = text.substring(0, idx);
-        var after = text.substring(idx + val.length);
-        var span = document.createElement('span');
-        span.setAttribute('data-tkey', key);
-        span.textContent = val;
-        span.title = 'Click to edit: ' + key;
-        span.onclick = function(e){ e.stopPropagation(); _showTextKeyPopup(key, span); };
-        var frag = document.createDocumentFragment();
-        if(before) frag.appendChild(document.createTextNode(before));
-        frag.appendChild(span);
-        if(after) frag.appendChild(document.createTextNode(after));
-        if(node.parentNode) node.parentNode.replaceChild(frag, node);
-      }
-    });
-    return;
-  }
-  if(node.nodeType === 1){
-    /* Skip scripts, styles, already-marked elements */
-    var tag = node.tagName.toUpperCase();
-    if(tag === 'SCRIPT' || tag === 'STYLE' || node.getAttribute('data-tkey')) return;
-    /* Process children (copy array since we may modify DOM) */
-    Array.from(node.childNodes).forEach(function(child){ _walkAndMark(child, valToKey); });
-  }
-}
 
 function _showTextKeyPopup(key, anchorEl){
   var existing = document.getElementById('saTextKeyPopup');

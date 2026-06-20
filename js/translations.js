@@ -87,6 +87,46 @@ var TR = {
   'at_risk':          { en: 'At Risk',         ar: 'في خطر' },
   'on_track':         { en: 'On Track',        ar: 'على المسار' },
   'critical':         { en: 'Critical',        ar: 'حرج' },
+  /* ── Arabic coverage for all dashboard labels ── */
+  'stable':                       { en: 'Stable',                          ar: 'مستقر' },
+  'developing':                   { en: 'Developing',                      ar: 'في تطور' },
+  'needs_attention':              { en: 'Needs Attention',                 ar: 'يحتاج انتباهاً' },
+  'all_good':                     { en: 'All Good',                        ar: 'كل المؤشرات جيدة' },
+  'all_depts_ok':                 { en: 'All Depts OK',                    ar: 'جميع الأقسام مستوفية' },
+  'kpis_on_target':               { en: 'KPIs on target',                  ar: 'المؤشرات محققة للأهداف' },
+  'met_label':                    { en: 'Met',                             ar: 'محقق' },
+  'improved':                     { en: 'Improved',                        ar: 'تحسّن' },
+  'declined':                     { en: 'Declined',                        ar: 'انخفض' },
+  'all_clear':                    { en: 'All Clear',                       ar: 'لا إشكاليات' },
+  'requires_immediate_attention': { en: 'Requires immediate attention',     ar: 'يستوجب تدخلاً فورياً' },
+  'all_documented':               { en: 'All documented',                  ar: 'موثّق بالكامل' },
+  'likely_to_meet_target':        { en: 'Likely to meet target',           ar: 'متوقع تحقيق الهدف' },
+  'moderate_risk':                { en: 'Moderate risk',                   ar: 'خطر متوسط' },
+  'at_risk_label':                { en: 'At risk',                         ar: 'في خطر' },
+  'q1_vs_prior_year':             { en: 'Q1 vs prior year Q1',             ar: 'الربع الأول مقارنةً بالسابق' },
+  'detailed_kpi_performance_cards':{ en: 'DETAILED KPI PERFORMANCE CARDS', ar: 'بطاقات أداء المؤشرات التفصيلية' },
+  'executive_intelligence':       { en: 'Executive Intelligence',          ar: 'الاستخبارات التنفيذية' },
+  'dept_performance':             { en: 'Department Performance',          ar: 'أداء الأقسام' },
+  'kpi_name_col':                 { en: 'KPI Name',                        ar: 'اسم المؤشر' },
+  'risk_col':                     { en: 'Risk',                            ar: 'المخاطر' },
+  'yoy_col':                      { en: 'YoY',                             ar: 'سنوي' },
+  'avg_col':                      { en: 'Avg',                             ar: 'المتوسط' },
+  'code_col':                     { en: 'Code',                            ar: 'الرمز' },
+  'on_track_label':               { en: 'ON TRACK',                        ar: 'في المسار' },
+  'critical_attention_required':  { en: 'CRITICAL ATTENTION REQUIRED',     ar: 'انتباه عاجل مطلوب' },
+  'attention_required':           { en: 'ATTENTION REQUIRED',              ar: 'مطلوب الانتباه' },
+  'needs_improvement':            { en: 'NEEDS IMPROVEMENT',               ar: 'يحتاج تحسيناً' },
+  'actions_in_progress':          { en: 'Actions Being Implemented',       ar: 'الإجراءات جارية' },
+  'actions_pending_label':        { en: 'Corrective Actions Pending',      ar: 'إجراءات تصحيحية معلقة' },
+  'chronic_underperformance':     { en: 'Chronic underperformance',        ar: 'ضعف أداء مزمن' },
+  'best_dept_label':              { en: 'Best dept',                       ar: 'أفضل قسم' },
+  'tier_label':                   { en: 'Tier',                            ar: 'المستوى' },
+  'kpi_owner_label':              { en: 'KPI Owner',                       ar: 'مسؤول المؤشر' },
+  'overview':                     { en: 'Overview',                        ar: 'نظرة عامة' },
+  'filters_label':                { en: 'Filters',                         ar: 'عوامل التصفية' },
+  'no_gaps_label':                { en: 'No gaps',                         ar: 'لا فجوات' },
+  'all_tier1_on_track':           { en: 'All Tier-1 KPIs on track',        ar: 'جميع مؤشرات المستوى الأول في المسار' },
+  'continue_monitoring':          { en: 'Continue monitoring',             ar: 'استمر في المتابعة' }
 };
 
 /* ─── Core API ─── */
@@ -98,11 +138,19 @@ var TR = {
  * @returns {string}
  */
 function t(key) {
+  var val;
   if (typeof ST !== 'undefined' && ST.textEdits && ST.textEdits[key]) {
-    return ST.textEdits[key][lang] || ST.textEdits[key]['en'] || key;
+    val = ST.textEdits[key][lang] || ST.textEdits[key]['en'] || key;
+  } else if (TR[key]) {
+    val = TR[key][lang] || TR[key]['en'] || key;
+  } else {
+    val = key;
   }
-  if (TR[key]) return TR[key][lang] || TR[key]['en'] || key;
-  return key;
+  /* SA Edit Text mode: wrap in editable span so click-to-edit works */
+  if (window._saEditMode) {
+    return '<span data-tkey="' + key + '" class="sa-ed" title="Edit: ' + key + '">' + val + '</span>';
+  }
+  return val;
 }
 
 /**

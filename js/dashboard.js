@@ -135,7 +135,7 @@ function renderExec(){
   
   /* ── Exec summary pre-computed ── */
   const _metPct=total?+(nOk/total*100).toFixed(1):0;
-  const _perfLabel=(nOk/Math.max(total,1))>=.75?'Stable':((nOk/Math.max(total,1))>=.5?'Developing':'Needs Attention');
+  const _perfLabel=(nOk/Math.max(total,1))>=.75?t('stable'):((nOk/Math.max(total,1))>=.5?t('developing'):t('needs_attention'));
   const _perfColor=(nOk/Math.max(total,1))>=.75?'#4ADE80':((nOk/Math.max(total,1))>=.5?'#FCD34D':'#F87171');
   const _critEsc=evaluated.filter(k=>ok(k)===false&&(k.tier||3)===1).length;
   const _atRisk=evaluated.filter(k=>{const v=qv(k);return ok(k)===false&&v!==null&&(k.target-v)<=5;}).length;
@@ -150,7 +150,7 @@ function renderExec(){
   const _wD2=_dS2[0];
   const _dC2={maintenance:'#0195af',safety:'#F87171',housekeeping:'#4ADE80',projects:'#FCD34D'};
   const _wDColor=_wD2?(_dC2[_wD2.d]||'#fff'):'#4ADE80';
-  const _wDName=_wD2&&_wD2.miss>0?DM[_wD2.d].en:'All Good';
+  const _wDName=_wD2&&_wD2.miss>0?DM[_wD2.d][lang==='ar'?'ar':'en']:t('all_good');
   const _wDSub=_wD2&&_wD2.miss>0?(_wD2.miss+' missed of '+_wD2.total):'';
   const _wText=_wD2&&_wD2.miss>0?(DM[_wD2.d]?DM[_wD2.d].en:'—'):'All Depts OK';
   const _annYoyKs=allK().filter(k=>k.yr===2026&&k.yoy!==undefined&&k.yoy!==null);
@@ -186,10 +186,10 @@ function renderExec(){
         <div style="width:38px;height:38px;border-radius:50%;background:#16A34A;display:flex;align-items:center;justify-content:center">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
-        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">Met</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">'+t('met_label')+'</span>
       </div>
       <div style="font-size:46px;font-weight:900;color:#16A34A;font-family:var(--mono);line-height:1;margin-bottom:4px">${nOk}</div>
-      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">KPIs on target</div>
+      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">'+t('kpis_on_target')+'</div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #F0F4F8">
         <span style="font-size:13px;font-weight:900;color:#16A34A;font-family:var(--mono)">${total?+(nOk/total*100).toFixed(1):0}%</span>
         <span style="font-size:8.5px;font-weight:700;padding:2px 10px;border-radius:12px;background:#DCFCE7;color:#16A34A">Success rate</span>
@@ -225,7 +225,7 @@ function renderExec(){
       <div style="font-size:36px;font-weight:900;color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'};font-family:var(--mono);line-height:1;margin-bottom:4px">${yoyDelta===null?'—':(parseFloat(yoyDelta)>0?'▲ ':'▼ ')+Math.abs(parseFloat(yoyDelta||0))+'%'}</div>
       <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">Q1 vs prior year Q1</div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #F0F4F8">
-        <span style="font-size:8.5px;font-weight:700;padding:2px 10px;border-radius:12px;background:${yoyDelta===null?'#F1F5F9':parseFloat(yoyDelta)>=0?'#DCFCE7':'#FEE2E2'};color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}">${yoyDelta===null?'No data':parseFloat(yoyDelta)>=0?'Improved':'Declined'}</span>
+        <span style="font-size:8.5px;font-weight:700;padding:2px 10px;border-radius:12px;background:${yoyDelta===null?'#F1F5F9':parseFloat(yoyDelta)>=0?'#DCFCE7':'#FEE2E2'};color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}">${yoyDelta===null?t('no_data'):parseFloat(yoyDelta)>=0?t('improved'):t('declined')}</span>
         <svg width="44" height="22" viewBox="0 0 44 22" fill="none"><polyline points="2,16 12,9 22,12 32,6 42,9" stroke="${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
       </div>
     </div>
@@ -590,13 +590,13 @@ function renderExec(){
       const _total=_ks.filter(k=>ok(k)!==null).length;
       const _missPct=_total>0?(_miss.length/_total):0;
       if(_miss.length===0){
-        _st.textContent=lang==='ar'?'في المسار':'ON TRACK';_st.style.color='#4ADE80';
+        _st.textContent=t('on_track_label');_st.style.color='#4ADE80';
       } else if(_hasT1Miss||_missPct>=0.50){
-        _st.textContent=lang==='ar'?'يستلزم تدخلاً عاجلاً':'CRITICAL ATTENTION REQUIRED';_st.style.color='#F87171';
+        _st.textContent=t('critical_attention_required');_st.style.color='#F87171';
       } else if(_missPct>=0.30){
-        _st.textContent=lang==='ar'?'يستلزم الانتباه':'ATTENTION REQUIRED';_st.style.color='#F87171';
+        _st.textContent=t('attention_required');_st.style.color='#F87171';
       } else {
-        _st.textContent=lang==='ar'?'يحتاج تحسيناً':'NEEDS IMPROVEMENT';_st.style.color='#FBBF24';
+        _st.textContent=t('needs_improvement');_st.style.color='#FBBF24';
       }
       _sd.textContent=_miss.length?'Immediate focus required on '+_miss.length+' missed KPI'+(_miss.length===1?'':'s')+' to meet annual targets.':'Division performing at '+_pct+'% achievement rate.';
     }
@@ -605,8 +605,8 @@ function renderExec(){
     const _crit=_miss.filter(k=>(k.tier||3)===1).length;
     const _ce=document.getElementById('eis_crit');
     if(_ce){_ce.textContent=_crit;_ce.style.color=_crit>0?'#F87171':'#4ADE80';}
-    const _cs=document.getElementById('eis_crit_sub');if(_cs)_cs.textContent=_crit>0?'Requires immediate attention':'All Tier-1 KPIs on track';
-    const _cb=document.getElementById('eis_crit_badge');if(_cb){_cb.textContent=_crit>0?'Critical':'All Clear';_cb.style.background=_crit>0?'rgba(220,38,38,.25)':'rgba(22,163,74,.20)';_cb.style.color=_crit>0?'#F87171':'#4ADE80';}
+    const _cs=document.getElementById('eis_crit_sub');if(_cs)_cs.textContent=_crit>0?t('requires_immediate_attention'):t('all_tier1_on_track');
+    const _cb=document.getElementById('eis_crit_badge');if(_cb){_cb.textContent=_crit>0?t('critical'):t('all_clear');_cb.style.background=_crit>0?'rgba(220,38,38,.25)':'rgba(22,163,74,.20)';_cb.style.color=_crit>0?'#F87171':'#4ADE80';}
 
     /* Biggest Gap */
     const _gapK=_miss.sort((a,b)=>{const va=qv(a),vb=qv(b);const ga=va!=null?(a.target-va):0,gb=vb!=null?(b.target-vb):0;return gb-ga;})[0];
@@ -638,7 +638,7 @@ function renderExec(){
     const _forecastPct=_evalK.length?Math.round((_evalK.filter(k=>ok(k)===true).length+_pend.length*0.5)/_ks.length*100):0;
     const _fe=document.getElementById('eis_forecast');if(_fe){_fe.textContent=_forecastPct+'%';_fe.style.color=_forecastPct>=80?'#4ADE80':_forecastPct>=60?'#0195af':'#FBBF24';}
     const _curPerfEl=document.getElementById('eis_current_perf');if(_curPerfEl){const _curKs=_ks.filter(k=>ok(k)!==null);const _curPct=_curKs.length?Math.round(_met.length/_curKs.length*100):0;_curPerfEl.textContent=_curPct+'%';_curPerfEl.style.color='rgba(255,255,255,.55)';}
-    const _fb=document.getElementById('eis_forecast_badge');if(_fb){_fb.textContent=_forecastPct>=80?'Likely to meet target':_forecastPct>=60?'Moderate risk':'At risk';_fb.style.color=_forecastPct>=80?'#4ADE80':_forecastPct>=60?'#0195af':'#FBBF24';_fb.style.background=_forecastPct>=80?'rgba(22,163,74,.20)':_forecastPct>=60?'rgba(1,149,175,.25)':'rgba(217,119,6,.25)';}
+    const _fb=document.getElementById('eis_forecast_badge');if(_fb){_fb.textContent=_forecastPct>=80?t('likely_to_meet_target'):_forecastPct>=60?t('moderate_risk'):t('at_risk_label');_fb.style.color=_forecastPct>=80?'#4ADE80':_forecastPct>=60?'#0195af':'#FBBF24';_fb.style.background=_forecastPct>=80?'rgba(22,163,74,.20)':_forecastPct>=60?'rgba(1,149,175,.25)':'rgba(217,119,6,.25)';}
 
     /* At-Risk KPIs */
     const _atRisk=_ks.filter(k=>{const v=qv(k);return v!==null&&v<k.target&&(k.target-v)<=8;}).length+_pend.length;
