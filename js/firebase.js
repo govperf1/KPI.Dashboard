@@ -48,31 +48,34 @@ window._selectPortal=async portal=>{
           try{ await window._onFSLoaded(); }
           catch(e){ console.warn('[FS] initial load skipped:',e); }
         }
-        /* Render with small delay to ensure DOM is ready */
-        if(typeof window.renderCurrent==='function'){
-          try{ window.renderCurrent(); }
-          catch(e){ console.error('[Auth] Initial render error:',e); }
-          /* Second render after any async operations */
-          setTimeout(()=>{try{window.renderCurrent();}catch(_){}},250);
-        }
-        /* KPI Owner: show Gap Analysis status popup every login */
-        if(window._fbRole==='kpi_owner' && typeof window.showKpoGapStatusPopup==='function'){
-          setTimeout(()=>{try{window.showKpoGapStatusPopup();}catch(e){console.warn('[KPO] status popup error:',e);}},700);
-        }
-        /* Super Admin: open admin hub immediately after entering Performance portal */
+        /* Role-specific rendering:
+           - super_admin → show SA hub landing page immediately, do NOT render dashboard first
+           - all others  → render dashboard, then role-specific popup                        */
         if(window._fbRole==='super_admin'){
+          /* SA: hub is the landing page — render dashboard in background so it's ready when
+             SA navigates from the hub into any sub-section.                                  */
+          try{ window.renderCurrent(); }catch(_){}
           setTimeout(()=>{
             try{
-              if(typeof window._showSuperAdminHub==='function'){
-                window._showSuperAdminHub();
-              } else {
-                /* Fallback: open the standard admin panel */
+              if(typeof window._showSuperAdminHub==='function') window._showSuperAdminHub();
+              else {
                 const adminOv=document.getElementById('adminOv');
                 if(adminOv) adminOv.classList.add('open');
                 if(typeof popAdminSels==='function') popAdminSels();
               }
-            }catch(e){console.warn('[SA] hub open error:',e);}
-          },400);
+            }catch(e){console.warn('[SA] hub error:',e);}
+          },300);
+        }else{
+          /* Normal Admin / KPI Owner / Viewer: render dashboard */
+          if(typeof window.renderCurrent==='function'){
+            try{ window.renderCurrent(); }
+            catch(e){ console.error('[Auth] Initial render error:',e); }
+            setTimeout(()=>{try{window.renderCurrent();}catch(_){}},250);
+          }
+          /* KPI Owner: gap status popup */
+          if(window._fbRole==='kpi_owner' && typeof window.showKpoGapStatusPopup==='function'){
+            setTimeout(()=>{try{window.showKpoGapStatusPopup();}catch(e){console.warn('[KPO]',e);}},700);
+          }
         }
         /* Start read-only Firestore listener for cross-user updates */
         if(typeof window._startReadListener==='function') setTimeout(window._startReadListener, 800);
