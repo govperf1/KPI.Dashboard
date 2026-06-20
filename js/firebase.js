@@ -159,12 +159,9 @@ window._selectPortal=async portal=>{
         _fsSaveTimer=null;
         const d=_fsPending; _fsPending=null;
         if(!d) return;
-        console.log('[FS WRITE START] kpi_dashboard/state — writing ST.added length:', (d.added||[]).length);
-        console.log('[ST BEFORE SAVE] added IDs:', (d.added||[]).map(function(k){return k&&k.id;}).filter(Boolean));
         const _localQueue=_fsResolveQueue.splice(0); /* capture resolvers before async work */
       try {
         const {audit=[], ...rest} = d;
-        console.log('[FS SAVE CALLED] setDoc kpi_dashboard/state with fields:', Object.keys(rest));
         await setDoc(doc(db,'kpi_dashboard','state'),
           {...rest, _by:window._fbUser, _at:serverTimestamp()}, {merge:true});
         // Save audit separately (collection for scalability)
@@ -173,7 +170,6 @@ window._selectPortal=async portal=>{
           await setDoc(doc(db,'kpi_dashboard','audit'),
             {log:audit.slice(0,2000)}, {merge:false});
         }
-        console.log('[FS WRITE SUCCESS] kpi_dashboard/state — added[] length now:', (d.added||[]).length);
         /* Firestore write successful — resolve all waiting callers */
         _localQueue.forEach(function(p){p.resolve();});
       } catch(e){
@@ -252,7 +248,21 @@ window._selectPortal=async portal=>{
             var merged = Object.values(mergedMap);
             try{ if(JSON.stringify(ST.added)!==JSON.stringify(merged)){ST.added=merged;changed=true;} }catch(_){ST.added=merged;changed=true;}
           }
-          if(!changed){ console.log('[FS READ] onSnapshot: no data change, skip render'); return; }
+          /* Reconcile: added KPIs must never be in deleted list */
+          if(typeof _reconcileDeletedVsAdded==='function'){
+            var reconciled=_reconcileDeletedVsAdded(ST);
+            if(reconciled){
+              changed=true; /* trigger re-render */
+              sLS(ST);
+              /* Save correction once — not a loop: only fires when deleted list was dirty */
+              if(typeof window._saveToFS==='function' && window._fbUser &&
+                 (Date.now()-(window._lastReconcileSave||0)) > 5000){
+                window._lastReconcileSave=Date.now();
+                window._saveToFS(ST).catch(function(e){console.warn('[reconcile] onSnapshot save:',e.message);});
+              }
+            }
+          }
+          if(!changed){ return; }
           /* Save to localStorage (NO Firestore!) */
           try{ localStorage.setItem('kpi_v3',JSON.stringify({...ST,_v:3})); }catch(_){}
           /* Update UI — stay on current page */
@@ -297,14 +307,21 @@ window._selectPortal=async portal=>{
         console.log('[FS] Loaded state from Firestore, keys:',Object.keys(fsData));
         if(typeof ST==='undefined') return;
         /* Safe merge: only merge non-destructive fields */
-        console.log('[FS LOAD] _onFSLoaded merging fields — remote added[] length:', (fsData.added||[]).length, 'local added[] length:', (ST.added||[]).length);
-        console.log('[DELETED LOAD] _onFSLoaded Firestore deleted:', JSON.stringify(fsData.deleted||[]));
         const safeFields=['ov','added','gaps','actions','rptEdits','audit','deleted','pci','codeOv'];
         safeFields.forEach(f=>{
           if(fsData[f]!==undefined) ST[f]=fsData[f];
         });
-        console.log('[FS LOAD] After merge — ST.added[] length:', (ST.added||[]).length);
-        /* Clean nulls from ov (same protection as _loadST) */
+        /* Reconcile: added KPIs must never be in deleted list.
+           If ST.deleted contains any id from ST.added, remove it.
+           Save the corrected state to Firestore once (no loop). */
+        if(typeof _reconcileDeletedVsAdded==='function' && _reconcileDeletedVsAdded(ST)){
+          sLS(ST);
+          if(typeof window._saveToFS==='function' && window._fbUser){
+            window._saveToFS(ST)
+              .then(function(){console.log('[reconcile] ST.deleted corrected and saved to Firestore');})
+              .catch(function(e){console.warn('[reconcile] save failed:',e.message);});
+          }
+        }        /* Clean nulls from ov (same protection as _loadST) */
         if(ST.ov){
           Object.keys(ST.ov).forEach(kId=>{
             if(!ST.ov[kId])return;

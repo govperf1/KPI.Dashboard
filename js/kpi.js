@@ -451,35 +451,37 @@ function normalizeKpiRecord(k){
 /* -- KPI data: allK, filt, qv, metStatus, ok, renderYearFilter, updateBadge -- */
 }
 function allK(){
-  const _del=new Set(ST.deleted||[]);  /* KPIs permanently deleted by admin */
-  /* ── BASE KPIs ── */
+  const _del=new Set(ST.deleted||[]);
   const base=BASE.filter(k=>k!=null&&typeof k==='object'&&!_del.has(k.id)).map(k=>{const ov=(ST.ov||{})[k.id];return normalizeKpiRecord(ov?{...k,...ov}:k);}).filter(k=>k&&k.id);
-  /* ── ST.added KPIs ── */
   const _rawAdded=(ST.added||[]);
-  /* Diagnostic: log every time added[] is inspected */
-  if(_rawAdded.length || allK._dbg){
-    console.log('[allK] ST.added.length='+_rawAdded.length+' BASE.length='+base.length+' deleted='+_del.size);
-  }
-  _rawAdded.forEach((r,i)=>{if(r==null||typeof r!=='object'){console.warn('[KPI] ST.added['+i+'] is malformed:',r);}});
-  const _step1=_rawAdded.filter(k=>k!=null&&typeof k==='object');
-  const _step2=_step1.map(normalizeKpiRecord);
-  const _step3=_step2.filter(k=>k&&k.id&&!_del.has(k.id));
-  if(_rawAdded.length!==_step3.length){
-    console.warn('[allK] added[] filtered: raw='+_rawAdded.length+' → step1='+_step1.length+' → step2='+_step2.length+' → step3='+_step3.length);
-    _step2.forEach(function(k,i){
-      if(!k){console.warn('[allK] step2['+i+']=null after normalizeKpiRecord');}
-      else if(!k.id){console.warn('[allK] step2['+i+'] id empty, raw was:',JSON.stringify(_rawAdded[i]));}
-      else if(_del.has(k.id)){console.warn('[allK] step2['+i+'] id='+k.id+' is in deleted set!');}
-    });
-  }
-  const added=_step3;
+  const added=_rawAdded.filter(k=>k!=null&&typeof k==='object').map(normalizeKpiRecord).filter(k=>k&&k.id&&!_del.has(k.id));
   let all=base.concat(added);
-  /* Apply display-code renames */
-  if(ST.codeOv){
-    all=all.map(k=>ST.codeOv[k.id]?{...k,id:ST.codeOv[k.id]}:k);
-  }
+  if(ST.codeOv){all=all.map(k=>ST.codeOv[k.id]?{...k,id:ST.codeOv[k.id]}:k);}
   return all;
 }
+/* ── _reconcileDeletedVsAdded ──────────────────────────────────────────────────
+   General rule: any KPI that exists in ST.added must NOT be in ST.deleted.
+   "Added wins over deleted." Call this after every Firestore load or merge.
+   Returns true if ST.deleted was modified (caller should re-save once).
+   ──────────────────────────────────────────────────────────────────────────── */
+function _reconcileDeletedVsAdded(state){
+  if(!Array.isArray(state.added)||!state.added.length) return false;
+  if(!Array.isArray(state.deleted)||!state.deleted.length) return false;
+  var addedIds=new Set(state.added.map(function(k){
+    return String((k&&k.id)||'').toUpperCase();
+  }).filter(Boolean));
+  var before=state.deleted.length;
+  state.deleted=state.deleted.filter(function(id){
+    return !addedIds.has(String(id||'').toUpperCase());
+  });
+  if(state.deleted.length<before){
+    console.log('[reconcile] Removed',(before-state.deleted.length),'id(s) from ST.deleted — added KPIs win');
+    return true; /* caller should persist this change */
+  }
+  return false;
+}
+window._reconcileDeletedVsAdded=_reconcileDeletedVsAdded;
+
 /* Resolve a DISPLAY id (possibly renamed via codeOv) back to its REAL storage id */
 function realId(displayId){
   if(ST.codeOv){

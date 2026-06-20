@@ -720,8 +720,7 @@ function showKpoGapStatusPopup(){
 }
 
 function refreshAllViewsAfterKpiChange(reason){
-  console.log('[Dashboard] ── Refreshing all views ── reason:',reason);
-  console.log('[Dashboard] allK() count BEFORE refresh:', allK().length);
+
   if(typeof renderYearFilter==='function') renderYearFilter();
   if(typeof popAdminSels==='function') popAdminSels();
   if(typeof populateDelKpiList==='function') populateDelKpiList();
@@ -729,8 +728,7 @@ function refreshAllViewsAfterKpiChange(reason){
   if(typeof updateBadge==='function') updateBadge();
   if(typeof updateChips==='function') updateChips();
   if(typeof renderCurrent==='function') renderCurrent();
-  console.log('[Dashboard] allK() count AFTER refresh:', allK().length);
-  console.log('[Dashboard] ── Refresh complete ──');
+
 }
 
 async function saveNewKPI(){
@@ -818,34 +816,15 @@ async function saveNewKPI(){
   };
 
   /* ── 4. Append to main state array (ST.added) ── */
-  console.log('[SAVE CALLED] saveNewKPI — code:', code, 'ST.added before push:', (ST.added||[]).length);
-  console.log('[saveNewKPI] KPI count BEFORE add:', allK().length);
-  console.log('[saveNewKPI] kpiObj to push:', JSON.stringify(kpiObj));
   if(!ST.added)ST.added=[];
   /* Filter uses case-sensitive compare — code is already uppercase */
-  const _beforeFilter=ST.added.length;
-  ST.added=ST.added.filter(function(k){
-    const match=String(k.id||'').toUpperCase()===code;
-    if(match) console.log('[saveNewKPI] dedup: removing existing ST.added entry id='+k.id);
-    return !match;
-  });
-  console.log('[saveNewKPI] after dedup: ST.added.length='+ST.added.length+' (was '+_beforeFilter+')');
+  ST.added=ST.added.filter(function(k){return String(k.id||'').toUpperCase()!==code;});
   ST.added.push(kpiObj);
   /* Remove id AND code from ST.deleted — case-insensitive.
      A previously deleted KPI being re-added must become visible immediately. */
-  const _newId   = String(kpiObj.id   || '').toUpperCase();
-  const _newCode = String(kpiObj.code || kpiObj.id || '').toUpperCase();
-  console.log('[DELETED BEFORE]', JSON.stringify(ST.deleted||[]),
-    '| cleaning for id='+_newId+' code='+_newCode);
-  ST.deleted = (ST.deleted || []).filter(function(x){
-    const v = String(x || '').toUpperCase();
-    const keep = (v !== _newId && v !== _newCode);
-    if(!keep) console.log('[saveNewKPI] removed from ST.deleted:', v);
-    return keep;
-  });
-  console.log('[DELETED AFTER]', JSON.stringify(ST.deleted));
-  console.log('[saveNewKPI] after push: ST.added.length='+ST.added.length+' | allK()='+allK().length);
-  console.log('[saveNewKPI] kpiObj in ST.added?', ST.added.some(function(k){return String(k.id||'').toUpperCase()===code;}));
+  /* General rule: any KPI in ST.added must be removed from ST.deleted.
+     _reconcileDeletedVsAdded handles this for all IDs at once. */
+  if(typeof _reconcileDeletedVsAdded==='function') _reconcileDeletedVsAdded(ST);
   /* Save PCI counts in the same dashboard state so KPI cards can reveal planned/complete/incomplete counts */
   if(!ST.pci)ST.pci={};
   ST.pci[code]={};
@@ -858,33 +837,27 @@ async function saveNewKPI(){
       ST.pci[code][q]={planned,complete,incomplete};
     }
   });
-  console.log('[saveNewKPI] KPI count AFTER push to ST.added:', allK().length, '| new KPI:', kpiObj.id);
 
   /* Update localStorage immediately */
   try{
     localStorage.setItem('kpi_v3',JSON.stringify({...ST,_v:3}));
-    console.log('[saveNewKPI] localStorage updated ✓');
-  }catch(_){
-    console.warn('[saveNewKPI] localStorage write failed');
-  }
+    }catch(_){
+    }
 
   /* Refresh ALL dashboard views with the new local state */
   refreshAllViewsAfterKpiChange('KPI_ADD:'+code);
-  console.log('[saveNewKPI] Local views refreshed — KPI count now:', allK().length);
 
   /* ── 5. Show saving state ── */
   _showFb('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="flex-shrink:0;animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"/></svg> Saving to cloud…',true);
 
   /* ── 6. Save COMPLETE dashboard state to Firestore and await confirmation ── */
-  console.log('[saveNewKPI] Saving complete ST to Firestore. Keys:', Object.keys(ST), '| ST.added length:', (ST.added||[]).length);
   let fsSaved=false;
   if(typeof window._saveToFS==='function'&&window._fbUser){
     try{
       /* USER ACTION: Admin clicked Save Changes → Firestore write */
       await window._saveToFS(ST);
       fsSaved=true;
-      console.log('[saveNewKPI] Firestore write CONFIRMED ✓');
-
+    
       /* NOTE: Do NOT reload from Firestore here — the write may not be complete yet.
          The onSnapshot listener will propagate the write to all users automatically. */
       refreshAllViewsAfterKpiChange('KPI_ADD:'+code+':firestore-confirmed');
@@ -909,13 +882,11 @@ async function saveNewKPI(){
   const _kpiYear=String(kpiObj.yr);
   let _filtersChanged=false;
   if(F.year!=='all' && F.year!==_kpiYear){
-    console.log('[saveNewKPI] Switching Year filter from',F.year,'to',_kpiYear,'so new KPI is visible');
-    F.year=_kpiYear;
+      F.year=_kpiYear;
     _filtersChanged=true;
   }
   if(F.dept!=='all' && F.dept!==kpiObj.dept && !window._lockedDept){
-    console.log('[saveNewKPI] Switching Dept filter from',F.dept,'to',kpiObj.dept);
-    F.dept=kpiObj.dept;
+      F.dept=kpiObj.dept;
     _filtersChanged=true;
   }
   const _newKpiQtrs=['q1','q2','q3','q4'].filter(q=>kpiObj[q]!==null);
@@ -929,27 +900,8 @@ async function saveNewKPI(){
   }
   if(_filtersChanged){
     refreshAllViewsAfterKpiChange('KPI_ADD:'+code+':filters-adjusted');
-    console.log('[saveNewKPI] Filters adjusted + views refreshed so',code,'is visible now');
-  }
-  /* Detailed final check */
-  const _allKResults=allK();
-  const _filtResults=filt();
-  const _inAllK=_allKResults.some(function(k){return String(k.id||'').toUpperCase()===code;});
-  const _inFilt=_filtResults.some(function(k){return String(k.id||'').toUpperCase()===code;});
-  console.log('[saveNewKPI] Final check — allK() total:', _allKResults.length, '| has '+code+'?', _inAllK);
-  console.log('[saveNewKPI] Final check — filt() total:', _filtResults.length, '| has '+code+'?', _inFilt);
-  if(_inAllK && !_inFilt){
-    const _k=_allKResults.find(function(k){return String(k.id||'').toUpperCase()===code;});
-    const _FF=(typeof F!=='undefined'&&F&&typeof F==='object')?F:{year:'all',qtr:['q1','q2','q3','q4'],dept:'all',status:'all'};
-    console.warn('[saveNewKPI] '+code+' is in allK but NOT in filt — checking filters:');
-    console.warn('  F.year='+_FF.year+' kpiYr='+(_k?String(_k.yr):'?')+' match?',!_FF.year||_FF.year==='all'||String(_k&&_k.yr)===_FF.year);
-    console.warn('  F.dept='+_FF.dept+' kpiDept='+(_k?_k.dept:'?')+' match?',!_FF.dept||_FF.dept==='all'||(_k&&_k.dept)===_FF.dept);
-    console.warn('  window._lockedDept='+window._lockedDept+' kpiDept='+(_k?_k.dept:'?'));
-  }
-  if(!_inAllK){
-    console.error('[saveNewKPI] '+code+' NOT in allK() — ST.added IDs:', (ST.added||[]).map(function(k){return k&&k.id;}).filter(Boolean));
-    console.error('[saveNewKPI] ST.deleted:', ST.deleted||[]);
-  }
+    }
+  /* Quick visibility check */
 
   /* ── 9. Audit + clear form ── */
   persistKpiNameToBank(kpiObj.nameEn,kpiObj.nameAr);
@@ -1173,7 +1125,6 @@ function saveAdmin(){
   if(action)addAudit(action,detail,window._editOldVal||null,window._editNewVal||null);window._editOldVal=null;window._editNewVal=null;
   sLS(ST);  /* localStorage — always */
   /* USER ACTION: Save/Edit button → Firestore write (persists for ALL users) */
-  console.log('[SAVE CALLED] saveAdmin — ST.added length:', (ST.added||[]).length, 'ST.ov keys:', Object.keys(ST.ov||{}).length);
   if(typeof window._saveToFS==='function' && window._fbUser){
     /* await in async context — saveAdmin is declared async via auth.js override */
     window._saveToFS(ST)
@@ -1251,7 +1202,6 @@ function confirmDelKpi(){
   /* Add to permanent deleted list */
   if(!ST.deleted)ST.deleted=[];
   if(!ST.deleted.includes(id))ST.deleted.push(id);
-  console.log('[DELETED WRITE] confirmDelKpi pushed:', id, '| ST.deleted now:', JSON.stringify(ST.deleted));
   /* Remove from ST.added if present */
   ST.added=(ST.added||[]).filter(x=>x.id!==id);
   /* Clean up all related data */
