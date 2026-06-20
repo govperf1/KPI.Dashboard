@@ -591,14 +591,22 @@ function loadEK(){
     const lbl=document.getElementById('e'+q+'Cur');if(lbl)lbl.textContent=(val!==null&&val!==undefined)?'['+val+'%]':'[—]';
   });
   document.getElementById('eTg').value=k.target;document.getElementById('eTier').value=k.tier||3;document.getElementById('eYr').value=k.yr;
-  /* Load PCI detailed data if available */
-  ['Q1','Q2','Q3','Q4'].forEach(Q=>{
-    const pciData=((ST.pci||{})[id]||{})[Q.toLowerCase()]||{};
-    const plEl=document.getElementById('eAd'+Q+'_pl');if(plEl)plEl.value=pciData.planned||'';
-    const coEl=document.getElementById('eAd'+Q+'_co');if(coEl)coEl.value=pciData.complete||'';
-    const icEl=document.getElementById('eAd'+Q+'_ic');if(icEl)icEl.value=pciData.incomplete||'';
-    if(pciData.planned)calcAdminPCI(Q.toLowerCase(),'eAd');
-  });
+  /* Rebuild quarterly table columns for this KPI's master config, then fill values */
+  if(typeof _updateEditQtrTable==='function') _updateEditQtrTable(k.nameEn||'');
+  setTimeout(function(){
+    if(typeof _fillQtrFormFromPci==='function'){
+      _fillQtrFormFromPci(id,'eAd','editQtrSection');
+    } else {
+      /* Legacy fallback: fill standard pci inputs */
+      ['Q1','Q2','Q3','Q4'].forEach(function(Q){
+        var pciData=((ST.pci||{})[id]||{})[Q.toLowerCase()]||{};
+        var plEl=document.getElementById('eAd'+Q+'_pl');if(plEl)plEl.value=pciData.planned||'';
+        var coEl=document.getElementById('eAd'+Q+'_co');if(coEl)coEl.value=pciData.complete||'';
+        var icEl=document.getElementById('eAd'+Q+'_ic');if(icEl)icEl.value=pciData.incomplete||'';
+        if(pciData.planned)calcAdminPCI(Q.toLowerCase(),'eAd');
+      });
+    }
+  }, 80);
 
   const info=document.getElementById('eKpiInfo');if(info)info.style.display='block';
   const en=document.getElementById('eKpiNameEN');if(en)en.textContent=k.nameEn;
@@ -842,13 +850,28 @@ async function saveNewKPI(){
   /* Save PCI counts in the same dashboard state so KPI cards can reveal planned/complete/incomplete counts */
   if(!ST.pci)ST.pci={};
   ST.pci[code]={};
-  ['Q1','Q2','Q3','Q4'].forEach(Q=>{
-    const q=Q.toLowerCase();
-    const planned=pn(_gv('aAd'+Q+'_pl',''));
-    const complete=pn(_gv('aAd'+Q+'_co',''));
-    const incomplete=pn(_gv('aAd'+Q+'_ic',''));
-    if(planned!==null||complete!==null||incomplete!==null){
-      ST.pci[code][q]={planned,complete,incomplete};
+  /* ── Use _readQtrValuesFromForm — handles standard PCI and custom-field KPIs ── */
+  var _qtrRead=(typeof _readQtrValuesFromForm==='function')
+    ?_readQtrValuesFromForm(code,'aAd','addQtrSection')
+    :{pciData:{Q1:{},Q2:{},Q3:{},Q4:{}},masterId:'',cfg:null};
+  Object.keys(_qtrRead.pciData).forEach(function(ql){
+    ST.pci[code][ql]=_qtrRead.pciData[ql];
+  });
+  /* Set q1-q4 on kpiObj — formula result for custom, complete% for standard */
+  ['Q1','Q2','Q3','Q4'].forEach(function(Q){
+    var q=Q.toLowerCase();
+    var qd=_qtrRead.pciData[q]||{};
+    if(qd._custom){
+      kpiObj[q]=qd._result;
+    }else{
+      /* Fallback to existing pn() reading for standard mode */
+      const planned=pn(_gv('aAd'+Q+'_pl',''));
+      const complete=pn(_gv('aAd'+Q+'_co',''));
+      const incomplete=pn(_gv('aAd'+Q+'_ic',''));
+      if(planned!==null||complete!==null||incomplete!==null){
+        ST.pci[code][q]={planned,complete,incomplete};
+      }
+      kpiObj[q]=planned>0?Math.min(100,Math.round((complete||0)/planned*100)):null;
     }
   });
 
@@ -965,25 +988,41 @@ function saveAdmin(){
     if(ef){ef.textContent=' Please fill all required fields';ef.style.color='#DC2626';ef.style.display='block';ef.style.background='rgba(220,38,38,.06)';}
     return;
   }
-  /* FIX 6: Validate PCI data integrity */
-  let pciValid=true;
-  ['Q1','Q2','Q3','Q4'].forEach(Q=>{
-    const pl=parseFloat(document.getElementById('eAd'+Q+'_pl')?.value)||0;
-    const co=parseFloat(document.getElementById('eAd'+Q+'_co')?.value)||0;
-    const ic=parseFloat(document.getElementById('eAd'+Q+'_ic')?.value)||0;
-    if(pl>0&&(co+ic)>pl){
-      const msg=lang==='ar'
-        ?(' '+Q+': المجموع ('+(co+ic)+') يتجاوز المخطط ('+pl+')')
-        :(' '+Q+': Total ('+(co+ic)+') exceeds planned ('+pl+')');
-      toast(msg);
-      pciValid=false;
-    }
-  });
-  if(!pciValid)return;
+  /* Validate PCI data — only for standard Planned/Complete KPIs */
+  const _selKForValid=allK().find(function(x){return x.id===document.getElementById('eSel')?.value;});
+  const _hasCustomValid=(_selKForValid&&typeof _findMasterKpiByName==='function')
+    ?_findMasterKpiByName(_selKForValid.nameEn||''):null;
+  if(!_hasCustomValid||!(_hasCustomValid.config&&_hasCustomValid.config.fieldConfig&&_hasCustomValid.config.fieldConfig.length>0)){
+    let pciValid=true;
+    ['Q1','Q2','Q3','Q4'].forEach(Q=>{
+      const pl=parseFloat(document.getElementById('eAd'+Q+'_pl')?.value)||0;
+      const co=parseFloat(document.getElementById('eAd'+Q+'_co')?.value)||0;
+      const ic=parseFloat(document.getElementById('eAd'+Q+'_ic')?.value)||0;
+      if(pl>0&&(co+ic)>pl){
+        toast(lang==='ar'?(' '+Q+': المجموع ('+(co+ic)+') يتجاوز المخطط ('+pl+')'):(' '+Q+': Total ('+(co+ic)+') exceeds planned ('+pl+')'));
+        pciValid=false;
+      }
+    });
+    if(!pciValid)return;
+  }
   const displayId=document.getElementById('eSel').value;if(!displayId){toast('Select a KPI');return;}
   const id=realId(displayId);  /* resolve to real storage key (handles renamed codes) */
   if(!ST.ov)ST.ov={};
-  const _gQV=Q=>{const pl=parseFloat(document.getElementById('eAd'+Q+'_pl')?.value)||0;const co=parseFloat(document.getElementById('eAd'+Q+'_co')?.value);return(pl>0&&!isNaN(co)&&co!==null)?+(co/pl*100).toFixed(1):null;};
+  const _gQV=Q=>{
+    /* Check if this KPI has custom-field config */
+    var _selId=document.getElementById('eSel')?.value;
+    var _selK=_selId?allK().find(function(x){return x.id===_selId;}):null;
+    var _masterMatch=(_selK&&typeof _findMasterKpiByName==='function')?_findMasterKpiByName(_selK.nameEn||''):null;
+    if(_masterMatch&&_masterMatch.config&&_masterMatch.config.fieldConfig&&_masterMatch.config.fieldConfig.length>0){
+      /* Read formula result from result span */
+      var resEl=document.getElementById('eAd'+Q+'_res');
+      if(resEl){var resText=resEl.textContent.replace('%','').trim();var rv=parseFloat(resText);return isNaN(rv)?null:rv;}
+      return null;
+    }
+    const pl=parseFloat(document.getElementById('eAd'+Q+'_pl')?.value)||0;
+    const co=parseFloat(document.getElementById('eAd'+Q+'_co')?.value);
+    return(pl>0&&!isNaN(co)&&co!==null)?+(co/pl*100).toFixed(1):null;
+  };
   if(!ST.ov[id])ST.ov[id]={};
   const _eYrEl=document.getElementById('eYr');
   const _eYrVal=_eYrEl?parseInt(_eYrEl.value)||null:null;
@@ -1017,14 +1056,19 @@ function saveAdmin(){
     if(!ST.codeOv)ST.codeOv={};
     ST.codeOv[id]=_newCode;
   }
-  /* Save PCI breakdown data */
+  /* Save PCI — custom-field or standard */
   if(!ST.pci)ST.pci={};if(!ST.pci[id])ST.pci[id]={};
-  ['Q1','Q2','Q3','Q4'].forEach(Q=>{
-    const pl=parseFloat(document.getElementById('eAd'+Q+'_pl')?.value)||0;
-    const co=parseFloat(document.getElementById('eAd'+Q+'_co')?.value)||0;
-    const ic=parseFloat(document.getElementById('eAd'+Q+'_ic')?.value)||0;
-    if(pl>0||co>0)ST.pci[id][Q.toLowerCase()]={planned:pl,complete:co,incomplete:ic};
-  });
+  if(typeof _readQtrValuesFromForm==='function'){
+    var _editQR=_readQtrValuesFromForm(id,'eAd','editQtrSection');
+    Object.keys(_editQR.pciData).forEach(function(ql){ST.pci[id][ql]=_editQR.pciData[ql];});
+  } else {
+    ['Q1','Q2','Q3','Q4'].forEach(Q=>{
+      const pl=parseFloat(document.getElementById('eAd'+Q+'_pl')?.value)||0;
+      const co=parseFloat(document.getElementById('eAd'+Q+'_co')?.value)||0;
+      const ic=parseFloat(document.getElementById('eAd'+Q+'_ic')?.value)||0;
+      if(pl>0||co>0)ST.pci[id][Q.toLowerCase()]={planned:pl,complete:co,incomplete:ic};
+    });
+  }
   const _oldK=allK().find(x=>x.id===id);
   const _oldVal=_oldK?`Q1:${_oldK.q1||'—'} Q2:${_oldK.q2||'—'} Q3:${_oldK.q3||'—'} Q4:${_oldK.q4||'—'} Target:${_oldK.target||'—'}%`:'new';
   const ef2=document.getElementById('_editFeedback');
@@ -2072,3 +2116,193 @@ function _teFeedback(msg,ok){
   el.style.fontSize='10px';
   el.style.fontWeight='600';
 }
+
+
+/* ── Quarterly Table Fns appended ── */
+/* ═══════════════════════════════════════════════════════════════
+   DYNAMIC QUARTERLY TABLE — changes based on KPI name / Master KPI
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Build the quarterly table HTML for a given master config (or default) */
+function _buildQtrTableHTML(masterConfig, prefix){
+  var fields = masterConfig ? (masterConfig.fieldConfig || []) : null;
+  var formula = masterConfig ? (masterConfig.resultFormula || '') : '';
+  var hasCustom = fields && fields.length > 0;
+  var letters = hasCustom ? fields.map(function(_,i){return String.fromCharCode(65+i);}) : [];
+
+  /* Default pci columns */
+  if(!hasCustom){
+    var thead = '<thead><tr>'
+      +'<th style="width:42px;text-align:left;padding-left:12px">QTR</th>'
+      +'<th style="color:#93C5FD"> Planned</th>'
+      +'<th style="color:#6EE7B7"> Complete</th>'
+      +'<th style="color:#FCA5A5"> Incomplete</th>'
+      +'<th style="color:#67E8F9;width:100px">Result</th>'
+      +'</tr></thead>';
+    var tbody = '<tbody>';
+    ['Q1','Q2','Q3','Q4'].forEach(function(Q){
+      tbody += '<tr>'
+        +'<td>'+Q+'</td>'
+        +'<td><input class="pci-pl" id="'+prefix+Q+'_pl" min="0" type="number" placeholder="0" oninput="calcAdminPCI(\''+Q.toLowerCase()+'\',\''+prefix+'\')"></td>'
+        +'<td><input class="pci-co" id="'+prefix+Q+'_co" min="0" type="number" placeholder="0" oninput="calcAdminPCI(\''+Q.toLowerCase()+'\',\''+prefix+'\')"></td>'
+        +'<td><input class="pci-ic" id="'+prefix+Q+'_ic" min="0" type="number" placeholder="—" readonly style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete"></td>'
+        +'<td><span class="pci-calc" id="'+prefix+Q+'_res">—</span></td>'
+        +'</tr>';
+    });
+    tbody += '</tbody>';
+    return thead + tbody;
+  }
+
+  /* Custom field columns */
+  var formulaEscaped = formula.replace(/"/g,'&quot;').replace(/'/g,"\\'");
+  var lettersJSON = JSON.stringify(letters);
+  var thead2 = '<thead><tr>'
+    +'<th style="width:42px;text-align:left;padding-left:12px">QTR</th>';
+  fields.forEach(function(f, i){
+    thead2 += '<th style="color:#93C5FD;font-size:9.5px;font-weight:600;padding:6px 8px;line-height:1.3">'+htmlEsc(f.nameEn)+'</th>';
+  });
+  thead2 += '<th style="color:#67E8F9;width:90px;min-width:70px">Result</th></tr></thead>';
+
+  var tbody2 = '<tbody>';
+  ['Q1','Q2','Q3','Q4'].forEach(function(Q){
+    tbody2 += '<tr><td style="font-weight:700;font-size:10px">'+Q+'</td>';
+    letters.forEach(function(letter){
+      tbody2 += '<td><input class="pci-pl custom-field-input" id="'+prefix+Q+'_'+letter+'"'
+        +' type="number" min="0" step="any" placeholder="0"'
+        +' oninput="_calcCustomResult(\''+Q.toLowerCase()+'\',\''+prefix+'\',\''+formulaEscaped+'\','+lettersJSON+')">'
+        +'</td>';
+    });
+    tbody2 += '<td><span class="pci-calc" id="'+prefix+Q+'_res" style="min-width:60px;display:inline-block">—</span></td>'
+      +'</tr>';
+  });
+  tbody2 += '</tbody>';
+  return thead2 + tbody2;
+}
+
+/* Recalculate result when a custom field input changes */
+function _calcCustomResult(q, prefix, formula, letters){
+  var Q = q.toUpperCase();
+  var vals = {};
+  var valid = true;
+  letters.forEach(function(letter){
+    var el = document.getElementById(prefix+Q+'_'+letter);
+    if(!el || el.value.trim() === ''){ valid = false; return; }
+    var v = parseFloat(el.value);
+    if(isNaN(v)){ valid = false; return; }
+    vals[letter] = v;
+  });
+  var resEl = document.getElementById(prefix+Q+'_res');
+  if(!resEl) return;
+  if(!valid || !Object.keys(vals).length){ resEl.textContent = '—'; return; }
+  var result = (typeof window._evalFormula === 'function') ? window._evalFormula(formula, vals) : null;
+  if(result === null){ resEl.textContent = '⚠ err'; resEl.style.color = '#F87171'; }
+  else { resEl.textContent = Math.round(result*10)/10 + '%'; resEl.style.color = result >= 0 ? '#67E8F9' : '#F87171'; }
+}
+window._calcCustomResult = _calcCustomResult;
+
+/* Rebuild the Add KPI quarterly table based on current name selection */
+function _updateAddQtrTable(){
+  var nameEnEl = document.getElementById('aNE');
+  var nameEn = nameEnEl ? nameEnEl.value.trim() : '';
+  var master = (typeof _findMasterKpiByName === 'function') ? _findMasterKpiByName(nameEn) : null;
+  var cfg = master ? master.config : null;
+  var table = document.getElementById('addQtrTable');
+  if(!table) return;
+  /* Store current master id on section for save to read */
+  var section = document.getElementById('addQtrSection');
+  if(section) section.setAttribute('data-master', master ? master.id : '');
+  table.innerHTML = _buildQtrTableHTML(cfg, 'aAd');
+  /* Update section label */
+  var lbl = section ? section.querySelector('.af-sec-lbl') : null;
+  if(lbl){
+    lbl.textContent = cfg ? ' Quarterly Values — Custom Fields' : ' Quarterly Values';
+    lbl.style.color = cfg ? '#0195af' : '';
+  }
+}
+window._updateAddQtrTable = _updateAddQtrTable;
+
+/* Rebuild the Edit KPI quarterly table when KPI is loaded in edit panel */
+function _updateEditQtrTable(kpiNameEn){
+  var master = (typeof _findMasterKpiByName === 'function') ? _findMasterKpiByName(kpiNameEn||'') : null;
+  var cfg = master ? master.config : null;
+  var table = document.getElementById('editQtrTable');
+  if(!table) return;
+  var section = document.getElementById('editQtrSection');
+  if(section) section.setAttribute('data-master', master ? master.id : '');
+  table.innerHTML = _buildQtrTableHTML(cfg, 'eAd');
+  var lbl = section ? section.querySelector('.af-sec-lbl') : null;
+  if(lbl){
+    lbl.textContent = cfg ? ' Quarterly Results — Custom Fields' : ' Quarterly Results';
+    lbl.style.color = cfg ? '#0195af' : '';
+  }
+}
+window._updateEditQtrTable = _updateEditQtrTable;
+
+/* Read quarterly values from Add form (custom or standard) */
+function _readQtrValuesFromForm(kpiId, prefix, sectionId){
+  var section = document.getElementById(sectionId || 'addQtrSection');
+  var masterId = section ? section.getAttribute('data-master') : '';
+  var allMaster = Object.assign({}, (window.BUILTIN_MASTER_KPIS||{}), (typeof ST!=='undefined'&&ST.masterKpis)||{});
+  var cfg = masterId ? allMaster[masterId] : null;
+  var pciData = {};
+
+  if(cfg && cfg.fieldConfig && cfg.fieldConfig.length > 0){
+    var letters = cfg.fieldConfig.map(function(_,i){return String.fromCharCode(65+i);});
+    ['Q1','Q2','Q3','Q4'].forEach(function(Q){
+      var ql = Q.toLowerCase();
+      var vals = {};
+      letters.forEach(function(letter){
+        var el = document.getElementById(prefix+Q+'_'+letter);
+        vals[letter] = el ? (parseFloat(el.value)||0) : 0;
+      });
+      var result = (typeof _evalFormula==='function') ? _evalFormula(cfg.resultFormula||'', vals) : null;
+      pciData[ql] = Object.assign({_custom:true, _masterId:masterId, _formula:cfg.resultFormula}, vals);
+      pciData[ql]._result = result;
+    });
+  } else {
+    ['Q1','Q2','Q3','Q4'].forEach(function(Q){
+      var ql = Q.toLowerCase();
+      var pl = parseFloat((document.getElementById(prefix+Q+'_pl')||{}).value)||0;
+      var co = parseFloat((document.getElementById(prefix+Q+'_co')||{}).value)||0;
+      var ic = Math.max(0, pl-co);
+      pciData[ql] = { planned:pl, complete:co, incomplete:ic };
+    });
+  }
+  return { pciData:pciData, masterId:masterId, cfg:cfg };
+}
+window._readQtrValuesFromForm = _readQtrValuesFromForm;
+
+/* Fill quarterly form from existing pci data (for Edit KPI) */
+function _fillQtrFormFromPci(kpiId, prefix, sectionId){
+  var pciData = (ST.pci||{})[kpiId] || {};
+  var section = document.getElementById(sectionId || 'editQtrSection');
+  var masterId = section ? section.getAttribute('data-master') : '';
+  var allMaster = Object.assign({}, (window.BUILTIN_MASTER_KPIS||{}), (typeof ST!=='undefined'&&ST.masterKpis)||{});
+  var cfg = masterId ? allMaster[masterId] : null;
+
+  ['Q1','Q2','Q3','Q4'].forEach(function(Q){
+    var ql = Q.toLowerCase();
+    var qd = pciData[ql] || {};
+    if(cfg && cfg.fieldConfig && cfg.fieldConfig.length > 0){
+      var letters = cfg.fieldConfig.map(function(_,i){return String.fromCharCode(65+i);});
+      letters.forEach(function(letter){
+        var el = document.getElementById(prefix+Q+'_'+letter);
+        if(el) el.value = qd[letter] || '';
+      });
+      /* Recompute result display */
+      var vals = {};
+      letters.forEach(function(letter){ vals[letter] = parseFloat(qd[letter])||0; });
+      var resEl = document.getElementById(prefix+Q+'_res');
+      if(resEl){
+        var result = (typeof _evalFormula==='function') ? _evalFormula(cfg.resultFormula||'', vals) : null;
+        resEl.textContent = result !== null ? Math.round(result*10)/10+'%' : '—';
+      }
+    } else {
+      var plEl = document.getElementById(prefix+Q+'_pl');
+      var coEl = document.getElementById(prefix+Q+'_co');
+      if(plEl) plEl.value = qd.planned || '';
+      if(coEl) coEl.value = qd.complete || '';
+    }
+  });
+}
+window._fillQtrFormFromPci = _fillQtrFormFromPci;

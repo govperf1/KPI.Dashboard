@@ -512,6 +512,99 @@ async function persistST(reason){
 }
 window.persistST=persistST;
 
+/* ═══════════════════════════════════════════════════════════════
+   BUILT-IN MASTER KPI CONFIGURATIONS
+   Pre-seeded configs for known KPI types.
+   Custom configs in ST.masterKpis override or extend these.
+   ═══════════════════════════════════════════════════════════════ */
+var BUILTIN_MASTER_KPIS = {
+  'laundry_turnaround_time_compliance': {
+    nameEn: 'Laundry Turnaround Time Compliance',
+    nameAr: 'معدل الامتثال لوقت دوران الغسيل',
+    matchKeywords: ['laundry turnaround'],
+    fieldConfig: [
+      { nameEn:'Daily Number of Order',            nameAr:'عدد الطلبات اليومي',                    type:'number', inputMode:'manual' },
+      { nameEn:'Total Washing Time for all Order', nameAr:'إجمالي وقت الغسيل لجميع الطلبات',      type:'number', inputMode:'manual' }
+    ],
+    resultFormula: '(100 / ((B / A) * 60)) * 100'
+  },
+  'hygiene_standards_compliance': {
+    nameEn: 'Rate of Compliance with General Hygiene Standards',
+    nameAr: 'معدل الامتثال لمعايير النظافة العامة',
+    matchKeywords: ['hygiene', 'compliance with general hygiene', 'hygiene standards'],
+    fieldConfig: [
+      { nameEn:'Compliance rate of non-critical areas',                nameAr:'معدل الامتثال في المناطق غير الحرجة',         type:'percentage', inputMode:'manual' },
+      { nameEn:'Compliance rate of critical care areas',               nameAr:'معدل الامتثال في مناطق الرعاية الحرجة',      type:'percentage', inputMode:'manual' },
+      { nameEn:'Compliance rate of non-critical and regular areas',    nameAr:'معدل الامتثال في المناطق العادية وغير الحرجة',type:'percentage', inputMode:'manual' }
+    ],
+    resultFormula: '(A + B + C) / 3'
+  },
+  'emergency_response_time': {
+    nameEn: 'Emergency Request Response Time',
+    nameAr: 'وقت الاستجابة لطلبات الطوارئ',
+    matchKeywords: ['emergency request response', 'emergency response time'],
+    fieldConfig: [
+      { nameEn:'Total Response Time for All Emergency Requests (Min)', nameAr:'إجمالي وقت الاستجابة لجميع طلبات الطوارئ (دقيقة)', type:'number', inputMode:'manual' },
+      { nameEn:'Total Emergency Requests',                             nameAr:'إجمالي طلبات الطوارئ',                          type:'number', inputMode:'manual' }
+    ],
+    resultFormula: '(10 / (A / B)) * 100'
+  },
+  'schedule_performance_index': {
+    nameEn: 'Schedule Performance Index',
+    nameAr: 'مؤشر أداء الجدول الزمني',
+    matchKeywords: ['schedule performance', 'spi', 'project kpi'],
+    fieldConfig: [
+      { nameEn:'Planned Value (PV)', nameAr:'القيمة المخططة',  type:'number', inputMode:'manual' },
+      { nameEn:'Earned Value (EV)',  nameAr:'القيمة المكتسبة', type:'number', inputMode:'manual' }
+    ],
+    resultFormula: '(B / A) * 100'
+  }
+};
+window.BUILTIN_MASTER_KPIS = BUILTIN_MASTER_KPIS;
+
+/* Evaluate a column-letter formula with provided values
+   formula: "(A + B + C) / 3"
+   vals: { A: 80, B: 90, C: 85 } → returns 85 */
+function _evalFormula(formula, vals){
+  if(!formula || !formula.trim()) return null;
+  try{
+    var expr = formula.replace(/\b([A-Z])\b/g, function(m, letter){
+      return (vals[letter] !== undefined && vals[letter] !== null) ? vals[letter] : 'null';
+    });
+    var result = new Function('return ('+expr+')')();
+    return (result===null||isNaN(result)||!isFinite(result)) ? null : Math.round(result*1000)/1000;
+  }catch(e){ return null; }
+}
+window._evalFormula = _evalFormula;
+
+/* Find the master KPI config for a given KPI English name.
+   Checks ST.masterKpis first (SA overrides), then BUILTIN_MASTER_KPIS.
+   Returns { id, config } or null. */
+function _findMasterKpiByName(nameEn){
+  if(!nameEn) return null;
+  var search = nameEn.toLowerCase().trim();
+  /* Check SA-created configs first */
+  var allMaster = Object.assign({}, BUILTIN_MASTER_KPIS, (typeof ST!=='undefined'&&ST.masterKpis)||{});
+  /* 1. Exact match on nameEn */
+  for(var mid in allMaster){
+    if((allMaster[mid].nameEn||'').toLowerCase() === search) return {id:mid, config:allMaster[mid]};
+  }
+  /* 2. Keyword match */
+  for(var mid2 in allMaster){
+    var c = allMaster[mid2];
+    var keywords = c.matchKeywords || [(c.nameEn||'').toLowerCase()];
+    for(var ki=0;ki<keywords.length;ki++){
+      if(search.indexOf(keywords[ki].toLowerCase()) >= 0 ||
+         keywords[ki].toLowerCase().indexOf(search) >= 0){
+        return {id:mid2, config:c};
+      }
+    }
+  }
+  return null;
+}
+window._findMasterKpiByName = _findMasterKpiByName;
+
+
 /* Resolve a DISPLAY id (possibly renamed via codeOv) back to its REAL storage id */
 function realId(displayId){
   if(ST.codeOv){

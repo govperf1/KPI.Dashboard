@@ -722,6 +722,10 @@ function renderExecKpiCards(ks){
     const quarters=['q1','q2','q3','q4'];
     const qLabels=['Q1','Q2','Q3','Q4'];
     const anyPCI=quarters.some(function(q){return (pciData[q]||{}).planned>0;});
+    /* Check for custom-field master config */
+    const _masterCfg=(typeof _findMasterKpiByName==='function')?_findMasterKpiByName(k.nameEn||''):null;
+    const _hasCustom=!!((_masterCfg&&_masterCfg.config&&_masterCfg.config.fieldConfig&&_masterCfg.config.fieldConfig.length>0));
+    const _customFields=_hasCustom?_masterCfg.config.fieldConfig:null;
 
     const qRows=quarters.map(function(q,i){
       const qv2=k[q];
@@ -735,27 +739,20 @@ function renderExecKpiCards(ks){
       const bg=qv2===null?'#F8FAFC':isMet?'rgba(22,163,74,.05)':'rgba(220,38,38,.05)';
       const bc=qv2===null?'#E2E8F0':isMet?'rgba(22,163,74,.20)':'rgba(220,38,38,.18)';
       const tc=qv2===null?'#94A3B8':isMet?'#16A34A':'#DC2626';
-      return '<div style="background:'+bg+';border:1px solid '+bc+';border-radius:10px;padding:12px">'
-        +'<div style="font-size:10px;font-weight:800;color:#64748B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">'+qLabels[i]+'</div>'
-        +'<div style="font-size:26px;font-weight:900;color:'+tc+';font-family:var(--mono);line-height:1;margin-bottom:4px">'+(qv2!==null?qv2.toFixed(1)+'%':'—')+'</div>'
-        +'<div style="font-size:9px;color:#94A3B8;margin-bottom:10px">'+(qv2!==null?(isMet?'&#10003; Met':'&#10007; Below target'):'Pending')+'</div>'
-        +'<div style="border-top:1px solid '+bc+';padding-top:10px">'
-          +'<div style="display:flex;justify-content:space-between;margin-bottom:5px">'
-            +'<span style="font-size:9.5px;color:#64748B">Planned</span>'
-            +'<span style="font-size:12px;font-weight:800;font-family:var(--mono);color:#475569">'+(hasPCI?pl:'—')+'</span>'
-          +'</div>'
-          +'<div style="display:flex;justify-content:space-between;margin-bottom:5px">'
-            +'<span style="font-size:9.5px;color:#16A34A">Complete</span>'
-            +'<span style="font-size:12px;font-weight:800;font-family:var(--mono);color:#16A34A">'+(hasPCI?pci.complete:'—')+'</span>'
-          +'</div>'
-          +'<div style="display:flex;justify-content:space-between;margin-bottom:8px">'
-            +'<span style="font-size:9.5px;color:#DC2626">Incomplete</span>'
-            +'<span style="font-size:12px;font-weight:800;font-family:var(--mono);color:#DC2626">'+(hasPCI?ic:'—')+'</span>'
-          +'</div>'
-          +'<div style="height:5px;background:#E2E8F0;border-radius:4px;overflow:hidden">'
-            +'<div style="width:'+pct+'%;height:100%;background:'+(pct>=100?'#16A34A':'#0195af')+';border-radius:4px"></div>'
-          +'</div>'
+      return '<div style="background:'+bg+';border:1px solid '+bc+';border-radius:12px;padding:14px 16px;min-height:150px;box-sizing:border-box;">'
+        +'<div style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">'+qLabels[i]+'</div>'
+        +'<div style="font-size:28px;font-weight:900;color:'+tc+';font-family:var(--mono);line-height:1;margin-bottom:6px">'+(qv2!==null?qv2.toFixed(1)+'%':'—')+'</div>'
+        +'<div style="font-size:9px;font-weight:600;color:#94A3B8;margin-bottom:12px">'+(qv2!==null?(isMet?'&#10003; Met':'&#10007; Below target'):'Pending')+'</div>'
+        +'<div style="border-top:1px solid '+bc+';padding-top:8px">'+(_hasCustom  ?/* Custom field display */    (function(){      var _html='';      var _qd=pciData[q]||{};      (_customFields||[]).forEach(function(f,fi){        var letter=String.fromCharCode(65+fi);        var fval=_qd[letter];        var fDisplay=fval!==undefined&&fval!==null&&fval!==''?fval:'—';        _html+='<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">'          +'<span style="font-size:8.5px;color:#64748B;line-height:1.3;flex:1;padding-right:6px">'+htmlEsc(f.nameEn||letter)+'</span>'          +'<span style="font-size:11px;font-weight:800;font-family:var(--mono);color:#93C5FD;white-space:nowrap">'+fDisplay+'</span>'          +'</div>';      });      if(_qd._result!==undefined&&_qd._result!==null){        _html+='<div style="display:flex;justify-content:space-between;margin-top:4px;padding-top:4px;border-top:1px solid rgba(255,255,255,.08)">'          +'<span style="font-size:8.5px;color:#67E8F9">Result</span>'          +'<span style="font-size:11px;font-weight:800;font-family:var(--mono);color:#67E8F9">'+Math.round(_qd._result*10)/10+'%</span>'          +'</div>';      }      return _html;    })()  :/* Standard Planned/Complete/Incomplete display */    '<div style="display:flex;justify-content:space-between;margin-bottom:4px">'    +'<span style="font-size:9px;color:#64748B">Planned</span>'    +'<span style="font-size:11px;font-weight:800;font-family:var(--mono);color:#475569">'+(hasPCI?pl:'—')+'</span>'    +'</div>'    +'<div style="display:flex;justify-content:space-between;margin-bottom:4px">'    +'<span style="font-size:9px;color:#16A34A">Complete</span>'    +'<span style="font-size:11px;font-weight:800;font-family:var(--mono);color:#16A34A">'+(hasPCI?pci.complete:'—')+'</span>'    +'</div>')+(_hasCustom?'':(
+          '<div style="display:flex;justify-content:space-between;margin-bottom:8px">'  
+          +'<span style="font-size:9px;color:#DC2626">Incomplete</span>'  
+          +'<span style="font-size:11px;font-weight:800;font-family:var(--mono);color:#DC2626">'+(hasPCI?ic:'—')+'</span>'  
+          +'</div>'  
+          +'<div style="height:5px;background:rgba(0,0,0,.08);border-radius:4px;overflow:hidden;margin-bottom:6px">'  
+            +'<div style="width:'+pct+'%;height:100%;background:'+(pct>=100?'#16A34A':'#0195af')+';border-radius:4px"></div>'  
+          +'</div>'  
           +(hasPCI?'<div style="font-size:9px;color:#94A3B8;text-align:right;margin-top:3px">'+pct+'%</div>':'')
+        ))
         +'</div>'
       +'</div>';
     }).join('');
@@ -798,7 +795,7 @@ function renderExecKpiCards(ks){
       +(!anyPCI?'<div style="background:#FFF7ED;border:1px solid rgba(217,119,6,.25);border-radius:9px;padding:10px 14px;margin-bottom:14px;font-size:10.5px;color:#92400E">'
         +'&#9888; No PCI data entered yet &mdash; go to <strong>Admin Panel &rarr; Edit KPI</strong> to add Planned / Complete numbers per quarter.'
         +'</div>':'')
-      +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">'+qRows+'</div>';
+      +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:4px">'+qRows+'</div>';
 
     const closeBtn=document.createElement('button');
     closeBtn.textContent='&#10005; Close';
@@ -1498,7 +1495,7 @@ function renderDept(){
       +'</div>'
       +(function(){
         /* Fixed-size KPI card layout: all departments use identical card size and start from the left, even with one KPI */
-        var _cardGrid='display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,420px));justify-content:start;gap:14px;align-items:stretch;direction:ltr;width:100%';
+        var _cardGrid='display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px;align-items:start;direction:ltr;width:100%';
         return '<div class="dept-kpi-card-grid" style="padding:14px;'+_cardGrid+'">'
           +groups.map(function(g){return mkCard(g.k25,g.k26,dept);}).join('')
         +'</div>';
