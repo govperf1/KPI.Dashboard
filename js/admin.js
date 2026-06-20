@@ -831,6 +831,16 @@ async function saveNewKPI(){
   });
   console.log('[saveNewKPI] after dedup: ST.added.length='+ST.added.length+' (was '+_beforeFilter+')');
   ST.added.push(kpiObj);
+  /* If this code was previously deleted, undelete it now — re-adding must restore visibility */
+  if(Array.isArray(ST.deleted) && ST.deleted.length){
+    const _prevLen = ST.deleted.length;
+    ST.deleted = ST.deleted.filter(function(id){
+      return String(id||'').toUpperCase() !== code;
+    });
+    if(ST.deleted.length < _prevLen){
+      console.log('[saveNewKPI] Removed '+code+' from ST.deleted — KPI is now active');
+    }
+  }
   console.log('[saveNewKPI] after push: ST.added.length='+ST.added.length+' | allK()='+allK().length);
   console.log('[saveNewKPI] kpiObj in ST.added?', ST.added.some(function(k){return String(k.id||'').toUpperCase()===code;}));
   /* Save PCI counts in the same dashboard state so KPI cards can reveal planned/complete/incomplete counts */
