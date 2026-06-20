@@ -1263,7 +1263,7 @@ function _showSuperAdminHub(){
     {icon:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
      title:'Text & Language Editor',titleAr:'\u0645\u062d\u0631\u0631 \u0627\u0644\u0646\u0635\u0648\u0635 \u0648\u0627\u0644\u0644\u063a\u0629',
      desc:'Edit Arabic and English terminology, report labels and shared text dictionary.',
-     descAr:'\u062a\u0639\u062f\u064a\u0644 \u0645\u0635\u0637\u0644\u062d\u0627\u062a \u0627\u0644\u0644\u0648\u062d\u0629 \u0648\u0627\u0644\u062a\u0642\u0627\u0631\u064a\u0631.',action:'sa-texteditor'}
+     descAr:'\u062a\u0639\u062f\u064a\u0644 \u0645\u0635\u0637\u0644\u062d\u0627\u062a \u0627\u0644\u0644\u0648\u062d\u0629 \u0648\u0627\u0644\u062a\u0642\u0627\u0631\u064a\u0631.',action:'sa-dashboard'}
   ];
   var inner='<div style="background:linear-gradient(135deg,#0d1b2e,#0a2040);border:1px solid rgba(1,149,175,.25);border-radius:18px;padding:32px 28px;max-width:820px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.6)">'
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px">'
@@ -1299,18 +1299,133 @@ function _saHubAction(action){
     if(adminOv)adminOv.classList.add('open');
     try{if(typeof popAdminSels==='function')popAdminSels();}catch(_){}
     try{if(typeof loadAuditLog==='function')loadAuditLog();}catch(_){}
-  }else if(action==='sa-texteditor'){
-    var adminOv=document.getElementById('adminOv');
-    if(adminOv)adminOv.classList.add('open');
-    try{if(typeof popAdminSels==='function')popAdminSels();}catch(_){}
-    _ensureSaTextEditorTab();
-    setTimeout(function(){if(typeof swAt==='function')swAt('ap-textedit');},120);
+  }else if(action==='sa-texteditor'||action==='sa-dashboard'){
+    /* Dashboard card: close hub, render dashboard, inject Edit Text button */
+    setTimeout(function(){
+      try{if(typeof renderCurrent==='function')renderCurrent();}catch(_){}
+      setTimeout(_injectSaEditTextBtn,200);
+    },50);
   }else if(action==='sa-requests'){
     _showUserRequestsPanel();
   }
   try{addAudit('SA_HUB_NAV','SA navigated to: '+action);}catch(_){}
 }
 window._saHubAction=_saHubAction;
+/* ── SA Edit Text: inject toolbar button + full overlay ── */
+function _injectSaEditTextBtn(){
+  if(document.getElementById('_saEditTextBtn')) return;
+  var isAr=(typeof lang!=='undefined'&&lang==='ar');
+  var btn=document.createElement('button');
+  btn.id='_saEditTextBtn'; btn.className='tb-btn';
+  btn.title=isAr?'تعديل نصوص اللوحة':'Edit Dashboard Text';
+  btn.textContent=isAr?'✏ نصوص':'✏ Text';
+  btn.style.cssText='background:rgba(1,149,175,.15);border-color:rgba(1,149,175,.4);color:#0195af;font-weight:700;';
+  btn.onclick=function(){ _showSaTextEditorOverlay(); };
+  var langBtn=document.getElementById('langBtn');
+  if(langBtn&&langBtn.parentNode) langBtn.parentNode.insertBefore(btn,langBtn);
+}
+window._injectSaEditTextBtn=_injectSaEditTextBtn;
+
+function _showSaTextEditorOverlay(){
+  var existing=document.getElementById('saTextEdOv');
+  if(existing){existing.remove();return;}
+  var isAr=(typeof lang!=='undefined'&&lang==='ar');
+  var ov=document.createElement('div'); ov.id='saTextEdOv';
+  ov.style.cssText='position:fixed;inset:0;z-index:8500;background:rgba(0,8,20,.9);backdrop-filter:blur(4px);display:flex;flex-direction:column;';
+  var hdr=document.createElement('div');
+  hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:rgba(0,0,0,.4);border-bottom:1px solid rgba(1,149,175,.2);flex-shrink:0;';
+  hdr.innerHTML='<div style="display:flex;align-items:center;gap:12px">'
+    +'<div style="font-size:14px;font-weight:800;color:#e2e8f0">'+(isAr?'محرر نصوص اللوحة':'Dashboard Text Editor')+'</div>'
+    +'<span style="font-size:9px;padding:2px 8px;border-radius:10px;background:rgba(248,113,113,.15);color:#F87171;font-weight:700">SUPER ADMIN</span>'
+    +'</div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button id="_saTeReset" style="padding:6px 14px;background:rgba(220,38,38,.1);border:1px solid rgba(220,38,38,.3);border-radius:8px;color:#DC2626;font-size:10px;font-weight:700;cursor:pointer">'+(isAr?'إعادة ضبط':'Reset All')+'</button>'
+    +'<button id="_saTeSave" style="padding:6px 16px;background:linear-gradient(90deg,#0195af,#0077cc);border:none;border-radius:8px;color:#fff;font-size:10px;font-weight:700;cursor:pointer">'+(isAr?'حفظ التغييرات':'Save Changes')+'</button>'
+    +'<button id="_saTeClose" style="width:30px;height:30px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:7px;color:#94a3b8;cursor:pointer;font-size:15px">&#x2715;</button>'
+    +'</div>';
+  var info=document.createElement('div');
+  info.style.cssText='padding:8px 20px;background:rgba(1,149,175,.06);border-bottom:1px solid rgba(1,149,175,.12);font-size:10px;color:#64748b;flex-shrink:0;';
+  info.textContent=isAr?'عدّل النصوص واحفظ — تنعكس التغييرات فوراً على جميع المستخدمين.':'Edit labels and save — changes reflect immediately for all users across dashboard, reports, and filters.';
+  var wrap=document.createElement('div');
+  wrap.style.cssText='overflow-y:auto;flex:1;padding:0 20px 20px;'; wrap.id='saTeWrap';
+  ov.appendChild(hdr); ov.appendChild(info); ov.appendChild(wrap);
+  document.body.appendChild(ov);
+  _buildSaTeTable();
+  document.getElementById('_saTeClose').onclick=function(){ov.remove();};
+  document.getElementById('_saTeSave').onclick=function(){_saveSaTextEdits();};
+  document.getElementById('_saTeReset').onclick=function(){
+    if(!confirm(isAr?'هل تريد إعادة ضبط جميع النصوص؟':'Reset all text edits to defaults?')) return;
+    ST.textEdits={};
+    persistST('TEXT_EDIT_RESET').then(function(){
+      if(typeof applyDOMTranslations==='function') applyDOMTranslations();
+      ov.remove(); toast(isAr?'✓ تمت إعادة الضبط':'✓ Text reset to defaults');
+    }).catch(function(e){toast('Error: '+e.message);});
+  };
+}
+window._showSaTextEditorOverlay=_showSaTextEditorOverlay;
+
+function _buildSaTeTable(){
+  var wrap=document.getElementById('saTeWrap'); if(!wrap) return;
+  var isAr=(typeof lang!=='undefined'&&lang==='ar');
+  if(typeof window.TR==='undefined'){
+    wrap.innerHTML='<div style="padding:32px;text-align:center;color:#475569;font-size:11px">'+(isAr?'نظام الترجمة غير متوفر':'Translation system not loaded.')+'</div>';
+    return;
+  }
+  var html='<table style="width:100%;border-collapse:collapse;margin-top:12px">'
+    +'<thead><tr style="position:sticky;top:0;background:#0d1b2e;z-index:1">'
+    +'<th style="padding:8px 10px;font-size:9.5px;font-weight:700;color:#64748b;text-align:left;border-bottom:1px solid rgba(255,255,255,.08)">Key</th>'
+    +'<th style="padding:8px 10px;font-size:9.5px;font-weight:700;color:#64748b;text-align:left;border-bottom:1px solid rgba(255,255,255,.08)">English</th>'
+    +'<th style="padding:8px 10px;font-size:9.5px;font-weight:700;color:#64748b;text-align:left;border-bottom:1px solid rgba(255,255,255,.08)">Arabic</th>'
+    +'</tr></thead><tbody>';
+  Object.keys(window.TR).forEach(function(key){
+    var both=typeof tBoth==='function'?tBoth(key):(window.TR[key]||{});
+    var edited=ST.textEdits&&ST.textEdits[key];
+    var enVal=edited&&edited.en!==undefined?edited.en:(both.en||'');
+    var arVal=edited&&edited.ar!==undefined?edited.ar:(both.ar||'');
+    html+='<tr data-tekey="'+htmlEsc(key)+'" style="border-bottom:1px solid rgba(255,255,255,.04)'+(edited?';background:rgba(1,149,175,.06)':'')+'">'
+      +'<td style="padding:7px 10px;font-size:9.5px;color:#475569;white-space:nowrap;font-family:monospace">'+htmlEsc(key)+(edited?'<span style="color:#0195af;margin-left:4px">✎</span>':'')+'</td>'
+      +'<td style="padding:4px 6px"><input class="te-en" style="width:100%;padding:5px 8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:5px;color:#e2e8f0;font-size:10.5px;font-family:inherit" value="'+htmlEsc(enVal)+'"></td>'
+      +'<td style="padding:4px 6px"><input class="te-ar" style="width:100%;padding:5px 8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:5px;color:#e2e8f0;font-size:10.5px;direction:rtl;font-family:inherit" value="'+htmlEsc(arVal)+'"></td>'
+      +'</tr>';
+  });
+  html+='</tbody></table>';
+  wrap.innerHTML=html;
+  wrap.querySelectorAll('input.te-en,input.te-ar').forEach(function(inp){
+    inp.addEventListener('input',function(){
+      var row=inp.closest('tr[data-tekey]');
+      if(row) row.style.background='rgba(1,149,175,.08)';
+    });
+  });
+}
+
+function _saveSaTextEdits(){
+  var ov=document.getElementById('saTextEdOv'); if(!ov) return;
+  var isAr=(typeof lang!=='undefined'&&lang==='ar');
+  if(!ST.textEdits) ST.textEdits={};
+  var changed=0;
+  ov.querySelectorAll('tr[data-tekey]').forEach(function(row){
+    var key=row.getAttribute('data-tekey');
+    var enEl=row.querySelector('.te-en'); var arEl=row.querySelector('.te-ar');
+    if(!key||!enEl||!arEl) return;
+    var existing=ST.textEdits[key]||{};
+    if(enEl.value!==existing.en||arEl.value!==existing.ar){
+      ST.textEdits[key]={en:enEl.value,ar:arEl.value}; changed++;
+    }
+  });
+  if(!changed){toast(isAr?'لا تغييرات':'No changes detected');return;}
+  if(typeof tSet==='function'){
+    Object.keys(ST.textEdits).forEach(function(key){
+      tSet(key,ST.textEdits[key].en,ST.textEdits[key].ar);
+    });
+  }
+  persistST('TEXT_EDIT').then(function(){
+    toast(isAr?'✓ تم الحفظ — '+changed+' مصطلح تم تحديثه':'✓ Saved — '+changed+' term(s) updated for all users');
+    if(typeof renderCurrent==='function') renderCurrent();
+    ov.remove();
+  }).catch(function(e){toast('\u26a0 Save error: '+(e.code||e.message));});
+}
+window._saveSaTextEdits=_saveSaTextEdits;
+
 
 function _showUserRequestsPanel(){
   var existing=document.getElementById('saReqOv'); if(existing)existing.remove();
