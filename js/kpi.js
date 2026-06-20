@@ -482,6 +482,28 @@ function _reconcileDeletedVsAdded(state){
 }
 window._reconcileDeletedVsAdded=_reconcileDeletedVsAdded;
 
+/* ── persistST ─────────────────────────────────────────────────────────────
+   Single source of truth for every save that changes shared data.
+   Usage:  await persistST('reason');            (in async context)
+           persistST('reason').catch(err => ...) (in sync context)
+   Rule:   sLS first (always) → _saveToFS (when authenticated) → renderCurrent.
+   ──────────────────────────────────────────────────────────────────────── */
+async function persistST(reason){
+  sLS(ST);
+  if(typeof window._saveToFS==='function' && window._fbUser){
+    try{
+      await window._saveToFS(ST);
+      console.log('[SAVE ✓]', reason);
+    }catch(e){
+      console.error('[SAVE ERR]', reason, e.code||e.message);
+      if(typeof toast==='function') toast('⚠ '+(lang==='ar'?'خطأ في الحفظ: ':'Save error: ')+(e.code||e.message));
+      throw e; /* let caller handle UI */
+    }
+  }
+  if(typeof renderCurrent==='function') renderCurrent();
+}
+window.persistST=persistST;
+
 /* Resolve a DISPLAY id (possibly renamed via codeOv) back to its REAL storage id */
 function realId(displayId){
   if(ST.codeOv){

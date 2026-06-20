@@ -1477,10 +1477,13 @@ function rptDoneEdit(id){
   const _sIdx=parseInt((id||'ep0').replace('ep',''))||0;
   const _rCtxKey='rpt_'+_stableKpi+'_'+_sIdx;
   ST.rptEdits[_rCtxKey]=p.innerHTML;
-  sLS(ST);  /* localStorage */
-  /* USER ACTION: report edit saved → Firestore write (persists for all users) */
-  if(typeof window._saveToFS==='function'&&window._fbUser){
-    window._saveToFS(ST).catch(function(e){console.warn('[rptDoneEdit] FS error:',e);});
+  /* Save to localStorage + Firestore via unified helper */
+  if(typeof persistST==='function'){
+    persistST('REPORT_EDIT:'+_rCtxKey).catch(function(e){
+      console.warn('[rptDoneEdit] Cloud sync failed:',e.code||e.message);
+    });
+  } else {
+    sLS(ST);
   }
   /* [REMOVED] toggleLang FS write — language is local preference only */
   if(typeof toast==='function')toast(lang==='ar'?'تم حفظ تعديل التقرير بشكل دائم':'Report edit saved permanently');

@@ -1123,16 +1123,10 @@ function saveAdmin(){
     action='GAP_EDIT';detail=`Gap for ${kpiId}${qtr?' · '+qtr.toUpperCase():''}`;window._editOldVal=oldGap;}
   else if(ap==='ap-actions'||ap==='ap-auditlog')return;
   if(action)addAudit(action,detail,window._editOldVal||null,window._editNewVal||null);window._editOldVal=null;window._editNewVal=null;
-  sLS(ST);  /* localStorage — always */
-  /* USER ACTION: Save/Edit button → Firestore write (persists for ALL users) */
-  if(typeof window._saveToFS==='function' && window._fbUser){
-    /* await in async context — saveAdmin is declared async via auth.js override */
-    window._saveToFS(ST)
-      .then(function(){ console.log('[FS WRITE SUCCESS] saveAdmin edit persisted to Firestore'); })
-      .catch(function(e){ console.error('[FS WRITE ERROR] saveAdmin:', e.code||e.message, e); });
-  } else {
-    console.warn('[FS WRITE] saveAdmin: _saveToFS not available (fbUser='+(!!window._fbUser)+')');
-  }
+  /* Save to localStorage + Firestore via unified helper (no-loop, no auto-save) */
+  persistST('KPI_EDIT').catch(function(e){
+    toast('⚠ '+(lang==='ar'?'لم يُحفظ في السحابة: ':'Cloud save failed: ')+(e.code||e.message));
+  });
   toast(lang==='ar'?'✓ تم الحفظ بنجاح':'✓ Saved successfully');
   updateBadge();
   renderYearFilter();  /* ensure year filter stays current */
@@ -1211,22 +1205,25 @@ function confirmDelKpi(){
   if(ST.rptEdits){Object.keys(ST.rptEdits).forEach(k2=>{if(k2.includes(id))delete ST.rptEdits[k2];});}
   /* Audit + persist */
   addAudit('KPI_DEL','Permanently deleted KPI: '+id+' ('+k.nameEn+')',k.nameEn,'DELETED');
-  sLS(ST);
-  toast('✓ KPI '+id+' permanently deleted everywhere');
-  /* Reset UI + repopulate list */
-  const prev=document.getElementById('delPreview');if(prev)prev.style.display='none';
-  setTimeout(populateDelKpiList,200);  /* refresh list */
-  const fb=document.getElementById('_delFeedback');
-  if(fb){
-    fb.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg> KPI "'+id+'" permanently deleted';
-    fb.style.color='#16A34A';fb.style.background='rgba(22,163,74,.08)';
-    fb.style.border='1px solid rgba(22,163,74,.25)';
-    fb.style.display='flex';fb.style.alignItems='center';fb.style.gap='6px';
-  }
-  /* Reload selector */
-  if(typeof loadAdminPanel==='function')loadAdminPanel();
-  renderYearFilter();
-  renderCurrent();
+  /* ── Save: localStorage + Firestore (must persist for all users) ── */
+  const _delFb=document.getElementById('_delFeedback');
+  if(_delFb){_delFb.innerHTML='Deleting…';_delFb.style.color='#888';_delFb.style.display='flex';}
+  persistST('KPI_DEL:'+id).then(function(){
+    toast('✓ KPI '+id+' permanently deleted for all users');
+    if(_delFb){
+      _delFb.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg> KPI "'+id+'" permanently deleted';
+      _delFb.style.color='#16A34A';_delFb.style.background='rgba(22,163,74,.08)';
+      _delFb.style.border='1px solid rgba(22,163,74,.25)';_delFb.style.display='flex';
+      _delFb.style.alignItems='center';_delFb.style.gap='6px';
+    }
+    const prev=document.getElementById('delPreview');if(prev)prev.style.display='none';
+    setTimeout(populateDelKpiList,200);
+    renderYearFilter();
+  }).catch(function(e){
+    toast('⚠ Deleted locally — cloud sync failed: '+(e.code||e.message));
+    if(_delFb){_delFb.innerHTML='⚠ Delete saved locally, cloud sync failed';_delFb.style.color='#D97706';_delFb.style.display='flex';}
+    renderYearFilter(); renderCurrent();
+  });
 }
 
 
@@ -1351,15 +1348,12 @@ function _saveTextEdits(){
   } else if(typeof applyDOMTranslations==='function'){
     applyDOMTranslations();
   }
-  /* Save to localStorage + Firestore */
-  sLS(ST);
-  if(typeof window._saveToFS==='function' && window._fbUser){
-    window._saveToFS(ST)
-      .then(function(){ _teFeedback('Saved! Changes will appear for all users.', true); })
-      .catch(function(e){ _teFeedback('Saved locally. Cloud sync failed: '+e.message, false); });
-  } else {
-    _teFeedback('Saved locally only (not logged in to Firestore).', false);
-  }
+  /* Save to localStorage + Firestore via unified helper */
+  persistST('TEXT_EDIT').then(function(){
+    _teFeedback('Saved! Changes visible for all users.', true);
+  }).catch(function(e){
+    _teFeedback('Saved locally. Cloud sync failed: '+e.message, false);
+  });
   addAudit('TEXT_EDIT','Updated '+changed+' text label(s)');
 }
 window._saveTextEdits = _saveTextEdits;
