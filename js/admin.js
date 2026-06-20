@@ -831,15 +831,19 @@ async function saveNewKPI(){
   });
   console.log('[saveNewKPI] after dedup: ST.added.length='+ST.added.length+' (was '+_beforeFilter+')');
   ST.added.push(kpiObj);
-  /* If this code was previously deleted, undelete it now — re-adding must restore visibility */
-  if(Array.isArray(ST.deleted) && ST.deleted.length){
-    const _prevLen = ST.deleted.length;
-    ST.deleted = ST.deleted.filter(function(id){
-      return String(id||'').toUpperCase() !== code;
-    });
-    if(ST.deleted.length < _prevLen){
-      console.log('[saveNewKPI] Removed '+code+' from ST.deleted — KPI is now active');
-    }
+  /* Remove id AND code from ST.deleted — case-insensitive.
+     A previously deleted KPI being re-added must become visible immediately. */
+  const _newId   = String(kpiObj.id   || '').toUpperCase();
+  const _newCode = String(kpiObj.code || '').toUpperCase();
+  const _delBefore = (ST.deleted || []).length;
+  ST.deleted = (ST.deleted || []).filter(function(x){
+    const v = String(x || '').toUpperCase();
+    return v !== _newId && v !== _newCode;
+  });
+  const _delAfter = ST.deleted.length;
+  if(_delAfter < _delBefore){
+    console.log('[saveNewKPI] removed from ST.deleted:', _newId,
+      '(entries removed:', _delBefore - _delAfter, ')');
   }
   console.log('[saveNewKPI] after push: ST.added.length='+ST.added.length+' | allK()='+allK().length);
   console.log('[saveNewKPI] kpiObj in ST.added?', ST.added.some(function(k){return String(k.id||'').toUpperCase()===code;}));
