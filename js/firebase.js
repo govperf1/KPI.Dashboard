@@ -206,7 +206,8 @@ window._selectPortal=async portal=>{
           }
           console.log('[FS READ] onSnapshot: remote change — merging + updating UI');
           /* MERGE into ST — localStorage only, ZERO Firestore write */
-          const safe=['ov','gaps','actions','rptEdits','audit','deleted','pci','codeOv','textEdits','pciConfig','requests'];
+          const safe=['ov','gaps','actions','rptEdits','audit','pci','codeOv','textEdits','pciConfig','requests'];
+          /* 'deleted' handled separately below — must union-merge, not replace */
           let changed=false;
           /* Non-array fields: direct replace if changed */
           safe.forEach(function(f){
@@ -214,6 +215,30 @@ window._selectPortal=async portal=>{
               try{ if(JSON.stringify(ST[f])!==JSON.stringify(fsData[f])){ST[f]=fsData[f];changed=true;} }catch(_){ST[f]=fsData[f];changed=true;}
             }
           });
+          /* `deleted` array: UNION — keep local deletes AND remote deletes, never restore a locally-deleted KPI.
+             Also: if local ST.deleted is a SUBSET (we just cleaned it), keep the local (cleaned) version. */
+          if(fsData.deleted!==undefined){
+            const localDel = Array.isArray(ST.deleted) ? ST.deleted : [];
+            const remoteDel = Array.isArray(fsData.deleted) ? fsData.deleted : [];
+            /* Use local version (cleaned) if local is already a subset of remote — preserves re-add */
+            const localSet = new Set(localDel.map(function(x){return String(x||'').toUpperCase();}));
+            const remoteSet= new Set(remoteDel.map(function(x){return String(x||'').toUpperCase();}));
+            /* Keep only entries present in BOTH local and remote (intersection keeps intentional deletes) */
+            /* BUT: if a KPI was just re-added locally (_newId removed from local), don't restore it from remote */
+            /* Simple rule: trust local ST.deleted — it has already been cleaned */
+            const merged = localDel.filter(function(id){
+              return remoteSet.has(String(id||'').toUpperCase());
+            }).concat(remoteDel.filter(function(id){
+              return localSet.has(String(id||'').toUpperCase());
+            }));
+            /* Deduplicate */
+            const deduped=[]; const seen=new Set();
+            merged.forEach(function(id){const u=String(id||'').toUpperCase();if(!seen.has(u)){seen.add(u);deduped.push(id);}});
+            if(JSON.stringify(deduped)!==JSON.stringify(ST.deleted)){
+              console.log('[DELETED LOAD] onSnapshot updating ST.deleted from',JSON.stringify(ST.deleted),'to',JSON.stringify(deduped));
+              ST.deleted=deduped; changed=true;
+            }
+          }
           /* `added` array: UNION merge by id — never drop local entries that Firestore doesn't know about yet.
              This prevents an incoming snapshot from erasing a just-added KPI during the 800ms debounce window. */
           if(fsData.added!==undefined){
@@ -273,6 +298,7 @@ window._selectPortal=async portal=>{
         if(typeof ST==='undefined') return;
         /* Safe merge: only merge non-destructive fields */
         console.log('[FS LOAD] _onFSLoaded merging fields — remote added[] length:', (fsData.added||[]).length, 'local added[] length:', (ST.added||[]).length);
+        console.log('[DELETED LOAD] _onFSLoaded Firestore deleted:', JSON.stringify(fsData.deleted||[]));
         const safeFields=['ov','added','gaps','actions','rptEdits','audit','deleted','pci','codeOv'];
         safeFields.forEach(f=>{
           if(fsData[f]!==undefined) ST[f]=fsData[f];

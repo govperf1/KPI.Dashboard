@@ -834,17 +834,16 @@ async function saveNewKPI(){
   /* Remove id AND code from ST.deleted — case-insensitive.
      A previously deleted KPI being re-added must become visible immediately. */
   const _newId   = String(kpiObj.id   || '').toUpperCase();
-  const _newCode = String(kpiObj.code || '').toUpperCase();
-  const _delBefore = (ST.deleted || []).length;
+  const _newCode = String(kpiObj.code || kpiObj.id || '').toUpperCase();
+  console.log('[DELETED BEFORE]', JSON.stringify(ST.deleted||[]),
+    '| cleaning for id='+_newId+' code='+_newCode);
   ST.deleted = (ST.deleted || []).filter(function(x){
     const v = String(x || '').toUpperCase();
-    return v !== _newId && v !== _newCode;
+    const keep = (v !== _newId && v !== _newCode);
+    if(!keep) console.log('[saveNewKPI] removed from ST.deleted:', v);
+    return keep;
   });
-  const _delAfter = ST.deleted.length;
-  if(_delAfter < _delBefore){
-    console.log('[saveNewKPI] removed from ST.deleted:', _newId,
-      '(entries removed:', _delBefore - _delAfter, ')');
-  }
+  console.log('[DELETED AFTER]', JSON.stringify(ST.deleted));
   console.log('[saveNewKPI] after push: ST.added.length='+ST.added.length+' | allK()='+allK().length);
   console.log('[saveNewKPI] kpiObj in ST.added?', ST.added.some(function(k){return String(k.id||'').toUpperCase()===code;}));
   /* Save PCI counts in the same dashboard state so KPI cards can reveal planned/complete/incomplete counts */
@@ -1252,6 +1251,7 @@ function confirmDelKpi(){
   /* Add to permanent deleted list */
   if(!ST.deleted)ST.deleted=[];
   if(!ST.deleted.includes(id))ST.deleted.push(id);
+  console.log('[DELETED WRITE] confirmDelKpi pushed:', id, '| ST.deleted now:', JSON.stringify(ST.deleted));
   /* Remove from ST.added if present */
   ST.added=(ST.added||[]).filter(x=>x.id!==id);
   /* Clean up all related data */
