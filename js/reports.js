@@ -1130,7 +1130,18 @@ function renderReport(){
     /* This ensures edits persist when user changes filters or returns later */
     const _stableKpi=window._rptKpi||'_all_';
     const _ctxKey='rpt_'+_stableKpi+'_'+_eid;
-    const _saved=(ST.rptEdits||{})[_ctxKey];const _content=_saved!==undefined?_saved:txt;
+    var _saved=(ST.rptEdits||{})[_ctxKey];
+  var _rLang=(typeof lang==='string'&&lang)?lang:'en';
+  var _content;
+  if(_saved===undefined||_saved===null){
+    _content=txt; /* no edit stored — use original */
+  }else if(typeof _saved==='object'){
+    /* New lang-keyed format */
+    _content=_saved[_rLang]||_saved.en||_saved.ar||txt;
+  }else{
+    /* Old flat string (backward compat) */
+    _content=_saved;
+  }
     return `<div class="rpt-ep" id="${id}-w" style="display:flex;align-items:flex-start;gap:8px;${style}">
       <p id="${id}" style="font-size:12px;color:#334155;line-height:1.85;margin:0;min-height:20px;flex:1">${_content}</p>
       <div id="${id}-acts" style="flex-shrink:0;display:flex;flex-direction:column;gap:4px;padding-top:2px">
@@ -1476,7 +1487,16 @@ function rptDoneEdit(id){
   /* Extract section index from id (format: 'epN') */
   const _sIdx=parseInt((id||'ep0').replace('ep',''))||0;
   const _rCtxKey='rpt_'+_stableKpi+'_'+_sIdx;
-  ST.rptEdits[_rCtxKey]=p.innerHTML;
+  /* Store edit per language so AR and EN edits don't overwrite each other */
+  var _rLang=(typeof lang==='string'&&lang)?lang:'en';
+  var _existing=ST.rptEdits[_rCtxKey];
+  if(typeof _existing==='string'){
+    /* Migrate old flat string to language object (backward compat) */
+    ST.rptEdits[_rCtxKey]={en:_existing,ar:_existing};
+  } else if(!_existing||typeof _existing!=='object'){
+    ST.rptEdits[_rCtxKey]={};
+  }
+  ST.rptEdits[_rCtxKey][_rLang]=p.innerHTML;
   /* Save to localStorage + Firestore via unified helper */
   if(typeof persistST==='function'){
     persistST('REPORT_EDIT:'+_rCtxKey).catch(function(e){

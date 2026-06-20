@@ -451,11 +451,18 @@ function normalizeKpiRecord(k){
 /* -- KPI data: allK, filt, qv, metStatus, ok, renderYearFilter, updateBadge -- */
 }
 function allK(){
-  const _del=new Set(ST.deleted||[]);
-  const base=BASE.filter(k=>k!=null&&typeof k==='object'&&!_del.has(k.id)).map(k=>{const ov=(ST.ov||{})[k.id];return normalizeKpiRecord(ov?{...k,...ov}:k);}).filter(k=>k&&k.id);
+  const _del=new Set((ST.deleted||[]).map(function(x){return String(x||'').toUpperCase();}));
+  const base=BASE.filter(k=>k!=null&&typeof k==='object'&&!_del.has(String(k.id||'').toUpperCase())).map(k=>{const ov=(ST.ov||{})[k.id];return normalizeKpiRecord(ov?{...k,...ov}:k);}).filter(k=>k&&k.id);
   const _rawAdded=(ST.added||[]);
-  const added=_rawAdded.filter(k=>k!=null&&typeof k==='object').map(normalizeKpiRecord).filter(k=>k&&k.id&&!_del.has(k.id));
-  let all=base.concat(added);
+  /* Apply ST.ov overlay to ST.added entries exactly as done for BASE KPIs */
+  const added=_rawAdded.filter(k=>k!=null&&typeof k==='object').map(function(k){
+    const ov=(ST.ov||{})[String(k.id||'').toUpperCase()]||(ST.ov||{})[k.id];
+    return normalizeKpiRecord(ov?Object.assign({},k,ov):k);
+  }).filter(k=>k&&k.id&&!_del.has(String(k.id||'').toUpperCase()));
+  /* Deduplicate: if same id appears in both BASE and ST.added, BASE wins */
+  const baseIds=new Set(base.map(function(k){return k.id;}));
+  const dedupAdded=added.filter(function(k){return !baseIds.has(k.id);});
+  let all=base.concat(dedupAdded);
   if(ST.codeOv){all=all.map(k=>ST.codeOv[k.id]?{...k,id:ST.codeOv[k.id]}:k);}
   return all;
 }

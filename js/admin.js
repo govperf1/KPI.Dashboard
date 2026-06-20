@@ -732,15 +732,27 @@ function refreshAllViewsAfterKpiChange(reason){
 }
 
 async function saveNewKPI(){
-  const fb=document.getElementById('_addFeedback');
   function _showFb(msg,ok){
-    if(!fb)return;
-    fb.innerHTML=msg;
-    fb.style.color=ok?'#16A34A':'#DC2626';
-    fb.style.background=ok?'rgba(22,163,74,.08)':'rgba(220,38,38,.06)';
-    fb.style.border=ok?'1px solid rgba(22,163,74,.25)':'1px solid rgba(220,38,38,.20)';
-    fb.style.display='flex';fb.style.alignItems='center';fb.style.gap='6px';
-    fb.style.padding='8px 12px';fb.style.borderRadius='8px';fb.style.fontWeight='600';fb.style.fontSize='11px';
+    /* Create feedback element dynamically if not in HTML */
+    var fbEl=document.getElementById('_addFeedback');
+    if(!fbEl){
+      var panel=document.getElementById('ap-add');
+      if(panel){
+        fbEl=document.createElement('div');
+        fbEl.id='_addFeedback';
+        fbEl.style.cssText='margin:8px 0 4px;padding:0;border-radius:8px;font-weight:600;font-size:11px;display:none;align-items:center;gap:6px;';
+        var firstBtn=panel.querySelector('.af-btn,.af-save,button[onclick]');
+        if(firstBtn) panel.insertBefore(fbEl,firstBtn);
+        else panel.appendChild(fbEl);
+      }
+    }
+    if(!fbEl)return;
+    fbEl.innerHTML=msg;
+    fbEl.style.color=ok?'#16A34A':'#DC2626';
+    fbEl.style.background=ok?'rgba(22,163,74,.08)':'rgba(220,38,38,.06)';
+    fbEl.style.border=ok?'1px solid rgba(22,163,74,.25)':'1px solid rgba(220,38,38,.20)';
+    fbEl.style.display='flex';fbEl.style.alignItems='center';fbEl.style.gap='6px';
+    fbEl.style.padding='8px 12px';fbEl.style.borderRadius='8px';fbEl.style.fontWeight='600';fbEl.style.fontSize='11px';
   }
 
   /* ── 1. Language validation ── */
@@ -777,9 +789,11 @@ async function saveNewKPI(){
   const code=document.getElementById('aC').value.trim().toUpperCase();
   if(!code){_showFb('⚠ KPI Code cannot be empty',false);return;}
 
-  /* Check for duplicate ID */
-  const existing=allK().find(k=>k.id===code);
-  if(existing){
+  /* Duplicate check — case-insensitive, covers BASE + ST.added + allK() */
+  const _dupInBase=(BASE||[]).some(function(k){return String(k.id||'').toUpperCase()===code&&!(ST.deleted||[]).some(function(d){return String(d||'').toUpperCase()===code;});});
+  const _dupInAdded=(ST.added||[]).some(function(k){return String(k.id||'').toUpperCase()===code;});
+  const _dupInAllK=allK().some(function(k){return String(k.id||'').toUpperCase()===code;});
+  if(_dupInBase||_dupInAdded||_dupInAllK){
     _showFb('⚠ KPI Code "'+code+'" already exists — use a unique code',false);return;
   }
 
@@ -1056,8 +1070,7 @@ function saveAdmin(){
     });
     if(!_reqOk){
       /* Show red feedback */
-      const fb=document.getElementById('_addFeedback');
-      if(fb){fb.textContent=lang==='ar'?' يرجى ملء جميع الحقول الإلزامية ('+'*)':'⚠ Please fill all required fields (marked *)';fb.style.color='#DC2626';fb.style.display='block';}
+          if(fb){fb.textContent=lang==='ar'?' يرجى ملء جميع الحقول الإلزامية ('+'*)':'⚠ Please fill all required fields (marked *)';fb.style.color='#DC2626';fb.style.display='block';}
       toast(' Fill all required fields');return;
     }
     /* ── Delegate to dedicated async function ── */
