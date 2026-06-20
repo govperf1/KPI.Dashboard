@@ -184,6 +184,63 @@ window._selectPortal=async portal=>{
     };
 
     /* ══════════════════════════════════════════════════════
+       kpi_requests: User Requests CRUD
+       Uses its own Firestore collection — never touches ST.
+       ══════════════════════════════════════════════════════ */
+    function _fmtTs(ts){
+      if(!ts) return '—';
+      try{ return (ts.toDate?ts.toDate():new Date(ts)).toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
+      catch(_){ return String(ts); }
+    }
+    window._fmtTs=_fmtTs;
+
+    /* Submit a new request */
+    window._kpiRequestsSubmit=async function(requestType,message){
+      if(!window._fbUser||!db) throw new Error('not authenticated');
+      const ref=await addDoc(collection(db,'kpi_requests'),{
+        userName: window._fbName||window._fbUser.split('@')[0],
+        userEmail: window._fbUser,
+        requestType: String(requestType||'General').trim(),
+        message: String(message||'').trim(),
+        status: 'pending',
+        superAdminComment: '',
+        createdAt: serverTimestamp(),
+        respondedAt: null
+      });
+      return ref.id;
+    };
+
+    /* SA: get all requests ordered by newest first */
+    window._kpiRequestsGetAll=async function(){
+      if(!window._fbUser||!db) return [];
+      try{
+        const snap=await getDocs(query(collection(db,'kpi_requests'),orderBy('createdAt','desc')));
+        return snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+      }catch(e){console.warn('[Requests] getAll:',e.message);return [];}
+    };
+
+    /* User: get own requests */
+    window._kpiRequestsGetMine=async function(){
+      if(!window._fbUser||!db) return [];
+      try{
+        const snap=await getDocs(query(collection(db,'kpi_requests'),
+          where('userEmail','==',window._fbUser),
+          orderBy('createdAt','desc')));
+        return snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+      }catch(e){console.warn('[Requests] getMine:',e.message);return [];}
+    };
+
+    /* SA: respond to a request */
+    window._kpiRequestsRespond=async function(requestId,status,comment){
+      if(!window._fbUser||!db) throw new Error('not authenticated');
+      await updateDoc(doc(db,'kpi_requests',requestId),{
+        status: status,
+        superAdminComment: String(comment||'').trim(),
+        respondedAt: serverTimestamp()
+      });
+    };
+
+    /* ══════════════════════════════════════════════════════
        READ-ONLY onSnapshot: receives changes from other users.
        RULE: Never writes to Firestore from this listener.
        ══════════════════════════════════════════════════════ */

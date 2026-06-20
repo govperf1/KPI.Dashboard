@@ -1314,32 +1314,109 @@ window._saHubAction=_saHubAction;
 
 function _showUserRequestsPanel(){
   var existing=document.getElementById('saReqOv'); if(existing)existing.remove();
-  var reqs=ST.requests||[]; var isAr=(typeof lang!=='undefined'&&lang==='ar');
-  var rows=reqs.length?reqs.map(function(r){
-    return '<tr style="border-bottom:1px solid rgba(255,255,255,.05)">'
-      +'<td style="padding:8px 10px;font-size:10.5px;color:#94a3b8">'+htmlEsc(r.date||'')+'</td>'
-      +'<td style="padding:8px 10px;font-size:10.5px;color:#e2e8f0">'+htmlEsc(r.user||'')+'</td>'
-      +'<td style="padding:8px 10px;font-size:10.5px;color:#e2e8f0">'+htmlEsc(r.text||'')+'</td>'
-      +'<td style="padding:8px 10px;font-size:10px;color:'+(r.status==='done'?'#16A34A':'#D97706')+'">'+htmlEsc(r.status||'new')+'</td></tr>';
-  }).join(''):'<tr><td colspan="4" style="padding:24px;text-align:center;color:#475569;font-size:11px">'+(isAr?'\u0644\u0627 \u062a\u0648\u062c\u062f \u0637\u0644\u0628\u0627\u062a':'No requests yet')+'</td></tr>';
+  var isAr=(typeof lang!=='undefined'&&lang==='ar');
+
+  /* Overlay skeleton with loading state */
   var ov=document.createElement('div'); ov.id='saReqOv';
   ov.style.cssText='position:fixed;inset:0;z-index:9100;background:rgba(0,8,20,.82);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;';
-  ov.innerHTML='<div style="background:linear-gradient(135deg,#0d1b2e,#0a2040);border:1px solid rgba(1,149,175,.25);border-radius:18px;padding:28px;max-width:700px;width:100%;max-height:80vh;display:flex;flex-direction:column;gap:16px">'
-    +'<div style="display:flex;align-items:center;justify-content:space-between">'
-    +'<div style="font-size:15px;font-weight:800;color:#e2e8f0">'+(isAr?'\u0637\u0644\u0628\u0627\u062a \u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645\u064a\u0646':'User Requests')+'</div>'
-    +'<button onclick="_showSuperAdminHub()" style="padding:6px 14px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.3);border-radius:8px;color:#0195af;font-size:10px;font-weight:700;cursor:pointer">\u2190 Back</button>'
-    +'</div>'
-    +'<div style="overflow-y:auto;flex:1"><table style="width:100%;border-collapse:collapse">'
-    +'<thead><tr>'
-    +'<th style="padding:6px 10px;font-size:9.5px;color:#64748b;text-align:left">'+(isAr?'\u0627\u0644\u062a\u0627\u0631\u064a\u062e':'Date')+'</th>'
-    +'<th style="padding:6px 10px;font-size:9.5px;color:#64748b;text-align:left">'+(isAr?'\u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645':'User')+'</th>'
-    +'<th style="padding:6px 10px;font-size:9.5px;color:#64748b;text-align:left">'+(isAr?'\u0627\u0644\u0637\u0644\u0628':'Request')+'</th>'
-    +'<th style="padding:6px 10px;font-size:9.5px;color:#64748b;text-align:left">'+(isAr?'\u0627\u0644\u062d\u0627\u0644\u0629':'Status')+'</th>'
-    +'</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+
+  var box=document.createElement('div');
+  box.style.cssText='background:linear-gradient(135deg,#0d1b2e,#0a2040);border:1px solid rgba(1,149,175,.25);border-radius:18px;padding:28px;width:min(900px,100%);max-height:85vh;display:flex;flex-direction:column;gap:16px;';
+  box.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between">'
+    +'<div><div style="font-size:15px;font-weight:800;color:#e2e8f0">'+(isAr?'طلبات المستخدمين':'User Requests')+'</div>'
+    +'<div style="font-size:10px;color:#64748b;margin-top:2px">'+(isAr?'إدارة الطلبات والردود':'Manage requests and responses')+'</div></div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button id="saReqRefresh" style="padding:6px 14px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.3);border-radius:8px;color:#0195af;font-size:10px;font-weight:700;cursor:pointer">'+(isAr?'تحديث':'Refresh')+'</button>'
+    +'<button onclick="_showSuperAdminHub()" style="padding:6px 14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#94a3b8;font-size:10px;cursor:pointer">'+(isAr?'← رجوع':'← Back')+'</button>'
+    +'</div></div>'
+    +'<div id="saReqBody" style="overflow-y:auto;flex:1;min-height:200px;display:flex;align-items:center;justify-content:center">'
+    +'<div style="color:#64748b;font-size:11px">'+(isAr?'جاري التحميل...':'Loading requests...')+'</div></div>';
+  ov.appendChild(box);
   document.body.appendChild(ov);
   ov.onclick=function(e){if(e.target===ov)ov.remove();};
+
+  document.getElementById('saReqRefresh').onclick=function(){_saReqLoad(true);};
+
+  function _saReqLoad(forceRefresh){
+    var body=document.getElementById('saReqBody');
+    if(!body) return;
+    body.innerHTML='<div style="color:#64748b;font-size:11px">'+(isAr?'جاري التحميل...':'Loading...')+'</div>';
+    if(typeof window._kpiRequestsGetAll!=='function'){
+      body.innerHTML='<div style="color:#DC2626;font-size:11px">Requests API not available. Check Firebase.</div>'; return;
+    }
+    window._kpiRequestsGetAll().then(function(reqs){
+      if(!document.getElementById('saReqOv')) return; /* panel closed */
+      _saReqRender(reqs);
+    }).catch(function(e){
+      if(body) body.innerHTML='<div style="color:#DC2626;font-size:11px">Error: '+htmlEsc(e.message)+'</div>';
+    });
+  }
+
+  function _saReqRender(reqs){
+    var body=document.getElementById('saReqBody'); if(!body) return;
+    var isAr=(typeof lang!=='undefined'&&lang==='ar');
+    if(!reqs||!reqs.length){
+      body.innerHTML='<div style="color:#64748b;font-size:11px;text-align:center;padding:32px">'+(isAr?'لا توجد طلبات حتى الآن':'No requests yet')+'</div>';
+      return;
+    }
+    var html='<table style="width:100%;border-collapse:collapse;font-size:10.5px">'
+      +'<thead><tr style="border-bottom:1px solid rgba(1,149,175,.2)">'
+      +'<th style="padding:8px;text-align:left;color:#64748b;font-weight:700;white-space:nowrap">'+(isAr?'التاريخ':'Date')+'</th>'
+      +'<th style="padding:8px;text-align:left;color:#64748b;font-weight:700">'+(isAr?'المستخدم':'User')+'</th>'
+      +'<th style="padding:8px;text-align:left;color:#64748b;font-weight:700">'+(isAr?'النوع':'Type')+'</th>'
+      +'<th style="padding:8px;text-align:left;color:#64748b;font-weight:700">'+(isAr?'الطلب':'Message')+'</th>'
+      +'<th style="padding:8px;text-align:left;color:#64748b;font-weight:700">'+(isAr?'الحالة':'Status')+'</th>'
+      +'<th style="padding:8px;text-align:left;color:#64748b;font-weight:700">'+(isAr?'الرد':'Response')+'</th>'
+      +'</tr></thead><tbody>';
+    var statusColor={pending:'#D97706',approved:'#16A34A',rejected:'#DC2626'};
+    var statusLabel={pending:isAr?'معلق':'Pending',approved:isAr?'موافق عليه':'Approved',rejected:isAr?'مرفوض':'Rejected'};
+    reqs.forEach(function(r){
+      var sc=statusColor[r.status]||'#64748b';
+      var sl=statusLabel[r.status]||r.status||'—';
+      var ts=typeof window._fmtTs==='function'?window._fmtTs(r.createdAt):'—';
+      html+='<tr data-reqid="'+htmlEsc(r.id||'')+'" style="border-bottom:1px solid rgba(255,255,255,.04)">'
+        +'<td style="padding:8px;color:#94a3b8;white-space:nowrap;font-size:9.5px">'+htmlEsc(ts)+'</td>'
+        +'<td style="padding:8px;color:#e2e8f0">'+htmlEsc(r.userName||r.userEmail||'—')+'<br>'
+        +'<span style="font-size:9px;color:#64748b">'+htmlEsc(r.userEmail||'')+'</span></td>'
+        +'<td style="padding:8px;color:#94a3b8;white-space:nowrap">'+htmlEsc(r.requestType||'—')+'</td>'
+        +'<td style="padding:8px;color:#e2e8f0;max-width:240px">'+htmlEsc(r.message||'')+'</td>'
+        +'<td style="padding:8px;white-space:nowrap"><span style="padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;background:'+sc+'22;color:'+sc+'">'+sl+'</span></td>'
+        +'<td style="padding:8px;min-width:220px">'
+        +(r.status!=='pending'
+          ? '<div style="font-size:9.5px;color:#94a3b8;margin-bottom:4px">'+(r.superAdminComment?htmlEsc(r.superAdminComment):'—')+'</div>'
+            +'<div style="font-size:9px;color:#475569">'+(isAr?'ردّ في:':'Responded: ')+(typeof window._fmtTs==='function'?window._fmtTs(r.respondedAt):'')+'</div>'
+          : '<div style="display:flex;flex-direction:column;gap:5px">'
+            +'<textarea id="cmt_'+htmlEsc(r.id)+'" placeholder="'+(isAr?'تعليق اختياري...':'Optional comment...')+'" '
+            +'style="width:100%;padding:5px 8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:#e2e8f0;font-size:9.5px;resize:vertical;min-height:36px;font-family:inherit"></textarea>'
+            +'<div style="display:flex;gap:6px">'
+            +'<button onclick="_saReqRespond(\''+htmlEsc(r.id)+'\',\'approved\')" '
+            +'style="flex:1;padding:5px 10px;background:rgba(22,163,74,.15);border:1px solid rgba(22,163,74,.4);border-radius:6px;color:#16A34A;font-size:9px;font-weight:700;cursor:pointer">'+(isAr?'✓ موافقة':'✓ Approve')+'</button>'
+            +'<button onclick="_saReqRespond(\''+htmlEsc(r.id)+'\',\'rejected\')" '
+            +'style="flex:1;padding:5px 10px;background:rgba(220,38,38,.12);border:1px solid rgba(220,38,38,.35);border-radius:6px;color:#DC2626;font-size:9px;font-weight:700;cursor:pointer">'+(isAr?'✕ رفض':'✕ Reject')+'</button>'
+            +'</div></div>'
+        )
+        +'</td></tr>';
+    });
+    html+='</tbody></table>';
+    body.innerHTML=html;
+  }
+
+  window._saReqRespond=function(reqId,status){
+    if(!reqId) return;
+    var cmtEl=document.getElementById('cmt_'+reqId);
+    var comment=cmtEl?cmtEl.value.trim():'';
+    if(typeof window._kpiRequestsRespond!=='function'){toast('Requests API unavailable');return;}
+    window._kpiRequestsRespond(reqId,status,comment).then(function(){
+      toast((status==='approved'?(isAr?'✓ تمت الموافقة':'✓ Approved'):(isAr?'✕ تم الرفض':'✕ Rejected')));
+      _saReqLoad(true);
+    }).catch(function(e){toast('Error: '+e.message);});
+  };
+  window._saReqRespond=window._saReqRespond;
+
+  _saReqLoad(false);
 }
 window._showUserRequestsPanel=_showUserRequestsPanel;
+
 
 window._showSuperAdminHub = _showSuperAdminHub;
 

@@ -669,3 +669,175 @@ function updateExecTrend(yr){
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindFinal);else bindFinal();
   setTimeout(function(){notifCache=null;bindFinal();},700);
 })();
+
+
+/* ── User Requests: Submit form + My Requests view (user-facing) ──
+   Appended to notifications.js. Injects buttons into profile dropdown.
+   ────────────────────────────────────────────────────────────────── */
+(function(){
+  'use strict';
+
+  var REQ_TYPES_EN=['Add KPI','Edit KPI','Delete KPI','Report Issue','Access Request','General Request','Other'];
+  var REQ_TYPES_AR=['إضافة مؤشر','تعديل مؤشر','حذف مؤشر','بلاغ مشكلة','طلب وصول','طلب عام','أخرى'];
+
+  /* ── Inject "Submit Request" + "My Requests" buttons into profile dropdown ── */
+  function _injectReqButtons(){
+    var drop=document.getElementById('userProfileDrop');
+    if(!drop||document.getElementById('_profileReqBtns')) return;
+    var isAr=(typeof lang!=='undefined'&&lang==='ar');
+    var wrap=document.createElement('div');
+    wrap.id='_profileReqBtns';
+    wrap.style.cssText='display:flex;flex-direction:column;gap:6px;padding:10px 12px 4px;border-top:1px solid rgba(255,255,255,.07);margin-top:4px;';
+    wrap.innerHTML=
+      '<div style="font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">'+(isAr?'الطلبات':'Requests')+'</div>'
+      +'<button id="_profileSubmitReq" style="width:100%;padding:7px 12px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.28);border-radius:8px;color:#0195af;font-size:10px;font-weight:700;cursor:pointer;text-align:left;">'
+      +'✚ '+(isAr?'إرسال طلب جديد':'Submit a Request')+'</button>'
+      +'<button id="_profileMyReqs" style="width:100%;padding:7px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#94a3b8;font-size:10px;font-weight:700;cursor:pointer;text-align:left;">'
+      +'📋 '+(isAr?'طلباتي':'My Requests')+'</button>';
+    /* Insert before logout button */
+    var logout=drop.querySelector('.qumc-logout-btn,#profileLogoutBtn');
+    if(logout) drop.insertBefore(wrap,logout);
+    else drop.appendChild(wrap);
+    document.getElementById('_profileSubmitReq').onclick=function(){window._showSubmitRequestForm();};
+    document.getElementById('_profileMyReqs').onclick=function(){window._showMyRequests();};
+  }
+
+  /* Call injection whenever profile is opened */
+  var _origToggle=window.toggleUserProfile;
+  window.toggleUserProfile=function(){
+    var ret=_origToggle?_origToggle.apply(this,arguments):undefined;
+    setTimeout(_injectReqButtons,80);
+    return ret;
+  };
+  /* Also try on page load */
+  window.addEventListener('load',function(){setTimeout(_injectReqButtons,1200);});
+
+  /* ── Submit Request form ── */
+  window._showSubmitRequestForm=function(){
+    var existing=document.getElementById('submitReqOv'); if(existing)existing.remove();
+    var isAr=(typeof lang!=='undefined'&&lang==='ar');
+    var ov=document.createElement('div'); ov.id='submitReqOv';
+    ov.style.cssText='position:fixed;inset:0;z-index:9200;background:rgba(0,8,20,.84);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;';
+    var typeOpts=isAr
+      ?REQ_TYPES_AR.map(function(t,i){return '<option value="'+REQ_TYPES_EN[i]+'">'+t+'</option>';}).join('')
+      :REQ_TYPES_EN.map(function(t){return '<option value="'+t+'">'+t+'</option>';}).join('');
+    ov.innerHTML='<div style="background:linear-gradient(135deg,#0d1b2e,#0a2040);border:1px solid rgba(1,149,175,.25);border-radius:18px;padding:28px;width:min(480px,100%);display:flex;flex-direction:column;gap:16px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between">'
+      +'<div><div style="font-size:14px;font-weight:800;color:#e2e8f0">'+(isAr?'إرسال طلب جديد':'Submit a Request')+'</div>'
+      +'<div style="font-size:10px;color:#64748b;margin-top:2px">'+(isAr?'سيتم مراجعته من قِبل المسؤول الأعلى':'Will be reviewed by Super Admin')+'</div></div>'
+      +'<button onclick="document.getElementById(\'submitReqOv\').remove()" style="width:30px;height:30px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:7px;color:#94a3b8;cursor:pointer;font-size:15px">&#x2715;</button>'
+      +'</div>'
+      +'<div><label style="display:block;font-size:10px;font-weight:700;color:#64748b;margin-bottom:5px">'+(isAr?'نوع الطلب':'Request Type')+'</label>'
+      +'<select id="reqTypeSelect" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#e2e8f0;font-size:11px;font-family:inherit">'+typeOpts+'</select></div>'
+      +'<div><label style="display:block;font-size:10px;font-weight:700;color:#64748b;margin-bottom:5px">'+(isAr?'تفاصيل الطلب *':'Request Details *')+'</label>'
+      +'<textarea id="reqMessageArea" rows="5" placeholder="'+(isAr?'اكتب تفاصيل طلبك هنا...':'Describe your request in detail...')+'" '
+      +'style="width:100%;padding:9px 12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#e2e8f0;font-size:11px;font-family:inherit;resize:vertical;box-sizing:border-box"></textarea></div>'
+      +'<div id="reqSubmitFb" style="font-size:10px;font-weight:600;display:none;padding:7px 12px;border-radius:7px"></div>'
+      +'<button id="reqSubmitBtn" onclick="_doSubmitRequest()" '
+      +'style="padding:10px 20px;background:linear-gradient(90deg,#0195af,#0077cc);border:none;border-radius:9px;color:#fff;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">'
+      +(isAr?'إرسال الطلب':'Submit Request')+'</button></div>';
+    document.body.appendChild(ov);
+    ov.onclick=function(e){if(e.target===ov)ov.remove();};
+    setTimeout(function(){var el=document.getElementById('reqMessageArea');if(el)el.focus();},100);
+  };
+
+  window._doSubmitRequest=function(){
+    var isAr=(typeof lang!=='undefined'&&lang==='ar');
+    var typeEl=document.getElementById('reqTypeSelect');
+    var msgEl=document.getElementById('reqMessageArea');
+    var fbEl=document.getElementById('reqSubmitFb');
+    var btnEl=document.getElementById('reqSubmitBtn');
+    if(!typeEl||!msgEl) return;
+    var reqType=typeEl.value.trim();
+    var message=msgEl.value.trim();
+    if(!message){
+      if(fbEl){fbEl.textContent=isAr?'⚠ يرجى كتابة تفاصيل الطلب':'⚠ Please enter request details';fbEl.style.color='#DC2626';fbEl.style.background='rgba(220,38,38,.08)';fbEl.style.display='block';}
+      return;
+    }
+    if(typeof window._kpiRequestsSubmit!=='function'){
+      if(fbEl){fbEl.textContent='⚠ Requests not available — check connection';fbEl.style.color='#DC2626';fbEl.style.background='rgba(220,38,38,.08)';fbEl.style.display='block';}
+      return;
+    }
+    if(btnEl){btnEl.disabled=true;btnEl.textContent=isAr?'جاري الإرسال...':'Submitting...';}
+    if(fbEl){fbEl.style.display='none';}
+    window._kpiRequestsSubmit(reqType,message).then(function(){
+      if(fbEl){fbEl.textContent=isAr?'✓ تم إرسال طلبك بنجاح. سيتم الرد عليه قريباً.':'✓ Request submitted. You will be notified of the response.';fbEl.style.color='#16A34A';fbEl.style.background='rgba(22,163,74,.08)';fbEl.style.display='block';}
+      if(msgEl)msgEl.value='';
+      if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'إرسال طلب آخر':'Submit Another';}
+      setTimeout(function(){var ov=document.getElementById('submitReqOv');if(ov)ov.remove();},3000);
+    }).catch(function(e){
+      if(fbEl){fbEl.textContent='⚠ Error: '+e.message;fbEl.style.color='#DC2626';fbEl.style.background='rgba(220,38,38,.08)';fbEl.style.display='block';}
+      if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'إرسال الطلب':'Submit Request';}
+    });
+  };
+
+  /* ── My Requests view ── */
+  window._showMyRequests=function(){
+    var existing=document.getElementById('myReqOv'); if(existing)existing.remove();
+    var isAr=(typeof lang!=='undefined'&&lang==='ar');
+    var ov=document.createElement('div'); ov.id='myReqOv';
+    ov.style.cssText='position:fixed;inset:0;z-index:9200;background:rgba(0,8,20,.84);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;';
+    var box=document.createElement('div');
+    box.style.cssText='background:linear-gradient(135deg,#0d1b2e,#0a2040);border:1px solid rgba(1,149,175,.25);border-radius:18px;padding:28px;width:min(700px,100%);max-height:80vh;display:flex;flex-direction:column;gap:16px;';
+    box.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between">'
+      +'<div><div style="font-size:14px;font-weight:800;color:#e2e8f0">'+(isAr?'طلباتي':'My Requests')+'</div>'
+      +'<div style="font-size:10px;color:#64748b;margin-top:2px">'+(isAr?'جميع طلباتك والردود عليها':'All your submitted requests and responses')+'</div></div>'
+      +'<div style="display:flex;gap:8px">'
+      +'<button onclick="var e=document.getElementById(\'myReqOv\');if(e)e.remove();window._showSubmitRequestForm();" style="padding:6px 14px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.3);border-radius:8px;color:#0195af;font-size:10px;font-weight:700;cursor:pointer">+ '+(isAr?'طلب جديد':'New Request')+'</button>'
+      +'<button onclick="document.getElementById(\'myReqOv\').remove()" style="width:30px;height:30px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:7px;color:#94a3b8;cursor:pointer;font-size:15px">&#x2715;</button>'
+      +'</div></div>'
+      +'<div id="myReqBody" style="overflow-y:auto;flex:1;min-height:160px;display:flex;align-items:center;justify-content:center">'
+      +'<div style="color:#64748b;font-size:11px">'+(isAr?'جاري التحميل...':'Loading...')+'</div></div>';
+    ov.appendChild(box);
+    document.body.appendChild(ov);
+    ov.onclick=function(e){if(e.target===ov)ov.remove();};
+
+    if(typeof window._kpiRequestsGetMine!=='function'){
+      var b=document.getElementById('myReqBody');
+      if(b) b.innerHTML='<div style="color:#DC2626;font-size:11px">Requests not available.</div>';
+      return;
+    }
+    window._kpiRequestsGetMine().then(function(reqs){
+      var body=document.getElementById('myReqBody'); if(!body) return;
+      var isAr=(typeof lang!=='undefined'&&lang==='ar');
+      if(!reqs||!reqs.length){
+        body.innerHTML='<div style="color:#64748b;font-size:11px;text-align:center;padding:32px">'+(isAr?'لم تقم بإرسال أي طلبات بعد':'You have not submitted any requests yet')+'</div>';
+        return;
+      }
+      var statusColor={pending:'#D97706',approved:'#16A34A',rejected:'#DC2626'};
+      var statusLabel={
+        pending:isAr?'معلق':'Pending',
+        approved:isAr?'موافق عليه':'Approved',
+        rejected:isAr?'مرفوض':'Rejected'
+      };
+      var html='<div style="display:flex;flex-direction:column;gap:10px;padding:2px;">';
+      reqs.forEach(function(r){
+        var sc=statusColor[r.status]||'#64748b';
+        var sl=statusLabel[r.status]||r.status||'—';
+        var ts=typeof window._fmtTs==='function'?window._fmtTs(r.createdAt):'—';
+        html+='<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px">'
+          +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
+          +'<div style="display:flex;align-items:center;gap:8px">'
+          +'<span style="font-size:10px;font-weight:700;color:#e2e8f0">'+htmlEsc(r.requestType||'—')+'</span>'
+          +'<span style="padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;background:'+sc+'22;color:'+sc+'">'+sl+'</span>'
+          +'</div>'
+          +'<span style="font-size:9px;color:#475569;white-space:nowrap">'+htmlEsc(ts)+'</span></div>'
+          +'<div style="font-size:10.5px;color:#94a3b8;line-height:1.5">'+htmlEsc(r.message||'')+'</div>'
+          +(r.superAdminComment
+            ?'<div style="background:rgba(1,149,175,.08);border:1px solid rgba(1,149,175,.2);border-radius:7px;padding:8px 10px">'
+              +'<div style="font-size:9px;font-weight:700;color:#0195af;margin-bottom:3px">'+(isAr?'رد المسؤول:':'Admin Response:')+'</div>'
+              +'<div style="font-size:10.5px;color:#e2e8f0">'+htmlEsc(r.superAdminComment)+'</div></div>'
+            :(r.status==='pending'
+              ?'<div style="font-size:9px;color:#475569;font-style:italic">'+(isAr?'في انتظار الرد...':'Awaiting response...')+'</div>'
+              :''))
+          +'</div>';
+      });
+      html+='</div>';
+      body.innerHTML=html;
+    }).catch(function(e){
+      var body=document.getElementById('myReqBody');
+      if(body) body.innerHTML='<div style="color:#DC2626;font-size:11px">Error: '+htmlEsc(e.message)+'</div>';
+    });
+  };
+
+})();
