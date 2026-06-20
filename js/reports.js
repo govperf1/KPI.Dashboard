@@ -1137,7 +1137,9 @@ function renderReport(){
     _content=txt; /* no edit stored — use original */
   }else if(typeof _saved==='object'){
     /* New lang-keyed format */
-    _content=_saved[_rLang]||_saved.en||_saved.ar||txt;
+    /* Use only this language's edit; fall back to ORIGINAL txt (not other lang's edit).
+       This ensures AR edits never bleed into EN view and vice-versa. */
+    _content=(_saved[_rLang]!==undefined&&_saved[_rLang]!==null&&_saved[_rLang]!=='')?_saved[_rLang]:txt;
   }else{
     /* Old flat string (backward compat) */
     _content=_saved;
@@ -1491,8 +1493,9 @@ function rptDoneEdit(id){
   var _rLang=(typeof lang==='string'&&lang)?lang:'en';
   var _existing=ST.rptEdits[_rCtxKey];
   if(typeof _existing==='string'){
-    /* Migrate old flat string to language object (backward compat) */
-    ST.rptEdits[_rCtxKey]={en:_existing,ar:_existing};
+    /* Migrate old flat string — treat as English only.
+       Do NOT copy to Arabic: that would bleed EN text into AR view. */
+    ST.rptEdits[_rCtxKey]={en:_existing};
   } else if(!_existing||typeof _existing!=='object'){
     ST.rptEdits[_rCtxKey]={};
   }

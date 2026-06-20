@@ -1246,36 +1246,101 @@ function confirmDelKpi(){
    Opens the Admin Panel immediately and selects the SA overview tab.
    ══════════════════════════════════════════════════════════════ */
 function _showSuperAdminHub(){
-  /* Populate admin selects first */
-  try{ if(typeof popAdminSels==='function') popAdminSels(); }catch(_){}
-  try{ if(typeof loadAuditLog==='function') loadAuditLog(); }catch(_){}
-  try{ if(typeof populateAddYears==='function') populateAddYears(); }catch(_){}
-
-  /* Ensure the admin panel overlay is open */
-  const adminOv=document.getElementById('adminOv');
-  if(adminOv) adminOv.classList.add('open');
-
-  /* Show SA-specific User Requests section if it exists */
-  const reqTab=document.getElementById('ap-requests');
-  if(reqTab){ swAt('ap-requests'); }
-
-  /* Inject SA hub controls into admin header if not already there */
-  const hdr=document.querySelector('#adminOv .mhd-t');
-  if(hdr && !document.getElementById('_saHubTag')){
-    const tag=document.createElement('span');
-    tag.id='_saHubTag';
-    tag.style.cssText='font-size:9px;padding:2px 8px;border-radius:10px;background:rgba(248,113,113,.15);color:#F87171;font-weight:700;margin-left:8px;';
-    tag.textContent='SUPER ADMIN';
-    hdr.appendChild(tag);
-  }
-
-  /* Build text editor tab if ST.textEdits capability present */
-  _ensureSaTextEditorTab();
-
-  /* Audit */
-  try{ addAudit('SA_HUB_OPEN','Super Admin hub opened'); }catch(_){}
-  console.log('[SA Hub] Super Admin hub opened');
+  var prev=document.getElementById('saHubOv'); if(prev)prev.remove();
+  var isAr=(typeof lang!=='undefined'&&lang==='ar');
+  var ov=document.createElement('div');
+  ov.id='saHubOv';
+  ov.style.cssText='position:fixed;inset:0;z-index:9000;background:rgba(0,8,20,.82);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;';
+  var cards=[
+    {icon:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>',
+     title:'User Requests',titleAr:'\u0637\u0644\u0628\u0627\u062a \u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645\u064a\u0646',
+     desc:'View and manage user requests, responses and workflow.',
+     descAr:'\u0639\u0631\u0636 \u0637\u0644\u0628\u0627\u062a \u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645\u064a\u0646 \u0648\u0625\u062f\u0627\u0631\u062a\u0647\u0627.',action:'sa-requests'},
+    {icon:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/></svg>',
+     title:'KPI Management',titleAr:'\u0625\u062f\u0627\u0631\u0629 \u0645\u0624\u0634\u0631\u0627\u062a \u0627\u0644\u0623\u062f\u0627\u0621',
+     desc:'Add, edit and delete KPIs. Configure structure, columns and targets.',
+     descAr:'\u0625\u0636\u0627\u0641\u0629 \u0648\u062a\u0639\u062f\u064a\u0644 \u0648\u062d\u0630\u0641 \u0627\u0644\u0645\u0624\u0634\u0631\u0627\u062a.',action:'sa-kpimgmt'},
+    {icon:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
+     title:'Text & Language Editor',titleAr:'\u0645\u062d\u0631\u0631 \u0627\u0644\u0646\u0635\u0648\u0635 \u0648\u0627\u0644\u0644\u063a\u0629',
+     desc:'Edit Arabic and English terminology, report labels and shared text dictionary.',
+     descAr:'\u062a\u0639\u062f\u064a\u0644 \u0645\u0635\u0637\u0644\u062d\u0627\u062a \u0627\u0644\u0644\u0648\u062d\u0629 \u0648\u0627\u0644\u062a\u0642\u0627\u0631\u064a\u0631.',action:'sa-texteditor'}
+  ];
+  var inner='<div style="background:linear-gradient(135deg,#0d1b2e,#0a2040);border:1px solid rgba(1,149,175,.25);border-radius:18px;padding:32px 28px;max-width:820px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.6)">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px">'
+    +'<div><div style="font-size:16px;font-weight:800;color:#e2e8f0">'+(isAr?'\u0644\u0648\u062d\u0629 \u0627\u0644\u0645\u0633\u0624\u0648\u0644 \u0627\u0644\u0623\u0639\u0644\u0649':'Super Admin Hub')+'</div>'
+    +'<div style="font-size:10px;color:#64748b;margin-top:2px">'+(isAr?'\u0627\u062e\u062a\u0631 \u0645\u0646\u0637\u0642\u0629 \u0627\u0644\u0625\u062f\u0627\u0631\u0629':'Select a management area')+'</div></div>'
+    +'<button onclick="var e=document.getElementById(\'saHubOv\');if(e)e.remove();" style="width:32px;height:32px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#94a3b8;cursor:pointer;font-size:16px">&#x2715;</button>'
+    +'</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px">';
+  cards.forEach(function(card){
+    var t=isAr?card.titleAr:card.title;
+    var d=isAr?card.descAr:card.desc;
+    inner+='<div onclick="_saHubAction(\''+card.action+'\')"'
+      +' style="background:rgba(255,255,255,.04);border:1px solid rgba(1,149,175,.18);border-radius:14px;padding:22px 18px;cursor:pointer;display:flex;flex-direction:column;gap:10px;transition:all .18s"'
+      +' onmouseenter="this.style.background=\'rgba(1,149,175,.1)\';this.style.borderColor=\'rgba(1,149,175,.4)\'"'
+      +' onmouseleave="this.style.background=\'rgba(255,255,255,.04)\';this.style.borderColor=\'rgba(1,149,175,.18)\'">'
+      +'<div style="width:44px;height:44px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.25);border-radius:11px;display:flex;align-items:center;justify-content:center">'+card.icon+'</div>'
+      +'<div><div style="font-size:13px;font-weight:700;color:#e2e8f0;margin-bottom:4px">'+htmlEsc(t)+'</div>'
+      +'<div style="font-size:10px;color:#64748b;line-height:1.5">'+htmlEsc(d)+'</div></div>'
+      +'<div style="margin-top:auto;font-size:10px;font-weight:700;color:#0195af">'+(isAr?'\u0641\u062a\u062d':'Open')+' \u2192</div></div>';
+  });
+  inner+='</div></div>';
+  ov.innerHTML=inner;
+  document.body.appendChild(ov);
+  ov.onclick=function(e){if(e.target===ov)ov.remove();};
+  try{if(typeof popAdminSels==='function')popAdminSels();}catch(_){}
+  try{if(typeof populateAddYears==='function')populateAddYears();}catch(_){}
 }
+window._showSuperAdminHub=_showSuperAdminHub;
+
+function _saHubAction(action){
+  var ov=document.getElementById('saHubOv'); if(ov)ov.remove();
+  if(action==='sa-kpimgmt'){
+    var adminOv=document.getElementById('adminOv');
+    if(adminOv)adminOv.classList.add('open');
+    try{if(typeof popAdminSels==='function')popAdminSels();}catch(_){}
+    try{if(typeof loadAuditLog==='function')loadAuditLog();}catch(_){}
+  }else if(action==='sa-texteditor'){
+    var adminOv=document.getElementById('adminOv');
+    if(adminOv)adminOv.classList.add('open');
+    try{if(typeof popAdminSels==='function')popAdminSels();}catch(_){}
+    _ensureSaTextEditorTab();
+    setTimeout(function(){if(typeof swAt==='function')swAt('ap-textedit');},120);
+  }else if(action==='sa-requests'){
+    _showUserRequestsPanel();
+  }
+  try{addAudit('SA_HUB_NAV','SA navigated to: '+action);}catch(_){}
+}
+window._saHubAction=_saHubAction;
+
+function _showUserRequestsPanel(){
+  var existing=document.getElementById('saReqOv'); if(existing)existing.remove();
+  var reqs=ST.requests||[]; var isAr=(typeof lang!=='undefined'&&lang==='ar');
+  var rows=reqs.length?reqs.map(function(r){
+    return '<tr style="border-bottom:1px solid rgba(255,255,255,.05)">'
+      +'<td style="padding:8px 10px;font-size:10.5px;color:#94a3b8">'+htmlEsc(r.date||'')+'</td>'
+      +'<td style="padding:8px 10px;font-size:10.5px;color:#e2e8f0">'+htmlEsc(r.user||'')+'</td>'
+      +'<td style="padding:8px 10px;font-size:10.5px;color:#e2e8f0">'+htmlEsc(r.text||'')+'</td>'
+      +'<td style="padding:8px 10px;font-size:10px;color:'+(r.status==='done'?'#16A34A':'#D97706')+'">'+htmlEsc(r.status||'new')+'</td></tr>';
+  }).join(''):'<tr><td colspan="4" style="padding:24px;text-align:center;color:#475569;font-size:11px">'+(isAr?'\u0644\u0627 \u062a\u0648\u062c\u062f \u0637\u0644\u0628\u0627\u062a':'No requests yet')+'</td></tr>';
+  var ov=document.createElement('div'); ov.id='saReqOv';
+  ov.style.cssText='position:fixed;inset:0;z-index:9100;background:rgba(0,8,20,.82);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;';
+  ov.innerHTML='<div style="background:linear-gradient(135deg,#0d1b2e,#0a2040);border:1px solid rgba(1,149,175,.25);border-radius:18px;padding:28px;max-width:700px;width:100%;max-height:80vh;display:flex;flex-direction:column;gap:16px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between">'
+    +'<div style="font-size:15px;font-weight:800;color:#e2e8f0">'+(isAr?'\u0637\u0644\u0628\u0627\u062a \u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645\u064a\u0646':'User Requests')+'</div>'
+    +'<button onclick="_showSuperAdminHub()" style="padding:6px 14px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.3);border-radius:8px;color:#0195af;font-size:10px;font-weight:700;cursor:pointer">\u2190 Back</button>'
+    +'</div>'
+    +'<div style="overflow-y:auto;flex:1"><table style="width:100%;border-collapse:collapse">'
+    +'<thead><tr>'
+    +'<th style="padding:6px 10px;font-size:9.5px;color:#64748b;text-align:left">'+(isAr?'\u0627\u0644\u062a\u0627\u0631\u064a\u062e':'Date')+'</th>'
+    +'<th style="padding:6px 10px;font-size:9.5px;color:#64748b;text-align:left">'+(isAr?'\u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645':'User')+'</th>'
+    +'<th style="padding:6px 10px;font-size:9.5px;color:#64748b;text-align:left">'+(isAr?'\u0627\u0644\u0637\u0644\u0628':'Request')+'</th>'
+    +'<th style="padding:6px 10px;font-size:9.5px;color:#64748b;text-align:left">'+(isAr?'\u0627\u0644\u062d\u0627\u0644\u0629':'Status')+'</th>'
+    +'</tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+  document.body.appendChild(ov);
+  ov.onclick=function(e){if(e.target===ov)ov.remove();};
+}
+window._showUserRequestsPanel=_showUserRequestsPanel;
+
 window._showSuperAdminHub = _showSuperAdminHub;
 
 /* Inject a Text Editor tab into the admin panel for SA */
