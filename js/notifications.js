@@ -710,7 +710,15 @@ function updateExecTrend(yr){
     return ret;
   };
   /* Also try on page load */
-  window.addEventListener('load',function(){setTimeout(_injectReqButtons,1200);});
+  window.addEventListener('load',function(){
+    setTimeout(_injectReqButtons,1200);
+    /* Re-inject every time profile is viewed (covers edge cases) */
+    setInterval(function(){
+      if(document.getElementById('userProfileDrop') && !document.getElementById('_profileReqBtns')){
+        _injectReqButtons();
+      }
+    }, 2000);
+  });
 
   /* ── Submit Request form ── */
   window._showSubmitRequestForm=function(){
@@ -760,13 +768,27 @@ function updateExecTrend(yr){
     }
     if(btnEl){btnEl.disabled=true;btnEl.textContent=isAr?'جاري الإرسال...':'Submitting...';}
     if(fbEl){fbEl.style.display='none';}
+    /* Verify API and auth before calling Firebase */
+    if(typeof window._kpiRequestsSubmit!=='function'){
+      if(fbEl){fbEl.textContent='⚠ Request API not ready. Wait a moment and retry.';fbEl.style.color='#DC2626';fbEl.style.background='rgba(220,38,38,.08)';fbEl.style.display='block';}
+      if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'إرسال الطلب':'Submit Request';}
+      return;
+    }
+    if(!window._fbUser){
+      if(fbEl){fbEl.textContent='⚠ Not authenticated — please re-login.';fbEl.style.color='#DC2626';fbEl.style.background='rgba(220,38,38,.08)';fbEl.style.display='block';}
+      if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'إرسال الطلب':'Submit Request';}
+      return;
+    }
     window._kpiRequestsSubmit(reqType,message).then(function(){
       if(fbEl){fbEl.textContent=isAr?'✓ تم إرسال طلبك بنجاح. سيتم الرد عليه قريباً.':'✓ Request submitted. You will be notified of the response.';fbEl.style.color='#16A34A';fbEl.style.background='rgba(22,163,74,.08)';fbEl.style.display='block';}
       if(msgEl)msgEl.value='';
       if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'إرسال طلب آخر':'Submit Another';}
       setTimeout(function(){var ov=document.getElementById('submitReqOv');if(ov)ov.remove();},3000);
     }).catch(function(e){
-      if(fbEl){fbEl.textContent='⚠ Error: '+e.message;fbEl.style.color='#DC2626';fbEl.style.background='rgba(220,38,38,.08)';fbEl.style.display='block';}
+      var errMsg = e.code ? (e.code + ': ' + e.message) : e.message;
+      /* Common Firestore rule errors */
+      if(e.code === 'permission-denied') errMsg = 'Permission denied — please ask admin to set Firestore rules for kpi_requests.';
+      if(fbEl){fbEl.textContent='⚠ '+errMsg;fbEl.style.color='#DC2626';fbEl.style.background='rgba(220,38,38,.08)';fbEl.style.display='block';}
       if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'إرسال الطلب':'Submit Request';}
     });
   };

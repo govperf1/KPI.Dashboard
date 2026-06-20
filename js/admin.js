@@ -1261,8 +1261,8 @@ function _showSuperAdminHub(){
      desc:'Add, edit and delete KPIs. Configure structure, columns and targets.',
      descAr:'\u0625\u0636\u0627\u0641\u0629 \u0648\u062a\u0639\u062f\u064a\u0644 \u0648\u062d\u0630\u0641 \u0627\u0644\u0645\u0624\u0634\u0631\u0627\u062a.',action:'sa-kpimgmt'},
     {icon:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>',
-     title:'Text & Language Editor',titleAr:'\u0645\u062d\u0631\u0631 \u0627\u0644\u0646\u0635\u0648\u0635 \u0648\u0627\u0644\u0644\u063a\u0629',
-     desc:'Edit Arabic and English terminology, report labels and shared text dictionary.',
+     title:'Dashboard',titleAr:'\u0645\u062d\u0631\u0631 \u0627\u0644\u0646\u0635\u0648\u0635 \u0648\u0627\u0644\u0644\u063a\u0629',
+     desc:'Open the live dashboard. Click any outlined text to edit it in-place.',
      descAr:'\u062a\u0639\u062f\u064a\u0644 \u0645\u0635\u0637\u0644\u062d\u0627\u062a \u0627\u0644\u0644\u0648\u062d\u0629 \u0648\u0627\u0644\u062a\u0642\u0627\u0631\u064a\u0631.',action:'sa-dashboard'}
   ];
   var inner='<div style="background:linear-gradient(135deg,#0d1b2e,#0a2040);border:1px solid rgba(1,149,175,.25);border-radius:18px;padding:32px 28px;max-width:820px;width:100%;box-shadow:0 24px 80px rgba(0,0,0,.6)">'
@@ -1295,16 +1295,17 @@ window._showSuperAdminHub=_showSuperAdminHub;
 function _saHubAction(action){
   var ov=document.getElementById('saHubOv'); if(ov)ov.remove();
   if(action==='sa-kpimgmt'){
-    var adminOv=document.getElementById('adminOv');
-    if(adminOv)adminOv.classList.add('open');
-    try{if(typeof popAdminSels==='function')popAdminSels();}catch(_){}
-    try{if(typeof loadAuditLog==='function')loadAuditLog();}catch(_){}
+    _showKpiMgmtPanel();
   }else if(action==='sa-texteditor'||action==='sa-dashboard'){
-    /* Dashboard card: close hub, render dashboard, inject Edit Text button */
+    /* Dashboard card: close hub, render, inject Edit Text toggle, then scan */
     setTimeout(function(){
       try{if(typeof renderCurrent==='function')renderCurrent();}catch(_){}
-      setTimeout(_injectSaEditTextBtn,200);
-    },50);
+      setTimeout(function(){
+        _injectSaEditTextBtn();
+        /* Auto-activate edit mode so text is immediately outlined */
+        setTimeout(_activateSaEditMode, 400);
+      }, 200);
+    }, 50);
   }else if(action==='sa-requests'){
     _showUserRequestsPanel();
   }
@@ -1534,6 +1535,419 @@ window._showUserRequestsPanel=_showUserRequestsPanel;
 
 
 window._showSuperAdminHub = _showSuperAdminHub;
+
+/* ══════════════════════════════════════════════════════════════
+   ISSUE 1: Dashboard card — click-to-edit text mode
+   ══════════════════════════════════════════════════════════════ */
+var _saEditModeActive = false;
+
+function _activateSaEditMode(){
+  _saEditModeActive = true;
+  /* Inject CSS */
+  if(!document.getElementById('_saEditStyle')){
+    var st = document.createElement('style');
+    st.id = '_saEditStyle';
+    st.textContent =
+      '[data-tkey]{outline:2px dashed rgba(1,149,175,.7);cursor:pointer;border-radius:2px;transition:outline .15s;}'
+      +'[data-tkey]:hover{outline:2px solid #0195af;background:rgba(1,149,175,.12);}';
+    document.head.appendChild(st);
+  }
+  /* Update edit text button */
+  var btn = document.getElementById('_saEditTextBtn');
+  if(btn){
+    btn.style.background = 'rgba(1,149,175,.3)';
+    btn.style.borderColor = '#0195af';
+    btn.textContent = (typeof lang!=='undefined'&&lang==='ar') ? '✕ إيقاف التعديل' : '✕ Exit Edit';
+    btn.onclick = function(){ _deactivateSaEditMode(); };
+  }
+  _scanDashboardForEditable();
+}
+window._activateSaEditMode = _activateSaEditMode;
+
+function _deactivateSaEditMode(){
+  _saEditModeActive = false;
+  /* Remove editable spans — restore original text */
+  document.querySelectorAll('[data-tkey]').forEach(function(el){
+    var text = el.textContent;
+    var tn = document.createTextNode(text);
+    if(el.parentNode) el.parentNode.replaceChild(tn, el);
+  });
+  /* Remove style */
+  var st = document.getElementById('_saEditStyle');
+  if(st) st.remove();
+  /* Reset button */
+  var btn = document.getElementById('_saEditTextBtn');
+  if(btn){
+    btn.style.background = 'rgba(1,149,175,.15)';
+    btn.style.borderColor = 'rgba(1,149,175,.4)';
+    btn.textContent = (typeof lang!=='undefined'&&lang==='ar') ? '✏ نصوص' : '✏ Text';
+    btn.onclick = function(){ _activateSaEditMode(); };
+  }
+}
+window._deactivateSaEditMode = _deactivateSaEditMode;
+
+function _scanDashboardForEditable(){
+  if(!_saEditModeActive) return;
+  if(typeof window.TR === 'undefined') return;
+  var isAr = (typeof lang !== 'undefined' && lang === 'ar');
+  /* Build reverse map: current lang text value → TR key */
+  var valToKey = {};
+  Object.keys(window.TR).forEach(function(key){
+    var stored = ST.textEdits && ST.textEdits[key];
+    var val = stored ? (stored[isAr?'ar':'en'] || stored.en) : (window.TR[key][isAr?'ar':'en'] || window.TR[key].en);
+    if(val && val.trim().length >= 2 && !val.includes('<')){
+      if(!valToKey[val.trim()]) valToKey[val.trim()] = key;
+    }
+  });
+  /* Scan dashboard containers */
+  var containers = ['page-exec','page-reg','page-dept'].map(function(id){return document.getElementById(id);}).filter(Boolean);
+  if(!containers.length) containers = [document.querySelector('.page-content, .dash-main, main, #root')||document.body];
+  containers.forEach(function(container){
+    _walkAndMark(container, valToKey);
+  });
+}
+window._scanDashboardForEditable = _scanDashboardForEditable;
+
+function _walkAndMark(node, valToKey){
+  if(!node || node.nodeType === 8) return; /* skip comments */
+  if(node.nodeType === 3){ /* text node */
+    var text = node.textContent || '';
+    var matched = false;
+    Object.keys(valToKey).forEach(function(val){
+      if(matched) return;
+      var idx = text.indexOf(val);
+      if(idx >= 0){
+        matched = true;
+        var key = valToKey[val];
+        var before = text.substring(0, idx);
+        var after = text.substring(idx + val.length);
+        var span = document.createElement('span');
+        span.setAttribute('data-tkey', key);
+        span.textContent = val;
+        span.title = 'Click to edit: ' + key;
+        span.onclick = function(e){ e.stopPropagation(); _showTextKeyPopup(key, span); };
+        var frag = document.createDocumentFragment();
+        if(before) frag.appendChild(document.createTextNode(before));
+        frag.appendChild(span);
+        if(after) frag.appendChild(document.createTextNode(after));
+        if(node.parentNode) node.parentNode.replaceChild(frag, node);
+      }
+    });
+    return;
+  }
+  if(node.nodeType === 1){
+    /* Skip scripts, styles, already-marked elements */
+    var tag = node.tagName.toUpperCase();
+    if(tag === 'SCRIPT' || tag === 'STYLE' || node.getAttribute('data-tkey')) return;
+    /* Process children (copy array since we may modify DOM) */
+    Array.from(node.childNodes).forEach(function(child){ _walkAndMark(child, valToKey); });
+  }
+}
+
+function _showTextKeyPopup(key, anchorEl){
+  var existing = document.getElementById('saTextKeyPopup');
+  if(existing) existing.remove();
+  var isAr = (typeof lang !== 'undefined' && lang === 'ar');
+  var stored = ST.textEdits && ST.textEdits[key];
+  var tr = window.TR && window.TR[key];
+  var enVal = stored ? (stored.en !== undefined ? stored.en : (tr ? tr.en||'' : '')) : (tr ? tr.en||'' : '');
+  var arVal = stored ? (stored.ar !== undefined ? stored.ar : (tr ? tr.ar||'' : '')) : (tr ? tr.ar||'' : '');
+
+  var popup = document.createElement('div');
+  popup.id = 'saTextKeyPopup';
+  popup.style.cssText = 'position:fixed;z-index:10000;background:#0d1b2e;border:1px solid rgba(1,149,175,.4);border-radius:12px;padding:16px;min-width:300px;max-width:420px;box-shadow:0 12px 40px rgba(0,0,0,.6);';
+  /* Position near anchor */
+  var rect = anchorEl ? anchorEl.getBoundingClientRect() : {top:200,left:200};
+  var top = Math.min(rect.bottom + 6, window.innerHeight - 200);
+  var left = Math.max(8, Math.min(rect.left, window.innerWidth - 440));
+  popup.style.top = top + 'px'; popup.style.left = left + 'px';
+
+  var editLang = isAr ? 'ar' : 'en';
+  var readLang = isAr ? 'en' : 'ar';
+  var editVal  = isAr ? arVal : enVal;
+  var readVal  = isAr ? enVal : arVal;
+  var editLabel = isAr ? 'النص بالعربية (قابل للتعديل)' : 'English text (editable)';
+  var readLabel = isAr ? 'النص بالإنجليزية (مرجع فقط)' : 'Arabic text (reference only)';
+
+  popup.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
+    +'<div style="font-size:9px;color:#64748b;font-family:monospace">'+htmlEsc(key)+'</div>'
+    +'<button id="_saPopClose" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:16px;padding:0">&#x2715;</button></div>'
+    +'<label style="display:block;font-size:9.5px;font-weight:700;color:#0195af;margin-bottom:4px">'+editLabel+'</label>'
+    +'<input id="_saPopEdit" value="'+htmlEsc(editVal)+'" '+(isAr?'dir="rtl"':'')+' '
+    +'style="width:100%;padding:7px 10px;background:rgba(255,255,255,.07);border:1px solid rgba(1,149,175,.3);border-radius:7px;color:#e2e8f0;font-size:11px;font-family:inherit;box-sizing:border-box;margin-bottom:8px">'
+    +'<label style="display:block;font-size:9.5px;color:#475569;margin-bottom:3px">'+readLabel+'</label>'
+    +'<div style="padding:6px 10px;background:rgba(0,0,0,.2);border:1px solid rgba(255,255,255,.07);border-radius:6px;color:#64748b;font-size:10.5px;min-height:24px;margin-bottom:10px"'+(!isAr?' dir="rtl"':'')+'>'+htmlEsc(readVal)+'</div>'
+    +'<button id="_saPopSave" style="width:100%;padding:8px;background:linear-gradient(90deg,#0195af,#0077cc);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:10px;cursor:pointer">'
+    +(isAr?'حفظ':'Save')+'</button>'
+    +'<div id="_saPopFb" style="margin-top:6px;font-size:9.5px;display:none"></div>';
+
+  document.body.appendChild(popup);
+  var input = document.getElementById('_saPopEdit');
+  if(input){ input.focus(); input.select(); }
+  document.getElementById('_saPopClose').onclick = function(){ popup.remove(); };
+
+  document.getElementById('_saPopSave').onclick = function(){
+    var newVal = input ? input.value : editVal;
+    if(!ST.textEdits) ST.textEdits = {};
+    if(!ST.textEdits[key]) ST.textEdits[key] = {en: enVal, ar: arVal};
+    ST.textEdits[key][editLang] = newVal;
+    /* Apply immediately */
+    if(typeof tSet === 'function') tSet(key, ST.textEdits[key].en, ST.textEdits[key].ar);
+    persistST('TEXT_EDIT:'+key).then(function(){
+      /* Update span text immediately */
+      document.querySelectorAll('[data-tkey="'+key+'"]').forEach(function(el){ el.textContent = newVal; });
+      var fb = document.getElementById('_saPopFb');
+      if(fb){fb.textContent='✓ Saved';fb.style.color='#16A34A';fb.style.display='block';}
+      setTimeout(function(){ popup.remove(); }, 900);
+    }).catch(function(e){
+      var fb = document.getElementById('_saPopFb');
+      if(fb){fb.textContent='⚠ '+e.message;fb.style.color='#DC2626';fb.style.display='block';}
+    });
+  };
+  /* Close on outside click */
+  setTimeout(function(){
+    document.addEventListener('click', function _closePopup(e){
+      if(!popup.contains(e.target)){ popup.remove(); document.removeEventListener('click', _closePopup); }
+    });
+  }, 100);
+}
+window._showTextKeyPopup = _showTextKeyPopup;
+
+/* ══════════════════════════════════════════════════════════════
+   ISSUE 2: KPI Management — field config + formula editor
+   ══════════════════════════════════════════════════════════════ */
+function _getMasterKpiId(kpiNameEn){
+  if(!kpiNameEn) return '';
+  return kpiNameEn.trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+}
+window._getMasterKpiId = _getMasterKpiId;
+
+function _showKpiMgmtPanel(){
+  var existing = document.getElementById('kpiMgmtOv'); if(existing) existing.remove();
+  var isAr = (typeof lang !== 'undefined' && lang === 'ar');
+
+  var ov = document.createElement('div'); ov.id = 'kpiMgmtOv';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:9100;background:rgba(0,8,20,.86);backdrop-filter:blur(5px);display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;';
+
+  var box = document.createElement('div');
+  box.style.cssText = 'background:linear-gradient(135deg,#0d1b2e,#0a2040);border:1px solid rgba(1,149,175,.25);border-radius:18px;padding:28px;width:min(860px,100%);margin:auto;';
+
+  /* Get unique KPI names from allK() */
+  var kpis = (typeof allK === 'function') ? allK() : [];
+  var nameMap = {}; /* nameEn → {kpi, masterKpiId} */
+  kpis.forEach(function(k){
+    var nm = k.nameEn || k.id || '';
+    if(nm && !nameMap[nm]) nameMap[nm] = {kpi:k, masterKpiId:_getMasterKpiId(nm)};
+  });
+  var nameKeys = Object.keys(nameMap).sort();
+
+  var opts = '<option value="">'+(isAr?'— اختر مؤشراً —':'— Select a KPI —')+'</option>'
+    + nameKeys.map(function(nm){
+        var mid = nameMap[nm].masterKpiId;
+        var hasConfig = !!(ST.masterKpis && ST.masterKpis[mid] && ST.masterKpis[mid].fieldConfig && ST.masterKpis[mid].fieldConfig.length);
+        return '<option value="'+htmlEsc(mid)+'" data-name-en="'+htmlEsc(nm)+'" data-name-ar="'+htmlEsc(nameMap[nm].kpi.nameAr||nm)+'">'+htmlEsc(nm)+(hasConfig?' ✎':'')+'</option>';
+      }).join('');
+
+  box.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">'
+    +'<div><div style="font-size:15px;font-weight:800;color:#e2e8f0">'+(isAr?'إعداد مؤشرات الأداء':'KPI Management')+'</div>'
+    +'<div style="font-size:10px;color:#64748b;margin-top:2px">'+(isAr?'اختر مؤشراً لتعديل حقوله وصيغة النتيجة':'Select a KPI to configure its fields and result formula')+'</div></div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button onclick="_showSuperAdminHub()" style="padding:6px 14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#94a3b8;font-size:10px;cursor:pointer">'+(isAr?'← رجوع':'← Back')+'</button>'
+    +'</div></div>'
+    +'<div style="margin-bottom:18px">'
+    +'<label style="display:block;font-size:10px;font-weight:700;color:#64748b;margin-bottom:6px">'+(isAr?'اختر المؤشر بالاسم:':'Select KPI by Name:')+'</label>'
+    +'<select id="kpiMgmtSelect" style="width:100%;padding:10px 14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#e2e8f0;font-size:12px;font-family:inherit">'+opts+'</select></div>'
+    +'<div id="kpiMgmtConfig" style="display:none"></div>';
+
+  ov.appendChild(box);
+  document.body.appendChild(ov);
+  ov.onclick = function(e){ if(e.target===ov) ov.remove(); };
+
+  document.getElementById('kpiMgmtSelect').onchange = function(){
+    var mid = this.value;
+    var opt = this.options[this.selectedIndex];
+    var nameEn = opt ? opt.getAttribute('data-name-en') : '';
+    var nameAr = opt ? opt.getAttribute('data-name-ar') : '';
+    if(mid) _renderKpiFieldConfig(mid, nameEn, nameAr);
+    else document.getElementById('kpiMgmtConfig').style.display = 'none';
+  };
+}
+window._showKpiMgmtPanel = _showKpiMgmtPanel;
+
+function _renderKpiFieldConfig(masterKpiId, nameEn, nameAr){
+  var cfg = document.getElementById('kpiMgmtConfig'); if(!cfg) return;
+  var isAr = (typeof lang !== 'undefined' && lang === 'ar');
+  if(!ST.masterKpis) ST.masterKpis = {};
+  if(!ST.masterKpis[masterKpiId]){
+    ST.masterKpis[masterKpiId] = { nameEn: nameEn, nameAr: nameAr, fieldConfig: [], resultFormula: '' };
+  }
+  var mc = ST.masterKpis[masterKpiId];
+  mc.nameEn = nameEn; mc.nameAr = nameAr;
+  var fields = mc.fieldConfig || [];
+  var FIELD_TYPES = ['number','percentage','text','formula'];
+
+  var letterMap = fields.map(function(_,i){ return String.fromCharCode(65+i); }); /* A,B,C,D... */
+
+  var rowsHtml = fields.map(function(f, i){
+    var letter = String.fromCharCode(65+i);
+    return '<tr data-fidx="'+i+'" style="border-bottom:1px solid rgba(255,255,255,.05)">'
+      +'<td style="padding:6px 8px;color:#64748b;font-weight:700;font-size:11px;width:28px">'+letter+'</td>'
+      +'<td style="padding:4px 5px"><input class="fc-name-en" value="'+htmlEsc(f.nameEn||'')+'" placeholder="English" style="width:100%;padding:5px 8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#e2e8f0;font-size:10px;font-family:inherit;box-sizing:border-box"></td>'
+      +'<td style="padding:4px 5px"><input class="fc-name-ar" value="'+htmlEsc(f.nameAr||'')+'" placeholder="Arabic" dir="rtl" style="width:100%;padding:5px 8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#e2e8f0;font-size:10px;font-family:inherit;box-sizing:border-box"></td>'
+      +'<td style="padding:4px 5px;width:110px"><select class="fc-type" style="width:100%;padding:5px 7px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#e2e8f0;font-size:10px;font-family:inherit">'
+      +FIELD_TYPES.map(function(t){return '<option value="'+t+'"'+(f.type===t?' selected':'')+'>'+t+'</option>';}).join('')+'</select></td>'
+      +'<td style="padding:4px 5px;width:80px"><select class="fc-input" style="width:100%;padding:5px 7px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#e2e8f0;font-size:10px;font-family:inherit">'
+      +'<option value="manual"'+(f.inputMode!=='calculated'?' selected':'')+'>Manual</option>'
+      +'<option value="calculated"'+(f.inputMode==='calculated'?' selected':'')+'>Calculated</option></select></td>'
+      +'<td style="padding:4px 5px;width:60px;text-align:center">'
+      +'<button onclick="_fcMoveRow('+i+',-1)" title="Move up" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:13px;padding:0 3px">↑</button>'
+      +'<button onclick="_fcMoveRow('+i+',1)" title="Move down" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:13px;padding:0 3px">↓</button>'
+      +'</td>'
+      +'<td style="padding:4px 5px;width:30px;text-align:center">'
+      +'<button onclick="_fcDeleteRow('+i+')" style="background:none;border:none;color:#DC2626;cursor:pointer;font-size:14px;padding:0">✕</button></td></tr>';
+  }).join('');
+
+  cfg.style.display = 'block';
+  cfg.innerHTML =
+    '<div style="font-size:12px;font-weight:700;color:#e2e8f0;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.08)">'
+    +(isAr ? nameAr||nameEn : nameEn)+'</div>'
+    /* Fields table */
+    +'<div style="margin-bottom:16px">'
+    +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">'
+    +'<div style="font-size:10.5px;font-weight:700;color:#64748b">'+(isAr?'الحقول / الأعمدة':'Fields / Columns')+'</div>'
+    +'<button id="fcAddRow" style="padding:5px 12px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.3);border-radius:7px;color:#0195af;font-size:10px;font-weight:700;cursor:pointer">+ '+(isAr?'إضافة حقل':'Add Field')+'</button></div>'
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:10px">'
+    +'<thead><tr style="border-bottom:1px solid rgba(255,255,255,.1)">'
+    +'<th style="padding:6px 8px;text-align:left;color:#64748b">Col</th>'
+    +'<th style="padding:6px 8px;text-align:left;color:#64748b">Name (EN)</th>'
+    +'<th style="padding:6px 8px;text-align:left;color:#64748b">Name (AR)</th>'
+    +'<th style="padding:6px 8px;text-align:left;color:#64748b">Type</th>'
+    +'<th style="padding:6px 8px;text-align:left;color:#64748b">Input</th>'
+    +'<th style="padding:6px 8px;text-align:left;color:#64748b">Order</th>'
+    +'<th></th>'
+    +'</tr></thead>'
+    +'<tbody id="fcFieldsBody">'+rowsHtml+'</tbody></table></div></div>'
+    /* Formula editor */
+    +'<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:14px;margin-bottom:16px">'
+    +'<div style="font-size:10.5px;font-weight:700;color:#64748b;margin-bottom:10px">'+(isAr?'صيغة النتيجة (Result Formula)':'Result Formula')+'</div>'
+    +'<div style="font-size:9.5px;color:#475569;margin-bottom:8px">'
+    +letterMap.map(function(l,i){ var f=fields[i]; return '<b style="color:#0195af">'+l+'</b> = '+(f?(isAr&&f.nameAr?f.nameAr:f.nameEn)||'Field '+(i+1):'Field '+(i+1)); }).join(' &nbsp;·&nbsp; ')
+    +'</div>'
+    +'<input id="fcFormula" value="'+htmlEsc(mc.resultFormula||'')+'" placeholder="e.g.  A / B * 100  or  (B - C) / B * 100" '
+    +'style="width:100%;padding:8px 12px;background:rgba(255,255,255,.06);border:1px solid rgba(1,149,175,.25);border-radius:8px;color:#e2e8f0;font-size:12px;font-family:monospace;box-sizing:border-box">'
+    +'<div id="fcFormulaFb" style="margin-top:5px;font-size:9.5px;color:#64748b">'+(isAr?'استخدم أحرف الأعمدة A,B,C,D … لكتابة الصيغة.':'Use column letters A, B, C, D… in formulas. Example: A / B * 100')+'</div>'
+    +'</div>'
+    /* Save */
+    +'<div style="display:flex;gap:10px;align-items:center">'
+    +'<button id="fcSaveBtn" style="padding:9px 22px;background:linear-gradient(90deg,#0195af,#0077cc);border:none;border-radius:9px;color:#fff;font-weight:700;font-size:11px;cursor:pointer">'+(isAr?'حفظ الإعداد':'Save Configuration')+'</button>'
+    +'<div id="fcSaveFb" style="font-size:10px;font-weight:600;display:none"></div>'
+    +'</div>';
+
+  /* Wire up buttons */
+  var _currentMasterId = masterKpiId;
+  document.getElementById('fcAddRow').onclick = function(){ _fcAddRow(_currentMasterId, nameEn, nameAr); };
+  document.getElementById('fcSaveBtn').onclick = function(){ _fcSave(_currentMasterId); };
+  /* Formula validation on change */
+  document.getElementById('fcFormula').oninput = function(){ _fcValidateFormula(this.value, fields.length); };
+}
+
+function _fcCollectFields(){
+  var rows = document.querySelectorAll('#fcFieldsBody tr[data-fidx]');
+  var fields = [];
+  rows.forEach(function(row){
+    fields.push({
+      nameEn: (row.querySelector('.fc-name-en')||{value:''}).value.trim(),
+      nameAr:  (row.querySelector('.fc-name-ar')||{value:''}).value.trim(),
+      type:   (row.querySelector('.fc-type')||{value:'number'}).value,
+      inputMode: (row.querySelector('.fc-input')||{value:'manual'}).value
+    });
+  });
+  return fields;
+}
+
+function _fcAddRow(masterKpiId, nameEn, nameAr){
+  if(!ST.masterKpis) ST.masterKpis = {};
+  if(!ST.masterKpis[masterKpiId]) ST.masterKpis[masterKpiId] = {nameEn:nameEn,nameAr:nameAr,fieldConfig:[],resultFormula:''};
+  ST.masterKpis[masterKpiId].fieldConfig.push({nameEn:'',nameAr:'',type:'number',inputMode:'manual'});
+  _renderKpiFieldConfig(masterKpiId, nameEn, nameAr);
+}
+window._fcAddRow = _fcAddRow;
+
+function _fcDeleteRow(idx){
+  var sel = document.getElementById('kpiMgmtSelect');
+  var mid  = sel ? sel.value : '';
+  var opt  = sel ? sel.options[sel.selectedIndex] : null;
+  var nEn = opt ? opt.getAttribute('data-name-en') : '';
+  var nAr = opt ? opt.getAttribute('data-name-ar') : '';
+  if(!ST.masterKpis || !ST.masterKpis[mid]) return;
+  ST.masterKpis[mid].fieldConfig.splice(idx, 1);
+  _renderKpiFieldConfig(mid, nEn, nAr);
+}
+window._fcDeleteRow = _fcDeleteRow;
+
+function _fcMoveRow(idx, dir){
+  var sel = document.getElementById('kpiMgmtSelect');
+  var mid  = sel ? sel.value : '';
+  var opt  = sel ? sel.options[sel.selectedIndex] : null;
+  var nEn = opt ? opt.getAttribute('data-name-en') : '';
+  var nAr = opt ? opt.getAttribute('data-name-ar') : '';
+  if(!ST.masterKpis || !ST.masterKpis[mid]) return;
+  var arr = ST.masterKpis[mid].fieldConfig;
+  var newIdx = idx + dir;
+  if(newIdx < 0 || newIdx >= arr.length) return;
+  var tmp = arr[idx]; arr[idx] = arr[newIdx]; arr[newIdx] = tmp;
+  _renderKpiFieldConfig(mid, nEn, nAr);
+}
+window._fcMoveRow = _fcMoveRow;
+
+function _fcValidateFormula(formula, fieldCount){
+  var fb = document.getElementById('fcFormulaFb'); if(!fb) return true;
+  if(!formula.trim()){ fb.textContent = 'No formula — default calculation will be used.'; fb.style.color='#475569'; return true; }
+  /* Check for valid column letters */
+  var used = formula.match(/[A-Z]/g) || [];
+  var invalid = used.filter(function(l){ return l.charCodeAt(0) - 65 >= fieldCount; });
+  if(invalid.length){
+    fb.textContent = '⚠ Column(s) ' + invalid.join(',') + ' exceed field count (' + fieldCount + ' fields = ' + String.fromCharCode(64+fieldCount) + ').';
+    fb.style.color = '#DC2626'; return false;
+  }
+  /* Basic syntax test */
+  try{
+    var test = formula.replace(/[A-Z]/g,'1').replace(/avg\s*\(/g,'(').replace(/\)/g,'+0)');
+    // eslint-disable-next-line no-new-func
+    new Function('return ('+test+')');
+    fb.textContent = '✓ Formula valid.'; fb.style.color = '#16A34A'; return true;
+  }catch(e){
+    fb.textContent = '⚠ Syntax error: ' + e.message; fb.style.color = '#DC2626'; return false;
+  }
+}
+
+function _fcSave(masterKpiId){
+  if(!ST.masterKpis || !ST.masterKpis[masterKpiId]) return;
+  var fields  = _fcCollectFields();
+  var formula = (document.getElementById('fcFormula')||{value:''}).value.trim();
+  var fb = document.getElementById('fcSaveFb');
+  if(!_fcValidateFormula(formula, fields.length)){
+    if(fb){fb.textContent='⚠ Fix formula before saving.';fb.style.color='#DC2626';fb.style.display='block';}
+    return;
+  }
+  ST.masterKpis[masterKpiId].fieldConfig  = fields;
+  ST.masterKpis[masterKpiId].resultFormula = formula;
+  if(fb){fb.textContent='Saving…';fb.style.color='#64748b';fb.style.display='block';}
+  persistST('KPI_FIELD_CONFIG:'+masterKpiId).then(function(){
+    if(fb){fb.textContent='✓ Saved for all users.';fb.style.color='#16A34A';fb.style.display='block';}
+    setTimeout(function(){if(fb)fb.style.display='none';}, 3000);
+  }).catch(function(e){
+    if(fb){fb.textContent='⚠ '+e.message;fb.style.color='#DC2626';fb.style.display='block';}
+  });
+}
+window._fcSave = _fcSave;
+
+/* ══════════════════════════════════════════════════════════════
+   Update _saHubAction to route to new panels
+   ══════════════════════════════════════════════════════════════ */
+
 
 /* Inject a Text Editor tab into the admin panel for SA */
 function _ensureSaTextEditorTab(){
