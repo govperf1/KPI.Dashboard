@@ -1719,8 +1719,16 @@ function _scanDashboardForEditable(){
         });
       }
       if(!entry){
-        /* Skip non-TR text: only TR-keyed elements can propagate changes after renderCurrent() */
-        return;}
+        /* Session key for non-TR text: edits apply immediately and persist via ST.textEdits.
+           Other users see edits if in edit mode (session re-applies stored edits on scan). */
+        var _sk = 'se_'+text.replace(/[^a-zA-Z0-9]/g,'_').toLowerCase().substring(0,40);
+        if(!window.TR[_sk]) window.TR[_sk]={en:text, ar:text};
+        if(ST.textEdits && ST.textEdits[_sk]){
+          var _ev=ST.textEdits[_sk][isAr?'ar':'en']||ST.textEdits[_sk].en;
+          if(_ev&&_ev!==text) el.textContent=_ev;
+        }
+        entry={key:_sk, displayVal:text};
+      }
       var key = entry.key;
       el.setAttribute('data-tkey', key);
       el.setAttribute('data-sa-bound','1');

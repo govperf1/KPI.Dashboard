@@ -186,10 +186,10 @@ function renderExec(){
         <div style="width:38px;height:38px;border-radius:50%;background:#16A34A;display:flex;align-items:center;justify-content:center">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
-        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">'+t('met_label')+'</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">${t('met_label')}</span>
       </div>
       <div style="font-size:46px;font-weight:900;color:#16A34A;font-family:var(--mono);line-height:1;margin-bottom:4px">${nOk}</div>
-      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">'+t('kpis_on_target')+'</div>
+      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">${t('kpis_on_target')}</div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #F0F4F8">
         <span style="font-size:13px;font-weight:900;color:#16A34A;font-family:var(--mono)">${total?+(nOk/total*100).toFixed(1):0}%</span>
         <span style="font-size:8.5px;font-weight:700;padding:2px 10px;border-radius:12px;background:#DCFCE7;color:#16A34A">Success rate</span>
@@ -1581,7 +1581,7 @@ function renderAcc(){
 <div class="card c4"><div class="ch"> ${lang==='ar'?'مكتمل':'Completed'}</div><div class="cb"><div class="mbig" style="color:var(--green)">${doneC}</div><div class="mlbl">${lang==='ar'?'إجراءات مكتملة':'Actions Completed'}</div></div></div>
 <div class="card c12 r3">
   <div class="ch"> ${lang==='ar'?'سجل المساءلة والإجراءات التصحيحية':'Accountability & Corrective Action Register'}
-    <div class="ch-r" style="color:var(--orange)">${lang==='ar'?'مرتب حسب مستوى المخاطر والتكرار':'Sorted by risk tier & repeat count'}</div>
+    <div class="ch-r" style="color:#64748B">${lang==='ar'?'مرتب حسب مستوى المخاطر والتكرار':'Sorted by risk tier & repeat count'}</div>
   </div>
   <div class="cb sc" style="padding:4px 11px 11px">
     ${!missKpis.length?`<div class="empty-s"><div class="empty-ico"></div><div class="empty-txt">${emptyState('missed')}</div></div>`:accTable(missKpis)}
@@ -1591,7 +1591,7 @@ function renderAcc(){
   <div class="ch">↩ ${lang==='ar'?'الإخفاق المتكرر — مؤشرات الخطر المزمن':'Repeat Miss Alert — Chronic Underperformance'}</div>
   <div class="cb sc" style="padding:4px 11px 11px">
     ${!repKpis.length?`<div class="empty-s"><div class="empty-ico"></div><div class="empty-txt">${lang==='ar'?'لا توجد مؤشرات بإخفاق متكرر':'No repeat miss KPIs detected'}</div></div>`:
-    `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px">${repKpis.map(k=>{const rc=getRepeat(k),v=qv(k);return`<div style="background:rgba(251,146,60,.08);border:1px solid rgba(251,146,60,.2);border-radius:6px;padding:10px"><div style="display:flex;gap:4px;align-items:center;margin-bottom:5px"><span class="repeat-b">↩ ${rc}x</span><span style="font-size:9.5px;font-family:var(--mono);font-weight:700;color:var(--teal)">${k.id}</span><span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span></div><div style="font-size:11px;color:var(--t2);line-height:1.4;margin-bottom:5px">${lang==='ar'?k.nameAr:k.nameEn}</div><div style="font-size:9px;color:var(--orange)">${lang==='ar'?`إخفاق ${rc} أرباع متتالية — يستلزم مراجعة جذرية.`:`Missed ${rc} consecutive quarters — systematic review required.`}</div></div>`;}).join('')}</div>`}
+    `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px">${repKpis.map(k=>{const rc=getRepeat(k),v=qv(k);return`<div style="background:rgba(251,146,60,.08);border:1px solid rgba(251,146,60,.2);border-radius:6px;padding:10px"><div style="display:flex;gap:4px;align-items:center;margin-bottom:5px"><span class="repeat-b">↩ ${rc}x</span><span style="font-size:9.5px;font-family:var(--mono);font-weight:700;color:var(--teal)">${k.id}</span><span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span></div><div style="font-size:11px;color:var(--t2);line-height:1.4;margin-bottom:5px">${lang==='ar'?k.nameAr:k.nameEn}</div><div style="font-size:9px;color:#DC2626">${lang==='ar'?`إخفاق ${rc} أرباع متتالية — يستلزم مراجعة جذرية.`:`Missed ${rc} consecutive quarters — systematic review required.`}</div></div>`;}).join('')}</div>`}
   </div>
 </div>`;
 }
@@ -1604,7 +1604,7 @@ function accTable(ks){
     const gd=(ST.gaps||{})[k.id]||{},ac=(ST.actions||{})[k.id]||{},rc=getRepeat(k);
     const sc=ac.status==='closed'?'acc-done':ac.status==='in-progress'?'acc-prog':'acc-open';
     const st=ac.status==='closed'?(lang==='ar'?'مكتمل':'Done'):ac.status==='in-progress'?(lang==='ar'?'جاري':'In Prog'):(lang==='ar'?'مفتوح':'Open');
-    const pc={'critical':'var(--red)','high':'var(--orange)','medium':'var(--amber)'};
+    const pc={'critical':'var(--red)','high':'#DC2626','medium':'#D97706'};
     const pt={'critical':lang==='ar'?'حرجة':'Critical','high':lang==='ar'?'عالية':'High','medium':lang==='ar'?'متوسطة':'Medium'};
     const overdue=ac.dueDate&&new Date(ac.dueDate)<new Date();
     h+=`<tr>
