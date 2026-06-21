@@ -1313,7 +1313,7 @@ function _showSuperAdminHub(){
     +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px">'
     +'<div><div style="font-size:16px;font-weight:800;color:#e2e8f0">'+(isAr?'\u0644\u0648\u062d\u0629 \u0627\u0644\u0645\u0633\u0624\u0648\u0644 \u0627\u0644\u0623\u0639\u0644\u0649':'Super Admin Hub')+'</div>'
     +'<div style="font-size:10px;color:#64748b;margin-top:2px">'+(isAr?'\u0627\u062e\u062a\u0631 \u0645\u0646\u0637\u0642\u0629 \u0627\u0644\u0625\u062f\u0627\u0631\u0629':'Select a management area')+'</div></div>'
-    +'<button onclick="var e=document.getElementById(\'saHubOv\');if(e)e.remove();" style="width:32px;height:32px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#94a3b8;cursor:pointer;font-size:16px">&#x2715;</button>'
+    +'<button onclick="_saHubBack();" style="width:32px;height:32px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#94a3b8;cursor:pointer;font-size:16px">&#x2715;</button>'
     +'</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px">';
   cards.forEach(function(card){
     var t=isAr?card.titleAr:card.title;
@@ -1340,14 +1340,14 @@ function _saHubAction(action){
   var ov=document.getElementById('saHubOv'); if(ov)ov.remove();
   if(action==='sa-kpimgmt'){
     _showKpiMgmtPanel();
+    setTimeout(function(){if(typeof _injectSaBackBtn==='function')_injectSaBackBtn();},200);
   }else if(action==='sa-texteditor'||action==='sa-dashboard'){
     /* Dashboard card: close hub, render, inject Edit Text toggle, then scan */
     setTimeout(function(){
       try{if(typeof renderCurrent==='function')renderCurrent();}catch(_){}
       setTimeout(function(){
         _injectSaEditTextBtn();
-        /* Auto-activate edit mode so text is immediately outlined */
-        setTimeout(_activateSaEditMode, 400);
+        if(typeof _injectSaBackBtn==='function') _injectSaBackBtn();
       }, 200);
     }, 50);
   }else if(action==='sa-requests'){
@@ -1356,6 +1356,33 @@ function _saHubAction(action){
   try{addAudit('SA_HUB_NAV','SA navigated to: '+action);}catch(_){}
 }
 window._saHubAction=_saHubAction;
+
+/* _saHubBack: hub ✕ / Back button → returns to portal selection */
+function _saHubBack(){
+  var ov=document.getElementById('saHubOv'); if(ov) ov.remove();
+  if(typeof window._backToPortal==='function') window._backToPortal();
+}
+window._saHubBack=_saHubBack;
+
+/* _injectSaBackBtn: inject "← Hub" button in toolbar while SA is in a sub-section */
+function _injectSaBackBtn(){
+  if(document.getElementById('_saHubBackBtn')) return;
+  var isAr=(typeof lang!=='undefined'&&lang==='ar');
+  var btn=document.createElement('button');
+  btn.id='_saHubBackBtn'; btn.className='tb-btn';
+  btn.textContent=isAr?'← القائمة':'← Hub';
+  btn.style.cssText='font-size:9.5px;font-weight:700;flex-shrink:0;';
+  btn.onclick=function(){
+    btn.remove();
+    var etb=document.getElementById('_saEditTextBtn'); if(etb) etb.remove();
+    if(typeof _deactivateSaEditMode==='function') _deactivateSaEditMode();
+    if(typeof _showSuperAdminHub==='function') _showSuperAdminHub();
+  };
+  var langBtn=document.getElementById('langBtn');
+  if(langBtn&&langBtn.parentNode) langBtn.parentNode.insertBefore(btn,langBtn);
+}
+window._injectSaBackBtn=_injectSaBackBtn;
+
 /* ── SA Edit Text: inject toolbar button + full overlay ── */
 function _injectSaEditTextBtn(){
   if(document.getElementById('_saEditTextBtn')) return;
@@ -1683,18 +1710,8 @@ function _scanDashboardForEditable(){
         });
       }
       if(!entry){
-        /* Auto-generate a key for hardcoded text not yet in TR */
-        var autoKey = 'auto_'+text.replace(/[^a-zA-Z0-9؀-ۿ]/g,'_').toLowerCase().substring(0,40);
-        if(!window.TR) window.TR={};
-        if(!window.TR[autoKey]){
-          window.TR[autoKey]={en:text, ar:text}; /* will be edited by SA */
-          if(ST.textEdits&&ST.textEdits[autoKey]) {
-            window.TR[autoKey].en=ST.textEdits[autoKey].en||text;
-            window.TR[autoKey].ar=ST.textEdits[autoKey].ar||text;
-          }
-        }
-        entry={key:autoKey, displayVal:text};
-      }
+        /* Skip non-TR text: only TR-keyed elements can propagate changes after renderCurrent() */
+        return;}
       var key = entry.key;
       el.setAttribute('data-tkey', key);
       el.setAttribute('data-sa-bound','1');

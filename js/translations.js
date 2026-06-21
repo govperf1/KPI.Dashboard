@@ -126,7 +126,14 @@ var TR = {
   'filters_label':                { en: 'Filters',                         ar: 'عوامل التصفية' },
   'no_gaps_label':                { en: 'No gaps',                         ar: 'لا فجوات' },
   'all_tier1_on_track':           { en: 'All Tier-1 KPIs on track',        ar: 'جميع مؤشرات المستوى الأول في المسار' },
-  'continue_monitoring':          { en: 'Continue monitoring',             ar: 'استمر في المتابعة' }
+  'continue_monitoring':          { en: 'Continue monitoring',             ar: 'استمر في المتابعة' },
+  'needs_recovery':              { en: 'Needs recovery',                   ar: 'يحتاج إلى استعادة' },
+  'needs_improvement_lower':     { en: 'Needs improvement',                ar: 'يحتاج تحسيناً' },
+  'gap_analysis_incomplete':     { en: 'Gap analysis incomplete',           ar: 'تحليل الفجوات غير مكتمل' },
+  'no_gaps_found':               { en: 'No gaps',                           ar: 'لا فجوات' },
+  'performance_on_track_lower':  { en: 'Performance on track',              ar: 'الأداء في المسار' },
+  'requires_exec_escalation':    { en: 'Requires executive escalation',     ar: 'يستلزم تصعيداً تنفيذياً' },
+  'root_cause_required':         { en: 'Root cause analysis required',      ar: 'مطلوب تحليل السبب الجذري' }
 };
 
 /* ─── Core API ─── */

@@ -456,7 +456,7 @@ function updateExecTrend(yr){
   function qvals(k){return ['q1','q2','q3','q4'].map(function(q){return {q:q,v:k[q]};}).filter(function(x){return x.v!==null&&x.v!==undefined&&x.v!==''&&!isNaN(Number(x.v));});}
   function isMet(k,v){try{if(typeof window.metStatus==='function')return window.metStatus(k,v);}catch(e){}var t=Number(k.target||100),op=String(k.op||'>=');if(op==='<=')return Number(v)<=t;if(op==='=')return Math.abs(Number(v)-t)<=0.05;return Number(v)>=t;}
   function kname(k){return (k.id||k.code||'KPI')+' — '+(k.nameEn||k.name||k.nameAr||'KPI');}
-  function collect(){var out=[],ks=[];try{ks=typeof window.allK==='function'?window.allK():(Array.isArray(window.KPIS)?window.KPIS:[]);}catch(e){ks=[];}ks.forEach(function(k){if(!canSee(k))return;var bad=qvals(k).filter(function(x){return !isMet(k,x.v);});if(bad.length)out.push({id:'miss_'+(k.id||'')+'_'+(k.yr||''),level:'red',title:kname(k),meta:'Missed target in '+bad.map(function(x){return x.q.toUpperCase();}).join(', ')});});try{var gaps=state().gaps||{};Object.keys(gaps).forEach(function(id){var g=gaps[id]||{},k=ks.find(function(x){return String(x.id)===String(id);});if(k&&!canSee(k))return;var stat=String(g.status||'').toLowerCase(),pri=String(g.priority||'').toLowerCase();if((stat&&stat!=='closed')||pri==='critical'||pri==='high')out.push({id:'gap_'+id+'_'+stat+'_'+pri,level:'red',title:'Gap Action '+id,meta:(g.status||'Pending')+(g.dueDate||g.due?' · Due: '+(g.dueDate||g.due):'')});});}catch(e){}try{var acts=state().actions||{};Object.keys(acts).forEach(function(id){var a=acts[id]||{},stat=String(a.status||'').toLowerCase();if(stat&&stat!=='closed')out.push({id:'act_'+id+'_'+stat,level:'red',title:'Action '+id,meta:'Action status: '+(a.status||'Pending')});});}catch(e){}var seen=readSeen(),map={};out.forEach(function(n){if(n&&n.id&&seen.indexOf(n.id)<0&&!map[n.id])map[n.id]=n;});return Object.keys(map).map(function(k){return map[k];}).slice(0,30);}
+  function collect(){var out=[],ks=[];try{ks=typeof window.allK==='function'?window.allK():(Array.isArray(window.KPIS)?window.KPIS:[]);}catch(e){ks=[];}ks.forEach(function(k){if(!canSee(k))return;var bad=qvals(k).filter(function(x){return !isMet(k,x.v);});if(bad.length)out.push({id:'miss_'+(k.id||'')+'_'+(k.yr||''),level:'red',title:kname(k),meta:'Missed target in '+bad.map(function(x){return x.q.toUpperCase();}).join(', ')});});try{var gaps=state().gaps||{};Object.keys(gaps).forEach(function(id){var g=gaps[id]||{},k=ks.find(function(x){return String(x.id)===String(id);});if(k&&!canSee(k))return;var stat=String(g.status||'').toLowerCase(),pri=String(g.priority||'').toLowerCase();if((stat&&stat!=='closed')||pri==='critical'||pri==='high')out.push({id:'gap_'+id+'_'+stat+'_'+pri,level:'red',title:'Gap Action '+id,meta:(g.status||'Pending')+(g.dueDate||g.due?' · Due: '+(g.dueDate||g.due):'')});});}catch(e){}try{var acts=state().actions||{};Object.keys(acts).forEach(function(id){var a=acts[id]||{},stat=String(a.status||'').toLowerCase();if(stat&&stat!=='closed')out.push({id:'act_'+id+'_'+stat,level:'red',title:'Action '+id,meta:'Action status: '+(a.status||'Pending')});});}catch(e){}var seen=readSeen(),map={};out.forEach(function(n){if(n&&n.id&&!map[n.id])map[n.id]=n;}); /* include read */return Object.keys(map).map(function(k){return map[k];}).slice(0,30);}
   function renderNotifications(){var arr=collect(),c=$('userAlertCount'),list=$('userAlertList');if(c){c.textContent=arr.length;c.style.display=arr.length?'flex':'none';}if(list){list.innerHTML=arr.length?arr.map(function(n){var col=n.level==='red'?'#C42B2B':(n.level==='orange'?'#D97706':'#0195af');return '<div class="qumc-nrow" data-nid="'+safe(n.id)+'"><span class="qumc-n-dot" style="background:'+col+'"></span><div><div class="qumc-n-title">'+safe(n.title)+'</div><div class="qumc-n-meta">'+safe(n.meta)+'</div></div></div>';}).join(''):'<div class="qumc-n-empty">No important notifications.</div>';list.querySelectorAll('.qumc-nrow').forEach(function(row){row.onclick=function(ev){ev.stopPropagation();var s=readSeen();s.push(row.getAttribute('data-nid'));writeSeen(s);renderNotifications();};});}var clear=$('qumcClearNotifs');if(clear){clear.onclick=function(ev){ev.preventDefault();ev.stopPropagation();writeSeen(readSeen().concat(collect().map(function(n){return n.id;})));renderNotifications();};}}
   function posPanel(panel,anchor,w){if(!panel||!anchor)return;var r=anchor.getBoundingClientRect();panel.style.position='fixed';panel.style.width=(w||320)+'px';panel.style.top=(r.bottom+10)+'px';panel.style.left=Math.max(12,Math.min(window.innerWidth-(w||320)-12,r.right-(w||320)))+'px';panel.style.right='auto';}
   window.toggleUserAlerts=function(ev){if(ev){ev.preventDefault();ev.stopPropagation();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}var d=$('userAlertDrop'),p=$('userProfileDrop'),b=$('userAlertBtn');if(!d)return false;renderNotifications();if(p){p.style.display='none';p.classList.remove('qumc-profile-open');}posPanel(d,b,320);var show=!d.classList.contains('qumc-stay-open');d.classList.toggle('qumc-stay-open',show);d.style.display=show?'block':'none';return false;};
@@ -555,7 +555,7 @@ function updateExecTrend(yr){
     var seen=readSeen();
     var unique={};
     out.forEach(function(n){if(n&&n.id&&!unique[n.id])unique[n.id]=n;});
-    return Object.keys(unique).map(function(k){return unique[k];}).filter(function(n){return seen.indexOf(n.id)===-1;});
+    return Object.keys(unique).map(function(k){return unique[k];}); /* Show ALL notifications — mark-read only dims, never removes */
   }
   function getNotifications(force){
     var key=userKey();
@@ -787,7 +787,17 @@ function updateExecTrend(yr){
     }).catch(function(e){
       var errMsg = e.code ? (e.code + ': ' + e.message) : e.message;
       /* Common Firestore rule errors */
-      if(e.code === 'permission-denied') errMsg = 'Permission denied — please ask admin to set Firestore rules for kpi_requests.';
+      if(e.code === 'permission-denied') errMsg = 'Firestore permission denied.\n\nPlease add this rule in Firebase Console → Firestore → Rules:\n\nmatch /kpi_requests/{doc} {\n  allow read, write: if request.auth != null;\n}';
+      /* Fallback: save to localStorage */
+      try{
+        if(!window.ST) window.ST={};
+        if(!window.ST.requests) window.ST.requests=[];
+        window.ST.requests.unshift({id:'req_'+Date.now(),user:window._fbName||window._fbUser,type:reqType,msg:message,status:'pending (local)',ts:new Date().toISOString()});
+        if(typeof localStorage!=='undefined') localStorage.setItem('kpi_v3',JSON.stringify(window.ST));
+        if(fbEl){fbEl.textContent='⚠ Saved locally (Firestore rules not set — see details above)';fbEl.style.color='#D97706';fbEl.style.background='rgba(217,119,6,.08)';fbEl.style.display='block';}
+        if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'تم الحفظ محلياً':'Saved Locally';}
+        return;
+      }catch(_){}
       if(fbEl){fbEl.textContent='⚠ '+errMsg;fbEl.style.color='#DC2626';fbEl.style.background='rgba(220,38,38,.08)';fbEl.style.display='block';}
       if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'إرسال الطلب':'Submit Request';}
     });

@@ -152,7 +152,7 @@ function renderExec(){
   const _wDColor=_wD2?(_dC2[_wD2.d]||'#fff'):'#4ADE80';
   const _wDName=_wD2&&_wD2.miss>0?DM[_wD2.d][lang==='ar'?'ar':'en']:t('all_good');
   const _wDSub=_wD2&&_wD2.miss>0?(_wD2.miss+' missed of '+_wD2.total):'';
-  const _wText=_wD2&&_wD2.miss>0?(DM[_wD2.d]?DM[_wD2.d].en:'—'):'All Depts OK';
+  const _wText=_wD2&&_wD2.miss>0?(DM[_wD2.d]?DM[_wD2.d].en:'—'):t('all_depts_ok');
   const _annYoyKs=allK().filter(k=>k.yr===2026&&k.yoy!==undefined&&k.yoy!==null);
   const _annualYoy=_annYoyKs.length?(+( _annYoyKs.map(k=>{const v=qv(k);return v!==null?v-k.yoy:null;}).filter(v=>v!==null).reduce((a,b)=>a+b,0)/_annYoyKs.length).toFixed(1)):null;
 
@@ -611,14 +611,14 @@ function renderExec(){
     /* Biggest Gap */
     const _gapK=_miss.sort((a,b)=>{const va=qv(a),vb=qv(b);const ga=va!=null?(a.target-va):0,gb=vb!=null?(b.target-vb):0;return gb-ga;})[0];
     const _ge=document.getElementById('eis_gap');const _gs=document.getElementById('eis_gap_sub');
-    if(_ge){if(_gapK){const _gv=qv(_gapK);_ge.textContent=_gv!=null?(_gapK.target-_gv).toFixed(1)+'%':'—';_gs.textContent=_gapK.nameEn.slice(0,30)+(lang==='ar'?_gapK.nameAr.slice(0,30):'');}else{_ge.textContent='—';if(_gs)_gs.textContent='No gaps';}}
+    if(_ge){if(_gapK){const _gv=qv(_gapK);_ge.textContent=_gv!=null?(_gapK.target-_gv).toFixed(1)+'%':'—';_gs.textContent=_gapK.nameEn.slice(0,30)+(lang==='ar'?_gapK.nameAr.slice(0,30):'');}else{_ge.textContent='—';if(_gs)_gs.textContent=tText('no_gaps_found');}}
 
     /* Priority Department */
     const _depts=['maintenance','safety','housekeeping','projects'];
     let _worstDept=null,_worstPct=100;
     _depts.forEach(d=>{const _dk=_ks.filter(k=>k.dept===d&&ok(k)!==null);if(!_dk.length)return;const _dp=Math.round(_dk.filter(k=>ok(k)===true).length/_dk.length*100);if(_dp<_worstPct){_worstPct=_dp;_worstDept=d;}});
     const _de=document.getElementById('eis_dept');const _ds=document.getElementById('eis_dept_sub');const _db=document.getElementById('eis_dept_badge');
-    if(_de){if(_worstDept){_de.textContent=DM[_worstDept].en;_de.style.color=_worstPct<60?'#F87171':'#FBBF24';if(_ds)_ds.textContent='Performance '+_worstPct+'%';if(_db){_db.textContent=_worstPct<60?'Needs recovery':'Needs improvement';_db.style.background=_worstPct<60?'rgba(220,38,38,.25)':'rgba(217,119,6,.25)';_db.style.color=_worstPct<60?'#F87171':'#FBBF24';}}else{_de.textContent='—';}}
+    if(_de){if(_worstDept){_de.textContent=DM[_worstDept].en;_de.style.color=_worstPct<60?'#F87171':'#FBBF24';if(_ds)_ds.textContent='Performance '+_worstPct+'%';if(_db){_db.textContent=_worstPct<60?tText('needs_recovery'):tText('needs_improvement_lower');_db.style.background=_worstPct<60?'rgba(220,38,38,.25)':'rgba(217,119,6,.25)';_db.style.color=_worstPct<60?'#F87171':'#FBBF24';}}else{_de.textContent='—';}}
 
     /* Gap Analysis Open — missed KPIs without documented gap */
     /* Gap Analysis Open: فقط KPIs عندها Gap مدخل + action لا يزال in-progress */

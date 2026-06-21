@@ -52,19 +52,12 @@ window._selectPortal=async portal=>{
            - super_admin → show SA hub landing page immediately, do NOT render dashboard first
            - all others  → render dashboard, then role-specific popup                        */
         if(window._fbRole==='super_admin'){
-          /* SA: hub is the landing page — render dashboard in background so it's ready when
-             SA navigates from the hub into any sub-section.                                  */
-          try{ window.renderCurrent(); }catch(_){}
+          /* SA: show hub IMMEDIATELY — do NOT render dashboard first */
           setTimeout(()=>{
             try{
               if(typeof window._showSuperAdminHub==='function') window._showSuperAdminHub();
-              else {
-                const adminOv=document.getElementById('adminOv');
-                if(adminOv) adminOv.classList.add('open');
-                if(typeof popAdminSels==='function') popAdminSels();
-              }
             }catch(e){console.warn('[SA] hub error:',e);}
-          },300);
+          },60); /* minimal delay so DOM is ready */
         }else{
           /* Normal Admin / KPI Owner / Viewer: render dashboard */
           if(typeof window.renderCurrent==='function'){
