@@ -2159,7 +2159,7 @@ function _buildQtrTableHTML(masterConfig, prefix){
   var thead2 = '<thead><tr>'
     +'<th style="width:42px;text-align:left;padding-left:12px">QTR</th>';
   fields.forEach(function(f, i){
-    thead2 += '<th style="color:#93C5FD;font-size:9.5px;font-weight:600;padding:6px 8px;line-height:1.3">'+htmlEsc(f.nameEn)+'</th>';
+    thead2 += '<th style="color:#93C5FD;font-size:9px;font-weight:600;padding:6px 8px;line-height:1.4;word-break:break-word;white-space:normal;min-width:70px;max-width:140px">'+htmlEsc(f.nameEn)+'</th>';
   });
   thead2 += '<th style="color:#67E8F9;width:90px;min-width:70px">Result</th></tr></thead>';
 
@@ -2169,7 +2169,7 @@ function _buildQtrTableHTML(masterConfig, prefix){
     letters.forEach(function(letter){
       tbody2 += '<td><input class="pci-pl custom-field-input" id="'+prefix+Q+'_'+letter+'"'
         +' type="number" min="0" step="any" placeholder="0"'
-        +' oninput="_calcCustomResult(\''+Q.toLowerCase()+'\',\''+prefix+'\',\''+formulaEscaped+'\','+lettersJSON+')">'
+        +' data-q="'+Q.toLowerCase()+'" data-prefix="'+prefix+'" data-formula="'+formulaEscaped+'" data-letters="'+letters.join(',')+'" oninput="_onCustomFieldInput(this)">'
         +'</td>';
     });
     tbody2 += '<td><span class="pci-calc" id="'+prefix+Q+'_res" style="min-width:60px;display:inline-block">—</span></td>'
@@ -2199,6 +2199,19 @@ function _calcCustomResult(q, prefix, formula, letters){
   else { resEl.textContent = Math.round(result*10)/10 + '%'; resEl.style.color = result >= 0 ? '#67E8F9' : '#F87171'; }
 }
 window._calcCustomResult = _calcCustomResult;
+
+/* Handler for custom field inputs — reads config from data attributes to avoid
+   the JSON double-quote attribute breakage when using inline oninput.          */
+function _onCustomFieldInput(el){
+  var q       = el.getAttribute('data-q')       || '';
+  var prefix  = el.getAttribute('data-prefix')  || '';
+  var formula = el.getAttribute('data-formula') || '';
+  var letters = (el.getAttribute('data-letters')||'').split(',').filter(Boolean);
+  if(q && prefix && formula && letters.length > 0){
+    _calcCustomResult(q, prefix, formula, letters);
+  }
+}
+window._onCustomFieldInput = _onCustomFieldInput;
 
 /* Rebuild the Add KPI quarterly table based on current name selection */
 function _updateAddQtrTable(){

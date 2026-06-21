@@ -153,6 +153,17 @@ function t(key) {
   return val;
 }
 
+/* tText(key) — always returns plain text, NEVER wraps in span.
+   Use this for .textContent assignments and DOM element text nodes.  */
+function tText(key) {
+  if (typeof ST !== 'undefined' && ST.textEdits && ST.textEdits[key]) {
+    return ST.textEdits[key][lang] || ST.textEdits[key]['en'] || key;
+  }
+  if (TR[key]) return TR[key][lang] || TR[key]['en'] || key;
+  return key;
+}
+window.tText = tText;
+
 /**
  * tBoth(key) — return {en, ar} for a key (used by Translation Editor).
  * Merges base TR entry with any ST.textEdits overrides.

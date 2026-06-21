@@ -590,13 +590,13 @@ function renderExec(){
       const _total=_ks.filter(k=>ok(k)!==null).length;
       const _missPct=_total>0?(_miss.length/_total):0;
       if(_miss.length===0){
-        _st.textContent=t('on_track_label');_st.style.color='#4ADE80';
+        _st.innerHTML=tText('on_track_label');_st.style.color='#4ADE80';
       } else if(_hasT1Miss||_missPct>=0.50){
-        _st.textContent=t('critical_attention_required');_st.style.color='#F87171';
+        _st.innerHTML=tText('critical_attention_required');_st.style.color='#F87171';
       } else if(_missPct>=0.30){
-        _st.textContent=t('attention_required');_st.style.color='#F87171';
+        _st.innerHTML=tText('attention_required');_st.style.color='#F87171';
       } else {
-        _st.textContent=t('needs_improvement');_st.style.color='#FBBF24';
+        _st.innerHTML=tText('needs_improvement');_st.style.color='#FBBF24';
       }
       _sd.textContent=_miss.length?'Immediate focus required on '+_miss.length+' missed KPI'+(_miss.length===1?'':'s')+' to meet annual targets.':'Division performing at '+_pct+'% achievement rate.';
     }
@@ -605,8 +605,8 @@ function renderExec(){
     const _crit=_miss.filter(k=>(k.tier||3)===1).length;
     const _ce=document.getElementById('eis_crit');
     if(_ce){_ce.textContent=_crit;_ce.style.color=_crit>0?'#F87171':'#4ADE80';}
-    const _cs=document.getElementById('eis_crit_sub');if(_cs)_cs.textContent=_crit>0?t('requires_immediate_attention'):t('all_tier1_on_track');
-    const _cb=document.getElementById('eis_crit_badge');if(_cb){_cb.textContent=_crit>0?t('critical'):t('all_clear');_cb.style.background=_crit>0?'rgba(220,38,38,.25)':'rgba(22,163,74,.20)';_cb.style.color=_crit>0?'#F87171':'#4ADE80';}
+    const _cs=document.getElementById('eis_crit_sub');if(_cs)_cs.innerHTML=tText(_crit>0?'requires_immediate_attention':'all_tier1_on_track');
+    const _cb=document.getElementById('eis_crit_badge');if(_cb){_cb.innerHTML=tText(_crit>0?'critical':'all_clear');_cb.style.background=_crit>0?'rgba(220,38,38,.25)':'rgba(22,163,74,.20)';_cb.style.color=_crit>0?'#F87171':'#4ADE80';}
 
     /* Biggest Gap */
     const _gapK=_miss.sort((a,b)=>{const va=qv(a),vb=qv(b);const ga=va!=null?(a.target-va):0,gb=vb!=null?(b.target-vb):0;return gb-ga;})[0];
@@ -638,7 +638,7 @@ function renderExec(){
     const _forecastPct=_evalK.length?Math.round((_evalK.filter(k=>ok(k)===true).length+_pend.length*0.5)/_ks.length*100):0;
     const _fe=document.getElementById('eis_forecast');if(_fe){_fe.textContent=_forecastPct+'%';_fe.style.color=_forecastPct>=80?'#4ADE80':_forecastPct>=60?'#0195af':'#FBBF24';}
     const _curPerfEl=document.getElementById('eis_current_perf');if(_curPerfEl){const _curKs=_ks.filter(k=>ok(k)!==null);const _curPct=_curKs.length?Math.round(_met.length/_curKs.length*100):0;_curPerfEl.textContent=_curPct+'%';_curPerfEl.style.color='rgba(255,255,255,.55)';}
-    const _fb=document.getElementById('eis_forecast_badge');if(_fb){_fb.textContent=_forecastPct>=80?t('likely_to_meet_target'):_forecastPct>=60?t('moderate_risk'):t('at_risk_label');_fb.style.color=_forecastPct>=80?'#4ADE80':_forecastPct>=60?'#0195af':'#FBBF24';_fb.style.background=_forecastPct>=80?'rgba(22,163,74,.20)':_forecastPct>=60?'rgba(1,149,175,.25)':'rgba(217,119,6,.25)';}
+    const _fb=document.getElementById('eis_forecast_badge');if(_fb){_fb.innerHTML=tText(_forecastPct>=80?'likely_to_meet_target':_forecastPct>=60?'moderate_risk':'at_risk_label');_fb.style.color=_forecastPct>=80?'#4ADE80':_forecastPct>=60?'#0195af':'#FBBF24';_fb.style.background=_forecastPct>=80?'rgba(22,163,74,.20)':_forecastPct>=60?'rgba(1,149,175,.25)':'rgba(217,119,6,.25)';}
 
     /* At-Risk KPIs */
     const _atRisk=_ks.filter(k=>{const v=qv(k);return v!==null&&v<k.target&&(k.target-v)<=8;}).length+_pend.length;
@@ -770,10 +770,10 @@ function renderExecKpiCards(ks){
         +'</div>'
         +'<div style="flex:1">'
           +'<div style="font-size:10px;font-weight:700;color:'+dm.color+';text-transform:uppercase">'+k.id+' &middot; '+dm.en+' &middot; '+k.yr+'</div>'
-          +'<div style="font-size:14px;font-weight:800;color:#152538">'+k.nameEn+'</div>'
+          +'<div style="font-size:13px;font-weight:800;color:#152538;line-height:1.35;word-break:break-word">'+k.nameEn+'</div>'
         +'</div>'
         +'<div style="text-align:right;flex-shrink:0">'
-          +'<div style="font-size:32px;font-weight:900;color:'+(isMet?'#16A34A':op!==null?'#DC2626':'#94A3B8')+';font-family:var(--mono)">'+(op!==null?op+'%':'—')+'</div>'
+          +'<div style="font-size:30px;font-weight:900;color:'+(isMet?'#16A34A':op!==null?'#DC2626':'#94A3B8')+';font-family:var(--mono);line-height:1.1">'+(op!==null?op+'%':'—')+'</div>'
           +'<div style="font-size:9.5px;color:#94A3B8">Target: '+(k.op==='='?'=':'&ge;')+k.target+'%'+(gap!==null&&gap>0?' &middot; Gap: '+gap+'%':'')
           +(function(){
             var QTRS=['q1','q2','q3','q4'],QLBLS=['Q1','Q2','Q3','Q4'];
@@ -798,7 +798,7 @@ function renderExecKpiCards(ks){
       +'<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:4px">'+qRows+'</div>';
 
     const closeBtn=document.createElement('button');
-    closeBtn.textContent='&#10005; Close';
+    closeBtn.textContent=(typeof lang!=='undefined'&&lang==='ar')?'إغلاق':'✕ Close';
     closeBtn.style.cssText='width:100%;margin-top:16px;padding:10px;background:#152538;color:#fff;border:none;border-radius:9px;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer';
     closeBtn.onclick=function(){ov.remove();};
 
