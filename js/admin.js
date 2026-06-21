@@ -532,6 +532,12 @@ function handleKpiNamePreset(langKey){
   if(!sel||!inp)return;
   if(sel.value==='__other__'){
     inp.value='';inp.readOnly=false;inp.style.background='#fff';inp.placeholder=langKey==='en'?'Type a new English KPI name…':'اكتب اسم مؤشر عربي جديد…';inp.focus();
+    /* Reset quarterly table — remove master config so Add KPI uses standard columns */
+    var _qSec=document.getElementById('addQtrSection');
+    if(_qSec){ _qSec.removeAttribute('data-master');
+      var _qTbl=document.getElementById('addQtrTable');
+      if(_qTbl&&typeof _buildQtrTableHTML==='function') _qTbl.innerHTML=_buildQtrTableHTML(null,'aAd');
+    }
   }else{
     inp.value=sel.value;inp.readOnly=true;inp.style.background='#F8FAFC';
   }
@@ -1759,8 +1765,9 @@ function _showTextKeyPopup(key, anchorEl){
   var isAr = (typeof lang !== 'undefined' && lang === 'ar');
   var stored = ST.textEdits && ST.textEdits[key];
   var tr = window.TR && window.TR[key];
-  var enVal = stored ? (stored.en !== undefined ? stored.en : (tr ? tr.en||'' : '')) : (tr ? tr.en||'' : '');
-  var arVal = stored ? (stored.ar !== undefined ? stored.ar : (tr ? tr.ar||'' : '')) : (tr ? tr.ar||'' : '');
+  /* For kpi_name: keys, skip ST.textEdits/TR — values come from ST.ov/allK() block below */
+  var enVal = key.indexOf('kpi_name:')===0 ? '' : (stored ? (stored.en !== undefined ? stored.en : (tr ? tr.en||'' : '')) : (tr ? tr.en||'' : ''));
+  var arVal = key.indexOf('kpi_name:')===0 ? '' : (stored ? (stored.ar !== undefined ? stored.ar : (tr ? tr.ar||'' : '')) : (tr ? tr.ar||'' : ''));
 
   var popup = document.createElement('div');
   popup.id = 'saTextKeyPopup';
@@ -1832,8 +1839,12 @@ function _showTextKeyPopup(key, anchorEl){
     /* Save to Firestore + propagate to all users */
     persistST(key.indexOf('kpi_name:')===0 ? 'KPI_NAME_EDIT:'+key : 'TEXT_EDIT:'+key).then(function(){
       var fb = document.getElementById('_saPopFb');
-      if(fb){fb.textContent='✓ '+(typeof lang!=='undefined'&&lang==='ar'?'تم الحفظ':'Saved — reflects for all users');fb.style.color='#16A34A';fb.style.display='block';}
-      setTimeout(function(){ popup.remove(); }, 1200);
+      if(fb){fb.textContent='✓ '+(typeof lang!=='undefined'&&lang==='ar'?'تم الحفظ — سيظهر لجميع المستخدمين':'Saved — reflects for all users');fb.style.color='#16A34A';fb.style.display='block';}
+      /* Re-render dashboard so KPI names update everywhere */
+      setTimeout(function(){
+        try{ if(typeof renderCurrent==='function') renderCurrent(); }catch(_){}
+        popup.remove();
+      }, 800);
     }).catch(function(e){
       var fb = document.getElementById('_saPopFb');
       if(fb){fb.textContent='⚠ '+e.message;fb.style.color='#DC2626';fb.style.display='block';}

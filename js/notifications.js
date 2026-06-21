@@ -578,7 +578,14 @@ function updateExecTrend(yr){
       if(!unreadArr.length && !arr.length){list.innerHTML='<div class="qumc-n-empty-final">No important notifications.</div>';}
       else{
   /* Show ALL notifications (read + unread); dim read ones */
-  var allNotifs=getNotifications(false); /* false = ALL notifications (read + unread) for list display */
+  var allNotifs=(function(){
+        var seen2=readSeen();
+        var all=getNotifications(false)||[];
+        /* Sort: unread first, then read; newest (by array position = generation order) first within each group */
+        var unread=all.filter(function(n){return seen2.indexOf(n.id)<0;});
+        var read=all.filter(function(n){return seen2.indexOf(n.id)>=0;});
+        return unread.concat(read);
+      }()); /* sorted: unread first, read last */
   var seen=readSeen();
   list.innerHTML=allNotifs.map(function(n){
     var isRead=seen.indexOf(n.id)>=0;
@@ -704,7 +711,8 @@ function updateExecTrend(yr){
   document.addEventListener('click',function(ev){var w=$('userNotifyWidget');if(w&&w.contains(ev.target))return;var d=$('userAlertDrop');if(d){d.style.display='none';d.classList.remove('qumc-final-open','qumc-stay-open');}},true);
   var oldUpdate=window.updateUserBadge; window.updateUserBadge=function(){try{if(oldUpdate)oldUpdate.apply(this,arguments);}catch(e){}notifCache=null;setTimeout(bindFinal,0);};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindFinal);else bindFinal();
-  setTimeout(function(){notifCache=null;bindFinal();},700);
+  setTimeout(function(){bindFinal();},700); /* early init */
+  setTimeout(function(){notifCache=null;bindFinal();},2500); /* reinit after FS load */
 })();
 
 

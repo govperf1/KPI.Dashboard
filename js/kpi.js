@@ -289,23 +289,11 @@ function applyRolePermissions(role,dept,perms){
       '[onclick*="rptStartEdit"],[onclick*="rptEdit"],[onclick*="saveAdmin"],' +
       '[id$="-acts"],[onclick*="addAction"],' +
       '[onclick*="exportReport"],.rpt-edit-btn,button[title="Edit"],.edit-btn{display:none!important;}' +
-      '[onclick*="openGap"]{display:inline-flex!important;' +
+      'button[onclick*="openGap"]{display:inline-flex!important;' +
       'background:rgba(220,38,38,.12)!important;color:#DC2626!important;' +
       'border:1px solid rgba(220,38,38,.3)!important;}';
     document.head.appendChild(sko);
-    /* Inject a prominent Gap Analysis bar at page top */
-    setTimeout(()=>{
-      if(!document.getElementById('_kpoBar')){
-        const bar=document.createElement('div');
-        bar.id='_kpoBar';
-        bar.style.cssText='position:sticky;top:0;z-index:100;background:linear-gradient(135deg,#0d1b2e,#152538);border-bottom:2px solid #DC2626;padding:10px 20px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.25)';
-        bar.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
-          +'<span style="color:#fff;font-weight:700;font-size:13px">Gap Analysis Mode</span>'
-          +'<span style="color:rgba(255,255,255,.7);font-size:11px">Click a KPI card to open Gap Analysis</span>';
-        const mainEl=document.querySelector('.main,.page-wrap,main')||document.body.firstElementChild;
-        if(mainEl)mainEl.prepend(bar);
-      }
-    }, 500);
+    
   }
 
   /* ── Dept lock for dept_manager and kpi_owner ── */
@@ -447,7 +435,18 @@ function normalizeKpiRecord(k){
   r.type=r.type||'core';
   r.tier=parseInt(r.tier||3)||3;
   ['q1','q2','q3','q4'].forEach(q=>{r[q]=_kpiPnSafe(r[q]);});
-  return r;
+  
+  /* Apply ST.pci quarterly results so added KPIs appear in trend chart */
+  if(typeof ST!=='undefined'&&ST.pci&&ST.pci[r.id]){
+    var _pciR=ST.pci[r.id];
+    ['q1','q2','q3','q4'].forEach(function(q){
+      if(r[q]!==null&&r[q]!==undefined) return;
+      var _qd=_pciR[q]; if(!_qd) return;
+      if(_qd._result!==null&&_qd._result!==undefined) r[q]=_qd._result;
+      else if(_qd.planned>0&&_qd.complete!==undefined) r[q]=Math.min(100,Math.round(_qd.complete/_qd.planned*100));
+    });
+  }
+return r;
 
 /* -- KPI data: allK, filt, qv, metStatus, ok, renderYearFilter, updateBadge -- */
 }
@@ -511,6 +510,34 @@ async function persistST(reason){
   if(typeof renderCurrent==='function') renderCurrent();
 }
 window.persistST=persistST;
+
+/* ── Smart Dashboard Assistant (restored) ── */
+function aiToggle(){
+  var w=document.getElementById('aiWin');
+  if(!w) return;
+  w.style.display=(w.style.display==='flex'||w.style.display==='block')?'none':'flex';
+  if(w.style.display!=='none'){var i=document.getElementById('aiInput');if(i)setTimeout(function(){i.focus();},100);}
+}
+window.aiToggle=aiToggle;
+function aiSend(){
+  var inp=document.getElementById('aiInput'),out=document.getElementById('aiOut');
+  if(!inp||!out) return;
+  var q=inp.value.trim(); if(!q) return; inp.value='';
+  function _e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+  out.innerHTML+='<div style="color:#0195af;font-weight:700;margin:6px 0 2px">You: '+_e(q)+'</div>';
+  var ctx='Dashboard: ';
+  if(typeof allK==='function'){var ks=allK();ctx+='Total KPIs: '+ks.length+'. ';ks.slice(0,6).forEach(function(k){ctx+=k.nameEn+'(dept:'+k.dept+',target:'+k.target+'%,Q1:'+(k.q1!==null&&k.q1!==undefined?k.q1+'%':'?')+'); ';});}
+  fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:300,messages:[{role:'user',content:'KPI dashboard assistant for Qassim University Medical City Facilities Division. '+ctx+' Answer in 2-3 sentences: '+q}]})
+  }).then(function(r){return r.json();}).then(function(d){
+    var a=(d.content&&d.content[0]&&d.content[0].text)||'Unable to respond.';
+    out.innerHTML+='<div style="color:#e2e8f0;line-height:1.6;margin-bottom:8px">'+_e(a)+'</div>';
+    out.scrollTop=out.scrollHeight;
+  }).catch(function(e){out.innerHTML+='<div style="color:#F87171">Error: '+_e(e.message)+'</div>';});
+  out.scrollTop=out.scrollHeight;
+}
+window.aiSend=aiSend;
+
 
 /* ═══════════════════════════════════════════════════════════════
    BUILT-IN MASTER KPI CONFIGURATIONS
