@@ -1613,8 +1613,11 @@ window._showSuperAdminHub = _showSuperAdminHub;
 var _saEditModeActive = false;
 
 function _activateSaEditMode(){
-  _saEditModeActive = true;
-  /* Inject CSS */
+  /* CRITICAL: set window._saEditMode FIRST so t() returns editable spans on next render */
+  window._saEditMode = true;
+  _saEditModeActive  = true;
+
+  /* Inject outline CSS */
   if(!document.getElementById('_saEditStyle')){
     var st = document.createElement('style');
     st.id = '_saEditStyle';
@@ -1623,37 +1626,43 @@ function _activateSaEditMode(){
       +'[data-tkey]:hover{outline:2px solid #0195af;background:rgba(1,149,175,.12);}';
     document.head.appendChild(st);
   }
-  /* Update edit text button */
+
+  /* Update button to show Exit state */
   var btn = document.getElementById('_saEditTextBtn');
   if(btn){
-    btn.style.background = 'rgba(1,149,175,.3)';
+    btn.style.background  = 'rgba(1,149,175,.3)';
     btn.style.borderColor = '#0195af';
     btn.textContent = (typeof lang!=='undefined'&&lang==='ar') ? '✕ إيقاف التعديل' : '✕ Exit Edit';
     btn.onclick = function(){ _deactivateSaEditMode(); };
   }
-  _scanDashboardForEditable();
+
+  /* Re-render dashboard WITH _saEditMode=true so t() injects [data-tkey] spans,
+     then scan those spans to attach click handlers.                              */
+  try{ if(typeof renderCurrent==='function') renderCurrent(); }catch(_){}
+  setTimeout(function(){ _scanDashboardForEditable(); }, 300);
 }
 window._activateSaEditMode = _activateSaEditMode;
 
 function _deactivateSaEditMode(){
-  _saEditModeActive = false;
-  /* Remove editable spans — restore original text */
-  document.querySelectorAll('[data-tkey]').forEach(function(el){
-    var text = el.textContent;
-    var tn = document.createTextNode(text);
-    if(el.parentNode) el.parentNode.replaceChild(tn, el);
-  });
-  /* Remove style */
+  /* Clear both flags so t() returns plain text on next render */
+  window._saEditMode = false;
+  _saEditModeActive  = false;
+
+  /* Remove outline CSS */
   var st = document.getElementById('_saEditStyle');
   if(st) st.remove();
-  /* Reset button */
+
+  /* Reset button to Enter state */
   var btn = document.getElementById('_saEditTextBtn');
   if(btn){
-    btn.style.background = 'rgba(1,149,175,.15)';
+    btn.style.background  = 'rgba(1,149,175,.15)';
     btn.style.borderColor = 'rgba(1,149,175,.4)';
     btn.textContent = (typeof lang!=='undefined'&&lang==='ar') ? '✏ نصوص' : '✏ Text';
     btn.onclick = function(){ _activateSaEditMode(); };
   }
+
+  /* Re-render dashboard without edit mode to restore plain text */
+  try{ if(typeof renderCurrent==='function') renderCurrent(); }catch(_){}
 }
 window._deactivateSaEditMode = _deactivateSaEditMode;
 
@@ -1776,13 +1785,15 @@ function _showTextKeyPopup(key, anchorEl){
     if(!ST.textEdits[key]) ST.textEdits[key] = {en: enVal, ar: arVal};
     ST.textEdits[key][editLang] = newVal;
     /* Apply immediately */
+    /* Apply immediately to TR so all t() calls use new value */
     if(typeof tSet === 'function') tSet(key, ST.textEdits[key].en, ST.textEdits[key].ar);
+    /* Update visible [data-tkey] spans right away (before re-render) */
+    document.querySelectorAll('[data-tkey="'+key+'"]').forEach(function(el){ el.textContent = newVal; });
+    /* Save to Firestore + propagate to all users via persistST → renderCurrent */
     persistST('TEXT_EDIT:'+key).then(function(){
-      /* Update span text immediately */
-      document.querySelectorAll('[data-tkey="'+key+'"]').forEach(function(el){ el.textContent = newVal; });
       var fb = document.getElementById('_saPopFb');
-      if(fb){fb.textContent='✓ Saved';fb.style.color='#16A34A';fb.style.display='block';}
-      setTimeout(function(){ popup.remove(); }, 900);
+      if(fb){fb.textContent='✓ '+(typeof lang!=='undefined'&&lang==='ar'?'تم الحفظ':'Saved — reflects for all users');fb.style.color='#16A34A';fb.style.display='block';}
+      setTimeout(function(){ popup.remove(); }, 1200);
     }).catch(function(e){
       var fb = document.getElementById('_saPopFb');
       if(fb){fb.textContent='⚠ '+e.message;fb.style.color='#DC2626';fb.style.display='block';}

@@ -578,7 +578,7 @@ function updateExecTrend(yr){
       if(!unreadArr.length && !arr.length){list.innerHTML='<div class="qumc-n-empty-final">No important notifications.</div>';}
       else{
   /* Show ALL notifications (read + unread); dim read ones */
-  var allNotifs=getNotifications(true);
+  var allNotifs=getNotifications(false); /* false = ALL notifications (read + unread) for list display */
   var seen=readSeen();
   list.innerHTML=allNotifs.map(function(n){
     var isRead=seen.indexOf(n.id)>=0;

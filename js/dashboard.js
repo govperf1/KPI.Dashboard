@@ -483,7 +483,7 @@ function renderExec(){
     /* Timestamp */
     const _now=new Date();
     const _ei_up=document.getElementById('ei_updated');
-    if(_ei_up)_ei_up.textContent='Last Updated: '+_now.getHours()+':'+String(_now.getMinutes()).padStart(2,'0')+' '+(_now.getHours()>=12?'PM':'AM');
+    if(_ei_up)_ei_up.textContent=tText('last_updated')+': '+_now.getHours()+':'+String(_now.getMinutes()).padStart(2,'0')+' '+(_now.getHours()>=12?'PM':'AM');
 
     /* Summary */
     const _ei_sum=document.getElementById('ei_summary');
@@ -618,7 +618,7 @@ function renderExec(){
     let _worstDept=null,_worstPct=100;
     _depts.forEach(d=>{const _dk=_ks.filter(k=>k.dept===d&&ok(k)!==null);if(!_dk.length)return;const _dp=Math.round(_dk.filter(k=>ok(k)===true).length/_dk.length*100);if(_dp<_worstPct){_worstPct=_dp;_worstDept=d;}});
     const _de=document.getElementById('eis_dept');const _ds=document.getElementById('eis_dept_sub');const _db=document.getElementById('eis_dept_badge');
-    if(_de){if(_worstDept){_de.textContent=DM[_worstDept].en;_de.style.color=_worstPct<60?'#F87171':'#FBBF24';if(_ds)_ds.textContent='Performance '+_worstPct+'%';if(_db){_db.textContent=_worstPct<60?tText('needs_recovery'):tText('needs_improvement_lower');_db.style.background=_worstPct<60?'rgba(220,38,38,.25)':'rgba(217,119,6,.25)';_db.style.color=_worstPct<60?'#F87171':'#FBBF24';}}else{_de.textContent='—';}}
+    if(_de){if(_worstDept){_de.textContent=DM[_worstDept].en;_de.style.color=_worstPct<60?'#F87171':'#FBBF24';if(_ds)_ds.textContent=tText('performance_label')+' '+_worstPct+'%';if(_db){_db.textContent=_worstPct<60?tText('needs_recovery'):tText('needs_improvement_lower');_db.style.background=_worstPct<60?'rgba(220,38,38,.25)':'rgba(217,119,6,.25)';_db.style.color=_worstPct<60?'#F87171':'#FBBF24';}}else{_de.textContent='—';}}
 
     /* Gap Analysis Open — missed KPIs without documented gap */
     /* Gap Analysis Open: فقط KPIs عندها Gap مدخل + action لا يزال in-progress */
@@ -647,11 +647,11 @@ function renderExec(){
     /* Top Risk */
     const _tr=document.getElementById('eis_toprisk');
     if(_tr&&_gapK){const _gv2=qv(_gapK);_tr.textContent=(_gapK.nameEn||_gapK.id)+' is underperforming by '+(_gv2!=null?(_gapK.target-_gv2).toFixed(1)+'%':'—')+' and contributing significantly to the overall performance gap.';}
-    else if(_tr)_tr.textContent='All KPIs are meeting their targets.';
+    else if(_tr)_tr.textContent=tText('all_kpis_meeting_targets');
 
     /* Recommended Action */
     const _ra=document.getElementById('eis_action');
-    if(_ra&&_worstDept&&_gapK)_ra.textContent='Review '+DM[_worstDept].en+' recovery plan and '+_gapK.nameEn+' actions before next quarter closure to improve annual achievement.';
+    if(_ra&&_worstDept&&_gapK)_ra.textContent=tText('review_label')+' '+DM[_worstDept].en+' recovery plan and '+_gapK.nameEn+' actions before next quarter closure to improve annual achievement.';
     else if(_ra)_ra.textContent='Continue monitoring KPI performance and maintain current achievement levels.';
 
     }catch(_eis){console.error('EIS error:',_eis);}
@@ -1034,7 +1034,7 @@ function buildIntelRisks(missKpis, repKpis){
 
   /* Last Updated */
   const tEl=document.getElementById('intelUpdateTime');
-  if(tEl)tEl.textContent='Last Updated: '+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
+  if(tEl)tEl.textContent=tText('last_updated')+': '+new Date().toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true});
 
   /* ── Helpers ── */
   const tB=(t,lg)=>{

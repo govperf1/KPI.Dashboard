@@ -133,7 +133,11 @@ var TR = {
   'no_gaps_found':               { en: 'No gaps',                           ar: 'لا فجوات' },
   'performance_on_track_lower':  { en: 'Performance on track',              ar: 'الأداء في المسار' },
   'requires_exec_escalation':    { en: 'Requires executive escalation',     ar: 'يستلزم تصعيداً تنفيذياً' },
-  'root_cause_required':         { en: 'Root cause analysis required',      ar: 'مطلوب تحليل السبب الجذري' }
+  'root_cause_required':         { en: 'Root cause analysis required',      ar: 'مطلوب تحليل السبب الجذري' },
+  'last_updated':              { en: 'Last Updated',                   ar: 'آخر تحديث' },
+  'performance_label':         { en: 'Performance',                    ar: 'الأداء' },
+  'all_kpis_meeting_targets':  { en: 'All KPIs are meeting their targets.', ar: 'جميع المؤشرات تحقق أهدافها.' },
+  'review_label':              { en: 'Review',                         ar: 'مراجعة' }
 };
 
 /* ─── Core API ─── */
