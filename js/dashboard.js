@@ -1312,9 +1312,17 @@ function renderDept(){
     var all=allK().filter(function(k){return k.dept===dept;});
     var map={};
     all.forEach(function(k){
-      var key=k.id.replace(/[^A-Z0-9]/gi,'');
-      if(!map[key])map[key]={k25:null,k26:null};
-      if(k.yr===2025)map[key].k25=k;else map[key].k26=k;
+      /* Group by nameEn (same KPI across years) — fallback to cleaned ID if no name */
+      var groupKey=(k.nameEn||'').trim().toLowerCase().replace(/[^a-z0-9؀-ۿ]/gi,'_');
+      if(!groupKey) groupKey=k.id.replace(/[^A-Z0-9]/gi,'');
+      if(!map[groupKey])map[groupKey]={k25:null,k26:null};
+      /* Assign to slot by year; prefer newer data for k26 slot */
+      if(k.yr===2025||k.yr==='2025'){
+        if(!map[groupKey].k25) map[groupKey].k25=k;
+      } else {
+        if(!map[groupKey].k26) map[groupKey].k26=k;
+        else if(!map[groupKey].k25) map[groupKey].k25=k; /* added KPI: put in k25 slot */
+      }
     });
     return Object.values(map).filter(function(g){return g.k25||g.k26;});
   }
@@ -1667,7 +1675,8 @@ function renderExecKpiTrends(ks){
   /* Group by nameEn across all depts */
   const nameMap={};
   allDk.forEach(k=>{
-    if(!ks.some(x=>x.nameEn===k.nameEn))return; /* only visible KPIs */
+    /* Include if in visible ks (by nameEn OR nameAr) */
+    if(!ks.some(function(x){return x.nameEn===k.nameEn||x.id===k.id||(k.nameAr&&x.nameAr===k.nameAr);}))return;
     const key=k.nameEn+'__'+k.dept;
     if(!nameMap[key])nameMap[key]={nameEn:k.nameEn,nameAr:k.nameAr,dept:k.dept,tier:k.tier||3,target:k.target,op:k.op,ids:[]};
     nameMap[key].ids.push(k);
@@ -1678,7 +1687,15 @@ function renderExecKpiTrends(ks){
   el.innerHTML=groups.map(g=>{
     const k25g=g.ids.find(k=>k.yr===2025);
     const k26g=g.ids.find(k=>k.yr===2026);
-    const vals=[k25g?.q1??null,k25g?.q2??null,k25g?.q3??null,k25g?.q4??null,k26g?.q1??null];
+    /* Fallback: read from ST.pci if kObj.q is null */
+    function _qv(kObj,q){
+      if(!kObj) return null;
+      var v=kObj[q]; if(v!==null&&v!==undefined) return v;
+      var _pci=(typeof ST!=='undefined'&&ST.pci&&ST.pci[kObj.id])&&ST.pci[kObj.id][q];
+      if(!_pci) return null;
+      return _pci._result!==undefined?_pci._result:(_pci.planned>0?Math.min(100,Math.round((_pci.complete||0)/_pci.planned*100)):null);
+    }
+    const vals=[_qv(k25g,'q1'),_qv(k25g,'q2'),_qv(k25g,'q3'),_qv(k25g,'q4'),_qv(k26g,'q1')];
     const idStr=g.ids.map(k=>k.id).join(' / ');
     const latestVal=vals.filter(v=>v!==null).slice(-1)[0]??null;
     const isM=latestVal!==null?latestVal>=g.target:null;

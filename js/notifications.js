@@ -575,7 +575,7 @@ function updateExecTrend(yr){
     if(c){c.textContent=unreadArr.length;c.style.display=unreadArr.length?'flex':'none';}
     var arr=getNotifications(false);  /* all (for list display) */
     if(list){
-      if(!unreadArr.length && !arr.length){list.innerHTML='<div class="qumc-n-empty-final">No important notifications.</div>';}
+      if(!arr.length && !(notifCache&&notifCache.length)){list.innerHTML='<div class="qumc-n-empty-final">No important notifications.</div>';}
       else{
   /* Show ALL notifications (read + unread); dim read ones */
   var allNotifs=(function(){
@@ -711,8 +711,8 @@ function updateExecTrend(yr){
   document.addEventListener('click',function(ev){var w=$('userNotifyWidget');if(w&&w.contains(ev.target))return;var d=$('userAlertDrop');if(d){d.style.display='none';d.classList.remove('qumc-final-open','qumc-stay-open');}},true);
   var oldUpdate=window.updateUserBadge; window.updateUserBadge=function(){try{if(oldUpdate)oldUpdate.apply(this,arguments);}catch(e){}notifCache=null;setTimeout(bindFinal,0);};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindFinal);else bindFinal();
-  setTimeout(function(){bindFinal();},700); /* early init */
-  setTimeout(function(){notifCache=null;bindFinal();},2500); /* reinit after FS load */
+  setTimeout(function(){bindFinal();},1200); /* first init after FS load */
+  setTimeout(function(){notifCache=null;bindFinal();},4000); /* refresh with fresh data */
 })();
 
 

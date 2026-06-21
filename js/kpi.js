@@ -516,25 +516,32 @@ function aiToggle(){
   var w=document.getElementById('aiWin');
   if(!w) return;
   w.style.display=(w.style.display==='flex'||w.style.display==='block')?'none':'flex';
-  if(w.style.display!=='none'){var i=document.getElementById('aiInput');if(i)setTimeout(function(){i.focus();},100);}
+  if(w.style.display!=='none'){var i=document.getElementById('aiInp')||document.getElementById('aiInput');if(i)setTimeout(function(){i.focus();},100);}
 }
 window.aiToggle=aiToggle;
 function aiSend(){
-  var inp=document.getElementById('aiInput'),out=document.getElementById('aiOut');
+  /* HTML uses id="aiInp" for input, id="aiBody" for output */
+  var inp=document.getElementById('aiInp')||document.getElementById('aiInput');
+  var out=document.getElementById('aiBody')||document.getElementById('aiOut');
   if(!inp||!out) return;
   var q=inp.value.trim(); if(!q) return; inp.value='';
   function _e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');}
   out.innerHTML+='<div style="color:#0195af;font-weight:700;margin:6px 0 2px">You: '+_e(q)+'</div>';
-  var ctx='Dashboard: ';
-  if(typeof allK==='function'){var ks=allK();ctx+='Total KPIs: '+ks.length+'. ';ks.slice(0,6).forEach(function(k){ctx+=k.nameEn+'(dept:'+k.dept+',target:'+k.target+'%,Q1:'+(k.q1!==null&&k.q1!==undefined?k.q1+'%':'?')+'); ';});}
+  var ctx='KPI Dashboard Summary: ';
+  if(typeof allK==='function'){var ks=allK();ctx+='Total KPIs: '+ks.length+'. ';ks.slice(0,8).forEach(function(k){ctx+=k.nameEn+'(dept:'+k.dept+',target:'+k.target+'%,Q1:'+(k.q1!==null&&k.q1!==undefined?k.q1+'%':'—')+'); ';});}
+  out.innerHTML+='<div style="color:#64748B;font-style:italic;margin-bottom:4px">Thinking…</div>';
+  out.scrollTop=out.scrollHeight;
   fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:300,messages:[{role:'user',content:'KPI dashboard assistant for Qassim University Medical City Facilities Division. '+ctx+' Answer in 2-3 sentences: '+q}]})
+    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:400,messages:[{role:'user',content:'You are a KPI performance assistant for Qassim University Medical City, Facilities & Safety Division. '+ctx+' Answer the user question briefly (2-4 sentences): '+q}]})
   }).then(function(r){return r.json();}).then(function(d){
-    var a=(d.content&&d.content[0]&&d.content[0].text)||'Unable to respond.';
+    var a=(d.content&&d.content[0]&&d.content[0].text)||'Unable to respond at this time.';
+    out.innerHTML=out.innerHTML.replace('<div style="color:#64748B;font-style:italic;margin-bottom:4px">Thinking…</div>','');
     out.innerHTML+='<div style="color:#e2e8f0;line-height:1.6;margin-bottom:8px">'+_e(a)+'</div>';
     out.scrollTop=out.scrollHeight;
-  }).catch(function(e){out.innerHTML+='<div style="color:#F87171">Error: '+_e(e.message)+'</div>';});
-  out.scrollTop=out.scrollHeight;
+  }).catch(function(e){
+    out.innerHTML=out.innerHTML.replace('<div style="color:#64748B;font-style:italic;margin-bottom:4px">Thinking…</div>','');
+    out.innerHTML+='<div style="color:#F87171;margin-bottom:4px">Error: '+_e(e.message)+'</div>';
+  });
 }
 window.aiSend=aiSend;
 

@@ -375,8 +375,8 @@ function saveGapKPO(kpiId,qtr){
   addAudit('GAP_EDIT','Gap updated for '+id+' · '+qtr.toUpperCase()+' by '+(window._fbName||role),oldGap,'See ST.gaps.'+gapKey);
 
   const fb=document.getElementById('kpo_fb'+sfx);
-  if(fb){fb.textContent='✓ Gap Analysis saved';fb.style.color='#16A34A';fb.style.display='block';}
-  toast(' Gap Analysis saved');
+  if(fb){fb.textContent='✓ Saved';fb.style.color='#16A34A';fb.style.display='block';}
+  toast(' Saved');
   setTimeout(()=>openGapQuarter(id,qtr),400);
 }
 
@@ -857,6 +857,16 @@ async function saveNewKPI(){
   if(!ST.pci)ST.pci={};
   ST.pci[code]={};
   /* ── Use _readQtrValuesFromForm — handles standard PCI and custom-field KPIs ── */
+  /* If neVal is a custom name (not matching any master KPI), clear data-master */
+  (function(){
+    var _addSec2=document.getElementById('addQtrSection');
+    if(_addSec2&&_addSec2.getAttribute('data-master')){
+      var _masterMatch2=(typeof _findMasterKpiByName==='function')?_findMasterKpiByName(neVal):null;
+      if(!_masterMatch2||!_masterMatch2.config){
+        _addSec2.setAttribute('data-master',''); /* clear stale master */
+      }
+    }
+  })();
   var _qtrRead=(typeof _readQtrValuesFromForm==='function')
     ?_readQtrValuesFromForm(code,'aAd','addQtrSection')
     :{pciData:{Q1:{},Q2:{},Q3:{},Q4:{}},masterId:'',cfg:null};
@@ -1180,7 +1190,7 @@ function saveAdmin(){
     ST.actions[id]={...ST.actions[id],owner:document.getElementById('gOwner').value,status:document.getElementById('actStatus').value,dueDate:document.getElementById('gDue').value,priority:document.getElementById('actPri').value,atRisk};
     /* Success feedback */
     const fb2=document.getElementById('_gapFeedback');
-    if(fb2){fb2.textContent=' Gap Analysis saved successfully';fb2.style.color='#16A34A';fb2.style.display='block';fb2.style.background='rgba(22,163,74,.06)';}
+    if(fb2){fb2.textContent=' Saved successfully';fb2.style.color='#16A34A';fb2.style.display='block';fb2.style.background='rgba(22,163,74,.06)';}
     /* Reset field styles */
     _gReq.forEach(r=>{const el=document.getElementById(r.id);if(el){el.style.borderColor='';el.style.boxShadow='';}});
     action='GAP_EDIT';detail=`Gap for ${kpiId}${qtr?' · '+qtr.toUpperCase():''}`;window._editOldVal=oldGap;}
@@ -1212,7 +1222,7 @@ function populateDelKpiList(){
     const o=document.createElement('option');
     o.value=k.id;
     const isBase=typeof BASE!=='undefined'&&BASE.some(b=>b.id===k.id);
-    o.textContent=k.id+' — '+k.nameEn+' ('+k.yr+')'+(!isBase?' ★':'');
+    o.textContent=k.id+' — '+k.nameEn+' ('+k.yr+')';
     const lastGrp=sel.querySelector('optgroup:last-of-type');
     if(lastGrp)lastGrp.appendChild(o);
     else sel.appendChild(o);
