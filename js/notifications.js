@@ -590,6 +590,8 @@ function updateExecTrend(yr){
       +'<div class="qumc-n-meta-final">'+esc(n.meta)+'</div></div>'
       +'</div>';
   }).join('');
+      window._notifMap={};
+      allNotifs.forEach(function(x){if(x&&x.id)window._notifMap[x.id]=x;});
 }
       Array.prototype.forEach.call(list.querySelectorAll('.qumc-nrow-final'),function(row){
         var id=row.getAttribute('data-nid');
@@ -600,14 +602,14 @@ function updateExecTrend(yr){
         if(dot && isRead) dot.style.background='#555';
         row.onclick=function(ev){
           ev.preventDefault();ev.stopPropagation();
-          /* Mark as read — do NOT remove from list or notifCache */
+          /* Mark as read */
           var s=readSeen(); if(s.indexOf(id)<0){s.push(id);writeSeen(s);}
-          /* Dim the dot immediately to show read state */
           if(dot) dot.style.background='#555';
-          /* Open centered modal with full notification content */
-          _showNotifModal(n);
-          /* Update badge count only */
-          renderNotifications(false);
+          /* BUG FIX: n was out-of-scope here (outside the else block).
+             Use window._notifMap[id] which was populated inside the else block. */
+          var _n=(window._notifMap&&window._notifMap[id])||null;
+          window._showNotifModal(_n);
+          setTimeout(function(){renderNotifications(false);},80);
         };
       });
     }
@@ -615,28 +617,36 @@ function updateExecTrend(yr){
   }
 
     /* Centered modal for full notification message */
-    function _showNotifModal(n){
-      var prev=document.getElementById('_notifModal'); if(prev) prev.remove();
+        function _showNotifModal(n){
+      if(!n) return; /* guard against undefined notification */
+      var prev=document.getElementById('_notifModal');
+      if(prev){ prev.remove(); return; } /* toggle: second click closes */
       var isAr=(typeof lang!=='undefined'&&lang==='ar');
-      function _esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+      function _e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
       var level=n.level||'blue';
       var bc=level==='red'?'#F87171':level==='orange'?'#FBBF24':'#0195af';
       var modal=document.createElement('div');
       modal.id='_notifModal';
-      modal.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,8,20,.82);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;';
+      /* No backdrop-filter — can block pointer events in some browsers */
+      modal.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,8,20,.85);display:flex;align-items:center;justify-content:center;padding:20px;pointer-events:all;';
       var box=document.createElement('div');
-      box.style.cssText='background:#0d1b2e;border:1px solid '+bc+';border-radius:16px;padding:28px;max-width:460px;width:100%;';
+      box.style.cssText='background:#0d1b2e;border:1px solid '+bc+';border-radius:16px;padding:28px;max-width:480px;width:100%;pointer-events:all;';
       var sub=(n.meta||n.sub||'');
-      box.innerHTML='<div style="font-size:13px;font-weight:800;color:'+bc+';margin-bottom:12px">'+_esc(n.title||'Notification')+'</div>'
-        +(sub?'<div style="font-size:10px;color:#64748b;margin-bottom:10px">'+_esc(sub)+'</div>':'')
-        +(n.body?'<div style="font-size:11px;color:#e2e8f0;line-height:1.6;margin-bottom:14px">'+_esc(n.body)+'</div>':'')
-        +'<button style="width:100%;padding:9px;background:rgba(1,149,175,.15);border:1px solid rgba(1,149,175,.3);border-radius:8px;color:#0195af;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">'
+      box.innerHTML=
+        '<div style="font-size:13px;font-weight:800;color:'+bc+';margin-bottom:12px">'+_e(n.title||'Notification')+'</div>'
+        +(sub?'<div style="font-size:10px;color:#64748b;margin-bottom:8px">'+_e(sub)+'</div>':'')
+        +(n.body?'<div style="font-size:11px;color:#e2e8f0;line-height:1.6;margin-bottom:12px">'+_e(n.body)+'</div>':'')
+        +'<button onclick="window._closeNotifModal()" style="width:100%;padding:9px;background:rgba(1,149,175,.15);border:1px solid rgba(1,149,175,.3);border-radius:8px;color:#0195af;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">'
         +(isAr?'إغلاق':'Close')+'</button>';
-      box.querySelector('button').onclick=function(){modal.remove();};
-      modal.onclick=function(e){if(e.target===modal)modal.remove();};
       modal.appendChild(box);
       document.body.appendChild(modal);
-    }
+      modal.onclick=function(e){
+        if(e.target===modal){ modal.remove(); }
+      };
+    }    window._showNotifModal=_showNotifModal;
+    window._closeNotifModal=function(){var m=document.getElementById('_notifModal');if(m)m.remove();};
+
+
 
   window.renderNotifications=renderNotifications;
   window.updateAlertUI=function(){renderNotifications(false);};

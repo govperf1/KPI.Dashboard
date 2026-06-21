@@ -290,15 +290,15 @@ function applyRolePermissions(role,dept,perms){
       '[id$="-acts"],[onclick*="addAction"],' +
       '[onclick*="exportReport"],.rpt-edit-btn,button[title="Edit"],.edit-btn{display:none!important;}' +
       '[onclick*="openGap"]{display:inline-flex!important;' +
-      'background:rgba(217,119,6,.15)!important;color:#D97706!important;' +
-      'border:1px solid rgba(217,119,6,.3)!important;}';
+      'background:rgba(220,38,38,.12)!important;color:#DC2626!important;' +
+      'border:1px solid rgba(220,38,38,.3)!important;}';
     document.head.appendChild(sko);
     /* Inject a prominent Gap Analysis bar at page top */
     setTimeout(()=>{
       if(!document.getElementById('_kpoBar')){
         const bar=document.createElement('div');
         bar.id='_kpoBar';
-        bar.style.cssText='position:sticky;top:0;z-index:100;background:linear-gradient(90deg,#D97706,#B45309);padding:10px 20px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)';
+        bar.style.cssText='position:sticky;top:0;z-index:100;background:linear-gradient(135deg,#0d1b2e,#152538);border-bottom:2px solid #DC2626;padding:10px 20px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.25)';
         bar.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>'
           +'<span style="color:#fff;font-weight:700;font-size:13px">Gap Analysis Mode</span>'
           +'<span style="color:rgba(255,255,255,.7);font-size:11px">Click a KPI card to open Gap Analysis</span>';

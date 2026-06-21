@@ -1729,6 +1729,15 @@ function _scanDashboardForEditable(){
         }
         entry={key:_sk, displayVal:text};
       }
+      /* Check if text is a KPI name — route edits to ST.ov not ST.textEdits */
+      if(typeof allK === 'function'){
+        var _aK=allK();
+        for(var _i=0;_i<_aK.length;_i++){
+          var _kk=_aK[_i];
+          if((_kk.nameEn||'').trim()===text){ entry={key:'kpi_name:'+_kk.id+':en',displayVal:text}; break; }
+          if((_kk.nameAr||'').trim()===text){ entry={key:'kpi_name:'+_kk.id+':ar',displayVal:text}; break; }
+        }
+      }
       var key = entry.key;
       el.setAttribute('data-tkey', key);
       el.setAttribute('data-sa-bound','1');
@@ -1762,6 +1771,16 @@ function _showTextKeyPopup(key, anchorEl){
   var left = Math.max(8, Math.min(rect.left, window.innerWidth - 440));
   popup.style.top = top + 'px'; popup.style.left = left + 'px';
 
+  /* If KPI name key, read from ST.ov not ST.textEdits */
+  if(key.indexOf('kpi_name:') === 0){
+    var _parts0 = key.split(':');
+    var _kpiId0 = _parts0[1];
+    var _nameLang0 = _parts0[2];
+    var _ov0 = (ST.ov||{})[_kpiId0]||{};
+    var _kpiK0 = (typeof allK==='function'?allK():[]).find(function(x){return x.id===_kpiId0;})||{};
+    enVal = _ov0.nameEn || _kpiK0.nameEn || enVal;
+    arVal = _ov0.nameAr || _kpiK0.nameAr || arVal;
+  }
   var editLang = isAr ? 'ar' : 'en';
   var readLang = isAr ? 'en' : 'ar';
   var editVal  = isAr ? arVal : enVal;
@@ -1794,11 +1813,24 @@ function _showTextKeyPopup(key, anchorEl){
     ST.textEdits[key][editLang] = newVal;
     /* Apply immediately */
     /* Apply immediately to TR so all t() calls use new value */
-    if(typeof tSet === 'function') tSet(key, ST.textEdits[key].en, ST.textEdits[key].ar);
-    /* Update visible [data-tkey] spans right away (before re-render) */
+    /* For KPI name edits, save to ST.ov[id] instead of ST.textEdits */
+    if(key.indexOf('kpi_name:') === 0){
+      var _parts = key.split(':');
+      var _kpiId2 = _parts[1];
+      var _nameLang = _parts[2]; /* 'en' or 'ar' */
+      if(!ST.ov) ST.ov = {};
+      if(!ST.ov[_kpiId2]) ST.ov[_kpiId2] = {};
+      if(_nameLang === 'en') ST.ov[_kpiId2].nameEn = newVal;
+      else ST.ov[_kpiId2].nameAr = newVal;
+      /* Remove the se_ textEdit if it existed */
+      delete ST.textEdits[key];
+    } else {
+      if(typeof tSet === 'function') tSet(key, ST.textEdits[key].en, ST.textEdits[key].ar);
+    }
+    /* Update visible [data-tkey] spans right away */
     document.querySelectorAll('[data-tkey="'+key+'"]').forEach(function(el){ el.textContent = newVal; });
-    /* Save to Firestore + propagate to all users via persistST → renderCurrent */
-    persistST('TEXT_EDIT:'+key).then(function(){
+    /* Save to Firestore + propagate to all users */
+    persistST(key.indexOf('kpi_name:')===0 ? 'KPI_NAME_EDIT:'+key : 'TEXT_EDIT:'+key).then(function(){
       var fb = document.getElementById('_saPopFb');
       if(fb){fb.textContent='✓ '+(typeof lang!=='undefined'&&lang==='ar'?'تم الحفظ':'Saved — reflects for all users');fb.style.color='#16A34A';fb.style.display='block';}
       setTimeout(function(){ popup.remove(); }, 1200);
