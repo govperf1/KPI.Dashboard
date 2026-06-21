@@ -167,7 +167,7 @@ body{
 .tb-space{flex:1;min-width:8px}
 
 /* Filter chips */
-.filter-chips{display:flex;align-items:center;gap:4px;overflow-x:auto;flex-shrink:1;min-width:0;max-width:360px}
+.filter-chips{display:flex;align-items:center;gap:4px;overflow-x:auto;flex-shrink:1;min-width:0;max-width:520px;padding-bottom:2px}
 .fchip{
   font-size:var(--text-xs);font-weight:700;
   color:rgba(1,149,175,0.88);
@@ -1010,13 +1010,21 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 .dept-kpi-uniform-card{width:100%!important;max-width:420px!important;min-height:310px!important;}
 @media(max-width:900px){.dept-kpi-card-grid{grid-template-columns:1fr!important}.dept-kpi-uniform-card{max-width:100%!important}}
 .pci-table th{word-break:break-word;white-space:normal;line-height:1.4;vertical-align:top;}
+
+/* ── Top bar layout fix ── */
+.top-bar{display:flex;align-items:center;height:54px;padding:0 14px;gap:8px;overflow:hidden;background:var(--nav);border-bottom:1px solid rgba(255,255,255,.06);flex-wrap:nowrap;}
+.tb-btn{flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;}
+.filter-chips{display:flex;align-items:center;gap:4px;overflow-x:auto;flex-shrink:1;min-width:0;max-width:340px;scrollbar-width:none;}
+.filter-chips::-webkit-scrollbar{display:none;}
+.fchip{flex-shrink:0;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#_saEditTextBtn,#_saHubBackBtn{flex-shrink:0;font-size:9px!important;padding:4px 8px!important;max-width:90px;}
+.tb-space{flex:1;min-width:6px;}
+
 .fchip{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 /* ── Gap indicators: always red ── */
 .kpi-gap, .gap-label, .gap-badge, .gap-count, .gap-tag {
   color: var(--missed) !important;
 }
-.gap-row, tr.gap-row, .gap-row-bg {
-  background: var(--missed-dim) !important;
-  border-left: 3px solid var(--missed) !important;
-}
+/* Gap row: only left border — no full background (avoids KPO layout conflicts) */
+tr.gap-row { border-left: 3px solid var(--missed) !important; }
 .gap-dot { background: var(--missed) !important; }
