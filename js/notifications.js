@@ -602,15 +602,42 @@ function updateExecTrend(yr){
           ev.preventDefault();ev.stopPropagation();
           /* Mark as read — do NOT remove from list or notifCache */
           var s=readSeen(); if(s.indexOf(id)<0){s.push(id);writeSeen(s);}
-          /* Dim the dot to show it has been read */
+          /* Dim the dot immediately to show read state */
           if(dot) dot.style.background='#555';
-          /* Update badge count (unread only) */
+          /* Open centered modal with full notification content */
+          _showNotifModal(n);
+          /* Update badge count only */
           renderNotifications(false);
         };
       });
     }
     var clear=$('qumcClearNotifs'); if(clear){clear.onclick=function(ev){ev.preventDefault();ev.stopPropagation();writeSeen(readSeen().concat(getNotifications(false).map(function(n){return n.id;})));notifCache=[];renderNotifications(false);};}
   }
+
+    /* Centered modal for full notification message */
+    function _showNotifModal(n){
+      var prev=document.getElementById('_notifModal'); if(prev) prev.remove();
+      var isAr=(typeof lang!=='undefined'&&lang==='ar');
+      function _esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+      var level=n.level||'blue';
+      var bc=level==='red'?'#F87171':level==='orange'?'#FBBF24':'#0195af';
+      var modal=document.createElement('div');
+      modal.id='_notifModal';
+      modal.style.cssText='position:fixed;inset:0;z-index:10000;background:rgba(0,8,20,.82);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px;';
+      var box=document.createElement('div');
+      box.style.cssText='background:#0d1b2e;border:1px solid '+bc+';border-radius:16px;padding:28px;max-width:460px;width:100%;';
+      var sub=(n.meta||n.sub||'');
+      box.innerHTML='<div style="font-size:13px;font-weight:800;color:'+bc+';margin-bottom:12px">'+_esc(n.title||'Notification')+'</div>'
+        +(sub?'<div style="font-size:10px;color:#64748b;margin-bottom:10px">'+_esc(sub)+'</div>':'')
+        +(n.body?'<div style="font-size:11px;color:#e2e8f0;line-height:1.6;margin-bottom:14px">'+_esc(n.body)+'</div>':'')
+        +'<button style="width:100%;padding:9px;background:rgba(1,149,175,.15);border:1px solid rgba(1,149,175,.3);border-radius:8px;color:#0195af;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">'
+        +(isAr?'إغلاق':'Close')+'</button>';
+      box.querySelector('button').onclick=function(){modal.remove();};
+      modal.onclick=function(e){if(e.target===modal)modal.remove();};
+      modal.appendChild(box);
+      document.body.appendChild(modal);
+    }
+
   window.renderNotifications=renderNotifications;
   window.updateAlertUI=function(){renderNotifications(false);};
   window.buildUserAlerts=function(){return getNotifications(false);};
@@ -755,7 +782,22 @@ function updateExecTrend(yr){
     var msgEl=document.getElementById('reqMessageArea');
     var fbEl=document.getElementById('reqSubmitFb');
     var btnEl=document.getElementById('reqSubmitBtn');
-    if(!typeEl||!msgEl) return;
+
+    /* ── Diagnostic: show all failure conditions visibly ── */
+    function _showErr(msg){
+      if(fbEl){
+        fbEl.textContent=msg;
+        fbEl.style.color='#DC2626';
+        fbEl.style.background='rgba(220,38,38,.08)';
+        fbEl.style.padding='8px 12px';
+        fbEl.style.borderRadius='7px';
+        fbEl.style.fontWeight='600';
+        fbEl.style.fontSize='10.5px';
+        fbEl.style.display='block';
+      }
+      console.error('[UserReq]',msg);
+    }
+    if(!typeEl||!msgEl){_showErr('⚠ Form elements missing (reqTypeSelect/reqMessageArea)');return;}
     var reqType=typeEl.value.trim();
     var message=msgEl.value.trim();
     if(!message){
@@ -768,26 +810,28 @@ function updateExecTrend(yr){
     }
     if(btnEl){btnEl.disabled=true;btnEl.textContent=isAr?'جاري الإرسال...':'Submitting...';}
     if(fbEl){fbEl.style.display='none';}
-    /* Verify API and auth before calling Firebase */
+    /* Verify API and auth — show exact failure */
     if(typeof window._kpiRequestsSubmit!=='function'){
-      if(fbEl){fbEl.textContent='⚠ Request API not ready. Wait a moment and retry.';fbEl.style.color='#DC2626';fbEl.style.background='rgba(220,38,38,.08)';fbEl.style.display='block';}
+      _showErr('⚠ Firebase request API not loaded. Check: firebase.js type=module, no console errors.');
       if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'إرسال الطلب':'Submit Request';}
       return;
     }
     if(!window._fbUser){
-      if(fbEl){fbEl.textContent='⚠ Not authenticated — please re-login.';fbEl.style.color='#DC2626';fbEl.style.background='rgba(220,38,38,.08)';fbEl.style.display='block';}
+      _showErr('⚠ No authenticated user (window._fbUser is empty). Please log out and log in again.');
       if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'إرسال الطلب':'Submit Request';}
       return;
     }
+    console.log('[UserReq] Submitting as:', window._fbUser, 'type:', reqType);
     window._kpiRequestsSubmit(reqType,message).then(function(){
       if(fbEl){fbEl.textContent=isAr?'✓ تم إرسال طلبك بنجاح. سيتم الرد عليه قريباً.':'✓ Request submitted. You will be notified of the response.';fbEl.style.color='#16A34A';fbEl.style.background='rgba(22,163,74,.08)';fbEl.style.display='block';}
       if(msgEl)msgEl.value='';
       if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'إرسال طلب آخر':'Submit Another';}
       setTimeout(function(){var ov=document.getElementById('submitReqOv');if(ov)ov.remove();},3000);
     }).catch(function(e){
-      var errMsg = e.code ? (e.code + ': ' + e.message) : e.message;
-      /* Common Firestore rule errors */
-      if(e.code === 'permission-denied') errMsg = 'Firestore permission denied.\n\nPlease add this rule in Firebase Console → Firestore → Rules:\n\nmatch /kpi_requests/{doc} {\n  allow read, write: if request.auth != null;\n}';
+      var errMsg = (e.code ? e.code : '') + (e.message ? ': '+e.message : '');
+      if(!errMsg) errMsg = String(e);
+      /* Firestore permission-denied — show exact rule needed */
+      if(e.code === 'permission-denied') errMsg = '⛔ Firestore permission-denied.\nAdd this rule in Firebase Console → Firestore → Rules:\n  match /kpi_requests/{doc}{\n    allow read, write: if request.auth != null;\n  }';
       /* Fallback: save to localStorage */
       try{
         if(!window.ST) window.ST={};
@@ -798,7 +842,7 @@ function updateExecTrend(yr){
         if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'تم الحفظ محلياً':'Saved Locally';}
         return;
       }catch(_){}
-      if(fbEl){fbEl.textContent='⚠ '+errMsg;fbEl.style.color='#DC2626';fbEl.style.background='rgba(220,38,38,.08)';fbEl.style.display='block';}
+      _showErr('⚠ '+errMsg);
       if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'إرسال الطلب':'Submit Request';}
     });
   };

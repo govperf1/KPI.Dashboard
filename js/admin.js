@@ -1392,7 +1392,7 @@ function _injectSaEditTextBtn(){
   btn.title=isAr?'تعديل نصوص اللوحة':'Edit Dashboard Text';
   btn.textContent=isAr?'✏ نصوص':'✏ Text';
   btn.style.cssText='background:rgba(1,149,175,.15);border-color:rgba(1,149,175,.4);color:#0195af;font-weight:700;';
-  btn.onclick=function(){ _showSaTextEditorOverlay(); };
+  btn.onclick=function(){ _activateSaEditMode(); };
   var langBtn=document.getElementById('langBtn');
   if(langBtn&&langBtn.parentNode) langBtn.parentNode.insertBefore(btn,langBtn);
 }
