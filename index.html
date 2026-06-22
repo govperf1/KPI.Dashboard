@@ -758,13 +758,13 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <script type="module" src="js/firebase.js"></script>
 
 <!-- Application modules (loaded in dependency order) -->
-<script src="js/kpi.js"></script>
-<script src="js/translations.js"></script>
-<script src="js/dashboard.js"></script>
-<script src="js/reports.js"></script>
-<script src="js/admin.js"></script>
-<script src="js/notifications.js"></script>
-<script src="js/auth.js"></script>
+<script src="js/kpi.js?v=12"></script>
+<script src="js/translations.js?v=12"></script>
+<script src="js/dashboard.js?v=12"></script>
+<script src="js/reports.js?v=12"></script>
+<script src="js/admin.js?v=12"></script>
+<script src="js/notifications.js?v=12"></script>
+<script src="js/auth.js?v=12"></script>
 
 <!-- ── Password reset (type=module — Firebase imports required) ── -->
 <script id="qumc_reset_registered_only_patch" type="module">
@@ -820,22 +820,6 @@ window._doResetPassword=async function(){
   }
 };
 </script>
-
-
-<!-- ── Smart Dashboard Assistant (AI Widget) ── -->
-<div id="aiWin" style="display:none;position:fixed;bottom:80px;right:20px;z-index:9999;width:340px;background:linear-gradient(135deg,#0d1b2e,#0a2040);border:1px solid rgba(1,149,175,.4);border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.5);flex-direction:column;overflow:hidden;transition:opacity .22s,transform .22s;">
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08);">
-    <span style="font-size:11px;font-weight:800;color:#0195af">Dashboard Assistant</span>
-    <button onclick="aiToggle()" style="background:none;border:none;color:#64748B;cursor:pointer;font-size:14px;line-height:1;">✕</button>
-  </div>
-  <div id="aiBody" style="padding:12px;max-height:260px;overflow-y:auto;font-size:10.5px;color:#94A3B8;line-height:1.6;"></div>
-  <div style="display:flex;gap:8px;padding:10px 12px;border-top:1px solid rgba(255,255,255,.06);">
-    <input id="aiInp" type="text" placeholder="Ask about KPI data…" style="flex:1;padding:7px 10px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#e2e8f0;font-size:10.5px;outline:none;font-family:inherit" onkeydown="if(event.key==='Enter')aiSend()">
-    <button onclick="aiSend()" style="padding:7px 14px;background:rgba(1,149,175,.2);border:1px solid rgba(1,149,175,.3);border-radius:8px;color:#0195af;font-size:10.5px;font-weight:700;cursor:pointer;">Ask</button>
-  </div>
-</div>
-<!-- AI widget toggle button -->
-<button id="aiFloatBtn" onclick="aiToggle()" title="Dashboard Assistant" style="position:fixed;bottom:24px;right:24px;z-index:9999;padding:0 14px 0 10px;height:42px;min-width:42px;background:linear-gradient(135deg,#0195af,#005f7f);border:none;border-radius:21px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(1,149,175,.55);display:flex;align-items:center;gap:7px;letter-spacing:.02em;" aria-label="Open Dashboard Assistant"><span style="font-size:16px">⚡</span><span style="font-size:11px;white-space:nowrap">Assistant</span></button>
 
 </body>
 </html>
