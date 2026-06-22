@@ -2390,9 +2390,7 @@ function _saveCustomFormula(){
   if(!ST.masterKpis) ST.masterKpis = {};
   if(!ST.masterKpis[masterId]) ST.masterKpis[masterId] = {};
   ST.masterKpis[masterId].resultFormula = newFormula;
-  /* Also update BUILTIN_MASTER_KPIS in memory */
-  if(window.BUILTIN_MASTER_KPIS && window.BUILTIN_MASTER_KPIS[masterId])
-    window.BUILTIN_MASTER_KPIS[masterId].resultFormula = newFormula;
+  /* Do NOT mutate BUILTIN_MASTER_KPIS — ST.masterKpis is the override layer */
   persistST('FORMULA_EDIT:'+masterId).then(function(){
     if(fb){fb.textContent='✓ Formula saved';fb.style.color='#16A34A';fb.style.display='block';}
     /* Refresh the quarterly table with new formula */
@@ -2455,7 +2453,7 @@ function _saveEditFormula(){
   if(!ST.masterKpis)ST.masterKpis={};
   if(!ST.masterKpis[masterId])ST.masterKpis[masterId]={};
   ST.masterKpis[masterId].resultFormula=newF;
-  if(window.BUILTIN_MASTER_KPIS&&window.BUILTIN_MASTER_KPIS[masterId])window.BUILTIN_MASTER_KPIS[masterId].resultFormula=newF;
+  /* Do NOT mutate BUILTIN_MASTER_KPIS — ST.masterKpis is the persistent override layer */
   persistST('FORMULA_EDIT:'+masterId).then(function(){
     if(fb){fb.textContent='✓ Formula saved';fb.style.color='#16A34A';fb.style.display='block';}
     _updateEditQtrTable();

@@ -719,7 +719,7 @@ function updateExecTrend(yr){
     if(lo&&lo.dataset.qumcFinalV3!=='1'){lo.dataset.qumcFinalV3='1';lo.onclick=window.qumcLogoutToLogin;lo.addEventListener('click',window.qumcLogoutToLogin,true);}
   }
   document.addEventListener('click',function(ev){var w=$('userNotifyWidget');if(w&&w.contains(ev.target))return;var d=$('userAlertDrop');if(d){d.style.display='none';d.classList.remove('qumc-final-open','qumc-stay-open');}},true);
-  var oldUpdate=window.updateUserBadge; window.updateUserBadge=function(){try{if(oldUpdate)oldUpdate.apply(this,arguments);}catch(e){}notifCache=null;setTimeout(bindFinal,0);};
+  var oldUpdate=window.updateUserBadge; window.updateUserBadge=function(){try{if(oldUpdate)oldUpdate.apply(this,arguments);}catch(e){}setTimeout(bindFinal,0); /* do NOT clear notifCache here — history must survive badge refresh */};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindFinal);else bindFinal();
   setTimeout(function(){bindFinal();},1200); /* first init after FS load */
   setTimeout(function(){
