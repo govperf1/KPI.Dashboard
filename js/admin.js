@@ -531,7 +531,12 @@ function handleKpiNamePreset(langKey){
   const inp=document.getElementById(langKey==='en'?'aNE':'aNA');
   if(!sel||!inp)return;
   if(sel.value==='__other__'){
-    inp.value='';inp.readOnly=false;inp.style.background='#fff';inp.placeholder=langKey==='en'?'Type a new English KPI name…':'اكتب اسم مؤشر عربي جديد…';inp.focus();
+    inp.value='';inp.readOnly=false;inp.style.background='';inp.placeholder=langKey==='en'?'Type a new English KPI name…':'اكتب اسم مؤشر عربي جديد…';inp.focus();
+    /* CRITICAL: also clear the code field so it doesn't collide with a BASE KPI.
+       allK() dedup removes ST.added when same code exists in BASE, so the typed name
+       would be invisible — the BASE name would show instead.                        */
+    var _codeEl=document.getElementById('aC');
+    if(_codeEl){ _codeEl.value=''; _codeEl.placeholder='Enter unique KPI code…'; }
     /* Reset quarterly table — remove master config so Add KPI uses standard columns */
     var _qSec=document.getElementById('addQtrSection');
     if(_qSec){ _qSec.removeAttribute('data-master');
@@ -608,7 +613,7 @@ function loadEK(){
         var pciData=((ST.pci||{})[id]||{})[Q.toLowerCase()]||{};
         var plEl=document.getElementById('eAd'+Q+'_pl');if(plEl)plEl.value=pciData.planned||'';
         var coEl=document.getElementById('eAd'+Q+'_co');if(coEl)coEl.value=pciData.complete||'';
-        var icEl=document.getElementById('eAd'+Q+'_ic');if(icEl)icEl.value=pciData.incomplete||'';
+        var icEl=document.getElementById('eAd'+Q+'_ic');if(icEl)icEl.value=(pciData.incomplete!=null&&pciData.incomplete!==undefined)?pciData.incomplete:'';
         if(pciData.planned)calcAdminPCI(Q.toLowerCase(),'eAd');
       });
     }
@@ -901,7 +906,7 @@ async function saveNewKPI(){
   refreshAllViewsAfterKpiChange('KPI_ADD:'+code);
 
   /* ── 5. Show saving state ── */
-  _showFb('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="flex-shrink:0;animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"/></svg> Saving to cloud…',true);
+  _showFb('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" style="flex-shrink:0;animation:spin 1s linear infinite"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"/></svg> Saving…',true);
 
   /* ── 6. Save COMPLETE dashboard state to Firestore and await confirmation ── */
   let fsSaved=false;
@@ -925,10 +930,10 @@ async function saveNewKPI(){
 
   /* ── 7. Show result ── */
   if(fsSaved){
-    _showFb('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg> ✓ KPI "'+code+'" saved to cloud — visible in Dashboard',true);
+    _showFb('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg> ✓ KPI "'+code+'" saved',true);
   } else {
     /* Saved locally but not to Firestore */
-    _showFb('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg> KPI saved locally — cloud sync pending (visible after next login sync)',false);
+    _showFb('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg> KPI saved locally — sync pending',false);
   }
 
   /* ── 8. Jump filters so the new KPI is immediately VISIBLE on dashboard ── */
@@ -1198,7 +1203,7 @@ function saveAdmin(){
   if(action)addAudit(action,detail,window._editOldVal||null,window._editNewVal||null);window._editOldVal=null;window._editNewVal=null;
   /* Save to localStorage + Firestore via unified helper (no-loop, no auto-save) */
   persistST('KPI_EDIT').catch(function(e){
-    toast('⚠ '+(lang==='ar'?'لم يُحفظ في السحابة: ':'Cloud save failed: ')+(e.code||e.message));
+    toast('⚠ '+(lang==='ar'?'فشل الحفظ: ':'Save failed: ')+(e.code||e.message));
   });
   toast(lang==='ar'?'✓ تم الحفظ بنجاح':'✓ Saved successfully');
   updateBadge();
@@ -1231,9 +1236,9 @@ function populateDelKpiList(){
     const o=document.createElement('option');o.disabled=true;o.textContent='No KPIs available';
     sel.appendChild(o);
   }
-  /* Legend */
+  /* Legend hidden — no star explanations shown */
   const leg=document.getElementById('_delLegend');
-  if(leg)leg.style.display=all.length?'block':'none';
+  if(leg)leg.style.display='none';
 }
 function previewDelKpi(id){
   const prev=document.getElementById('delPreview');
@@ -1293,8 +1298,8 @@ function confirmDelKpi(){
     setTimeout(populateDelKpiList,200);
     renderYearFilter();
   }).catch(function(e){
-    toast('⚠ Deleted locally — cloud sync failed: '+(e.code||e.message));
-    if(_delFb){_delFb.innerHTML='⚠ Delete saved locally, cloud sync failed';_delFb.style.color='#D97706';_delFb.style.display='flex';}
+    toast('⚠ Delete failed to sync: '+(e.code||e.message));
+    if(_delFb){_delFb.innerHTML='⚠ Delete failed to sync';_delFb.style.color='#D97706';_delFb.style.display='flex';}
     renderYearFilter(); renderCurrent();
   });
 }
@@ -2191,7 +2196,7 @@ function _saveTextEdits(){
   persistST('TEXT_EDIT').then(function(){
     _teFeedback('Saved! Changes visible for all users.', true);
   }).catch(function(e){
-    _teFeedback('Saved locally. Cloud sync failed: '+e.message, false);
+    _teFeedback('Save failed: '+e.message, false);
   });
   addAudit('TEXT_EDIT','Updated '+changed+' text label(s)');
 }
@@ -2320,8 +2325,67 @@ function _updateAddQtrTable(){
     lbl.textContent = cfg ? ' Quarterly Values — Custom Fields' : ' Quarterly Values';
     lbl.style.color = cfg ? '#0195af' : '';
   }
+  /* ── Formula Editor: show below table when master config exists ── */
+  var existingFed = document.getElementById('_formulaEditorBox');
+  if(existingFed) existingFed.remove();
+  if(cfg && cfg.fieldConfig && cfg.fieldConfig.length > 0 && section){
+    var letters = cfg.fieldConfig.map(function(_,i){return String.fromCharCode(65+i);});
+    var isSa = (typeof window._fbRole!=='undefined'&&window._fbRole==='super_admin');
+    var fedDiv = document.createElement('div');
+    fedDiv.id = '_formulaEditorBox';
+    fedDiv.style.cssText = 'margin-top:10px;padding:12px 14px;background:rgba(1,149,175,.06);border:1px solid rgba(1,149,175,.2);border-radius:10px;';
+    var mapHtml = cfg.fieldConfig.map(function(f,i){
+      return '<span style="font-size:9.5px;color:#64748B;margin-right:12px"><b style="color:#0195af">'+letters[i]+'</b> = '+htmlEsc(f.nameEn)+'</span>';
+    }).join('');
+    var currentFormula = cfg.resultFormula || '';
+    fedDiv.innerHTML =
+      '<div style="font-size:9px;font-weight:700;color:#0195af;margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em">Formula Reference</div>'
+      +'<div style="margin-bottom:8px;flex-wrap:wrap">'+mapHtml+'</div>'
+      +'<div style="font-size:9px;font-weight:700;color:#64748B;margin-bottom:4px">Result Formula</div>'
+      +(isSa
+        ? '<div style="display:flex;gap:6px;align-items:center">'
+          +'<input id="_formulaInput" value="'+htmlEsc(currentFormula)+'" style="flex:1;padding:5px 8px;background:#fff;border:1px solid rgba(1,149,175,.35);border-radius:6px;font-size:11px;font-family:monospace;color:#152538" placeholder="e.g. (A+B)/2">'
+          +'<button onclick="_saveCustomFormula()" style="padding:5px 12px;background:rgba(1,149,175,.15);border:1px solid rgba(1,149,175,.3);border-radius:6px;color:#0195af;font-size:10px;font-weight:700;cursor:pointer">Save</button>'
+          +'</div>'
+          +'<div id="_formulaSaveFb" style="font-size:10px;color:#16A34A;margin-top:4px;display:none"></div>'
+        : '<div style="font-family:monospace;font-size:11px;color:#0195af;padding:4px 8px;background:rgba(1,149,175,.08);border-radius:6px;border:1px solid rgba(1,149,175,.18)">'+htmlEsc(currentFormula)+'</div>'
+      );
+    section.appendChild(fedDiv);
+  }
 }
 window._updateAddQtrTable = _updateAddQtrTable;
+
+/* Save custom formula from the inline formula editor */
+function _saveCustomFormula(){
+  var inp = document.getElementById('_formulaInput');
+  var fb  = document.getElementById('_formulaSaveFb');
+  var section = document.getElementById('addQtrSection');
+  var masterId = section ? section.getAttribute('data-master') : '';
+  if(!inp || !masterId){ if(fb){fb.textContent='No formula config to save.';fb.style.display='block';} return; }
+  var newFormula = inp.value.trim();
+  /* Basic validation */
+  try{
+    var testVals = {A:80,B:90,C:85,D:75};
+    var testExpr = newFormula.replace(/([A-Z])/g,function(m,l){return testVals[l]!==undefined?testVals[l]:'0';});
+    var result = new Function('return ('+testExpr+')')();
+    if(isNaN(result)||!isFinite(result)) throw new Error('Formula returns invalid number');
+  }catch(e){
+    if(fb){fb.textContent='⚠ Invalid formula: '+e.message;fb.style.color='#DC2626';fb.style.display='block';} return;
+  }
+  /* Save to ST.masterKpis (overrides BUILTIN for this key) */
+  if(!ST.masterKpis) ST.masterKpis = {};
+  if(!ST.masterKpis[masterId]) ST.masterKpis[masterId] = {};
+  ST.masterKpis[masterId].resultFormula = newFormula;
+  /* Also update BUILTIN_MASTER_KPIS in memory */
+  if(window.BUILTIN_MASTER_KPIS && window.BUILTIN_MASTER_KPIS[masterId])
+    window.BUILTIN_MASTER_KPIS[masterId].resultFormula = newFormula;
+  persistST('FORMULA_EDIT:'+masterId).then(function(){
+    if(fb){fb.textContent='✓ Formula saved';fb.style.color='#16A34A';fb.style.display='block';}
+    /* Refresh the quarterly table with new formula */
+    _updateAddQtrTable();
+  });
+}
+window._saveCustomFormula = _saveCustomFormula;
 
 /* Rebuild the Edit KPI quarterly table when KPI is loaded in edit panel */
 function _updateEditQtrTable(kpiNameEn){

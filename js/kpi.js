@@ -571,7 +571,7 @@ var BUILTIN_MASTER_KPIS = {
       { nameEn:'Compliance rate of critical care areas',               nameAr:'معدل الامتثال في مناطق الرعاية الحرجة',      type:'percentage', inputMode:'manual' },
       { nameEn:'Compliance rate of non-critical and regular areas',    nameAr:'معدل الامتثال في المناطق العادية وغير الحرجة',type:'percentage', inputMode:'manual' }
     ],
-    resultFormula: '(A + B + C) / 3'
+    resultFormula: '(A*0.3)+(B*0.5)+(C*0.2)'
   },
   'emergency_response_time': {
     nameEn: 'Emergency Request Response Time',
