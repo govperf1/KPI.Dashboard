@@ -437,18 +437,19 @@ function normalizeKpiRecord(k){
   ['q1','q2','q3','q4'].forEach(q=>{r[q]=_kpiPnSafe(r[q]);});
   
   /* Apply ST.pci quarterly results so added KPIs appear in trend chart */
-  if(typeof ST!=='undefined'&&ST.pci&&ST.pci[r.id]){
-    var _pciR=ST.pci[r.id];
-    ['q1','q2','q3','q4'].forEach(function(q){
-      if(r[q]!==null&&r[q]!==undefined) return;
-      var _qd=_pciR[q]; if(!_qd) return;
-      if(_qd._result!==null&&_qd._result!==undefined) r[q]=_qd._result;
-      else if(_qd.planned>0&&_qd.complete!==undefined) r[q]=Math.min(100,Math.round(_qd.complete/_qd.planned*100));
-    });
-  }
-return r;
-
-/* -- KPI data: allK, filt, qv, metStatus, ok, renderYearFilter, updateBadge -- */
+  try{
+    if(typeof ST!=='undefined'&&ST&&ST.pci&&ST.pci[r.id]){
+      var _pciR=ST.pci[r.id];
+      ['q1','q2','q3','q4'].forEach(function(q){
+        if(r[q]!==null&&r[q]!==undefined) return;
+        var _qd=_pciR[q]; if(!_qd) return;
+        if(_qd._result!==null&&_qd._result!==undefined) r[q]=_qd._result;
+        else if(_qd.planned&&_qd.planned>0&&_qd.complete!==undefined)
+          r[q]=Math.min(100,Math.round((_qd.complete||0)/_qd.planned*100));
+      });
+    }
+  }catch(_pciErr){}
+  return r;
 }
 function allK(){
   const _del=new Set((ST.deleted||[]).map(function(x){return String(x||'').toUpperCase();}));

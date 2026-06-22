@@ -192,7 +192,7 @@ window._selectPortal=async portal=>{
       if(!window._fbUser||!db) throw new Error('not authenticated');
       const ref=await addDoc(collection(db,'kpi_requests'),{
         userName: window._fbName||window._fbUser.split('@')[0],
-        userEmail: window._fbUser,
+        userEmail: (window._fbUser||'').toLowerCase().trim(),
         requestType: String(requestType||'General').trim(),
         message: String(message||'').trim(),
         status: 'pending',
@@ -216,12 +216,25 @@ window._selectPortal=async portal=>{
     window._kpiRequestsGetMine=async function(){
       if(!window._fbUser||!db) return [];
       try{
+        /* Filter only by email — avoids composite index requirement.
+           Sort newest-first on client. */
+        const _email=(window._fbUser||'').toLowerCase().trim();
         const snap=await getDocs(query(collection(db,'kpi_requests'),
-          where('userEmail','==',window._fbUser),
-          orderBy('createdAt','desc')));
-        return snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});
-      }catch(e){console.warn('[Requests] getMine:',e.message);return [];}
-    };
+          where('userEmail','==',_email)));
+        const rows=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+        rows.sort(function(a,b){
+          var ta=(a.createdAt&&a.createdAt.seconds)||0;
+          var tb=(b.createdAt&&b.createdAt.seconds)||0;
+          return tb-ta;
+        });
+        return rows;
+      }catch(e){
+        console.warn('[Requests] getMine error:',e.code||'',e.message);
+        if(e.message&&e.message.indexOf('index')>-1)
+          console.info('[Requests] Tip: remove orderBy or create composite index in Firebase Console');
+        return [];
+      }
+    }
 
     /* SA: respond to a request */
     window._kpiRequestsRespond=async function(requestId,status,comment){
