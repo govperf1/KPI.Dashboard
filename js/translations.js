@@ -19,6 +19,7 @@
                BEFORE dashboard.js (provides t())
    =========================================================== */
 
+console.log('[TR] translations.js executing...');
 /* ─── Central Translation Table ─── */
 /* Edit here OR via the Translation Editor (Super Admin).
    ST.textEdits overrides take priority over these base values. */
@@ -163,6 +164,9 @@ function t(key) {
   }
   return val;
 }
+/* Export t immediately — before any code that could throw */
+window.t = t;
+
 
 /* tText(key) — always returns plain text, NEVER wraps in span.
    Use this for .textContent assignments and DOM element text nodes.  */
@@ -238,12 +242,14 @@ function applyDOMTranslations() {
 function applyTextEdits() { applyDOMTranslations(); }
 
 /* Expose to global scope so all modules can call t() */
+console.log('[TR] exporting TR, tBoth, tSet...');
 window.TR   = TR;
 window.t    = t;
 window.tBoth = tBoth;
 window.tSet  = tSet;
 window.applyTextEdits       = applyTextEdits;
 window.applyDOMTranslations = applyDOMTranslations;
+console.log('[TR] loaded — typeof t:', typeof t, '| typeof window.t:', typeof window.t);
 
 /* ─── Language toggle, tab navigation, render dispatcher ─── */
 function toggleLang(){
