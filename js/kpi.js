@@ -521,28 +521,51 @@ function aiToggle(){
 }
 window.aiToggle=aiToggle;
 function aiSend(){
-  /* HTML uses id="aiInp" for input, id="aiBody" for output */
   var inp=document.getElementById('aiInp')||document.getElementById('aiInput');
   var out=document.getElementById('aiBody')||document.getElementById('aiOut');
   if(!inp||!out) return;
   var q=inp.value.trim(); if(!q) return; inp.value='';
   function _e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');}
   out.innerHTML+='<div style="color:#0195af;font-weight:700;margin:6px 0 2px">You: '+_e(q)+'</div>';
-  var ctx='KPI Dashboard Summary: ';
-  if(typeof allK==='function'){var ks=allK();ctx+='Total KPIs: '+ks.length+'. ';ks.slice(0,8).forEach(function(k){ctx+=k.nameEn+'(dept:'+k.dept+',target:'+k.target+'%,Q1:'+(k.q1!==null&&k.q1!==undefined?k.q1+'%':'—')+'); ';});}
-  out.innerHTML+='<div style="color:#64748B;font-style:italic;margin-bottom:4px">Thinking…</div>';
   out.scrollTop=out.scrollHeight;
-  fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:400,messages:[{role:'user',content:'You are a KPI performance assistant for Qassim University Medical City, Facilities & Safety Division. '+ctx+' Answer the user question briefly (2-4 sentences): '+q}]})
-  }).then(function(r){return r.json();}).then(function(d){
-    var a=(d.content&&d.content[0]&&d.content[0].text)||'Unable to respond at this time.';
-    out.innerHTML=out.innerHTML.replace('<div style="color:#64748B;font-style:italic;margin-bottom:4px">Thinking…</div>','');
-    out.innerHTML+='<div style="color:#e2e8f0;line-height:1.6;margin-bottom:8px">'+_e(a)+'</div>';
+  /* Local KPI analytical engine — works without external API */
+  setTimeout(function(){
+    var ans='';
+    try{
+      var ks=(typeof allK==='function')?allK():[];
+      var qLow=q.toLowerCase();
+      function pn(v){return(v!==null&&v!==undefined&&!isNaN(parseFloat(v)))?parseFloat(v):null;}
+      function isMet(k){var vs=[pn(k.q1),pn(k.q2),pn(k.q3),pn(k.q4)].filter(function(v){return v!==null;});return vs.some(function(v){return v>=k.target;});}
+      var met=ks.filter(isMet);
+      var missed=ks.filter(function(k){var vs=[pn(k.q1),pn(k.q2),pn(k.q3),pn(k.q4)].filter(function(v){return v!==null;});return vs.length>0&&!isMet(k);});
+      var depts={};
+      ks.forEach(function(k){if(!depts[k.dept])depts[k.dept]=[];depts[k.dept].push(k);});
+      if(/best|top|high/i.test(q)){
+        var ranks=Object.keys(depts).map(function(d){var ks2=depts[d],m=ks2.filter(isMet);return{d:d,pct:ks2.length?Math.round(m.length/ks2.length*100):0};}).sort(function(a,b){return b.pct-a.pct;});
+        ans='Best performing department: '+(ranks[0]?ranks[0].d+' ('+ranks[0].pct+'% KPIs meeting target)':'No data.')+'. All departments: '+ranks.map(function(r){return r.d+' '+r.pct+'%';}).join(', ')+'.';
+      } else if(/worst|poor|risk|low/i.test(q)){
+        ans='KPIs at risk ('+missed.length+'): '+missed.slice(0,5).map(function(k){var vs=[pn(k.q1),pn(k.q2),pn(k.q3),pn(k.q4)].filter(function(v){return v!==null;});var avg=vs.length?Math.round(vs.reduce(function(a,b){return a+b;},0)/vs.length):null;return k.nameEn+(avg!==null?' (avg '+avg+'%/target '+k.target+'%)':'');}).join('; ')+'.';
+      } else if(/miss|below|fail/i.test(q)){
+        ans='Missed KPIs: '+missed.length+' of '+ks.length+'. Examples: '+missed.slice(0,4).map(function(k){return k.nameEn+'['+k.dept+']';}).join(', ')+(missed.length>4?' + '+(missed.length-4)+' more':'')+'.';
+      } else if(/summar|overview|status|total|all/i.test(q)){
+        ans='Summary: '+ks.length+' KPIs across '+Object.keys(depts).length+' departments. '+met.length+' meeting target ('+Math.round(met.length/Math.max(ks.length,1)*100)+'%). '+missed.length+' below target. Departments: '+Object.keys(depts).map(function(d){var m=depts[d].filter(isMet);return d+'('+m.length+'/'+depts[d].length+')';}).join(', ')+'.';
+      } else if(/dept|division|team|section/i.test(q)){
+        ans='Departments: '+Object.keys(depts).map(function(d){var ks2=depts[d],m=ks2.filter(isMet);return d+': '+m.length+'/'+ks2.length+' KPIs met ('+Math.round(m.length/Math.max(ks2.length,1)*100)+'%)';}).join(' | ')+'.';
+      } else if(/trend|improv|increas|grow/i.test(q)){
+        var imp=ks.filter(function(k){var q1=pn(k.q1),q4=pn(k.q4);return q1!==null&&q4!==null&&q4>q1;}).slice(0,4);
+        ans='Improving KPIs: '+(imp.length?imp.map(function(k){return k.nameEn+' (Q1:'+k.q1+'%→Q4:'+k.q4+'%)';}).join(', '):'No clear improvement trend detected.')+'.';
+      } else {
+        var found=ks.filter(function(k){return k.nameEn.toLowerCase().indexOf(qLow)>-1||(k.nameAr&&k.nameAr.indexOf(q)>-1)||k.dept.toLowerCase().indexOf(qLow)>-1;}).slice(0,4);
+        if(found.length){
+          ans='Matching KPIs: '+found.map(function(k){var vs=[pn(k.q1),pn(k.q2),pn(k.q3),pn(k.q4)].filter(function(v){return v!==null;});var avg=vs.length?Math.round(vs.reduce(function(a,b){return a+b;},0)/vs.length):null;return k.nameEn+'['+k.dept+'] target:'+k.target+'%'+(avg!==null?' avg:'+avg+'%':' no data');}).join(' | ')+'.';
+        } else {
+          ans='Dashboard: '+ks.length+' KPIs, '+met.length+' meeting targets ('+Math.round(met.length/Math.max(ks.length,1)*100)+'%). Try asking: summary, best/worst department, missed KPIs, trends, or search by KPI name.';
+        }
+      }
+    }catch(err){ ans='Analysis error: '+err.message; }
+    out.innerHTML+='<div style="color:#e2e8f0;line-height:1.6;margin-bottom:8px;padding:8px 10px;background:rgba(1,149,175,.07);border-radius:8px;border-left:3px solid #0195af">'+_e(ans)+'</div>';
     out.scrollTop=out.scrollHeight;
-  }).catch(function(e){
-    out.innerHTML=out.innerHTML.replace('<div style="color:#64748B;font-style:italic;margin-bottom:4px">Thinking…</div>','');
-    out.innerHTML+='<div style="color:#F87171;margin-bottom:4px">Error: '+_e(e.message)+'</div>';
-  });
+  },60);
 }
 window.aiSend=aiSend;
 

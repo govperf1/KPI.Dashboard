@@ -561,7 +561,15 @@ function updateExecTrend(yr){
   }
   function getNotifications(force){
     var key=userKey();
-    if(force||key!==notifCacheKey||!notifCache){notifCacheKey=key;notifCache=rawNotifications();}
+    if(force||key!==notifCacheKey||!notifCache){
+      notifCacheKey=key;
+      var _rebuilt=rawNotifications();
+      /* Merge: if rebuild returned items use them; if empty keep any existing history */
+      if(_rebuilt.length>0 || !notifCache){
+        notifCache=_rebuilt;
+      }
+      /* If _rebuilt is empty but we had history, silently keep it */
+    }
     var seen=readSeen();
     /* force=true: unread only (badge count); force=false: all (list display) */
     return force?(notifCache||[]).filter(function(n){return seen.indexOf(n.id)===-1;}):(notifCache||[]);
@@ -714,7 +722,16 @@ function updateExecTrend(yr){
   var oldUpdate=window.updateUserBadge; window.updateUserBadge=function(){try{if(oldUpdate)oldUpdate.apply(this,arguments);}catch(e){}notifCache=null;setTimeout(bindFinal,0);};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindFinal);else bindFinal();
   setTimeout(function(){bindFinal();},1200); /* first init after FS load */
-  setTimeout(function(){notifCache=null;bindFinal();},4000); /* refresh with fresh data */
+  setTimeout(function(){
+  /* Merge refresh: rebuild only if rawNotifications returns items; keep history otherwise */
+  var _fresh=(typeof rawNotifications==='function')?rawNotifications():[];
+  if(_fresh.length>0){
+    /* New data found — use it */
+    notifCache=_fresh;
+  }
+  /* If empty, keep existing notifCache (history remains visible) */
+  bindFinal();
+},4000); /* refresh with fresh data, keep history if empty */
 })();
 
 
