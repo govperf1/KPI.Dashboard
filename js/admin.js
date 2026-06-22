@@ -535,7 +535,8 @@ function handleKpiNamePreset(langKey){
     /* CRITICAL: also clear the code field so it doesn't collide with a BASE KPI.
        allK() dedup removes ST.added when same code exists in BASE, so the typed name
        would be invisible — the BASE name would show instead.                        */
-    /* Code field kept as-is — user may keep or change their code. Collision check happens at save. */
+    var _codeEl=document.getElementById('aC');
+    if(_codeEl){ _codeEl.value=''; _codeEl.placeholder='Enter unique KPI code…'; }
     /* Reset quarterly table — remove master config so Add KPI uses standard columns */
     var _qSec=document.getElementById('addQtrSection');
     if(_qSec){ _qSec.removeAttribute('data-master');
@@ -847,19 +848,7 @@ async function saveNewKPI(){
     q4:pn(_gv('aQ4',''))
   };
 
-  /* ── 4. Check for BASE KPI collision when using custom name ──
-     allK() dedup: BASE wins when code matches. Warn if custom name differs. */
-  const _isOtherMode = !document.getElementById('aNEPreset') ||
-    (document.getElementById('aNEPreset').value === '__other__') ||
-    (document.getElementById('aNEPreset').value === '');
-  if(_isOtherMode){
-    const _baseKpi = (typeof BASE!=='undefined'?BASE:[]).find(function(k){return String(k.id||'').toUpperCase()===code;});
-    if(_baseKpi){
-      _showFb('⚠ Code "'+code+'" already exists as "'+_baseKpi.nameEn+'". Please use a different code for your custom KPI.',false);
-      return;
-    }
-  }
-  /* ── Append to main state array (ST.added) ── */
+  /* ── 4. Append to main state array (ST.added) ── */
   if(!ST.added)ST.added=[];
   /* Filter uses case-sensitive compare — code is already uppercase */
   ST.added=ST.added.filter(function(k){return String(k.id||'').toUpperCase()!==code;});
@@ -2477,13 +2466,8 @@ function _fillQtrFormFromPci(kpiId, prefix, sectionId){
     } else {
       var plEl = document.getElementById(prefix+Q+'_pl');
       var coEl = document.getElementById(prefix+Q+'_co');
-      var icEl = document.getElementById(prefix+Q+'_ic');
-      if(plEl) plEl.value = (qd.planned!=null&&qd.planned!==undefined) ? qd.planned : '';
-      if(coEl) coEl.value = (qd.complete!=null&&qd.complete!==undefined) ? qd.complete : '';
-      /* FIX: also fill Incomplete — was previously missing */
-      if(icEl) icEl.value = (qd.incomplete!=null&&qd.incomplete!==undefined) ? qd.incomplete : '';
-      /* Recalculate displayed result for this quarter */
-      if(qd.planned) calcAdminPCI(Q.toLowerCase(), prefix);
+      if(plEl) plEl.value = qd.planned || '';
+      if(coEl) coEl.value = qd.complete || '';
     }
   });
 }
