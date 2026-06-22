@@ -397,6 +397,9 @@ window._selectPortal=async portal=>{
         if(typeof renderYearFilter==='function') renderYearFilter(); /* update year filters with loaded data */
         if(typeof renderCurrent==='function') renderCurrent();
         if(typeof updateBadge==='function') updateBadge();
+        /* Update notification badge for all roles after Firestore data loads */
+        if(typeof window.updateAlertUI==='function') window.updateAlertUI();
+        else if(typeof window.renderNotifications==='function') window.renderNotifications(false);
       }catch(e){ console.warn('[FS] onFSLoaded error:',e); }
     };
 
