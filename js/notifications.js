@@ -15,163 +15,170 @@
      firebase.js  (window._doLogout, window._fbUser)
    =========================================================== */
 
-/* -- AI Assistant widget (aiToggle + canvas trend charts) -- */
+/* -- AI Assistant widget (local KPI intelligence, no external API) -- */
 function aiToggle(){
-  const w=document.getElementById('aiWin');
-  if(!w)return;
-  const show=w.style.display!=='flex';
+  var w=document.getElementById('aiWin');
+  if(!w) return;
+  var show=!(w.style.display==='flex' || w.classList.contains('open'));
   w.style.display=show?'flex':'none';
+  w.classList.toggle('open', show);
   if(show){
-    w.style.opacity='0';w.style.transform='translateY(12px) scale(.96)';
-    requestAnimationFrame(()=>requestAnimationFrame(()=>{
-      w.style.transition='opacity .22s,transform .22s';
-      w.style.opacity='1';w.style.transform='none';
-    }));
-    setTimeout(()=>{const i=document.getElementById('aiInp');if(i)i.focus();},220);
+    setTimeout(function(){var i=document.getElementById('aiInp'); if(i) i.focus();},120);
   }
 }
-function aiAsk(t){const i=document.getElementById('aiInp');if(i){i.value=t;aiSend();}}
+window.aiToggle=aiToggle;
+
+function aiAsk(t){
+  var i=document.getElementById('aiInp');
+  if(i){i.value=t; aiSend();}
+}
+window.aiAsk=aiAsk;
+
+function _aiEsc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function _aiFmt(txt){return _aiEsc(txt).replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');}
 function aiAddMsg(txt,role){
-  const el=document.getElementById('aiMsgs');if(!el)return null;
-  const isUser=role==='user';const isLoad=role==='loading';
-  const wrap=document.createElement('div');
-  wrap.style.cssText='display:flex;gap:9px;align-items:flex-start;'+(isUser?'flex-direction:row-reverse':'');
-  const av=document.createElement('div');
-  av.style.cssText='width:30px;height:30px;border-radius:10px;background:'+(isUser?'#152538':'linear-gradient(135deg,#152538,#00A3C4)')+';display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0';
-  av.textContent=isUser?'':'';
-  const bub=document.createElement('div');
-  bub.style.cssText='max-width:87%;padding:11px 13px;border-radius:'+(isUser?'14px 4px 14px 14px':'4px 14px 14px 14px')+';font-size:12px;line-height:1.70;color:'+(isUser?'#fff':'#1E293B')+';background:'+(isUser?'linear-gradient(135deg,#152538,#1E3356)':'#F0F9FF')+';border:1px solid '+(isUser?'transparent':'#BFDBFE');
-  if(isLoad){
-    bub.innerHTML='<span style="display:flex;gap:5px;padding:2px 0"><span style="width:8px;height:8px;border-radius:50%;background:#00A3C4;display:inline-block;animation:aiDot 1.4s 0s infinite"></span><span style="width:8px;height:8px;border-radius:50%;background:#00A3C4;display:inline-block;animation:aiDot 1.4s .47s infinite"></span><span style="width:8px;height:8px;border-radius:50%;background:#00A3C4;display:inline-block;animation:aiDot 1.4s .93s infinite"></span></span>';
-  }else{
-    bub.innerHTML=txt.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');
-  }
-  wrap.appendChild(av);wrap.appendChild(bub);
-  el.appendChild(wrap);el.scrollTop=el.scrollHeight;
-  return bub;
+  var box=document.getElementById('aiMsgs')||document.getElementById('aiBody');
+  if(!box) return null;
+  var d=document.createElement('div');
+  d.className='ai-msg-bubble '+(role==='user'?'user':'assistant')+(role==='loading'?' loading':'');
+  d.innerHTML=(role==='loading')?'<span class="ai-typing"><i></i><i></i><i></i></span>':(role==='user'?_aiEsc(txt):_aiFmt(txt));
+  box.appendChild(d);
+  box.scrollTop=box.scrollHeight;
+  return d;
+}
+
+function _aiNum(v){
+  if(v===null||v===undefined||v==='') return null;
+  var n=parseFloat(v); return isNaN(n)?null:n;
+}
+function _aiVal(k){
+  try{ if(typeof qv==='function') return qv(k); }catch(e){}
+  var qs=(window.F&&Array.isArray(window.F.qtr)&&!window.F.qtr.includes('all'))?window.F.qtr:['q1','q2','q3','q4'];
+  var vs=qs.map(function(q){return _aiNum(k&&k[q]);}).filter(function(v){return v!==null;});
+  return vs.length?vs.reduce(function(a,b){return a+b;},0)/vs.length:null;
+}
+function _aiMet(k){
+  try{ if(typeof ok==='function') return ok(k); }catch(e){}
+  var v=_aiVal(k), t=_aiNum(k&&k.target);
+  if(v===null||t===null) return null;
+  if(k&&k.op==='<=') return v<=t;
+  if(k&&k.op==='=') return Math.abs(v-t)<=0.05;
+  return v>=t;
+}
+function _aiName(k){return (k&&(k.nameEn||k.name||k.title||k.id))||'Unnamed KPI';}
+function _aiDeptLabel(d){
+  var m=(typeof DM!=='undefined'&&DM&&DM[d])?DM[d]:null;
+  return m?(m.abbr||m.en||d):d;
+}
+function _aiGetKpis(){
+  var ks=[];
+  try{ ks=(typeof filt==='function')?filt():((typeof allK==='function')?allK():[]); }catch(e){ks=[];}
+  return (ks||[]).filter(function(k){return k&&typeof k==='object';});
+}
+function _aiAvg(arr){
+  var v=arr.filter(function(x){return x!==null&&x!==undefined&&!isNaN(x);});
+  return v.length?v.reduce(function(a,b){return a+b;},0)/v.length:null;
+}
+function _aiPct(v){return v===null||v===undefined?'N/A':(Math.round(v*10)/10)+'%';}
+function _aiStatusLine(k){
+  var v=_aiVal(k), met=_aiMet(k), code=k.id||k.code||'';
+  return '• '+code+' — '+_aiName(k)+': '+_aiPct(v)+' / target '+(k.target!=null?k.target+'%':'N/A')+' — '+(met===true?'Met':met===false?'Missed':'Pending');
+}
+function _aiForecastText(){
+  try{
+    if(typeof calcForecastYE==='function'){
+      var r=calcForecastYE();
+      if(r&&r.exec!=null){
+        var lines=['**Forecast YE analysis**','Overall forecast: **'+_aiPct(r.exec)+'**'];
+        if(r.byDept){
+          Object.keys(r.byDept).sort(function(a,b){return r.byDept[b]-r.byDept[a];}).forEach(function(d){
+            lines.push('• '+_aiDeptLabel(d)+': '+_aiPct(r.byDept[d]));
+          });
+        }
+        return lines.join('\n');
+      }
+    }
+  }catch(e){}
+  return 'Forecast data is not available for the current filter.';
 }
 function aiAnalyze(q){
-  const safeOk=k=>{try{return typeof ok==='function'?ok(k):null;}catch(e){return null;}};
-  const safeQv=k=>{try{return typeof qv==='function'?qv(k):null;}catch(e){return null;}};
-  const ks=(typeof filt==='function')?filt():[];
-  const metKs=ks.filter(k=>safeOk(k)===true);
-  const missKs=ks.filter(k=>safeOk(k)===false);
-  const pendKs=ks.filter(k=>safeOk(k)===null);
-  const total=ks.length;
-  const DMs=(typeof DM!=='undefined')?DM:{};
-  const avgV=ks.map(k=>safeQv(k)).filter(v=>v!==null);
-  const avg=avgV.length?+(avgV.reduce((a,b)=>a+b,0)/avgV.length).toFixed(1):null;
-  const rate=total?Math.round(metKs.length/total*100):0;
-  const dS=Object.keys(DMs).map(d=>{
-    const dk=ks.filter(k=>k.dept===d);if(!dk.length)return null;
-    const dvs=dk.map(k=>safeQv(k)).filter(v=>v!==null);
-    const da=dvs.length?+(dvs.reduce((a,b)=>a+b,0)/dvs.length).toFixed(1):null;
-    const dr=dk.length?Math.round(dk.filter(k=>safeOk(k)===true).length/dk.length*100):0;
-    return{d,abbr:DMs[d].abbr||d,avg:da,rate:dr,total:dk.length,met:dk.filter(k=>safeOk(k)===true).length,miss:dk.filter(k=>safeOk(k)===false).length};
-  }).filter(Boolean);
-  const qD=['q1','q2','q3','q4'].map((q,i)=>{
-    const vs=ks.map(k=>k[q]).filter(v=>v!==null);
-    const av=vs.length?+(vs.reduce((a,b)=>a+b,0)/vs.length).toFixed(1):null;
-    return{q:'Q'+(i+1),avg:av,met:ks.filter(k=>k[q]!==null&&k[q]>=k.target).length,miss:ks.filter(k=>k[q]!==null&&k[q]<k.target).length,has:vs.length>0};
+  var query=String(q||'').trim();
+  var low=query.toLowerCase();
+  var ks=_aiGetKpis();
+  var evaluated=ks.map(function(k){return {k:k,v:_aiVal(k),m:_aiMet(k)};});
+  var withResult=evaluated.filter(function(x){return x.v!==null;});
+  var met=evaluated.filter(function(x){return x.m===true;});
+  var missed=evaluated.filter(function(x){return x.m===false;});
+  var avg=_aiAvg(withResult.map(function(x){return x.v;}));
+  var depts={};
+  ks.forEach(function(k){var d=k.dept||'unknown'; if(!depts[d]) depts[d]=[]; depts[d].push(k);});
+  var deptRows=Object.keys(depts).map(function(d){
+    var list=depts[d], vals=list.map(_aiVal).filter(function(v){return v!==null;});
+    var m=list.filter(function(k){return _aiMet(k)===true;}).length;
+    var miss=list.filter(function(k){return _aiMet(k)===false;}).length;
+    return {dept:d,label:_aiDeptLabel(d),total:list.length,met:m,miss:miss,avg:_aiAvg(vals)};
+  }).sort(function(a,b){return (b.avg||-1)-(a.avg||-1);});
+
+  if(!ks.length) return 'No KPI records match the current dashboard filters. Try changing year, quarter, department, or status.';
+
+  if(/forecast|توقع|فا?ركاست|ye/i.test(low)) return _aiForecastText();
+
+  if(/best|top|أفضل|افضل|الأفضل|اعلى|highest/i.test(low)){
+    var b=deptRows[0];
+    return b?'**Best department**\n'+b.label+' is currently leading with average **'+_aiPct(b.avg)+'** and '+b.met+'/'+b.total+' KPIs met.\n\n'+deptRows.map(function(d){return '• '+d.label+': '+_aiPct(d.avg)+' | met '+d.met+'/'+d.total;}).join('\n'):'No department data.';
+  }
+  if(/worst|lowest|risk|ضعيف|اسوأ|أسوأ|اقل|أقل/i.test(low)){
+    var rows=deptRows.slice().sort(function(a,b){return (a.avg||999)-(b.avg||999);});
+    var w=rows[0];
+    return w?'**Lowest performance / risk area**\n'+w.label+' has average **'+_aiPct(w.avg)+'** with '+w.miss+' missed KPI(s).\n\n'+rows.map(function(d){return '• '+d.label+': '+_aiPct(d.avg)+' | missed '+d.miss;}).join('\n'):'No department data.';
+  }
+  if(/miss|below|fail|not met|غير محقق|متعثر|missed/i.test(low)){
+    return missed.length?'**Missed KPIs ('+missed.length+')**\n'+missed.slice(0,12).map(function(x){return _aiStatusLine(x.k);}).join('\n')+(missed.length>12?'\n… +'+(missed.length-12)+' more':''):'All evaluated KPIs are currently met under the selected filters.';
+  }
+  if(/department|dept|قسم|الأقسام|الاقسام|division/i.test(low)){
+    return '**Department summary**\n'+deptRows.map(function(d){return '• '+d.label+': average '+_aiPct(d.avg)+' | met '+d.met+'/'+d.total+' | missed '+d.miss;}).join('\n');
+  }
+  if(/trend|تحسن|انخفاض|increase|decrease|quarter|ربع/i.test(low)){
+    var trend=ks.map(function(k){
+      var qs=['q1','q2','q3','q4'].map(function(q){return _aiNum(k[q]);});
+      var first=qs.find(function(v){return v!==null;});
+      var last=qs.slice().reverse().find(function(v){return v!==null;});
+      return {k:k,first:first,last:last,delta:(first!==undefined&&last!==undefined&&first!==null&&last!==null)?last-first:null};
+    }).filter(function(x){return x.delta!==null;}).sort(function(a,b){return Math.abs(b.delta)-Math.abs(a.delta);});
+    return trend.length?'**KPI trend movement**\n'+trend.slice(0,8).map(function(x){return '• '+(x.k.id||'')+' — '+_aiName(x.k)+': '+(x.delta>=0?'+':'')+(Math.round(x.delta*10)/10)+' pp';}).join('\n'):'No quarterly trend can be calculated for the current filter.';
+  }
+
+  var found=ks.filter(function(k){
+    var hay=[k.id,k.code,k.nameEn,k.nameAr,k.dept].map(function(x){return String(x||'').toLowerCase();}).join(' | ');
+    return hay.indexOf(low)>-1;
   });
-  const lastQ=qD.filter(x=>x.has).pop();
-
-  if(/مرحب|هلا|hello|hi\b|hey\b/i.test(q))
-    return 'مرحباً! \n\n**الوضع الراهن:**\n '+total+' مؤشر |  '+metKs.length+' محقق |  '+missKs.length+' غير محقق\n متوسط: **'+(avg||'N/A')+'%** | تحقيق: **'+rate+'%**\n\nاسألني عن أي شيء!';
-
-  if(/ملخص|اجمال|overview|summary/i.test(q)){
-    const dl=dS.map(d=>'• **'+d.abbr+'**: '+(d.avg||'N/A')+'% | '+d.met+' '+d.miss+'').join('\n');
-    return ' **ملخص الأداء**\n\n'+total+' مؤشر |  '+metKs.length+' ('+rate+'%) |  '+missKs.length+' | ⏳ '+pendKs.length+'\nمتوسط: **'+(avg||'N/A')+'%**\n\n**الأقسام:**\n'+(dl||'لا بيانات');
+  if(found.length && low.length>2){
+    return '**KPI search result**\n'+found.slice(0,10).map(_aiStatusLine).join('\n')+(found.length>10?'\n… +'+(found.length-10)+' more':'');
   }
 
-  if(/صيانة|maintenance|mnt/i.test(q)){
-    const d=dS.find(x=>x.d==='maintenance');
-    if(!d)return 'لا بيانات لقسم الصيانة في الفلتر الحالي.';
-    const mk=missKs.filter(k=>k.dept==='maintenance');
-    return ' **الصيانة (MNT)**\n\n'+d.total+' مؤشر |  '+d.met+' |  '+d.miss+'\nمتوسط: **'+(d.avg||'N/A')+'%** | تحقيق: **'+d.rate+'%**\n\n'+(mk.length?'**المتعثرة:**\n'+mk.map(k=>'• '+k.id+': '+(safeQv(k)||'N/A')+'% (هدف: '+k.target+'%)').join('\n'):' جميع مؤشرات الصيانة محققة!');
-  }
-
-  if(/سلامة|safety|saf/i.test(q)){
-    const d=dS.find(x=>x.d==='safety');
-    if(!d)return 'لا بيانات لقسم السلامة في الفلتر الحالي.';
-    const mk=missKs.filter(k=>k.dept==='safety');
-    const t1m=mk.filter(k=>(k.tier||3)===1);
-    return ' **السلامة (SAF)**\n\n'+d.total+' مؤشر |  '+d.met+' |  '+d.miss+'\nمتوسط: **'+(d.avg||'N/A')+'%**'+(t1m.length?'\n '+t1m.length+' مؤشر سلامة مرضى غير محقق!':'')+'\n\n'+(mk.length?'**المتعثرة:**\n'+mk.map(k=>'• '+k.id+': '+(safeQv(k)||'N/A')+'%').join('\n'):' كل مؤشرات السلامة محققة!');
-  }
-
-  if(/نظافة|housekeeping|hk/i.test(q)){
-    const d=dS.find(x=>x.d==='housekeeping');
-    if(!d)return 'لا بيانات لقسم النظافة.';
-    const mk=missKs.filter(k=>k.dept==='housekeeping');
-    return ' **النظافة (HK)**\n\n'+d.total+' مؤشر |  '+d.met+' |  '+d.miss+'\nمتوسط: **'+(d.avg||'N/A')+'%**\n\n'+(mk.length?'**المتعثرة:**\n'+mk.map(k=>'• '+k.id+': '+(safeQv(k)||'N/A')+'%').join('\n'):' كل مؤشرات النظافة محققة!');
-  }
-
-  if(/مشاريع|projects|pmd/i.test(q)){
-    const d=dS.find(x=>x.d==='projects');
-    if(!d)return 'لا بيانات لقسم المشاريع.';
-    const mk=missKs.filter(k=>k.dept==='projects');
-    return ' **المشاريع (PMD)**\n\n'+d.total+' مؤشر |  '+d.met+' |  '+d.miss+'\nمتوسط: **'+(d.avg||'N/A')+'%**\n\n'+(mk.length?'**المتعثرة:**\n'+mk.map(k=>'• '+k.id+': '+(safeQv(k)||'N/A')+'%').join('\n'):' كل مؤشرات المشاريع محققة!');
-  }
-
-  if(/غير محقق|missed|ما حقق|below/i.test(q)){
-    if(!missKs.length)return ' جميع المؤشرات محققة في الفلتر الحالي!';
-    return ' **غير المحققة ('+missKs.length+')**\n\n'+missKs.map(k=>{const v=safeQv(k);const g=v!=null?(k.target-v).toFixed(1):null;const dp=DMs[k.dept];return '• **'+k.id+'** ('+(dp?dp.abbr:k.dept)+'): '+(v!=null?v+'%':'N/A')+' من '+k.target+'%'+(g?'  —  فجوة: -'+g+'%':'')+((k.tier||3)===1?' ':'');}).join('\n')+'\n\n راجع خطط العمل التصحيحية لهذه المؤشرات.';
-  }
-
-  if(/محقق|achieved|ناجح|met/i.test(q)){
-    if(!metKs.length)return 'لا توجد مؤشرات محققة في الفلتر الحالي.';
-    return ' **المحققة ('+metKs.length+')**\n\n'+metKs.slice(0,8).map(k=>'• **'+k.id+'**: '+(safeQv(k)||'N/A')+'%  (هدف: '+k.target+'%)').join('\n')+(metKs.length>8?'\n... و'+(metKs.length-8)+' آخرين':'')+'\n\n نسبة التحقيق: **'+rate+'%**';
-  }
-
-  if(/مقارن|compare|افضل|أفضل|أسوأ|اسوأ/i.test(q)){
-    const s=[...dS].sort((a,b)=>(b.avg||0)-(a.avg||0));
-    if(!s.length)return 'لا بيانات كافية للمقارنة.';
-    return ' **مقارنة الأقسام**\n\n'+s.map((d,i)=>''+['','','',''][i]+' **'+d.abbr+'**: '+(d.avg||'N/A')+'% | تحقيق '+d.rate+'% | '+d.met+' '+d.miss+'').join('\n')+'\n\n الأفضل: **'+s[0].abbr+'** |  يحتاج تحسين: **'+s[s.length-1].abbr+'**';
-  }
-
-  if(/ربع|quarter|q[1-4]/i.test(q)){
-    const qq=qD.filter(x=>x.has);
-    if(!qq.length)return 'لا بيانات ربعية في الفلتر الحالي.';
-    const trend=qq.length>=2?(qq[qq.length-1].avg||0)>(qq[0].avg||0)?' اتجاه تصاعدي':' اتجاه تنازلي':'';
-    return ' **الأداء الربعي**\n\n'+qq.map(x=>'• **'+x.q+'**: '+(x.avg||'N/A')+'% | '+x.met+' '+x.miss+'').join('\n')+(trend?'\n\n'+trend:'')+(lastQ?'\n\n آخر ربع مسجل: **'+lastQ.q+'** ('+(lastQ.avg||'N/A')+'%)':'');
-  }
-
-  if(/توصي|recommend|تحسين|ماذا|ايش|improve/i.test(q)){
-    const r=[];
-    if(missKs.length)r.push(' معالجة **'+missKs.length+'** مؤشر غير محقق بخطط تصحيحية');
-    const t1m=missKs.filter(k=>(k.tier||3)===1);
-    if(t1m.length)r.push(' تصعيد **'+t1m.length+'** مؤشر سلامة مرضى فوراً للقيادة');
-    if(pendKs.length)r.push(' إكمال إدخال بيانات **'+pendKs.length+'** مؤشر معلق');
-    const wd=[...dS].sort((a,b)=>(a.rate||0)-(b.rate||0))[0];
-    if(wd&&wd.rate<70)r.push(' تركيز الجهود على **'+wd.abbr+'** (تحقيق '+wd.rate+'% فقط)');
-    r.push(' جدولة اجتماعات مراجعة شهرية للأداء');
-    r.push(' تحديث بيانات المؤشرات دورياً لدقة التقارير');
-    return ' **التوصيات الذكية**\n\n'+r.map((x,i)=>(i+1)+'. '+x).join('\n');
-  }
-
-  if(/tier|t1|سلامة مريض|patient safety/i.test(q)){
-    const t1=ks.filter(k=>(k.tier||3)===1);
-    const t1m=t1.filter(k=>safeOk(k)===false);
-    return ' **مؤشرات سلامة المرضى (Tier 1)**\n\n'+t1.length+' مؤشر | '+t1m.length+' غير محقق\n\n'+t1.map(k=>'• '+k.id+': '+(safeQv(k)||'N/A')+'% '+(safeOk(k)===true?'':safeOk(k)===false?'':'⏳')).join('\n')+(t1m.length?'\n\n **تحذير:** يستلزم تصعيداً فورياً!':'\n\n كل مؤشرات سلامة المرضى محققة.');
-  }
-
-  return ' **تحليل سريع**\n\nأداء: **'+(avg||'N/A')+'%** | تحقيق: **'+rate+'%** ('+metKs.length+'/'+total+')\n\n'+ks.slice(0,6).map(k=>'• **'+k.id+'**: '+(safeQv(k)||'N/A')+'% '+(safeOk(k)===true?'':safeOk(k)===false?'':'⏳')).join('\n')+(ks.length>6?'\n... و'+(ks.length-6)+' آخرين':'')+'\n\nاسألني عن: قسم معين · غير المحققة · مقارنة · ربعي · توصيات';
+  return '**Dashboard summary**\n'+ks.length+' KPI(s) in the current filter.\nAverage KPI result: **'+_aiPct(avg)+'**.\nMet: **'+met.length+'** | Missed: **'+missed.length+'** | Pending/no result: **'+(ks.length-met.length-missed.length)+'**.\n\nTry asking: “best department”, “missed KPIs”, “forecast analysis”, or search by KPI name/code.';
 }
+
 function aiSend(){
-  const inp=document.getElementById('aiInp');
-  const btn=document.getElementById('aiSendBtn');
-  if(!inp||!btn)return;
-  const q=inp.value.trim();if(!q)return;
-  const sg=document.getElementById('aiSugg');if(sg)sg.style.display='none';
-  inp.value='';btn.disabled=true;btn.style.opacity='.5';
+  var inp=document.getElementById('aiInp');
+  var btn=document.getElementById('aiSendBtn');
+  if(!inp) return;
+  var q=inp.value.trim();
+  if(!q) return;
+  var sg=document.getElementById('aiSugg'); if(sg) sg.style.display='none';
+  inp.value=''; inp.style.height='auto';
+  if(btn){btn.disabled=true; btn.classList.add('busy');}
   aiAddMsg(q,'user');
-  const lb=aiAddMsg('','loading');
-  setTimeout(()=>{
-    if(lb){const ans=aiAnalyze(q);lb.innerHTML=ans.replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>');}
-    btn.disabled=false;btn.style.opacity='1';
-    const m=document.getElementById('aiMsgs');if(m)m.scrollTop=m.scrollHeight;
-  },500+Math.random()*350);
+  var load=aiAddMsg('', 'loading');
+  setTimeout(function(){
+    var ans;
+    try{ans=aiAnalyze(q);}catch(e){ans='Analysis error: '+(e&&e.message?e.message:e);}
+    if(load){load.classList.remove('loading'); load.innerHTML=_aiFmt(ans);}
+    if(btn){btn.disabled=false; btn.classList.remove('busy');}
+    var box=document.getElementById('aiMsgs'); if(box) box.scrollTop=box.scrollHeight;
+  },120);
 }
+window.aiSend=aiSend;
 
 
 function updateExecTrend(yr){
