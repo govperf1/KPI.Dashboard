@@ -169,3 +169,7 @@ body.kpi-owner [class*="orange"], body.kpi_owner [class*="orange"], body.kpi-own
 .ai-float-btn{width:56px!important;height:56px!important;padding:0!important;border-radius:50%!important;justify-content:center!important;}
 .ai-float-btn span:not(.ai-float-chart){display:none!important;}
 .ai-float-chart{width:42px!important;height:42px!important;border-radius:50%!important;background:rgba(255,255,255,.16)!important;}
+
+/* Hard hide KPI chat until authenticated dashboard page is visible; JS will show with inline style after login. */
+#_authOverlay ~ #aiFloatBtn,#_authOverlay ~ #aiWin{display:none;}
+#aiFloatBtn{display:none;}
