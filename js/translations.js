@@ -352,3 +352,56 @@ window.renderCurrent = renderCurrent;
 
 /* resetFilters is defined in dashboard.js — export only if it exists */
 if (typeof resetFilters === 'function') window.resetFilters = resetFilters;
+
+/* ==========================================================
+   FINAL QUMC FIX — Arabic-only UI translation sweep
+   Does not touch English mode, form values, inputs, or KPI name fields.
+   ========================================================== */
+(function(){
+  var MAP={
+    'Executive Command':'لوحة القيادة التنفيذية','Departments':'عرض الأقسام','KPI Register':'سجل المؤشرات','Accountability':'المساءلة والمتابعة','Reports':'التقارير','Dashboard':'لوحة القيادة',
+    'Dept':'القسم','Department':'القسم','Status':'الحالة','All':'الكل','Met':'محقق','Missed':'غير محقق','Pending':'قيد المتابعة','Reset':'إعادة الضبط','↺ Reset':'↺ إعادة الضبط',
+    'Total':'الإجمالي','KPI Indicators':'مؤشرات الأداء','View all →':'عرض الكل ←','evaluated':'تم تقييمها','Target achieved':'تم تحقيق الهدف','Need attention':'بحاجة إلى متابعة','Critical':'حرج','Tier 1 escalations':'تصعيدات المستوى الأول',
+    'Current Performance':'الأداء الحالي','Forecast YE':'التوقع السنوي','Selected period average':'متوسط الفترة المحددة','Expected year-end':'التوقع لنهاية السنة','Department Forecasts':'توقعات الأقسام','Overall Executive Forecast':'التوقع التنفيذي العام',
+    'KPI':'المؤشر','KPI Name':'اسم المؤشر','Code':'الرمز','Target':'الهدف','Result':'النتيجة','Achievement':'التحقيق','Avg':'المتوسط','Average':'المتوسط','YoY':'مقارنة سنوية','Risk':'المخاطر','Risk Tier':'مستوى المخاطر','Trend':'الاتجاه','Last Result':'آخر نتيجة','Owner':'المسؤول','KPI Owner':'مسؤول المؤشر',
+    'Target:':'الهدف:','Result:':'النتيجة:','Performance':'الأداء','Filters':'الفلاتر','Overview':'نظرة عامة','Executive Intelligence':'التحليل التنفيذي','Department Performance':'أداء الأقسام','Detailed KPI Performance Cards':'بطاقات أداء المؤشرات التفصيلية','DETAILED KPI PERFORMANCE CARDS':'بطاقات أداء المؤشرات التفصيلية',
+    'Repeat Misses':'الإخفاقات المتكررة','Last Updated':'آخر تحديث','Top Risk':'أعلى خطر','Recommended Action':'الإجراء الموصى به','Critical Escalations':'تصعيدات حرجة','Gap Analysis Open':'تحليل فجوات مفتوح','At-Risk KPIs':'مؤشرات معرضة للخطر','Priority Department':'القسم ذو الأولوية','Biggest Gap':'أكبر فجوة',
+    'ON TRACK':'في المسار','CRITICAL ATTENTION REQUIRED':'يتطلب انتباهاً عاجلاً','ATTENTION REQUIRED':'مطلوب الانتباه','NEEDS IMPROVEMENT':'يحتاج تحسيناً','All documented':'موثق بالكامل','Insufficient data':'بيانات غير كافية',
+    'All KPIs':'جميع المؤشرات','No data':'لا توجد بيانات','No important notifications.':'لا توجد إشعارات مهمة.','Loading notifications…':'جاري تحميل الإشعارات…','Close':'إغلاق','Notification':'إشعار'
+  };
+  function txt(n){return (n&&n.nodeValue||'').replace(/\s+/g,' ').trim();}
+  function skipEl(el){
+    if(!el) return true;
+    var tag=(el.tagName||'').toLowerCase();
+    if(['script','style','textarea','input','select','option','canvas','svg'].indexOf(tag)>=0) return true;
+    if(el.closest&&el.closest('.kpi-name,[data-kpi-name],.rpt-ep,#aiMsgs,#aiInp')) return true;
+    return false;
+  }
+  function apply(root){
+    if(typeof lang==='undefined'||lang!=='ar') return;
+    root=root||document.body; if(!root) return;
+    document.querySelectorAll('[data-ar]').forEach(function(el){
+      if(skipEl(el)) return;
+      var ar=el.getAttribute('data-ar'); if(ar) el.textContent=ar;
+    });
+    var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:function(n){return skipEl(n.parentElement)?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;}});
+    var nodes=[],n; while((n=walker.nextNode())) nodes.push(n);
+    nodes.forEach(function(node){
+      var raw=node.nodeValue, clean=txt(node); if(!clean) return;
+      if(MAP[clean]){ node.nodeValue=raw.replace(clean,MAP[clean]); return; }
+      var out=raw;
+      Object.keys(MAP).sort(function(a,b){return b.length-a.length;}).forEach(function(k){
+        if(k.length<4) return;
+        out=out.replace(new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g'),MAP[k]);
+      });
+      node.nodeValue=out;
+    });
+    document.documentElement.setAttribute('dir','rtl');
+  }
+  window.qumcApplyArabicUI=apply;
+  var old=window.renderCurrent;
+  if(typeof old==='function'){
+    window.renderCurrent=function(){var r=old.apply(this,arguments);setTimeout(function(){apply(document.body);},100);return r;};
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){apply(document.body);},200);});else setTimeout(function(){apply(document.body);},200);
+})();

@@ -1874,3 +1874,64 @@ async function importSnapshot(){
   };
   inp.click();
 }
+
+/* ==========================================================
+   FINAL QUMC FIX — complete Arabic report, no section deletion
+   English report remains untouched.
+   ========================================================== */
+(function(){
+  function _esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function _name(k){return (lang==='ar'?(k.nameAr||k.nameEn):(k.nameEn||k.nameAr))||k.id;}
+  window.renderReportArabic=function(){
+    var el=document.getElementById('page-report'); if(!el)return;
+    if(typeof window._rptKpi==='undefined')window._rptKpi='';
+    if(typeof window._rptDept==='undefined')window._rptDept='';
+    var ksBase=(typeof allK==='function'?allK():[]), role=window._fbRole||'', locked=window._lockedDept||null, assigned=window._fbAssignedKpis;
+    if(locked)ksBase=ksBase.filter(function(k){return k.dept===locked;});
+    if(role==='kpi_owner'&&Array.isArray(assigned)&&assigned.length)ksBase=ksBase.filter(function(k){return assigned.indexOf(k.id)>=0;});
+    if(locked&&window._rptDept!==locked)window._rptDept=locked;
+    var ksAll=ksBase.filter(function(k){return !F||F.year==='all'||String(k.yr)===String(F.year);});
+    var deptOpts=(!locked?'<option value=""'+(window._rptDept===''?' selected':'')+'>كل الأقسام</option>':'')+Object.keys(DM).filter(function(d){return !locked||d===locked;}).map(function(d){return '<option value="'+d+'"'+(window._rptDept===d?' selected':'')+'>'+(DM[d].ar||DM[d].en)+'</option>';}).join('');
+    var ksDept=window._rptDept?ksAll.filter(function(k){return k.dept===window._rptDept;}):ksAll;
+    var kpiOpts='<option value=""'+(window._rptKpi===''?' selected':'')+'>— كل المؤشرات —</option>'+ksDept.map(function(k){return '<option value="'+k.id+'"'+(window._rptKpi===k.id?' selected':'')+'>'+k.id+' — '+_esc(_name(k))+'</option>';}).join('');
+    var ks=window._rptKpi?ksDept.filter(function(k){return k.id===window._rptKpi;}):ksDept;
+    var k1=ks.length===1?ks[0]:null, dm=window._rptDept?DM[window._rptDept]:null;
+    var deptFull=dm?(dm.ar||dm.en):'كل الأقسام';
+    var metKs=ks.filter(function(k){return ok(k)===true;}), missKs=ks.filter(function(k){return ok(k)===false;}), pending=ks.filter(function(k){return ok(k)===null;});
+    var vals=ks.map(function(k){return qv(k);}).filter(function(v){return v!==null&&v!==undefined&&isFinite(v);});
+    var avg=vals.length?+(vals.reduce(function(a,b){return a+b;},0)/vals.length).toFixed(1):null;
+    var target=k1?k1.target:(ks.length?Math.round(ks.reduce(function(a,k){return a+(Number(k.target)||0);},0)/ks.length):0);
+    var isMet=avg!==null&&avg>=target;
+    var today=new Date(), dateStr=today.toLocaleDateString('ar-SA',{day:'2-digit',month:'long',year:'numeric'});
+    var qtxt=(F&&Array.isArray(F.qtr)&&!F.qtr.includes('all'))?' ('+F.qtr.map(function(q){return q.toUpperCase();}).join('، ')+')':'';
+    var period=(F&&F.year&&F.year!=='all'?F.year:'كل السنوات')+qtxt;
+    var title=k1?_name(k1):(ks.length?ks.length+' مؤشرات':'تقرير أداء المؤشرات');
+    function qAvg(q){var v=ks.map(function(k){return k[q];}).filter(function(x){return x!==null&&x!==undefined&&isFinite(x);});return v.length?+(v.reduce(function(a,b){return a+b;},0)/v.length).toFixed(1):null;}
+    var qvls={Q1:qAvg('q1'),Q2:qAvg('q2'),Q3:qAvg('q3'),Q4:qAvg('q4')};
+    function SH(n,t){return '<div style="display:flex;align-items:center;gap:10px;margin:28px 0 13px;break-after:avoid;page-break-after:avoid"><div style="width:4px;height:22px;background:linear-gradient(180deg,#0195af,#007A96);border-radius:2px;flex-shrink:0"></div><h2 style="font-size:14px;font-weight:900;color:#152538;margin:0">'+n+'. '+t+'</h2></div>';}
+    var eid=0; function EP(txt){eid++;var key='rpt_'+(window._rptKpi||'_all_')+'_ar_'+eid;var saved=(ST.rptEdits||{})[key];var content=(saved&&saved.ar)?saved.ar:txt;return '<div class="rpt-ep" style="display:flex;gap:8px;align-items:flex-start"><p id="arEp'+eid+'" dir="rtl" style="font-size:12px;color:#334155;line-height:1.9;margin:0;flex:1;text-align:right">'+content+'</p><button class="rpt-edit-btn" onclick="rptStartEdit(\'arEp'+eid+'\')" title="تعديل" style="position:static;opacity:.45">✎</button></div>';}
+    function QR(q,v){var m=v!==null&&v>=target;return '<tr><td>'+q+'</td><td>'+target+'%</td><td>'+(v!==null?v+'%':'غير متاح')+'</td><td><span style="padding:3px 10px;border-radius:14px;background:'+(v===null?'#F8FAFC':m?'#ECFDF5':'#FEF2F2')+';color:'+(v===null?'#64748B':m?'#06845A':'#C42B2B')+';font-weight:800">'+(v===null?'قيد المتابعة':m?'محقق':'أقل من الهدف')+'</span></td></tr>';}
+    var qBul=Object.keys(qvls).filter(function(q){return qvls[q]!==null;}).map(function(q){var v=qvls[q];return '• <b>'+q+':</b> النتيجة <b style="color:'+(v>=target?'#06845A':'#C42B2B')+'">'+v+'%</b>'+(v>=target?' وتم تحقيق الهدف.':' وهي أقل من الهدف '+target+'%.');}).join('<br>')||'لا توجد نتائج ربعية مدخلة للفترة المحددة.';
+    var missList=missKs.slice(0,8).map(function(k){var v=qv(k);return '<li><b>'+_esc(k.id)+'</b> — '+_esc(_name(k))+' : '+(v!==null?v.toFixed(1)+'%':'—')+' مقابل الهدف '+k.target+'%</li>';}).join('')||'<li>لا توجد مؤشرات غير محققة ضمن الفلتر الحالي.</li>';
+    var recs=[missKs.length?'تنفيذ إجراءات تصحيحية موجهة للمؤشرات غير المحققة وعددها '+missKs.length+'.':'المحافظة على الأداء الحالي وتعزيز الممارسات الناجحة.','مراجعة نتائج المؤشرات في نهاية كل ربع وربطها بخطط التحسين.','تحديث تحليل الفجوة والأسباب الجذرية للمؤشرات الأقل من الهدف.','متابعة المؤشرات ذات المخاطر الأعلى مع ملاك المؤشرات بشكل دوري.'];
+    el.innerHTML='<div style="padding:0;background:var(--bg);min-height:100%;direction:rtl;text-align:right">'+
+      '<div class="rpt-topbar" style="display:flex;align-items:center;gap:10px;padding:14px 20px;background:var(--bg);flex-wrap:wrap"><label style="font-size:10px;font-weight:800;color:var(--t2)">القسم:</label><select class="msel" style="min-width:160px;height:34px;font-size:11px" onchange="window._rptDept=this.value;window._rptKpi=\'\';renderReport()">'+deptOpts+'</select><label style="font-size:10px;font-weight:800;color:var(--t2)">المؤشر:</label><select class="msel" style="min-width:220px;height:34px;font-size:11px" onchange="window._rptKpi=this.value;renderReport()">'+kpiOpts+'</select><button onclick="window.print()" style="padding:7px 18px;background:#C42B2B;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:800">تصدير PDF</button><span style="margin-right:auto;font-size:10px;color:var(--t3)">'+period+' · '+dateStr+'</span></div>'+
+      '<div id="rptDocument" style="background:#fff;max-width:860px;margin:0 auto 32px;border:1px solid #E2E8F0;box-shadow:0 8px 30px rgba(15,23,42,.08);direction:rtl;text-align:right"><div style="background:#152538;padding:26px 36px;color:#fff"><div style="font-size:8px;font-weight:800;color:#0195af;letter-spacing:.18em">تقرير أداء مؤشرات رسمي</div><h1 style="margin:6px 0 4px;font-size:22px;font-weight:900">'+_esc(title)+'</h1><div style="font-size:12px;color:rgba(255,255,255,.70)">'+_esc(deptFull)+' · '+period+' · الهدف: '+target+'%</div></div><div style="height:3px;background:linear-gradient(90deg,#0195af,#01c5e8,#152538)"></div><div style="padding:30px 38px">'+
+      '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:9px;margin-bottom:24px">'+[
+        ['إجمالي المؤشرات',ks.length,'#EFF6FF','#1E40AF'],['محققة',metKs.length,'#ECFDF5','#06845A'],['غير محققة',missKs.length,missKs.length?'#FEF2F2':'#ECFDF5',missKs.length?'#C42B2B':'#06845A'],['قيد المتابعة',pending.length,'#F8FAFC','#64748B'],['متوسط الأداء',avg!==null?avg+'%':'—',isMet?'#ECFDF5':'#FEF2F2',isMet?'#06845A':'#C42B2B']
+      ].map(function(c){return '<div style="background:'+c[2]+';border-radius:10px;padding:12px;border:1px solid #E2E8F0"><div style="font-size:9px;color:#64748B;font-weight:800">'+c[0]+'</div><div style="font-size:24px;font-weight:900;color:'+c[3]+'">'+c[1]+'</div></div>';}).join('')+'</div>'+
+      SH(1,'المقدمة')+EP('يعرض هذا التقرير الأداء الفعلي للمؤشرات ضمن '+deptFull+' خلال '+period+'، بهدف دعم القرار التنفيذي وتحسين الأداء التشغيلي بناءً على نتائج قابلة للقياس.')+
+      SH(2,'نظرة عامة على المؤشر')+'<table class="rpt-ar-table"><tr><th>اسم المؤشر</th><td>'+_esc(title)+'</td></tr><tr><th>القسم</th><td>'+_esc(deptFull)+'</td></tr><tr><th>الفترة</th><td>'+period+'</td></tr><tr><th>الهدف</th><td>'+target+'%</td></tr><tr><th>النتيجة</th><td>'+(avg!==null?avg+'%':'غير متاح')+' — '+(avg===null?'قيد المتابعة':isMet?'محقق':'أقل من الهدف')+'</td></tr></table>'+
+      SH(3,'نتائج الأداء الربعية')+'<table class="rpt-ar-table"><thead><tr><th>الربع</th><th>الهدف</th><th>النتيجة</th><th>الحالة</th></tr></thead><tbody>'+QR('Q1',qvls.Q1)+QR('Q2',qvls.Q2)+QR('Q3',qvls.Q3)+QR('Q4',qvls.Q4)+'</tbody></table>'+
+      SH(4,'الهدف مقابل الأداء الفعلي')+EP(qBul)+
+      SH(5,'اتجاه الأداء السنوي')+EP('يوضح الاتجاه العام أن الأداء يعتمد على النتائج المدخلة فعلياً في النظام، ويتم تجاهل القيم الفارغة لضمان دقة القراءة. تتم مراجعة الاتجاه مع كل تحديث جديد للبيانات.')+
+      SH(6,'توزيع تحقيق المؤشرات')+EP('بلغ عدد المؤشرات المحققة '+metKs.length+'، وعدد المؤشرات غير المحققة '+missKs.length+'، بينما توجد '+pending.length+' مؤشرات قيد المتابعة أو بدون بيانات مكتملة.')+
+      SH(7,'العوامل المؤثرة ومؤشرات الخطر')+'<ul style="font-size:12px;line-height:1.9;color:#334155;margin:0 0 0 18px">'+missList+'</ul>'+
+      SH(8,'التوصيات وفرص التحسين')+'<ol style="font-size:12px;line-height:1.9;color:#334155;margin:0 0 0 18px">'+recs.map(function(r){return '<li>'+r+'</li>';}).join('')+'</ol>'+
+      SH(9,'الخلاصة والتطلعات القادمة')+EP('بناءً على النتائج الحالية، توصي إدارة الحوكمة والأداء باستمرار المتابعة الدورية، وتحديث خطط التحسين، وربط الإجراءات التصحيحية بالمؤشرات ذات الأولوية لضمان رفع مستوى الأداء بنهاية السنة.')+
+      '</div></div></div>';
+    var st=document.getElementById('rpt-ar-table-css'); if(!st){st=document.createElement('style');st.id='rpt-ar-table-css';st.textContent='.rpt-ar-table{width:100%;border-collapse:collapse;margin-bottom:18px;font-size:12px}.rpt-ar-table th,.rpt-ar-table td{padding:10px;border:1px solid #E2E8F0;text-align:right}.rpt-ar-table th{background:#F8FAFC;color:#152538;font-weight:900;width:26%}';document.head.appendChild(st);} 
+  };
+  var oldRender=window.renderReport;
+  window.renderReport=function(){ if(typeof lang!=='undefined'&&lang==='ar') return window.renderReportArabic(); return oldRender?oldRender.apply(this,arguments):undefined; };
+})();

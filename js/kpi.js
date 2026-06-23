@@ -1255,3 +1255,138 @@ window.addEventListener('storage', function(e){
     }catch(_){}
   }
 });
+
+/* ==========================================================
+   FINAL QUMC FIX — filter-aware forecast/current performance + latest reset
+   ========================================================== */
+(function(){
+  function _num(v){ if(v===null||v===undefined||v==='') return null; var n=Number(v); return isFinite(n)?n:null; }
+  function _avg(a){ var v=(a||[]).filter(function(x){return x!==null&&x!==undefined&&isFinite(x);}); return v.length?v.reduce(function(s,x){return s+x;},0)/v.length:null; }
+  function _qtrs(){ return ['q1','q2','q3','q4']; }
+  function _dept(k){ return String((k&&k.dept)||''); }
+  function _nameKey(k){ return String((k&&(k.nameEn||k.nameAr||k.name||k.id))||'').trim().toLowerCase().replace(/\s+/g,' '); }
+  function _hasActual(k){ return _qtrs().some(function(q){ return _num(k&&k[q])!==null; }); }
+  function _filterBase(all, opts){
+    opts=opts||{};
+    var FF=(typeof F!=='undefined'&&F&&typeof F==='object')?F:{year:'all',qtr:['q1','q2','q3','q4'],dept:'all',status:'all'};
+    var dept=opts.dept || (opts.respectFilters&&FF.dept&&FF.dept!=='all'?FF.dept:null) || (opts.respectFilters&&window._lockedDept?window._lockedDept:null);
+    var year=opts.year || (opts.respectFilters&&FF.year&&FF.year!=='all'?FF.year:null);
+    var status=opts.status || (opts.respectFilters&&FF.status&&FF.status!=='all'?FF.status:null);
+    return (all||[]).filter(function(k){
+      if(!k||typeof k!=='object') return false;
+      if(dept&&_dept(k)!==String(dept)) return false;
+      if(year&&String(k.yr)!==String(year)) return false;
+      if(status&&typeof ok==='function'){
+        var o=ok(k);
+        if(status==='achieved'&&(o===null||o!==true)) return false;
+        if(status==='missed'&&(o===null||o!==false)) return false;
+      }
+      return _hasActual(k);
+    });
+  }
+  window.calcForecastYE=function(opts){
+    opts=opts||{};
+    var all=(typeof allK==='function')?allK():[];
+    var filterForScope=!!opts.respectFilters || !!opts.dept || !!opts.year || !!opts.status;
+    var base=filterForScope?_filterBase(all,opts):all.filter(_hasActual);
+    if(!base.length) return {exec:null,byDept:{},currentYear:null,kpis:[]};
+    var currentYear=base.reduce(function(m,k){var y=Number(k.yr)||0;return y>m?y:m;},0);
+    if(!currentYear) return {exec:null,byDept:{},currentYear:null,kpis:[]};
+    var groups={};
+    base.forEach(function(k){
+      var y=Number(k.yr)||0; if(!y||y>currentYear) return;
+      var key=_nameKey(k)+'__'+_dept(k);
+      if(!groups[key]) groups[key]={key:key,nameEn:k.nameEn||k.name||k.id||'',nameAr:k.nameAr||'',dept:_dept(k),hist:[],cur:[],curQs:{},codes:{}};
+      if(k.id) groups[key].codes[String(k.id)]=true;
+      _qtrs().forEach(function(q){
+        var v=_num(k[q]); if(v===null) return;
+        groups[key].hist.push(v);
+        if(y===currentYear){ groups[key].cur.push(v); groups[key].curQs[q]=true; }
+      });
+    });
+    var items=[], deptBuckets={};
+    Object.keys(groups).forEach(function(key){
+      var g=groups[key], h=_avg(g.hist), c=_avg(g.cur), entered=Object.keys(g.curQs||{}).length;
+      if(h===null||c===null||entered<1) return;
+      if(entered>4) entered=4;
+      var forecast = entered>=4 ? c : ((1-(entered/4))*h)+((entered/4)*c);
+      var item={key:g.key,nameEn:g.nameEn,nameAr:g.nameAr,dept:g.dept,currentYear:currentYear,enteredQuarters:entered,historicalAverage:h,currentYearAverage:c,forecast:forecast,codes:Object.keys(g.codes)};
+      items.push(item);
+      if(!deptBuckets[g.dept]) deptBuckets[g.dept]=[];
+      deptBuckets[g.dept].push(forecast);
+    });
+    var byDept={}; Object.keys(deptBuckets).forEach(function(d){byDept[d]=_avg(deptBuckets[d]);});
+    return {exec:_avg(items.map(function(x){return x.forecast;})),byDept:byDept,currentYear:currentYear,kpis:items};
+  };
+  window.calcCurrentPerformanceBreakdown=function(opts){
+    opts=opts||{};
+    var all=(typeof allK==='function')?allK():[];
+    var FF=(typeof F!=='undefined'&&F&&typeof F==='object')?F:{year:'all',qtr:['q1','q2','q3','q4'],dept:'all',status:'all'};
+    var ks=_filterBase(all,{respectFilters:true,dept:opts.dept||null,status:opts.status||null,year:opts.year||null});
+    var qtrs=(Array.isArray(FF.qtr)&&!FF.qtr.includes('all'))?FF.qtr:_qtrs();
+    function hasQ(k){return qtrs.some(function(q){return _num(k&&k[q])!==null;});}
+    ks=ks.filter(hasQ);
+    if((!FF.year||FF.year==='all')&&!opts.year){
+      var ly=ks.reduce(function(m,k){var y=Number(k.yr)||0;return y>m?y:m;},0);
+      if(ly) ks=ks.filter(function(k){return Number(k.yr)===ly;});
+    }
+    function qvLocal(k){var vals=qtrs.map(function(q){return _num(k[q]);}).filter(function(v){return v!==null;});return _avg(vals);}
+    var vals=ks.map(qvLocal).filter(function(v){return v!==null;});
+    var overall=_avg(vals);
+    var byDept={};
+    ['maintenance','safety','housekeeping','projects'].forEach(function(d){
+      var dv=ks.filter(function(k){return _dept(k)===d;}).map(qvLocal).filter(function(v){return v!==null;});
+      byDept[d]=_avg(dv);
+    });
+    return {exec:overall,byDept:byDept,kpis:ks};
+  };
+  window.getLatestPeriod=function(){
+    try{
+      if(typeof ST!=='undefined'&&ST&&ST._lastDataPeriod&&ST._lastDataPeriod.year&&ST._lastDataPeriod.qtr){
+        return {year:String(ST._lastDataPeriod.year),qtrs:[String(ST._lastDataPeriod.qtr).toLowerCase()]};
+      }
+    }catch(_e){}
+    var all=(typeof allK==='function'?allK():(typeof BASE!=='undefined'?BASE:[]));
+    var best=null;
+    _qtrs().forEach(function(q,idx){
+      (all||[]).forEach(function(k){
+        var v=_num(k&&k[q]); if(v===null) return;
+        var y=Number(k.yr)||0; if(!y) return;
+        var score=y*10+(idx+1);
+        if(!best||score>best.score) best={year:y,qtr:q,score:score};
+      });
+    });
+    if(best) return {year:String(best.year),qtrs:[best.qtr]};
+    return {year:String(new Date().getFullYear()),qtrs:['q1']};
+  };
+  var _oldReset=window.resetFilters||resetFilters;
+  window.resetFilters=resetFilters=function(){
+    var lp=window.getLatestPeriod();
+    F.year=lp.year; F.qtr=lp.qtrs; F.dept=window._lockedDept||'all'; F.status='all';
+    document.querySelectorAll('[data-filter="year"]').forEach(function(b){b.classList.toggle('on',b.dataset.val===F.year);});
+    document.querySelectorAll('[data-filter="qtr"]').forEach(function(b){b.classList.toggle('on',b.dataset.val==='all'?F.qtr.length===4:F.qtr.includes(b.dataset.val));});
+    document.querySelectorAll('[data-filter="status"]').forEach(function(b){b.classList.toggle('on',b.dataset.val==='all');});
+    document.querySelectorAll('[data-filter="dept"]').forEach(function(b){b.classList.toggle('on',b.dataset.val===F.dept);});
+    var df=document.getElementById('deptF'); if(df) df.value=F.dept;
+    if(typeof renderCurrent==='function') renderCurrent();
+  };
+})();
+
+/* FINAL QUMC FIX — keep reset tied to latest real entered value */
+(function(){
+  function _num(v){ if(v===null||v===undefined||v==='') return null; var n=Number(v); return isFinite(n)?n:null; }
+  function _syncLastDataPeriod(){
+    try{
+      var all=(typeof allK==='function')?allK():[]; var best=null;
+      ['q1','q2','q3','q4'].forEach(function(q,idx){
+        all.forEach(function(k){ var v=_num(k&&k[q]); if(v===null) return; var y=Number(k.yr)||0; if(!y) return; var score=y*10+(idx+1); if(!best||score>best.score) best={year:String(y),qtr:q,score:score}; });
+      });
+      if(best&&typeof ST!=='undefined'&&ST) ST._lastDataPeriod={year:best.year,qtr:best.qtr};
+    }catch(e){console.warn('[latest period sync]',e);}
+  }
+  window._syncLastDataPeriod=_syncLastDataPeriod;
+  var _oldPersist=window.persistST||persistST;
+  if(typeof _oldPersist==='function'){
+    window.persistST=window.persistSTWrapper=persistST=function(reason){ _syncLastDataPeriod(); return _oldPersist.apply(this,arguments); };
+  }
+})();

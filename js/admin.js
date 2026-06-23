@@ -2676,3 +2676,40 @@ function _fillQtrFormFromPci(kpiId, prefix, sectionId){
   });
 }
 window._fillQtrFormFromPci = _fillQtrFormFromPci;
+
+/* ==========================================================
+   FINAL QUMC FIX — quarterly form read should ignore blank quarters
+   Prevents Reset from jumping to Q4 when Q4 fields were never entered.
+   ========================================================== */
+(function(){
+  function _hasText(id){var el=document.getElementById(id);return !!(el&&String(el.value||'').trim()!=='');}
+  function _pf(id){var el=document.getElementById(id); if(!el||String(el.value||'').trim()==='') return null; var n=parseFloat(el.value); return isFinite(n)?n:null;}
+  window._readQtrValuesFromForm=_readQtrValuesFromForm=function(kpiId,prefix,sectionId){
+    var section=document.getElementById(sectionId||'addQtrSection');
+    var masterId=section?section.getAttribute('data-master'):'';
+    var cfg=masterId?((typeof _adminMergedMasterConfig==='function')?_adminMergedMasterConfig(masterId):Object.assign({},((window.BUILTIN_MASTER_KPIS||{})[masterId]||{}),(((typeof ST!=='undefined'&&ST.masterKpis)||{})[masterId]||{}))):null;
+    var pciData={};
+    if(cfg&&cfg.fieldConfig&&cfg.fieldConfig.length>0){
+      var letters=cfg.fieldConfig.map(function(_,i){return String.fromCharCode(65+i);});
+      ['Q1','Q2','Q3','Q4'].forEach(function(Q){
+        var ql=Q.toLowerCase(), vals={}, any=false;
+        letters.forEach(function(letter){ var id=prefix+Q+'_'+letter; var v=_pf(id); if(v!==null) any=true; vals[letter]=v===null?null:v; });
+        if(!any){ pciData[ql]={_custom:true,_masterId:masterId,_formula:cfg.resultFormula,_result:null}; return; }
+        var evalVals={}; letters.forEach(function(letter){evalVals[letter]=vals[letter]===null?0:vals[letter];});
+        var result=(typeof _evalFormula==='function')?_evalFormula(cfg.resultFormula||'',evalVals):null;
+        pciData[ql]=Object.assign({_custom:true,_masterId:masterId,_formula:cfg.resultFormula},vals);
+        pciData[ql]._result=(result===null||result===undefined||!isFinite(result))?null:result;
+      });
+    }else{
+      ['Q1','Q2','Q3','Q4'].forEach(function(Q){
+        var ql=Q.toLowerCase();
+        var has=_hasText(prefix+Q+'_pl')||_hasText(prefix+Q+'_co')||_hasText(prefix+Q+'_ic');
+        if(!has){ pciData[ql]={planned:null,complete:null,incomplete:null}; return; }
+        var pl=_pf(prefix+Q+'_pl'), co=_pf(prefix+Q+'_co');
+        var ic=(pl!==null&&co!==null)?Math.max(0,pl-co):_pf(prefix+Q+'_ic');
+        pciData[ql]={planned:pl,complete:co,incomplete:ic};
+      });
+    }
+    return {pciData:pciData,masterId:masterId,cfg:cfg};
+  };
+})();

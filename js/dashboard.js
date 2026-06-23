@@ -1900,3 +1900,63 @@ function drilldept(d){
   tabs[1].classList.add('on');document.getElementById('page-dept').classList.add('on');
   window.curPage='dept'; curPage='dept'; renderDept();
 }
+/* ==========================================================
+   FINAL QUMC FIX — Arabic UI polishing + filtered KPI cards
+   ========================================================== */
+(function(){
+  function _fmt(v){return (v!==null&&v!==undefined&&isFinite(v))?Number(v).toFixed(2)+'%':'—';}
+  function _col(v){return (v===null||v===undefined||!isFinite(v))?'#64748B':v>=80?'#4ADE80':v>=60?'#0195af':'#FBBF24';}
+  function _e(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function _deptName(d){var dm=(typeof DM!=='undefined'&&DM[d])||{en:d,ar:d};return (typeof lang!=='undefined'&&lang==='ar')?(dm.ar||dm.en):(dm.en||d);}
+  window._showCurrentPerformanceDrilldown=function(res){
+    res=res||(typeof calcCurrentPerformanceBreakdown==='function'?calcCurrentPerformanceBreakdown({respectFilters:true}):{exec:null,byDept:{}});
+    var isAr=(typeof lang!=='undefined'&&lang==='ar');
+    var old=document.getElementById('_curPerfDrill'); if(old)old.remove();
+    var ov=document.createElement('div'); ov.id='_curPerfDrill';
+    ov.style.cssText='position:fixed;inset:0;z-index:2147483645;background:rgba(5,15,35,.60);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px';
+    var box=document.createElement('div');
+    box.style.cssText='width:min(460px,94vw);background:#102033;border:1px solid rgba(1,149,175,.35);border-radius:20px;box-shadow:0 30px 90px rgba(0,0,0,.35);padding:22px;color:#fff;direction:'+(isAr?'rtl':'ltr');
+    var rows=['maintenance','safety','housekeeping','projects'].map(function(d){var v=res.byDept&&res.byDept[d];return {d:d,v:v};});
+    box.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px"><div><div style="font-size:16px;font-weight:900;color:#fff">'+(isAr?'تفصيل الأداء الحالي':'Current Performance Breakdown')+'</div><div style="font-size:10px;color:#94a3b8;margin-top:4px">'+(isAr?'حسب الفلاتر المحددة حالياً':'Based on current filters')+'</div></div><button onclick="document.getElementById(\'_curPerfDrill\').remove()" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:10px;width:30px;height:30px;cursor:pointer">×</button></div>'+
+      '<div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;margin-bottom:12px"><div style="font-size:10px;color:#94a3b8;margin-bottom:4px">'+(isAr?'المتوسط العام':'Overall average')+'</div><div style="font-size:38px;font-weight:900;font-family:var(--mono);color:'+_col(res.exec)+'">'+_fmt(res.exec)+'</div></div>'+
+      rows.map(function(r){var w=(r.v!==null&&r.v!==undefined&&isFinite(r.v))?Math.min(100,Math.max(0,r.v)):0;return '<div style="padding:11px 0;border-bottom:1px solid rgba(255,255,255,.08)"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;color:#cbd5e1">'+_e(_deptName(r.d))+'</span><b style="font-family:var(--mono);color:'+_col(r.v)+'">'+_fmt(r.v)+'</b></div><div style="height:5px;background:rgba(255,255,255,.08);border-radius:5px"><div style="height:5px;width:'+w+'%;background:'+_col(r.v)+';border-radius:5px"></div></div></div>';}).join('');
+    ov.appendChild(box); ov.onclick=function(e){if(e.target===ov)ov.remove();}; document.body.appendChild(ov);
+  };
+  window._showForecastDrilldown=function(res){
+    res=res||(typeof calcForecastYE==='function'?calcForecastYE({respectFilters:true}):{exec:null,byDept:{}});
+    var isAr=(typeof lang!=='undefined'&&lang==='ar');
+    var old=document.getElementById('_forecastDrilldown'); if(old)old.remove();
+    var ov=document.createElement('div'); ov.id='_forecastDrilldown';
+    ov.style.cssText='position:fixed;inset:0;z-index:2147483645;background:rgba(5,15,35,.60);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px';
+    var box=document.createElement('div'); box.style.cssText='width:min(460px,94vw);background:#102033;border:1px solid rgba(1,149,175,.35);border-radius:20px;box-shadow:0 30px 90px rgba(0,0,0,.35);padding:22px;color:#fff;direction:'+(isAr?'rtl':'ltr');
+    var rows=['maintenance','safety','housekeeping','projects'].map(function(d){var v=res.byDept&&res.byDept[d];return {d:d,v:v};});
+    box.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px"><div><div style="font-size:16px;font-weight:900;color:#fff">'+(isAr?'تفصيل التوقع السنوي':'Forecast YE Breakdown')+'</div><div style="font-size:10px;color:#94a3b8;margin-top:4px">'+(isAr?'حسب الفلاتر المحددة حالياً':'Based on current filters')+'</div></div><button onclick="document.getElementById(\'_forecastDrilldown\').remove()" style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);color:#fff;border-radius:10px;width:30px;height:30px;cursor:pointer">×</button></div>'+
+      '<div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;margin-bottom:12px"><div style="font-size:10px;color:#94a3b8;margin-bottom:4px">'+(isAr?'التوقع العام':'Overall forecast')+'</div><div style="font-size:38px;font-weight:900;font-family:var(--mono);color:'+_col(res.exec)+'">'+_fmt(res.exec)+'</div></div>'+
+      rows.map(function(r){var w=(r.v!==null&&r.v!==undefined&&isFinite(r.v))?Math.min(100,Math.max(0,r.v)):0;return '<div style="padding:11px 0;border-bottom:1px solid rgba(255,255,255,.08)"><div style="display:flex;justify-content:space-between;margin-bottom:6px"><span style="font-size:12px;color:#cbd5e1">'+_e(_deptName(r.d))+'</span><b style="font-family:var(--mono);color:'+_col(r.v)+'">'+_fmt(r.v)+'</b></div><div style="height:5px;background:rgba(255,255,255,.08);border-radius:5px"><div style="height:5px;width:'+w+'%;background:'+_col(r.v)+';border-radius:5px"></div></div></div>';}).join('');
+    ov.appendChild(box); ov.onclick=function(e){if(e.target===ov)ov.remove();}; document.body.appendChild(ov);
+  };
+  function enhanceExecCards(){
+    try{
+      var fc=(typeof calcForecastYE==='function')?calcForecastYE({respectFilters:true}):null;
+      var fe=document.getElementById('eis_forecast');
+      if(fe&&fc){fe.textContent=_fmt(fc.exec);fe.style.color=_col(fc.exec);fe.style.cursor='pointer';fe.onclick=function(){window._showForecastDrilldown(fc);};}
+      var cp=(typeof calcCurrentPerformanceBreakdown==='function')?calcCurrentPerformanceBreakdown({respectFilters:true}):null;
+      var ce=document.getElementById('eis_current_perf');
+      if(ce&&cp){ce.textContent=_fmt(cp.exec);ce.style.color=_col(cp.exec);ce.style.cursor='pointer';ce.title=(lang==='ar'?'اضغط لعرض الأقسام':'Click for department breakdown');ce.onclick=function(){window._showCurrentPerformanceDrilldown(cp);};}
+    }catch(e){console.warn('[QUMC enhance cards]',e);}
+    if(typeof window.qumcApplyArabicUI==='function') window.qumcApplyArabicUI();
+  }
+  var _oldRenderExec=window.renderExec||renderExec;
+  window.renderExec=renderExec=function(){ var r=_oldRenderExec.apply(this,arguments); setTimeout(enhanceExecCards,80); return r; };
+  var _oldMk=window.mkChart||mkChart;
+  window.mkChart=mkChart=function(id,cfg){
+    try{
+      if(typeof lang!=='undefined'&&lang==='ar'&&cfg&&cfg.data&&Array.isArray(cfg.data.datasets)){
+        var m={'Met':'محقق','Missed':'غير محقق','Target':'الهدف','Result':'النتيجة','Performance':'الأداء','Actual':'الفعلي','Gap':'الفجوة'};
+        cfg=JSON.parse(JSON.stringify(cfg));
+        cfg.data.datasets.forEach(function(ds){ if(ds&&m[ds.label]) ds.label=m[ds.label]; });
+      }
+    }catch(_e){}
+    return _oldMk.apply(this,[id,cfg]);
+  };
+})();
