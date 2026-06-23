@@ -728,6 +728,34 @@ var BUILTIN_MASTER_KPIS = {
 };
 window.BUILTIN_MASTER_KPIS = BUILTIN_MASTER_KPIS;
 
+/* Merge a built-in Master KPI with Super Admin overrides.
+   Built-in objects are never mutated. Overrides can update resultFormula and
+   field labels/types through ST.masterKpis only. */
+function _mergeMasterKpiConfig(masterId){
+  var base = (window.BUILTIN_MASTER_KPIS||{})[masterId] || {};
+  var ov = ((typeof ST !== 'undefined' && ST.masterKpis) ? ST.masterKpis[masterId] : null) || {};
+  var cfg = Object.assign({}, base, ov);
+  cfg.nameEn = ov.nameEn || base.nameEn || '';
+  cfg.nameAr = ov.nameAr || base.nameAr || cfg.nameEn || '';
+  cfg.matchKeywords = Array.isArray(base.matchKeywords) ? base.matchKeywords.slice() : (Array.isArray(ov.matchKeywords) ? ov.matchKeywords.slice() : []);
+  var baseFields = Array.isArray(base.fieldConfig) ? base.fieldConfig : [];
+  var ovFields = Array.isArray(ov.fieldConfig) ? ov.fieldConfig : [];
+  if(baseFields.length || ovFields.length){
+    var max = Math.max(baseFields.length, ovFields.length);
+    cfg.fieldConfig = [];
+    for(var i=0;i<max;i++){
+      cfg.fieldConfig.push(Object.assign({}, baseFields[i]||{}, ovFields[i]||{}));
+    }
+  } else {
+    cfg.fieldConfig = [];
+  }
+  cfg.resultFormula = (ov.resultFormula !== undefined && ov.resultFormula !== null && String(ov.resultFormula).trim() !== '')
+    ? ov.resultFormula
+    : (base.resultFormula || '');
+  return cfg;
+}
+window._mergeMasterKpiConfig = _mergeMasterKpiConfig;
+
 /* Evaluate a column-letter formula with provided values
    formula: "(A + B + C) / 3"
    vals: { A: 80, B: 90, C: 85 } → returns 85 */
@@ -749,25 +777,13 @@ window._evalFormula = _evalFormula;
 function _findMasterKpiByName(nameEn){
   if(!nameEn) return null;
   var search = nameEn.toLowerCase().trim();
-  /* Check SA-created configs first */
-  /* Deep merge: ST.masterKpis overrides individual FIELDS (e.g. resultFormula)
-     but never replaces the entire BUILTIN entry (fieldConfig, nameEn etc. preserved) */
+  /* Check SA-created configs first. Use the canonical merge helper so
+     formula reference edits are read from ST.masterKpis but BUILTIN_MASTER_KPIS
+     remains untouched. */
   var _overrides=(typeof ST!=='undefined'&&ST.masterKpis)||{};
   var allMaster={};
   Object.keys(BUILTIN_MASTER_KPIS).forEach(function(mid){
-    var base = BUILTIN_MASTER_KPIS[mid] || {};
-    var ov   = _overrides[mid] || {};
-    /* Built-in master KPI table columns are canonical.
-       Allow Super Admin formula overrides, but never let stale Firestore/localStorage
-       overrides replace fieldConfig/name/matchKeywords for built-ins. */
-    allMaster[mid] = Object.assign({}, base, ov);
-    allMaster[mid].nameEn = base.nameEn;
-    allMaster[mid].nameAr = base.nameAr;
-    allMaster[mid].matchKeywords = base.matchKeywords;
-    allMaster[mid].fieldConfig = base.fieldConfig;
-    allMaster[mid].resultFormula = (ov.resultFormula !== undefined && ov.resultFormula !== null && String(ov.resultFormula).trim() !== '')
-      ? ov.resultFormula
-      : base.resultFormula;
+    allMaster[mid] = (typeof _mergeMasterKpiConfig==='function') ? _mergeMasterKpiConfig(mid) : Object.assign({}, BUILTIN_MASTER_KPIS[mid], _overrides[mid]||{});
   });
   Object.keys(_overrides).forEach(function(mid){
     if(!allMaster[mid]) allMaster[mid]=Object.assign({},_overrides[mid]);
