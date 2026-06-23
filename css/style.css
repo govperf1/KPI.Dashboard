@@ -476,8 +476,9 @@ select.fb option{background:#fff;color:var(--ink)}
    ACCOUNTABILITY TABLE
 ═══════════════════════════════════════════════════════════════ */
 .acc-tbl{width:100%;border-collapse:separate;border-spacing:0 5px}
-.acc-tbl th{font-size:8px;font-weight:800;color:var(--t3);letter-spacing:.12em;text-transform:uppercase;padding:6px 12px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
-html[lang="ar"] .acc-tbl th{text-align:right}
+.acc-tbl thead{position:sticky;top:0;z-index:2;background:var(--card-alt);box-shadow:0 1px 0 var(--border)}
+.acc-tbl th{font-size:10px;font-weight:700;color:var(--t2);letter-spacing:.06em;text-transform:uppercase;padding:8px 12px;text-align:start;white-space:nowrap}
+html[lang="ar"] 
 .acc-tbl td{font-size:11px;color:var(--t2);padding:9px 12px;background:var(--card-alt);vertical-align:middle;border-bottom:1px solid var(--border);transition:background var(--fast)}
 .acc-tbl tr:hover td{background:var(--teal-dim)}
 .acc-tbl td:first-child{border-radius:7px 0 0 7px}
