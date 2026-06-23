@@ -829,29 +829,38 @@ window._doResetPassword=async function(){
 </script>
 
 
-<!-- ── Smart Dashboard Assistant (AI Widget) ── -->
-<div id="aiWin" style="display:none;position:fixed;bottom:72px;right:20px;z-index:9999;width:360px;height:480px;background:#0d1b2e;border:1px solid rgba(1,149,175,.35);border-radius:18px;box-shadow:0 8px 40px rgba(0,0,0,.6);flex-direction:column;overflow:hidden;font-family:inherit;">
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:rgba(1,149,175,.08);border-bottom:1px solid rgba(1,149,175,.18);flex-shrink:0">
-    <div style="display:flex;align-items:center;gap:8px">
-      <div style="width:8px;height:8px;background:#22c55e;border-radius:50%"></div>
-      <span style="font-size:12px;font-weight:700;color:#e2e8f0">Dashboard Assistant</span>
+<!-- ── Smart Dashboard Assistant (Local KPI Intelligence) ── -->
+<div id="aiWin" class="ai-chat-window" aria-live="polite">
+  <div class="ai-chat-head">
+    <div class="ai-chat-title-wrap">
+      <div class="ai-chat-icon" aria-hidden="true">📊</div>
+      <div>
+        <div class="ai-chat-title">Dashboard Assistant</div>
+        <div class="ai-chat-subtitle">Local KPI analysis · No external API</div>
+      </div>
     </div>
-    <button onclick="aiToggle()" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:18px;line-height:1;padding:2px 6px;border-radius:6px;">&#x2715;</button>
+    <button type="button" class="ai-chat-close" onclick="aiToggle()" aria-label="Close assistant">×</button>
   </div>
-  <div id="aiBody" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth"></div>
-  <div style="padding:10px 12px;border-top:1px solid rgba(255,255,255,.07);background:rgba(0,0,0,.2);flex-shrink:0">
-    <div style="display:flex;gap:8px;align-items:flex-end">
-      <textarea id="aiInp" placeholder="Ask about your KPIs..." rows="1"
-        style="flex:1;background:rgba(255,255,255,.06);border:1px solid rgba(1,149,175,.3);border-radius:10px;color:#e2e8f0;font-size:11.5px;font-family:inherit;padding:8px 10px;resize:none;outline:none;line-height:1.5;max-height:80px;overflow-y:auto"
-        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiSend();}"
-        oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,80)+'px'"></textarea>
-      <button onclick="aiSend()" style="flex-shrink:0;width:34px;height:34px;background:linear-gradient(135deg,#0195af,#005f7f);border:none;border-radius:10px;color:#fff;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;">&#x27A4;</button>
+  <div id="aiMsgs" class="ai-chat-messages">
+    <div class="ai-msg-bubble assistant">
+      <b>Hi, I’m your KPI assistant.</b><br>
+      Ask me about best department, missed KPIs, forecast, trends, or a specific KPI name/code.
     </div>
-    <div style="font-size:9px;color:#475569;margin-top:5px;text-align:center">Enter = Send &nbsp;|&nbsp; Shift+Enter = New line</div>
+    <div id="aiSugg" class="ai-suggestion-row">
+      <button type="button" onclick="aiAsk('summary')">Summary</button>
+      <button type="button" onclick="aiAsk('best department')">Best dept</button>
+      <button type="button" onclick="aiAsk('missed KPIs')">Missed KPIs</button>
+      <button type="button" onclick="aiAsk('forecast analysis')">Forecast</button>
+    </div>
+  </div>
+  <div class="ai-chat-inputbar">
+    <textarea id="aiInp" placeholder="Ask about dashboard KPIs..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiSend();}" oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,90)+'px'"></textarea>
+    <button id="aiSendBtn" type="button" onclick="aiSend()" aria-label="Send message">➤</button>
   </div>
 </div>
-<!-- AI widget toggle button -->
-<button id="aiFloatBtn" onclick="aiToggle()" style="position:fixed;bottom:20px;right:20px;z-index:9999;padding:0 16px 0 12px;height:44px;background:linear-gradient(135deg,#0195af,#005f7f);border:none;border-radius:22px;color:#fff;font-weight:700;cursor:pointer;box-shadow:0 4px 20px rgba(1,149,175,.5);display:flex;align-items:center;gap:8px;" aria-label="Open Dashboard Assistant"><span style="font-size:16px">&#x1F4AC;</span><span style="font-size:11px;white-space:nowrap">Assistant</span></button>
+<button id="aiFloatBtn" class="ai-float-btn" onclick="aiToggle()" aria-label="Open Dashboard Assistant">
+  <span class="ai-float-chart">📊</span><span>Assistant</span>
+</button>
 
 </body>
 </html>
