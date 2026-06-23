@@ -486,8 +486,23 @@ function updateExecTrend(yr){
   function isAdmin(){var r=role();return r==='super_admin'||r==='superadmin'||r==='admin'||r==='executive';}
   function userKey(){return (email()||userName()||'guest')+'|'+role()+'|'+dept();}
   function seenKey(){return 'qumc_notifications_seen_v3_'+userKey();}
+  function historyKey(){return 'qumc_notifications_history_v4_'+userKey();}
   function readSeen(){try{return JSON.parse(localStorage.getItem(seenKey())||'[]')||[];}catch(e){return[];}}
   function writeSeen(a){try{localStorage.setItem(seenKey(),JSON.stringify(Array.from(new Set(a||[]))));}catch(e){}}
+  function readHistory(){try{var a=JSON.parse(localStorage.getItem(historyKey())||'[]')||[];return Array.isArray(a)?a.filter(function(n){return n&&n.id;}):[];}catch(e){return[];}}
+  function writeHistory(a){try{localStorage.setItem(historyKey(),JSON.stringify((a||[]).filter(function(n){return n&&n.id;}).slice(0,100)));}catch(e){}}
+  function mergeHistory(fresh){
+    var byId={}, merged=[];
+    readHistory().forEach(function(n){if(n&&n.id&&!byId[n.id]){byId[n.id]=n;merged.push(n);}});
+    (fresh||[]).forEach(function(n){
+      if(!n||!n.id)return;
+      n.ts=n.ts||Date.now();
+      if(byId[n.id]){Object.assign(byId[n.id],n);}
+      else{byId[n.id]=n;merged.unshift(n);}
+    });
+    writeHistory(merged);
+    return merged;
+  }
   function getState(){try{return window.ST||JSON.parse(localStorage.getItem('kpi_v3')||'{}')||{};}catch(e){return window.ST||{};}}
   function getKpis(){try{if(typeof window.allK==='function')return window.allK()||[];}catch(e){} try{if(Array.isArray(window.KPIS))return window.KPIS;}catch(e){} try{var st=getState(); if(Array.isArray(st.kpis))return st.kpis;}catch(e){} return [];}
   function assignedList(){var a=window._fbAssignedKpis||window.assignedKpis||[];if(typeof a==='string')a=a.split(/[;,|]/);return Array.isArray(a)?a.map(function(x){return String(x).trim().toLowerCase();}).filter(Boolean):[];}
@@ -537,9 +552,10 @@ function updateExecTrend(yr){
     ks.forEach(function(k){
       if(!canSeeKpi(k))return;
       var bad=qValues(k).filter(function(x){return !isMet(k,x.v);});
-      if(!bad.length && !isMet(k))return;
-      var quarters=bad.length?bad.map(function(x){return String(x.q).toUpperCase();}).join(', '):'selected period';
-      out.push({id:'miss_'+kId(k)+'_'+String(k.year||k.yr||'')+'_'+quarters,level:'red',title:kTitle(k),meta:'Missed target in '+quarters});
+      /* Only create a KPI notification when an actual quarterly value missed the target. */
+      if(!bad.length)return;
+      var quarters=bad.map(function(x){return String(x.q).toUpperCase();}).join(', ');
+      out.push({id:'miss_'+kId(k)+'_'+String(k.year||k.yr||'')+'_'+quarters,level:'red',title:kTitle(k),meta:'Missed target in '+quarters,ts:Date.now()});
     });
     var gaps=st.gaps||st.gapAnalysis||st.gap_analysis||{};
     if(Array.isArray(gaps)){var tmp={};gaps.forEach(function(g,i){tmp[g.kpiId||g.id||i]=g;});gaps=tmp;}
@@ -552,7 +568,7 @@ function updateExecTrend(yr){
       var status=String(g.status||g.actionStatus||g.state||'').toLowerCase();
       var pri=String(g.priority||g.risk||'').toLowerCase();
       var open=!status||['open','in progress','in-progress','pending','overdue','active'].some(function(s){return status.indexOf(s)>-1;});
-      if(open||pri==='critical'||pri==='high')out.push({id:'gap_'+id+'_'+status+'_'+pri,level:'red',title:(k?kTitle(k):(id||'Gap action')),meta:'Gap analysis action '+(status||'open')});
+      if(open||pri==='critical'||pri==='high')out.push({id:'gap_'+id+'_'+status+'_'+pri,level:'red',title:(k?kTitle(k):(id||'Gap action')),meta:'Gap analysis action '+(status||'open'),ts:Date.now()});
     });
     var seen=readSeen();
     var unique={};
@@ -563,19 +579,16 @@ function updateExecTrend(yr){
     var key=userKey();
     if(key!==notifCacheKey){ notifCacheKey=key; notifCache=null; }
     var seen=readSeen();
+    var fresh=rawNotifications();
     if(forBadge){
-      /* Badge: always current fresh missed KPIs — never touches notifCache */
-      return rawNotifications().filter(function(n){return seen.indexOf(n.id)===-1;});
+      /* Badge = live unread only. This never clears or replaces history. */
+      return fresh.filter(function(n){return seen.indexOf(n.id)===-1;});
     }
-    /* List: accumulate — never remove historical items */
-    var _fresh=rawNotifications();
+    /* History = accumulated notifications. Never replace it with an empty rebuild. */
     if(!notifCache){
-      notifCache=_fresh;
-    } else if(_fresh.length>0){
-      var byId={};
-      notifCache.forEach(function(n){ byId[n.id]=n; });
-      _fresh.forEach(function(n){ byId[n.id]=n; });
-      notifCache=Object.keys(byId).map(function(k){return byId[k];});
+      notifCache=mergeHistory(fresh);
+    } else {
+      notifCache=fresh.length?mergeHistory(fresh):readHistory();
     }
     return notifCache||[];
   }
@@ -635,7 +648,12 @@ function updateExecTrend(yr){
         };
       });
     }
-    var clear=$('qumcClearNotifs'); if(clear){clear.onclick=function(ev){ev.preventDefault();ev.stopPropagation();writeSeen(readSeen().concat(getNotifications(false).map(function(n){return n.id;})));notifCache=[];renderNotifications(false);};}
+    var clear=$('qumcClearNotifs'); if(clear){clear.onclick=function(ev){
+      ev.preventDefault();ev.stopPropagation();
+      /* Mark all as read only. Do NOT clear notifCache/history; read notifications must remain visible. */
+      writeSeen(readSeen().concat(getNotifications(false).map(function(n){return n.id;})));
+      renderNotifications(false);
+    };}
   }
 
     /* Centered modal for full notification message */
