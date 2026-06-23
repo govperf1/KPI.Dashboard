@@ -428,8 +428,14 @@ function normalizeKpiRecord(k){
   r.id=String(r.id||r.code||'').trim().toUpperCase();
   r.dept=String(r.dept||r.department||'').trim();
   r.yr=parseInt(r.yr||r.year)||new Date().getFullYear();
-  r.nameEn=String(r.nameEn||r.name||r.titleEn||r.title||'').trim();
-  r.nameAr=String(r.nameAr||r.titleAr||'').trim();
+  /* F4: Distinguish empty string from missing/undefined.
+     An empty string nameEn in ST.ov must NOT fall through to BASE k.nameEn. */
+r.nameEn=(r.nameEn!==undefined&&r.nameEn!==null&&r.nameEn!=='')
+  ?String(r.nameEn).trim()
+  :String(r.name||r.titleEn||r.title||'').trim();
+  r.nameAr=(r.nameAr!==undefined&&r.nameAr!==null&&r.nameAr!=='')
+  ?String(r.nameAr).trim()
+  :String(r.titleAr||'').trim();
   r.target=parseFloat(r.target||r.targetPct||r.targetPercent)||100;
   r.op=normalizeOperator(r.op||r.operator);
   r.type=r.type||'core';
@@ -505,12 +511,79 @@ async function persistST(reason){
     }catch(e){
       console.error('[SAVE ERR]', reason, e.code||e.message);
       if(typeof toast==='function') toast('⚠ '+(lang==='ar'?'خطأ في الحفظ: ':'Save error: ')+(e.code||e.message));
-      throw e; /* let caller handle UI */
+      throw e;
     }
   }
-  if(typeof renderCurrent==='function') renderCurrent();
+  /* F3: renderCurrent() removed — callers must call it explicitly */
 }
 window.persistST=persistST;
+
+/* ══════════════════════════════════════════════════════
+   calcForecastYE()
+   Dynamic forecast — no hardcoded years.
+   Current year = max(k.yr) where k has actual data.
+   Groups KPIs by nameEn+dept across all years.
+   Formula: (HistoricalAvg + 3×CurrentYearAvg) / 4
+   Returns: { exec, byDept, currentYear }
+   ══════════════════════════════════════════════════════ */
+function calcForecastYE(){
+  var ks=(typeof allK==='function')?allK():[];
+  if(!ks.length) return {exec:null,byDept:{},currentYear:null};
+
+  /* 1. Current year = max yr that has at least one non-null quarter */
+  var maxYr=0;
+  ks.forEach(function(k){
+    var hasData=['q1','q2','q3','q4'].some(function(q){
+      return k[q]!==null&&k[q]!==undefined&&typeof k[q]==='number';
+    });
+    if(hasData&&k.yr>maxYr) maxYr=k.yr;
+  });
+  if(!maxYr) return {exec:null,byDept:{},currentYear:null};
+
+  /* 2. Group by nameEn.toLowerCase()+dept across ALL years */
+  var groups={};
+  ks.forEach(function(k){
+    var gKey=((k.nameEn||k.id||'').toLowerCase().trim())+'__'+(k.dept||'');
+    if(!groups[gKey]) groups[gKey]={nameEn:k.nameEn,dept:k.dept,histVals:[],curVals:[]};
+    var vals=['q1','q2','q3','q4'].map(function(q){return k[q];})
+      .filter(function(v){return v!==null&&v!==undefined&&typeof v==='number';});
+    if(!vals.length) return;
+    /* Historical: all years */
+    groups[gKey].histVals=groups[gKey].histVals.concat(vals);
+    /* Current year only */
+    if(k.yr===maxYr) groups[gKey].curVals=groups[gKey].curVals.concat(vals);
+  });
+
+  /* 3. Forecast per KPI group: (histAvg + 3×curAvg) / 4 */
+  var kpiFcs=[];
+  var deptFcs={};
+  Object.keys(groups).forEach(function(gk){
+    var g=groups[gk];
+    if(!g.histVals.length||!g.curVals.length) return; /* skip if no current-year data */
+    var histAvg=g.histVals.reduce(function(a,b){return a+b;},0)/g.histVals.length;
+    var curAvg =g.curVals.reduce(function(a,b){return a+b;},0)/g.curVals.length;
+    var fc=(histAvg+3*curAvg)/4;
+    kpiFcs.push(fc);
+    if(!deptFcs[g.dept]) deptFcs[g.dept]=[];
+    deptFcs[g.dept].push(fc);
+  });
+
+  if(!kpiFcs.length) return {exec:null,byDept:{},currentYear:maxYr};
+
+  /* 4. Executive forecast = average of all KPI forecasts */
+  var exec=kpiFcs.reduce(function(a,b){return a+b;},0)/kpiFcs.length;
+
+  /* 5. Per-dept = average of KPI forecasts in that dept */
+  var byDept={};
+  Object.keys(deptFcs).forEach(function(d){
+    var arr=deptFcs[d];
+    byDept[d]=arr.reduce(function(a,b){return a+b;},0)/arr.length;
+  });
+
+  return {exec:exec,byDept:byDept,currentYear:maxYr};
+}
+window.calcForecastYE=calcForecastYE;
+
 
 /* ── Smart Dashboard Assistant (restored) ── */
 function aiToggle(){
@@ -521,28 +594,51 @@ function aiToggle(){
 }
 window.aiToggle=aiToggle;
 function aiSend(){
-  /* HTML uses id="aiInp" for input, id="aiBody" for output */
   var inp=document.getElementById('aiInp')||document.getElementById('aiInput');
   var out=document.getElementById('aiBody')||document.getElementById('aiOut');
   if(!inp||!out) return;
   var q=inp.value.trim(); if(!q) return; inp.value='';
   function _e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');}
   out.innerHTML+='<div style="color:#0195af;font-weight:700;margin:6px 0 2px">You: '+_e(q)+'</div>';
-  var ctx='KPI Dashboard Summary: ';
-  if(typeof allK==='function'){var ks=allK();ctx+='Total KPIs: '+ks.length+'. ';ks.slice(0,8).forEach(function(k){ctx+=k.nameEn+'(dept:'+k.dept+',target:'+k.target+'%,Q1:'+(k.q1!==null&&k.q1!==undefined?k.q1+'%':'—')+'); ';});}
-  out.innerHTML+='<div style="color:#64748B;font-style:italic;margin-bottom:4px">Thinking…</div>';
   out.scrollTop=out.scrollHeight;
-  fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:400,messages:[{role:'user',content:'You are a KPI performance assistant for Qassim University Medical City, Facilities & Safety Division. '+ctx+' Answer the user question briefly (2-4 sentences): '+q}]})
-  }).then(function(r){return r.json();}).then(function(d){
-    var a=(d.content&&d.content[0]&&d.content[0].text)||'Unable to respond at this time.';
-    out.innerHTML=out.innerHTML.replace('<div style="color:#64748B;font-style:italic;margin-bottom:4px">Thinking…</div>','');
-    out.innerHTML+='<div style="color:#e2e8f0;line-height:1.6;margin-bottom:8px">'+_e(a)+'</div>';
+  /* Local KPI analytical engine — works without external API */
+  setTimeout(function(){
+    var ans='';
+    try{
+      var ks=(typeof allK==='function')?allK():[];
+      var qLow=q.toLowerCase();
+      function pn(v){return(v!==null&&v!==undefined&&!isNaN(parseFloat(v)))?parseFloat(v):null;}
+      function isMet(k){var vs=[pn(k.q1),pn(k.q2),pn(k.q3),pn(k.q4)].filter(function(v){return v!==null;});return vs.some(function(v){return v>=k.target;});}
+      var met=ks.filter(isMet);
+      var missed=ks.filter(function(k){var vs=[pn(k.q1),pn(k.q2),pn(k.q3),pn(k.q4)].filter(function(v){return v!==null;});return vs.length>0&&!isMet(k);});
+      var depts={};
+      ks.forEach(function(k){if(!depts[k.dept])depts[k.dept]=[];depts[k.dept].push(k);});
+      if(/best|top|high/i.test(q)){
+        var ranks=Object.keys(depts).map(function(d){var ks2=depts[d],m=ks2.filter(isMet);return{d:d,pct:ks2.length?Math.round(m.length/ks2.length*100):0};}).sort(function(a,b){return b.pct-a.pct;});
+        ans='Best performing department: '+(ranks[0]?ranks[0].d+' ('+ranks[0].pct+'% KPIs meeting target)':'No data.')+'. All departments: '+ranks.map(function(r){return r.d+' '+r.pct+'%';}).join(', ')+'.';
+      } else if(/worst|poor|risk|low/i.test(q)){
+        ans='KPIs at risk ('+missed.length+'): '+missed.slice(0,5).map(function(k){var vs=[pn(k.q1),pn(k.q2),pn(k.q3),pn(k.q4)].filter(function(v){return v!==null;});var avg=vs.length?Math.round(vs.reduce(function(a,b){return a+b;},0)/vs.length):null;return k.nameEn+(avg!==null?' (avg '+avg+'%/target '+k.target+'%)':'');}).join('; ')+'.';
+      } else if(/miss|below|fail/i.test(q)){
+        ans='Missed KPIs: '+missed.length+' of '+ks.length+'. Examples: '+missed.slice(0,4).map(function(k){return k.nameEn+'['+k.dept+']';}).join(', ')+(missed.length>4?' + '+(missed.length-4)+' more':'')+'.';
+      } else if(/summar|overview|status|total|all/i.test(q)){
+        ans='Summary: '+ks.length+' KPIs across '+Object.keys(depts).length+' departments. '+met.length+' meeting target ('+Math.round(met.length/Math.max(ks.length,1)*100)+'%). '+missed.length+' below target. Departments: '+Object.keys(depts).map(function(d){var m=depts[d].filter(isMet);return d+'('+m.length+'/'+depts[d].length+')';}).join(', ')+'.';
+      } else if(/dept|division|team|section/i.test(q)){
+        ans='Departments: '+Object.keys(depts).map(function(d){var ks2=depts[d],m=ks2.filter(isMet);return d+': '+m.length+'/'+ks2.length+' KPIs met ('+Math.round(m.length/Math.max(ks2.length,1)*100)+'%)';}).join(' | ')+'.';
+      } else if(/trend|improv|increas|grow/i.test(q)){
+        var imp=ks.filter(function(k){var q1=pn(k.q1),q4=pn(k.q4);return q1!==null&&q4!==null&&q4>q1;}).slice(0,4);
+        ans='Improving KPIs: '+(imp.length?imp.map(function(k){return k.nameEn+' (Q1:'+k.q1+'%→Q4:'+k.q4+'%)';}).join(', '):'No clear improvement trend detected.')+'.';
+      } else {
+        var found=ks.filter(function(k){return k.nameEn.toLowerCase().indexOf(qLow)>-1||(k.nameAr&&k.nameAr.indexOf(q)>-1)||k.dept.toLowerCase().indexOf(qLow)>-1;}).slice(0,4);
+        if(found.length){
+          ans='Matching KPIs: '+found.map(function(k){var vs=[pn(k.q1),pn(k.q2),pn(k.q3),pn(k.q4)].filter(function(v){return v!==null;});var avg=vs.length?Math.round(vs.reduce(function(a,b){return a+b;},0)/vs.length):null;return k.nameEn+'['+k.dept+'] target:'+k.target+'%'+(avg!==null?' avg:'+avg+'%':' no data');}).join(' | ')+'.';
+        } else {
+          ans='Dashboard: '+ks.length+' KPIs, '+met.length+' meeting targets ('+Math.round(met.length/Math.max(ks.length,1)*100)+'%). Try asking: summary, best/worst department, missed KPIs, trends, or search by KPI name.';
+        }
+      }
+    }catch(err){ ans='Analysis error: '+err.message; }
+    out.innerHTML+='<div style="color:#e2e8f0;line-height:1.6;margin-bottom:8px;padding:8px 10px;background:rgba(1,149,175,.07);border-radius:8px;border-left:3px solid #0195af">'+_e(ans)+'</div>';
     out.scrollTop=out.scrollHeight;
-  }).catch(function(e){
-    out.innerHTML=out.innerHTML.replace('<div style="color:#64748B;font-style:italic;margin-bottom:4px">Thinking…</div>','');
-    out.innerHTML+='<div style="color:#F87171;margin-bottom:4px">Error: '+_e(e.message)+'</div>';
-  });
+  },60);
 }
 window.aiSend=aiSend;
 
@@ -554,23 +650,23 @@ window.aiSend=aiSend;
    ═══════════════════════════════════════════════════════════════ */
 var BUILTIN_MASTER_KPIS = {
   'laundry_turnaround_time_compliance': {
-    nameEn: 'Laundry Turnaround Time Compliance',
-    nameAr: 'معدل الامتثال لوقت دوران الغسيل',
-    matchKeywords: ['laundry turnaround'],
+    nameEn: 'Laundry Turnaround Time',
+    nameAr: 'وقت دوران الغسيل',
+    matchKeywords: ['laundry turnaround', 'laundry turnaround time'],
     fieldConfig: [
-      { nameEn:'Daily Number of Order',            nameAr:'عدد الطلبات اليومي',                    type:'number', inputMode:'manual' },
-      { nameEn:'Total Washing Time for all Order', nameAr:'إجمالي وقت الغسيل لجميع الطلبات',      type:'number', inputMode:'manual' }
+      { nameEn:'Daily Number of Order',            nameAr:'عدد الطلبات اليومي',               type:'number', inputMode:'manual' },
+      { nameEn:'Total Washing Time for all Order', nameAr:'إجمالي وقت الغسيل لجميع الطلبات', type:'number', inputMode:'manual' }
     ],
-    resultFormula: '(100 / ((B / A) * 60)) * 100'
+    resultFormula: '(100/((B/A)*60))*100'
   },
   'hygiene_standards_compliance': {
-    nameEn: 'Rate of Compliance with General Hygiene Standards',
-    nameAr: 'معدل الامتثال لمعايير النظافة العامة',
-    matchKeywords: ['hygiene', 'compliance with general hygiene', 'hygiene standards'],
+    nameEn: 'Hygiene Standards Compliance',
+    nameAr: 'الامتثال لمعايير النظافة',
+    matchKeywords: ['hygiene', 'hygiene standards', 'hygiene standards compliance', 'compliance with general hygiene'],
     fieldConfig: [
-      { nameEn:'Compliance rate of non-critical areas',                nameAr:'معدل الامتثال في المناطق غير الحرجة',         type:'percentage', inputMode:'manual' },
-      { nameEn:'Compliance rate of critical care areas',               nameAr:'معدل الامتثال في مناطق الرعاية الحرجة',      type:'percentage', inputMode:'manual' },
-      { nameEn:'Compliance rate of non-critical and regular areas',    nameAr:'معدل الامتثال في المناطق العادية وغير الحرجة',type:'percentage', inputMode:'manual' }
+      { nameEn:'Compliance Rate of Non-Critical Areas',          nameAr:'معدل الامتثال في المناطق غير الحرجة',         type:'percentage', inputMode:'manual' },
+      { nameEn:'Compliance Rate of Critical Care Areas',         nameAr:'معدل الامتثال في مناطق الرعاية الحرجة',      type:'percentage', inputMode:'manual' },
+      { nameEn:'Compliance Rate of Non-Critical and Regular Areas', nameAr:'معدل الامتثال في المناطق العادية وغير الحرجة', type:'percentage', inputMode:'manual' }
     ],
     resultFormula: '(A*0.3)+(B*0.5)+(C*0.2)'
   },

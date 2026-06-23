@@ -125,10 +125,23 @@ window.TR = TR;
 
 function t(key) {
   var val;
+  var _lang = (typeof lang !== 'undefined') ? lang : 'en';
+  /* F1: NO cross-language fallback. Each language is independent. */
   if (typeof ST !== 'undefined' && ST.textEdits && ST.textEdits[key]) {
-    val = ST.textEdits[key][lang] || ST.textEdits[key]['en'] || key;
+    var _te = ST.textEdits[key];
+    /* Only use the current language's value — never fall back to the other language */
+    val = (_te[_lang] !== undefined && _te[_lang] !== null) ? _te[_lang] : null;
+    if (val === null) {
+      /* No edit for this language yet — fall to TR default for this language */
+      val = (TR[key] && TR[key][_lang] !== undefined && TR[key][_lang] !== null)
+              ? TR[key][_lang]
+              : key;
+    }
   } else if (TR[key]) {
-    val = TR[key][lang] || TR[key]['en'] || key;
+    /* F1: Only read current language from TR, never cross-read */
+    val = (TR[key][_lang] !== undefined && TR[key][_lang] !== null)
+            ? TR[key][_lang]
+            : key;
   } else {
     val = key;
   }
@@ -161,12 +174,17 @@ function tBoth(key) {
 window.tBoth = tBoth;
 
 function tSet(key, en, ar) {
-  if (!TR[key]) TR[key] = { en: '', ar: '' };
-  if (en !== undefined) TR[key].en = en;
-  if (ar !== undefined) TR[key].ar = ar;
+  /* F2: Write only the language that was explicitly provided.
+     Never overwrite the other language. */
+  if (!TR[key]) TR[key] = {};
+  if (en !== undefined && en !== null) TR[key].en = en;
+  if (ar !== undefined && ar !== null) TR[key].ar = ar;
   if (typeof ST !== 'undefined') {
     if (!ST.textEdits) ST.textEdits = {};
-    ST.textEdits[key] = { en: TR[key].en, ar: TR[key].ar };
+    if (!ST.textEdits[key]) ST.textEdits[key] = {};
+    /* Only set the languages that were explicitly passed */
+    if (en !== undefined && en !== null) ST.textEdits[key].en = en;
+    if (ar !== undefined && ar !== null) ST.textEdits[key].ar = ar;
   }
   if (typeof applyDOMTranslations === 'function') applyDOMTranslations();
 }

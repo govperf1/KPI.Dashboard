@@ -559,20 +559,25 @@ function updateExecTrend(yr){
     out.forEach(function(n){if(n&&n.id&&!unique[n.id])unique[n.id]=n;});
     return Object.keys(unique).map(function(k){return unique[k];}); /* Show ALL notifications — mark-read only dims, never removes */
   }
-  function getNotifications(force){
+  function getNotifications(forBadge){
     var key=userKey();
-    if(force||key!==notifCacheKey||!notifCache){
-      notifCacheKey=key;
-      var _rebuilt=rawNotifications();
-      /* Merge: if rebuild returned items use them; if empty keep any existing history */
-      if(_rebuilt.length>0 || !notifCache){
-        notifCache=_rebuilt;
-      }
-      /* If _rebuilt is empty but we had history, silently keep it */
-    }
+    if(key!==notifCacheKey){ notifCacheKey=key; notifCache=null; }
     var seen=readSeen();
-    /* force=true: unread only (badge count); force=false: all (list display) */
-    return force?(notifCache||[]).filter(function(n){return seen.indexOf(n.id)===-1;}):(notifCache||[]);
+    if(forBadge){
+      /* Badge: always current fresh missed KPIs — never touches notifCache */
+      return rawNotifications().filter(function(n){return seen.indexOf(n.id)===-1;});
+    }
+    /* List: accumulate — never remove historical items */
+    var _fresh=rawNotifications();
+    if(!notifCache){
+      notifCache=_fresh;
+    } else if(_fresh.length>0){
+      var byId={};
+      notifCache.forEach(function(n){ byId[n.id]=n; });
+      _fresh.forEach(function(n){ byId[n.id]=n; });
+      notifCache=Object.keys(byId).map(function(k){return byId[k];});
+    }
+    return notifCache||[];
   }
   function positionDrop(drop,btn,width){
     if(!drop||!btn)return;
@@ -723,15 +728,12 @@ function updateExecTrend(yr){
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindFinal);else bindFinal();
   setTimeout(function(){bindFinal();},1200); /* first init after FS load */
   setTimeout(function(){
-  /* Merge refresh: rebuild only if rawNotifications returns items; keep history otherwise */
-  var _fresh=(typeof rawNotifications==='function')?rawNotifications():[];
-  if(_fresh.length>0){
-    /* New data found — use it */
-    notifCache=_fresh;
-  }
-  /* If empty, keep existing notifCache (history remains visible) */
+  /* Merge refresh: getNotifications(false) accumulates fresh items into history.
+     If rawNotifications() returns empty, notifCache is untouched (history preserved).
+     Badge is always fresh (getNotifications(true) returns live count). */
+  getNotifications(false);
   bindFinal();
-},4000); /* refresh with fresh data, keep history if empty */
+},4000); /* merge refresh — history never cleared by empty rebuild */
 })();
 
 

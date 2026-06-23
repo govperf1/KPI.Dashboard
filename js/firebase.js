@@ -13,7 +13,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     setPersistence(auth,browserSessionPersistence).then(()=>console.log('[Auth] Session persistence set')).catch(e=>console.warn('[Auth] Persistence:',e.message));
 
     const ge=id=>{const e=document.getElementById(id);if(!e)console.warn('[Auth] Missing element:',id);return e;};
-    const showLogin=()=>{console.log('[Auth] showLogin');['_authOverlay'].forEach(id=>{const e=ge(id);if(e)e.style.display='flex';});const po=ge('_portalOverlay');if(po)po.style.display='none';const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
+    const showLogin=()=>{console.log('[Auth] showLogin');/* Show overlay (already visible, but ensure it is) */const ao=ge('_authOverlay');if(ao){ao.style.display='flex';ao.style.alignItems='flex-end';ao.style.background='rgba(245,247,252,0)'}/* Hide loading spinner, show login form */const ld=ge('_authLoading');if(ld)ld.style.display='none';const lp=ge('_loginPanel');if(lp)lp.style.display='block';const po=ge('_portalOverlay');if(po)po.style.display='none';const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
     const showPortal=(name,role)=>{console.log('[Auth] showPortal:',name,role);const po=ge('_portalOverlay'),lo=ge('_authOverlay');if(lo)lo.style.display='none';if(po){po.style.display='flex';console.log('[Auth] _portalOverlay is now flex');}else{console.error('[Auth] PORTAL OVERLAY NOT FOUND');return;}const nm=ge('_portalUserName'),rl=ge('_portalUserRole');if(nm)nm.textContent=name||'User';if(rl){const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',viewer:'Viewer'};rl.textContent=L[role]||role;}console.log('[Auth] Portal ready');};
     const setErr=msg=>{console.warn('[Auth] Error:',msg);const e=ge('_fbErr');if(e)e.textContent=msg;const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
 
@@ -268,7 +268,7 @@ window._selectPortal=async portal=>{
           console.log('[FS READ] onSnapshot: remote change — merging + updating UI');
           /* MERGE into ST — localStorage only, ZERO Firestore write */
           /* Fields where REMOTE is authoritative (no local writes during normal use) */
-          const safe=['gaps','actions','audit','pci','codeOv','textEdits','pciConfig','requests'];
+          const safe=['gaps','actions','audit','pci','codeOv','pciConfig','requests']; /* F5: textEdits removed — handled separately below with LOCAL WINS */
           let changed=false;
           /* Simple replace: local has no business modifying these */
           safe.forEach(function(f){
@@ -277,6 +277,19 @@ window._selectPortal=async portal=>{
               catch(_){ST[f]=fsData[f];changed=true;}
             }
           });
+
+
+          /* F5: textEdits — LOCAL WINS (same pattern as ov).
+             Remote provides entries we don't have locally.
+             Local entries survive any incoming snapshot. */
+          if(fsData.textEdits!==undefined){
+            const teMerged=Object.assign({}, fsData.textEdits||{}, ST.textEdits||{});
+            try{
+              if(JSON.stringify(ST.textEdits)!==JSON.stringify(teMerged)){
+                ST.textEdits=teMerged; changed=true;
+              }
+            }catch(_){ ST.textEdits=teMerged; changed=true; }
+          }
 
           /* `ov` — KPI overrides written by Edit KPI.
              LOCAL WINS: user's in-flight edit must survive an incoming snapshot.
@@ -382,10 +395,25 @@ window._selectPortal=async portal=>{
         console.log('[FS] Loaded state from Firestore, keys:',Object.keys(fsData));
         if(typeof ST==='undefined') return;
         /* Safe merge: only merge non-destructive fields */
-        const safeFields=['ov','added','gaps','actions','rptEdits','audit','deleted','pci','codeOv'];
+        const safeFields=['added','gaps','actions','rptEdits','audit','deleted','pci','codeOv']; /* F7: ov handled separately below with LOCAL WINS */
         safeFields.forEach(f=>{
           if(fsData[f]!==undefined) ST[f]=fsData[f];
         });
+
+
+        /* F7: ov — LOCAL WINS (same pattern as onSnapshot).
+           Firestore provides entries we don't have; local entries survive. */
+        if(fsData.ov!==undefined){
+          ST.ov=Object.assign({}, fsData.ov||{}, ST.ov||{});
+        }
+
+        /* F6: Load textEdits from Firestore with LOCAL WINS.
+           If Firestore has edits we don't have locally, bring them in.
+           Local entries (from localStorage) take priority. */
+        if(fsData.textEdits!==undefined){
+          ST.textEdits=Object.assign({}, fsData.textEdits||{}, ST.textEdits||{});
+        }
+
         /* Reconcile: added KPIs must never be in deleted list.
            If ST.deleted contains any id from ST.added, remove it.
            Save the corrected state to Firestore once (no loop). */

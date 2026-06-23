@@ -633,12 +633,22 @@ function renderExec(){
     const _ae=document.getElementById('eis_actions');if(_ae){_ae.textContent=_openAct;_ae.style.color=_openAct>0?'#FBBF24':'#4ADE80';}
     const _ab=document.getElementById('eis_actions_badge');if(_ab){_ab.textContent=_openAct===0?'All documented':_openAct===1?'1 pending':''+_openAct+' pending';_ab.style.color=_openAct>0?'#FBBF24':'#4ADE80';_ab.style.background=_openAct>0?'rgba(217,119,6,.25)':'rgba(22,163,74,.20)';}
 
-    /* Forecast YE */
-    const _evalK=_ks.filter(k=>ok(k)!==null);
-    const _forecastPct=_evalK.length?Math.round((_evalK.filter(k=>ok(k)===true).length+_pend.length*0.5)/_ks.length*100):0;
-    const _fe=document.getElementById('eis_forecast');if(_fe){_fe.textContent=_forecastPct+'%';_fe.style.color=_forecastPct>=80?'#4ADE80':_forecastPct>=60?'#0195af':'#FBBF24';}
-    const _curPerfEl=document.getElementById('eis_current_perf');if(_curPerfEl){const _curKs=_ks.filter(k=>ok(k)!==null);const _curPct=_curKs.length?Math.round(_met.length/_curKs.length*100):0;_curPerfEl.textContent=_curPct+'%';_curPerfEl.style.color='rgba(255,255,255,.55)';}
-    const _fb=document.getElementById('eis_forecast_badge');if(_fb){_fb.innerHTML=tText(_forecastPct>=80?'likely_to_meet_target':_forecastPct>=60?'moderate_risk':'at_risk_label');_fb.style.color=_forecastPct>=80?'#4ADE80':_forecastPct>=60?'#0195af':'#FBBF24';_fb.style.background=_forecastPct>=80?'rgba(22,163,74,.20)':_forecastPct>=60?'rgba(1,149,175,.25)':'rgba(217,119,6,.25)';}
+    /* Forecast YE — dynamic, no hardcoded years */
+    const _fcRes=(typeof calcForecastYE==='function')?calcForecastYE():{exec:null,byDept:{},currentYear:null};
+    const _fcVal=_fcRes.exec;
+    const _forecastTxt=_fcVal!==null?_fcVal.toFixed(2)+'%':'—';
+    const _fcColor=_fcVal!==null?(_fcVal>=80?'#4ADE80':_fcVal>=60?'#0195af':'#FBBF24'):'#64748B';
+    const _fe=document.getElementById('eis_forecast');
+    if(_fe){
+      _fe.textContent=_forecastTxt;_fe.style.color=_fcColor;
+      _fe.style.cursor='pointer';_fe.title='Click for department breakdown';
+      _fe.onclick=function(){if(typeof _showForecastDrilldown==='function')_showForecastDrilldown(_fcRes);};
+    }
+    const _curPerfEl=document.getElementById('eis_current_perf');
+    if(_curPerfEl){const _curKs=_ks.filter(k=>ok(k)!==null);const _curPct=_curKs.length?Math.round(_curKs.filter(k=>ok(k)===true).length/_curKs.length*100):0;_curPerfEl.textContent=_curPct+'%';_curPerfEl.style.color=_curPct>=80?'#4ADE80':_curPct>=60?'#0195af':'#FBBF24';}
+    const _fb=document.getElementById('eis_forecast_badge');
+    if(_fb&&_fcVal!==null){_fb.innerHTML=tText(_fcVal>=80?'likely_to_meet_target':_fcVal>=60?'moderate_risk':'at_risk_label');_fb.style.color=_fcColor;_fb.style.background=_fcVal>=80?'rgba(22,163,74,.20)':_fcVal>=60?'rgba(1,149,175,.25)':'rgba(217,119,6,.25)';}
+    else if(_fb&&_fcVal===null){_fb.innerHTML='Insufficient data';_fb.style.color='#64748B';_fb.style.background='rgba(100,116,139,.20)';}
 
     /* At-Risk KPIs */
     const _atRisk=_ks.filter(k=>{const v=qv(k);return v!==null&&v<k.target&&(k.target-v)<=8;}).length+_pend.length;
@@ -700,6 +710,65 @@ function renderExec(){
     },t));
   },30);
 }
+window.renderExec=renderExec;
+
+/* Forecast YE Department Drill-Down Popup */
+function _showForecastDrilldown(fcRes){
+  var prev=document.getElementById('_forecastDrillOv');
+  if(prev){prev.remove();return;}
+  var isAr=(typeof lang!=='undefined'&&lang==='ar');
+  function _e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+  function _col(v){return v>=80?'#4ADE80':v>=60?'#0195af':'#FBBF24';}
+  var entries=Object.keys(fcRes.byDept||{}).map(function(d){return{dept:d,fc:fcRes.byDept[d]};});
+  entries.sort(function(a,b){return b.fc-a.fc;});
+  var execPct=fcRes.exec!==null?fcRes.exec.toFixed(2)+'%':'—';
+  var execC=fcRes.exec!==null?_col(fcRes.exec):'#64748b';
+  var yr=fcRes.currentYear?String(fcRes.currentYear):'—';
+  var ov=document.createElement('div');
+  ov.id='_forecastDrillOv';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(10,22,48,.82);z-index:9800;display:flex;align-items:center;justify-content:center;padding:16px;';
+  var box=document.createElement('div');
+  box.style.cssText='background:#0d1b2e;border:1px solid rgba(1,149,175,.30);border-radius:18px;padding:24px 28px;width:100%;max-width:400px;max-height:88vh;overflow-y:auto;';
+  /* Header */
+  var hdr=document.createElement('div');hdr.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;';
+  var hi=document.createElement('div');
+  hi.innerHTML='<div style="font-size:8px;font-weight:700;color:#0195af;text-transform:uppercase;letter-spacing:.10em;margin-bottom:3px">'+_e(isAr?'التوقع السنوي':'Forecast YE')+'</div>'
+    +'<div style="font-size:10px;color:#64748b">'+_e(isAr?'السنة الحالية: ':'Current Year: ')+_e(yr)+'</div>';
+  var cl=document.createElement('button');cl.textContent='✕';
+  cl.style.cssText='background:none;border:none;color:#64748b;cursor:pointer;font-size:20px;line-height:1;padding:2px 8px;border-radius:6px;';
+  cl.onclick=function(){ov.remove();};
+  hdr.appendChild(hi);hdr.appendChild(cl);
+  /* Executive summary */
+  var sum=document.createElement('div');
+  sum.style.cssText='text-align:center;background:rgba(1,149,175,.07);border:1px solid rgba(1,149,175,.15);border-radius:12px;padding:16px;margin-bottom:18px;';
+  sum.innerHTML='<div style="font-size:10px;color:#64748b;margin-bottom:4px">'+_e(isAr?'متوسط التوقع العام':'Overall Executive Forecast')+'</div>'
+    +'<div style="font-size:42px;font-weight:900;color:'+execC+';font-family:var(--mono);line-height:1">'+execPct+'</div>'
+    +'<div style="font-size:9px;color:#475569;margin-top:6px">'+_e(isAr?'المعادلة: (تاريخي + ٣×حالي) ÷ ٤':'Formula: (Hist Avg + 3 × Cur Avg) ÷ 4')+'</div>';
+  /* Dept label */
+  var dl=document.createElement('div');dl.style.cssText='font-size:8px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;';
+  dl.textContent=isAr?'توقعات الأقسام':'Department Forecasts';
+  /* Dept rows */
+  var dr=document.createElement('div');
+  entries.forEach(function(e){
+    var dm=(typeof DM!=='undefined'&&DM[e.dept])||{en:e.dept,ar:e.dept};
+    var name=_e(isAr?(dm.ar||dm.en):dm.en);
+    var row=document.createElement('div');row.style.cssText='padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);';
+    row.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">'
+      +'<span style="font-size:11px;color:#94a3b8">'+name+'</span>'
+      +'<span style="font-size:14px;font-weight:900;color:'+_col(e.fc)+';font-family:var(--mono)">'+e.fc.toFixed(2)+'%</span>'
+      +'</div>'
+      +'<div style="height:4px;background:rgba(255,255,255,.06);border-radius:2px">'
+      +'<div style="height:4px;background:'+_col(e.fc)+';border-radius:2px;width:'+Math.min(100,Math.round(e.fc))+'%"></div>'
+      +'</div>';
+    dr.appendChild(row);
+  });
+  box.appendChild(hdr);box.appendChild(sum);box.appendChild(dl);box.appendChild(dr);
+  ov.appendChild(box);
+  ov.onclick=function(e){if(e.target===ov)ov.remove();};
+  document.body.appendChild(ov);
+}
+window._showForecastDrilldown=_showForecastDrilldown;
+
 
 /* == KPI cards grouped by department — with embedded dept summary == */
 function renderExecKpiCards(ks){
@@ -712,7 +781,9 @@ function renderExecKpiCards(ks){
   window._showKpiDetail=(kId)=>{
     const k=allK().find(x=>x.id===kId);if(!k)return;
     const v=qv(k),dm=DM[k.dept];
-    const old=document.getElementById('kpiDetailOv');if(old)old.remove();
+    const old=doc
+
+ument.getElementById('kpiDetailOv');if(old)old.remove();
     const ov=document.createElement('div');
     ov.id='kpiDetailOv';
     ov.style.cssText='position:fixed;inset:0;background:rgba(10,22,48,.60);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center';
