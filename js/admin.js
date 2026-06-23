@@ -1860,11 +1860,18 @@ function _showTextKeyPopup(key, anchorEl){
       /* Never store KPI names in ST.textEdits — avoids cross-language contamination */
       if(ST.textEdits) delete ST.textEdits[key];
     } else {
-      /* General text edits: only the edited language, not both */
+      /* General dashboard text edits: save the edited language only.
+         Keep the original/base text so future renderCurrent() calls can re-apply
+         the edit even when the dashboard rebuilds hardcoded labels. */
       if(!ST.textEdits) ST.textEdits = {};
       if(!ST.textEdits[key]) ST.textEdits[key] = {};
+      if(ST.textEdits[key]._baseEn === undefined) ST.textEdits[key]._baseEn = enVal || (anchorEl ? anchorEl.textContent : '');
+      if(ST.textEdits[key]._baseAr === undefined) ST.textEdits[key]._baseAr = arVal || (anchorEl ? anchorEl.textContent : '');
+      if(ST.textEdits[key]._sourceText === undefined && anchorEl) ST.textEdits[key]._sourceText = anchorEl.textContent || '';
       ST.textEdits[key][editLang] = newVal;
-      if(typeof tSet === 'function') tSet(key, ST.textEdits[key].en, ST.textEdits[key].ar);
+      /* Do not call tSet() here. tSet mutates TR and can make hardcoded dashboard
+         labels lose their original lookup after a refresh/re-render. */
+      if(typeof window._applyDashboardTextEditsSoon==='function') window._applyDashboardTextEditsSoon();
     }
         persistST(key.indexOf('kpi_name:')===0 ? 'KPI_NAME_EDIT:'+key : 'TEXT_EDIT:'+key).then(function(){
       var fb = document.getElementById('_saPopFb');
@@ -1872,6 +1879,7 @@ function _showTextKeyPopup(key, anchorEl){
       /* Re-render dashboard so KPI names update everywhere */
       setTimeout(function(){
         try{ if(typeof renderCurrent==='function') renderCurrent(); }catch(_){}
+        try{ if(typeof window._applyDashboardTextEditsSoon==='function') window._applyDashboardTextEditsSoon(); }catch(_){}
         popup.remove();
       }, 800);
     }).catch(function(e){

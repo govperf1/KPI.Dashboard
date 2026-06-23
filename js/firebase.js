@@ -357,6 +357,7 @@ window._selectPortal=async portal=>{
           const savedPage = window.curPage || 'exec';
           try{ if(typeof renderYearFilter==='function') renderYearFilter(); }catch(_){}
           try{ if(typeof renderCurrent==='function') renderCurrent(); }catch(_){}
+          try{ if(typeof window._applyDashboardTextEditsSoon==='function') window._applyDashboardTextEditsSoon(); }catch(_){}
           window.curPage = savedPage;
           /* Restore tab highlight */
           document.querySelectorAll('.tabnav .tab').forEach(function(t){
@@ -437,6 +438,7 @@ window._selectPortal=async portal=>{
         try{localStorage.setItem('kpi_v3',JSON.stringify(ST));}catch(_){}
         if(typeof renderYearFilter==='function') renderYearFilter(); /* update year filters with loaded data */
         if(typeof renderCurrent==='function') renderCurrent();
+        try{ if(typeof window._applyDashboardTextEditsSoon==='function') window._applyDashboardTextEditsSoon(); }catch(_){}
         if(typeof updateBadge==='function') updateBadge();
         /* Update notification badge for all roles after Firestore data loads */
         if(typeof window.updateAlertUI==='function') window.updateAlertUI();

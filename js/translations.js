@@ -231,14 +231,16 @@ function _applyDashboardTextEdits(){
   try{
     if(typeof ST === 'undefined' || !ST.textEdits) return;
     var curLang = (typeof lang !== 'undefined') ? lang : 'en';
-    var isAr = curLang === 'ar';
-    var skipTags = {SCRIPT:1,STYLE:1,INPUT:1,TEXTAREA:1,SELECT:1,OPTION:1,SVG:1,PATH:1,BUTTON:1,CANVAS:1};
+    var skipTags = {SCRIPT:1,STYLE:1,INPUT:1,TEXTAREA:1,SELECT:1,OPTION:1,SVG:1,PATH:1,CANVAS:1};
     var containers = [];
     ['page-exec','page-reg','page-dept','page-acc','page-report'].forEach(function(id){
       var el=document.getElementById(id); if(el) containers.push(el);
     });
     if(!containers.length) return;
 
+    function norm(txt){ return String(txt||'').replace(/[^a-zA-Z0-9]/g,'_').toLowerCase().substring(0,40); }
+    function sessionKeyFromText(txt){ return 'se_'+norm(txt); }
+    function clean(txt){ return String(txt||'').replace(/[✓✕✗↗↩]/g,'').replace(/\s+/g,' ').trim(); }
     function wanted(key){
       if(!key || key.indexOf('kpi_name:')===0) return null;
       var row = ST.textEdits[key];
@@ -246,54 +248,58 @@ function _applyDashboardTextEdits(){
       var v = row[curLang];
       return (v !== undefined && v !== null && String(v).trim() !== '') ? String(v) : null;
     }
-    function sessionKeyFromText(txt){
-      return 'se_'+String(txt||'').replace(/[^a-zA-Z0-9]/g,'_').toLowerCase().substring(0,40);
-    }
     function hasChildElement(el){
       for(var i=0;i<el.childNodes.length;i++) if(el.childNodes[i].nodeType===1) return true;
       return false;
     }
+    function findKeyForText(txt){
+      var raw=String(txt||'').trim();
+      var c=clean(raw);
+      if(!c) return null;
+      var sk=sessionKeyFromText(c);
+      if(ST.textEdits[sk]) return sk;
+      for(var k in ST.textEdits){
+        if(!Object.prototype.hasOwnProperty.call(ST.textEdits,k)) continue;
+        if(k.indexOf('kpi_name:')===0) continue;
+        var row=ST.textEdits[k]||{};
+        var tr=(typeof TR!=='undefined'&&TR[k])?TR[k]:{};
+        var candidates=[row._baseEn,row._baseAr,row._sourceText,tr.en,tr.ar,row.en,row.ar];
+        for(var i=0;i<candidates.length;i++){
+          var x=candidates[i];
+          if(x!==undefined && x!==null && clean(x)===c) return k;
+        }
+        if(k.indexOf('se_')===0 && norm(c)===k.slice(3)) return k;
+      }
+      return null;
+    }
 
-    /* 1) Elements already marked with data-tkey in edit mode */
     document.querySelectorAll('[data-tkey]').forEach(function(el){
       var key=el.getAttribute('data-tkey');
       var v=wanted(key);
       if(v!==null && el.textContent!==v) el.textContent=v;
     });
 
-    /* 2) Normal rendered dashboard text without edit mode */
     containers.forEach(function(container){
       container.querySelectorAll('*').forEach(function(el){
         if(skipTags[el.tagName]) return;
         if(hasChildElement(el)) return;
         var txt=(el.textContent||'').trim();
-        if(!txt || txt.length<2 || txt.length>160) return;
-
-        var key=null, v=null;
-        /* Match translation keys by their default EN/AR text */
-        if(typeof TR !== 'undefined'){
-          for(var k in ST.textEdits){
-            if(!Object.prototype.hasOwnProperty.call(ST.textEdits,k)) continue;
-            if(k.indexOf('kpi_name:')===0) continue;
-            var tr=TR[k];
-            if(!tr) continue;
-            if(txt === String(tr.en||'') || txt === String(tr.ar||'')) { key=k; break; }
-            var row=ST.textEdits[k]||{};
-            if(txt === String(row.en||'') || txt === String(row.ar||'')) { key=k; break; }
-          }
-        }
-        /* Match session-generated keys for hardcoded/non-TR leaf text */
-        if(!key){
-          var sk=sessionKeyFromText(txt);
-          if(ST.textEdits[sk]) key=sk;
-        }
-        v=wanted(key);
+        if(!txt || txt.length<2 || txt.length>180) return;
+        var key=findKeyForText(txt);
+        var v=wanted(key);
         if(v!==null && el.textContent!==v) el.textContent=v;
       });
     });
   }catch(e){ console.warn('[TextEdits] apply failed:', e && e.message ? e.message : e); }
 }
 window._applyDashboardTextEdits = _applyDashboardTextEdits;
+function _applyDashboardTextEditsSoon(){
+  try{ if(typeof _applyDashboardTextEdits==='function') _applyDashboardTextEdits(); }catch(_){}
+  try{ requestAnimationFrame(function(){ try{_applyDashboardTextEdits();}catch(_){} }); }catch(_){}
+  setTimeout(function(){ try{_applyDashboardTextEdits();}catch(_){} },80);
+  setTimeout(function(){ try{_applyDashboardTextEdits();}catch(_){} },300);
+}
+window._applyDashboardTextEditsSoon=_applyDashboardTextEditsSoon;
 
 function toggleLang() {
   if (typeof lang === 'undefined') return;
@@ -338,7 +344,8 @@ function renderCurrent() {
     else if (cur === 'registry') { if (typeof renderRegistry === 'function') renderRegistry(); }
     else if (cur === 'accountability') { if (typeof renderAcc === 'function') renderAcc(); }
     else if (cur === 'report') { if (typeof renderReport === 'function') renderReport(); }
-    if (typeof _applyDashboardTextEdits === 'function') _applyDashboardTextEdits();
+    if (typeof _applyDashboardTextEditsSoon === 'function') _applyDashboardTextEditsSoon();
+    else if (typeof _applyDashboardTextEdits === 'function') _applyDashboardTextEdits();
   } catch(e) {
     console.error('[Dashboard] renderCurrent error:', e);
   }
