@@ -173,3 +173,8 @@ body.kpi-owner [class*="orange"], body.kpi_owner [class*="orange"], body.kpi-own
 /* Hard hide KPI chat until authenticated dashboard page is visible; JS will show with inline style after login. */
 #_authOverlay ~ #aiFloatBtn,#_authOverlay ~ #aiWin{display:none;}
 #aiFloatBtn{display:none;}
+
+/* Fix: Assistant must not appear on login/portal before dashboard auth is ready */
+#aiWin:not(.open){display:none;}
+body:not(.dashboard-ready) #aiFloatBtn,
+body:not(.dashboard-ready) #aiWin{display:none!important;}
