@@ -121,12 +121,21 @@ var TR = {
 /* ── Export TR immediately after declaration ── */
 window.TR = TR;
 
+function _trUnsafeTextKey(key){
+  return !!({item_label:1,se_missed:1,se_met:1,met:1,met_label:1,missed:1,missed_label:1,pending:1,status:1,result:1,target:1,yoy_col:1,avg_col:1,risk_col:1,code_col:1,kpi_name_col:1,total:1,achievement:1,gap:1}[String(key||'')]);
+}
+window._trUnsafeTextKey=_trUnsafeTextKey;
+
+
 /* ─── Core API ─── */
 
 function t(key) {
   var val;
   var _lang = (typeof lang !== 'undefined') ? lang : 'en';
   /* F1: NO cross-language fallback. Each language is independent. */
+  if ((typeof _trUnsafeTextKey==='function' && _trUnsafeTextKey(key)) && typeof ST !== 'undefined' && ST.textEdits && ST.textEdits[key]) {
+    try{ delete ST.textEdits[key]; }catch(_){}
+  }
   if (typeof ST !== 'undefined' && ST.textEdits && ST.textEdits[key]) {
     var _te = ST.textEdits[key];
     /* Only use the current language's value — never fall back to the other language */
@@ -154,6 +163,7 @@ function t(key) {
 window.t = t;
 
 function tText(key) {
+  if ((typeof _trUnsafeTextKey==='function' && _trUnsafeTextKey(key)) && typeof ST !== 'undefined' && ST.textEdits && ST.textEdits[key]) { try{ delete ST.textEdits[key]; }catch(_){} }
   if (typeof ST !== 'undefined' && ST.textEdits && ST.textEdits[key]) {
     return ST.textEdits[key][lang] || ST.textEdits[key]['en'] || key;
   }
@@ -163,6 +173,7 @@ function tText(key) {
 window.tText = tText;
 
 function tBoth(key) {
+  if ((typeof _trUnsafeTextKey==='function' && _trUnsafeTextKey(key)) && typeof ST !== 'undefined' && ST.textEdits && ST.textEdits[key]) { try{ delete ST.textEdits[key]; }catch(_){} }
   var base = TR[key] || { en: key, ar: '' };
   var over = (typeof ST !== 'undefined' && ST.textEdits && ST.textEdits[key]) || {};
   return {

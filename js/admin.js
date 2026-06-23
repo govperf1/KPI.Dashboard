@@ -1698,12 +1698,88 @@ function _deactivateSaEditMode(){
 }
 window._deactivateSaEditMode = _deactivateSaEditMode;
 
+
+/* HARD FIX: text edit key safety
+   - KPI names may be edited only when the clicked element is tied to a KPI code in the same card/row.
+   - Repeated operational labels (Met/Missed/Result/Target/etc.) are not editable text keys.
+   - General dashboard titles use DOM-location keys only; no text-only or TR fallback keys. */
+function _saUnsafeTextEditKeys(){
+  return {
+    item_label:1,se_missed:1,se_met:1,
+    met:1,met_label:1,missed:1,missed_label:1,pending:1,status:1,
+    result:1,target:1,yoy_col:1,avg_col:1,risk_col:1,code_col:1,kpi_name_col:1,
+    all:1,dept:1,year:1,quarters:1,quarter:1,total:1,achievement:1,gap:1
+  };
+}
+window._saUnsafeTextEditKeys=_saUnsafeTextEditKeys;
+function _saIsUnsafeTextKey(key){
+  if(!key) return true;
+  if(String(key).indexOf('kpi_name:')===0) return false;
+  return !!_saUnsafeTextEditKeys()[String(key)];
+}
+window._saIsUnsafeTextKey=_saIsUnsafeTextKey;
+function _saIsNonEditableLabel(txt){
+  var c=(typeof _saCleanText==='function'?_saCleanText(txt):String(txt||'').replace(/\s+/g,' ').trim());
+  if(!c) return true;
+  var bare=c.replace(/[✓✕✗×▲▼↗»•]/g,'').replace(/\d+(\.\d+)?%?/g,'').replace(/[:()\-–—]/g,' ').replace(/\s+/g,' ').trim().toLowerCase();
+  if(!bare) return true;
+  var blocked={
+    'met':1,'missed':1,'pending':1,'result':1,'target':1,'yoy':1,'gap':1,'total':1,'achievement':1,'kpi':1,'kpis':1,
+    'code':1,'year':1,'dept':1,'risk':1,'avg':1,'status':1,'all':1,'q1':1,'q2':1,'q3':1,'q4':1,
+    'محقق':1,'غير محقق':1,'قيد التنفيذ':1,'النتيجة':1,'الهدف':1,'سنوي':1,'الفجوة':1,'الإجمالي':1,'الإنجاز':1,
+    'المؤشر':1,'المؤشرات':1,'الرمز':1,'السنة':1,'القسم':1,'المخاطر':1,'المتوسط':1,'الحالة':1,'الكل':1
+  };
+  return !!blocked[bare];
+}
+window._saIsNonEditableLabel=_saIsNonEditableLabel;
+function _saPurgeUnsafeTextEdits(){
+  try{
+    if(typeof ST==='undefined'||!ST.textEdits) return;
+    Object.keys(_saUnsafeTextEditKeys()).forEach(function(k){ if(ST.textEdits[k]) delete ST.textEdits[k]; });
+    Object.keys(ST.textEdits).forEach(function(k){
+      if(k.indexOf('kpi_name:')===0) delete ST.textEdits[k];
+      if(k.indexOf('TEXT_EDIT:')===0 || k.indexOf('KPI_NAME_EDIT:')===0) delete ST.textEdits[k];
+    });
+  }catch(_){ }
+}
+window._saPurgeUnsafeTextEdits=_saPurgeUnsafeTextEdits;
+function _saKpiNameKeyForElement(el,txt){
+  try{
+    if(typeof allK!=='function') return null;
+    var c=(typeof _saCleanText==='function'?_saCleanText(txt):String(txt||'').replace(/\s+/g,' ').trim());
+    if(!c || _saIsNonEditableLabel(c)) return null;
+    var arr=allK().filter(function(k){return (typeof _saCleanText==='function'?_saCleanText(k.nameEn):String(k.nameEn||'').trim())===c || (typeof _saCleanText==='function'?_saCleanText(k.nameAr):String(k.nameAr||'').trim())===c;});
+    if(!arr.length) return null;
+    var node=el;
+    for(var depth=0; node && depth<8; depth++, node=node.parentElement){
+      var block=(node.textContent||'');
+      for(var i=0;i<arr.length;i++){
+        if(block.indexOf(arr[i].id)>=0){
+          var en=(typeof _saCleanText==='function'?_saCleanText(arr[i].nameEn):String(arr[i].nameEn||'').trim())===c;
+          var ar=(typeof _saCleanText==='function'?_saCleanText(arr[i].nameAr):String(arr[i].nameAr||'').trim())===c;
+          return 'kpi_name:'+arr[i].id+':'+(ar?'ar':'en');
+        }
+      }
+    }
+    return null;
+  }catch(_){return null;}
+}
+window._saKpiNameKeyForElement=_saKpiNameKeyForElement;
+
 function _scanDashboardForEditable(){
   if(!_saEditModeActive) return;
-  /* Bind click handlers to spans already marked by t() in edit mode */
+  try{ if(typeof _saPurgeUnsafeTextEdits==='function') _saPurgeUnsafeTextEdits(); }catch(_){}
+  /* Bind existing t() spans only when their key is safe. Repeated status/metric labels are intentionally not editable. */
   document.querySelectorAll('[data-tkey]:not([data-sa-bound])').forEach(function(el){
-    el.setAttribute('data-sa-bound','1');
     var key = el.getAttribute('data-tkey');
+    var txt = clean(el.textContent||'');
+    if((typeof _saIsUnsafeTextKey==='function' && _saIsUnsafeTextKey(key)) || (typeof _saIsNonEditableLabel==='function' && _saIsNonEditableLabel(txt))){
+      el.setAttribute('data-sa-bound','1');
+      el.classList.remove('sa-ed');
+      el.removeAttribute('title');
+      return;
+    }
+    el.setAttribute('data-sa-bound','1');
     el.onclick = function(e){ e.stopPropagation(); _showTextKeyPopup(key, el); };
   });
   var isAr = (typeof lang !== 'undefined' && lang === 'ar');
@@ -1731,16 +1807,8 @@ function _scanDashboardForEditable(){
     }
     return null;
   }
-  function kpiNameKey(txt){
-    if(typeof allK !== 'function') return null;
-    var c=clean(txt);
-    var arr=allK();
-    for(var i=0;i<arr.length;i++){
-      var k=arr[i];
-      if(clean(k.nameEn)===c) return 'kpi_name:'+k.id+':en';
-      if(clean(k.nameAr)===c) return 'kpi_name:'+k.id+':ar';
-    }
-    return null;
+  function kpiNameKey(el,txt){
+    return (typeof window._saKpiNameKeyForElement==='function') ? window._saKpiNameKeyForElement(el,txt) : null;
   }
   containers.forEach(function(container){
     container.querySelectorAll('*').forEach(function(el){
@@ -1751,10 +1819,10 @@ function _scanDashboardForEditable(){
       if(hasChildEl) return;
       var text=clean(el.textContent||'');
       if(!text || text.length<2 || text.length>140) return;
-      /* Critical order: KPI names first, then exact TR keys, then stable DOM key.
-         No partial matching and no global key based only on text. This prevents
-         edits like "jory" or KPI names from jumping to Met/Missed/other labels. */
-      var key = kpiNameKey(text) || exactTR(text) || stableKey(el);
+      if(typeof _saIsNonEditableLabel==='function' && _saIsNonEditableLabel(text)) return;
+      /* Critical order: KPI names only when the element is tied to a KPI code, otherwise DOM-location key.
+         No TR fallback and no text-only key: this prevents edits from jumping to Met/Missed/other labels. */
+      var key = kpiNameKey(el,text) || stableKey(el);
       if(!key) return;
       if(key.indexOf('dom_')===0 && ST.textEdits && ST.textEdits[key]){
         var ev=ST.textEdits[key][isAr?'ar':'en'];
@@ -1770,6 +1838,7 @@ function _scanDashboardForEditable(){
 window._scanDashboardForEditable = _scanDashboardForEditable;
 
 function _showTextKeyPopup(key, anchorEl){
+  if((typeof _saIsUnsafeTextKey==='function' && _saIsUnsafeTextKey(key)) || (anchorEl && typeof _saIsNonEditableLabel==='function' && _saIsNonEditableLabel(anchorEl.textContent||''))) return;
   var existing = document.getElementById('saTextKeyPopup');
   if(existing) existing.remove();
   var isAr = (typeof lang !== 'undefined' && lang === 'ar');
@@ -1857,6 +1926,7 @@ function _showTextKeyPopup(key, anchorEl){
          labels lose their original lookup after a refresh/re-render. */
       if(typeof window._applyDashboardTextEditsSoon==='function') window._applyDashboardTextEditsSoon();
     }
+        try{ if(typeof _saPurgeUnsafeTextEdits==='function') _saPurgeUnsafeTextEdits(); }catch(_){}
         persistST(key.indexOf('kpi_name:')===0 ? 'KPI_NAME_EDIT:'+key : 'TEXT_EDIT:'+key).then(function(){
       var fb = document.getElementById('_saPopFb');
       if(fb){fb.textContent='✓ '+(typeof lang!=='undefined'&&lang==='ar'?'تم الحفظ — سيظهر لجميع المستخدمين':'Saved — reflects for all users');fb.style.color='#16A34A';fb.style.display='block';}
