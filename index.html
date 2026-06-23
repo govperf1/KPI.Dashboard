@@ -830,7 +830,7 @@ window._doResetPassword=async function(){
 
 
 <!-- ── Smart Dashboard Assistant (Local KPI Intelligence) ── -->
-<div id="aiWin" class="ai-chat-window" aria-live="polite">
+<div id="aiWin" class="ai-chat-window" aria-live="polite" style="display:none">
   <div class="ai-chat-head">
     <div class="ai-chat-title-wrap">
       <div class="ai-chat-icon" aria-hidden="true">💬</div>
@@ -858,7 +858,7 @@ window._doResetPassword=async function(){
     <button id="aiSendBtn" type="button" onclick="aiSend()" aria-label="Send message">➤</button>
   </div>
 </div>
-<button id="aiFloatBtn" class="ai-float-btn" onclick="aiToggle()" aria-label="Open KPI chat">
+<button id="aiFloatBtn" class="ai-float-btn" onclick="aiToggle()" aria-label="Open KPI chat" style="display:none">
   <span class="ai-float-chart">💬</span>
 </button>
 
