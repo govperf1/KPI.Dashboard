@@ -634,7 +634,7 @@ function renderExec(){
     const _ab=document.getElementById('eis_actions_badge');if(_ab){_ab.textContent=_openAct===0?'All documented':_openAct===1?'1 pending':''+_openAct+' pending';_ab.style.color=_openAct>0?'#FBBF24':'#4ADE80';_ab.style.background=_openAct>0?'rgba(217,119,6,.25)':'rgba(22,163,74,.20)';}
 
     /* Forecast YE — dynamic, no hardcoded years */
-    let _fcRes={exec:null,byDept:{},currentYear:null};try{if(typeof calcForecastYE==='function')_fcRes=calcForecastYE();}catch(_fce){console.warn('[Forecast]',_fce);}
+    let _fcRes={exec:null,byDept:{},currentYear:null};try{if(typeof calcForecastYE==='function')_fcRes=calcForecastYE({respectFilters:true});}catch(_fce){console.warn('[Forecast]',_fce);}
     const _fcVal=_fcRes.exec;
     const _forecastTxt=_fcVal!==null?_fcVal.toFixed(2)+'%':'—';
     const _fcColor=_fcVal!==null?(_fcVal>=80?'#4ADE80':_fcVal>=60?'#0195af':'#FBBF24'):'#64748B';
@@ -646,24 +646,22 @@ function renderExec(){
     }
     const _curPerfEl=document.getElementById('eis_current_perf');
     if(_curPerfEl){
-      let _curRes={exec:null,byDept:{},currentYear:null,count:0};
-      try{if(typeof calcCurrentYearPerformance==='function')_curRes=calcCurrentYearPerformance();}catch(_cpe){console.warn('[Current Performance]',_cpe);}
-      const _curPct=_curRes.exec;
+      /* Current Performance = average KPI result, not count of achieved KPIs.
+         Respects selected filters; when year=All, it uses the latest year found after filters. */
+      const _qtrs=(F&&Array.isArray(F.qtr)&&!F.qtr.includes('all'))?F.qtr:['q1','q2','q3','q4'];
+      const _hasVal=k=>_qtrs.some(q=>k&&typeof k[q]==='number'&&isFinite(k[q]));
+      let _perfKs=_ks.filter(k=>k&&_hasVal(k));
+      if(F&&F.year==='all'){
+        const _ly=_perfKs.reduce((m,k)=>Math.max(m,Number(k.yr)||0),0);
+        _perfKs=_ly?_perfKs.filter(k=>Number(k.yr)===_ly):[];
+      }
+      const _perfVals=_perfKs.map(k=>qv(k)).filter(v=>v!==null&&v!==undefined&&typeof v==='number'&&isFinite(v));
+      const _curPct=_perfVals.length?(_perfVals.reduce((a,b)=>a+b,0)/_perfVals.length):null;
       _curPerfEl.textContent=_curPct!==null?_curPct.toFixed(2)+'%':'—';
-      _curPerfEl.style.color=_curPct!==null?(_curPct>=80?'#4ADE80':_curPct>=60?'#0195af':'#FBBF24'):'#64748B';
-      _curPerfEl.title=_curRes.currentYear?('Latest year average: '+_curRes.currentYear+' | KPIs counted: '+_curRes.count):'No actual KPI data';
+      _curPerfEl.style.color=_curPct===null?'#64748B':_curPct>=80?'#4ADE80':_curPct>=60?'#0195af':'#FBBF24';
     }
     const _fb=document.getElementById('eis_forecast_badge');
-    if(_fb&&_fcVal!==null){
-      const _deptParts=Object.keys((_fcRes&&_fcRes.byDept)||{}).map(function(d){
-        const dm=(typeof DM!=='undefined'&&DM[d])||{abbr:d,en:d,ar:d};
-        const nm=dm.abbr||dm.en||d;
-        return nm+' '+_fcRes.byDept[d].toFixed(2)+'%';
-      });
-      _fb.innerHTML=_deptParts.length?_deptParts.join(' · '):tText(_fcVal>=80?'likely_to_meet_target':_fcVal>=60?'moderate_risk':'at_risk_label');
-      _fb.title='Click Forecast YE % to view department breakdown';
-      _fb.style.color=_fcColor;_fb.style.background=_fcVal>=80?'rgba(22,163,74,.20)':_fcVal>=60?'rgba(1,149,175,.25)':'rgba(217,119,6,.25)';
-    }
+    if(_fb&&_fcVal!==null){_fb.innerHTML=tText(_fcVal>=80?'likely_to_meet_target':_fcVal>=60?'moderate_risk':'at_risk_label');_fb.style.color=_fcColor;_fb.style.background=_fcVal>=80?'rgba(22,163,74,.20)':_fcVal>=60?'rgba(1,149,175,.25)':'rgba(217,119,6,.25)';}
     else if(_fb&&_fcVal===null){_fb.innerHTML='Insufficient data';_fb.style.color='#64748B';_fb.style.background='rgba(100,116,139,.20)';}
 
     /* At-Risk KPIs */

@@ -526,111 +526,87 @@ window.persistST=persistST;
    Formula: (HistoricalAvg + 3×CurrentYearAvg) / 4
    Returns: { exec, byDept, currentYear }
    ══════════════════════════════════════════════════════ */
-function calcForecastYE(){
-  var ks=(typeof allK==='function')?allK():[];
+function calcForecastYE(opts){
+  opts = opts || {};
+  var all = (typeof allK === 'function') ? allK() : [];
+  if(!all.length) return {exec:null,byDept:{},currentYear:null};
+
+  /* Respect dashboard filters when requested, without losing historical data needed for the formula. */
+  var FF = (opts.respectFilters && typeof F !== 'undefined' && F && typeof F === 'object')
+    ? F
+    : {year:'all',qtr:['q1','q2','q3','q4'],dept:'all',status:'all'};
+
+  var selectedQtrs = Array.isArray(FF.qtr) ? FF.qtr.slice() : ['q1','q2','q3','q4'];
+  if(!selectedQtrs.length || selectedQtrs.indexOf('all') > -1) selectedQtrs = ['q1','q2','q3','q4'];
+
+  var selectedDept = window._lockedDept || (FF.dept && FF.dept !== 'all' ? FF.dept : null);
+  var selectedYear = (FF.year && FF.year !== 'all') ? parseInt(FF.year,10) : null;
+
+  var ks = all.filter(function(k){
+    if(!k || typeof k !== 'object') return false;
+    if(selectedDept && String(k.dept) !== String(selectedDept)) return false;
+    if(selectedYear && Number(k.yr) > selectedYear) return false; /* do not use future years as historical context */
+    if(opts.respectFilters && FF.status && FF.status !== 'all' && typeof ok === 'function'){
+      var a = ok(k);
+      if(FF.status === 'achieved' && (a === null || !a)) return false;
+      if(FF.status === 'missed' && (a === null ||  a)) return false;
+    }
+    return true;
+  });
   if(!ks.length) return {exec:null,byDept:{},currentYear:null};
 
-  /* 1. Current year = max yr that has at least one non-null quarter */
-  var maxYr=0;
-  ks.forEach(function(k){
-    var hasData=['q1','q2','q3','q4'].some(function(q){
-      return k[q]!==null&&k[q]!==undefined&&typeof k[q]==='number';
+  /* Current year = selected year, or latest year found in the filtered KPI data. */
+  var currentYear = selectedYear || 0;
+  if(!currentYear){
+    ks.forEach(function(k){
+      var hasData = selectedQtrs.some(function(q){
+        var v = k[q];
+        return v !== null && v !== undefined && typeof v === 'number' && isFinite(v);
+      });
+      if(hasData && Number(k.yr) > currentYear) currentYear = Number(k.yr);
     });
-    if(hasData&&k.yr>maxYr) maxYr=k.yr;
-  });
-  if(!maxYr) return {exec:null,byDept:{},currentYear:null};
+  }
+  if(!currentYear) return {exec:null,byDept:{},currentYear:null};
 
-  /* 2. Group by nameEn.toLowerCase()+dept across ALL years */
-  var groups={};
+  /* Group by KPI name + department so the same KPI continues across years/codes. */
+  var groups = {};
   ks.forEach(function(k){
-    var gKey=((k.nameEn||k.id||'').toLowerCase().trim())+'__'+(k.dept||'');
-    if(!groups[gKey]) groups[gKey]={nameEn:k.nameEn,dept:k.dept,histVals:[],curVals:[]};
-    var vals=['q1','q2','q3','q4'].map(function(q){return k[q];})
-      .filter(function(v){return v!==null&&v!==undefined&&typeof v==='number';});
+    var gKey = String(k.nameEn || k.id || '').toLowerCase().trim() + '__' + String(k.dept || '');
+    if(!groups[gKey]) groups[gKey] = {nameEn:k.nameEn,dept:k.dept,histVals:[],curVals:[]};
+
+    var vals = selectedQtrs.map(function(q){ return k[q]; })
+      .filter(function(v){ return v !== null && v !== undefined && typeof v === 'number' && isFinite(v); });
     if(!vals.length) return;
-    /* Historical: all years */
-    groups[gKey].histVals=groups[gKey].histVals.concat(vals);
-    /* Current year only */
-    if(k.yr===maxYr) groups[gKey].curVals=groups[gKey].curVals.concat(vals);
+
+    groups[gKey].histVals = groups[gKey].histVals.concat(vals);
+    if(Number(k.yr) === currentYear) groups[gKey].curVals = groups[gKey].curVals.concat(vals);
   });
 
-  /* 3. Forecast per KPI group: (histAvg + 3×curAvg) / 4 */
-  var kpiFcs=[];
-  var deptFcs={};
+  var kpiFcs = [];
+  var deptFcs = {};
   Object.keys(groups).forEach(function(gk){
-    var g=groups[gk];
-    if(!g.histVals.length||!g.curVals.length) return; /* skip if no current-year data */
-    var histAvg=g.histVals.reduce(function(a,b){return a+b;},0)/g.histVals.length;
-    var curAvg =g.curVals.reduce(function(a,b){return a+b;},0)/g.curVals.length;
-    var fc=(histAvg+3*curAvg)/4;
+    var g = groups[gk];
+    if(!g.histVals.length || !g.curVals.length) return;
+    var histAvg = g.histVals.reduce(function(a,b){return a+b;},0) / g.histVals.length;
+    var curAvg  = g.curVals.reduce(function(a,b){return a+b;},0) / g.curVals.length;
+    var fc = (histAvg + (3 * curAvg)) / 4;
     kpiFcs.push(fc);
-    if(!deptFcs[g.dept]) deptFcs[g.dept]=[];
+    if(!deptFcs[g.dept]) deptFcs[g.dept] = [];
     deptFcs[g.dept].push(fc);
   });
 
-  if(!kpiFcs.length) return {exec:null,byDept:{},currentYear:maxYr};
+  if(!kpiFcs.length) return {exec:null,byDept:{},currentYear:currentYear};
 
-  /* 4. Executive forecast = average of all KPI forecasts */
-  var exec=kpiFcs.reduce(function(a,b){return a+b;},0)/kpiFcs.length;
-
-  /* 5. Per-dept = average of KPI forecasts in that dept */
-  var byDept={};
+  var exec = kpiFcs.reduce(function(a,b){return a+b;},0) / kpiFcs.length;
+  var byDept = {};
   Object.keys(deptFcs).forEach(function(d){
-    var arr=deptFcs[d];
-    byDept[d]=arr.reduce(function(a,b){return a+b;},0)/arr.length;
+    var arr = deptFcs[d];
+    byDept[d] = arr.reduce(function(a,b){return a+b;},0) / arr.length;
   });
 
-  return {exec:exec,byDept:byDept,currentYear:maxYr};
+  return {exec:exec,byDept:byDept,currentYear:currentYear};
 }
 window.calcForecastYE=calcForecastYE;
-
-/* ══════════════════════════════════════════════════════
-   calcCurrentYearPerformance()
-   Current Performance = average of actual KPI results in the latest
-   available data year. Each KPI contributes once using the average
-   of its entered quarters in that latest year. Blank/null values are ignored.
-   Returns: { exec, byDept, currentYear, count }
-   ══════════════════════════════════════════════════════ */
-function calcCurrentYearPerformance(){
-  var ks=(typeof allK==='function')?allK():[];
-  if(!ks.length) return {exec:null,byDept:{},currentYear:null,count:0};
-
-  var maxYr=0;
-  ks.forEach(function(k){
-    var hasData=['q1','q2','q3','q4'].some(function(q){
-      return typeof k[q]==='number' && !isNaN(k[q]);
-    });
-    if(hasData && k.yr>maxYr) maxYr=k.yr;
-  });
-  if(!maxYr) return {exec:null,byDept:{},currentYear:null,count:0};
-
-  var vals=[];
-  var deptVals={};
-  ks.forEach(function(k){
-    if(k.yr!==maxYr) return;
-    var qVals=['q1','q2','q3','q4'].map(function(q){return k[q];})
-      .filter(function(v){return typeof v==='number' && !isNaN(v);});
-    if(!qVals.length) return;
-    var avg=qVals.reduce(function(a,b){return a+b;},0)/qVals.length;
-    vals.push(avg);
-    if(!deptVals[k.dept]) deptVals[k.dept]=[];
-    deptVals[k.dept].push(avg);
-  });
-
-  if(!vals.length) return {exec:null,byDept:{},currentYear:maxYr,count:0};
-  var byDept={};
-  Object.keys(deptVals).forEach(function(d){
-    var arr=deptVals[d];
-    byDept[d]=arr.reduce(function(a,b){return a+b;},0)/arr.length;
-  });
-  return {
-    exec: vals.reduce(function(a,b){return a+b;},0)/vals.length,
-    byDept: byDept,
-    currentYear: maxYr,
-    count: vals.length
-  };
-}
-window.calcCurrentYearPerformance=calcCurrentYearPerformance;
 
 
 /* ── Smart Dashboard Assistant (restored) ── */
