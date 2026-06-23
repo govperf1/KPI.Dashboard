@@ -192,21 +192,36 @@ window.tSet = tSet;
 
 function applyDOMTranslations() {
   var isAr = (typeof lang !== 'undefined' && lang === 'ar');
+  var curLang = isAr ? 'ar' : 'en';
+  function editedForKey(key){
+    if(typeof ST==='undefined'||!ST.textEdits||!ST.textEdits[key]) return null;
+    var v=ST.textEdits[key][curLang];
+    return (v!==undefined&&v!==null&&String(v).trim()!=='') ? String(v) : null;
+  }
   document.querySelectorAll('[data-en][data-ar]').forEach(function(el) {
-    el.textContent = isAr ? el.getAttribute('data-ar') : el.getAttribute('data-en');
+    var baseEn=el.getAttribute('data-en')||'';
+    var baseAr=el.getAttribute('data-ar')||'';
+    var key=null;
+    if(typeof TR!=='undefined'){
+      Object.keys(TR).some(function(k){
+        if((TR[k].en||'')===baseEn || (TR[k].ar||'')===baseAr){ key=k; return true; }
+        return false;
+      });
+    }
+    var v=editedForKey(key);
+    el.textContent = v!==null ? v : (isAr ? baseAr : baseEn);
   });
   if (typeof ST !== 'undefined' && ST.textEdits) {
     Object.keys(ST.textEdits).forEach(function(key) {
-      var val = ST.textEdits[key][lang];
-      if (!val) return;
-      document.querySelectorAll(
-        '[data-en="' + key + '"],[data-ar="' + key + '"],[data-te-key="' + key + '"]'
-      ).forEach(function(el) { el.textContent = val; });
+      var val = editedForKey(key);
+      if (val===null) return;
+      document.querySelectorAll('[data-te-key="' + key + '"],[data-tkey="' + key + '"]').forEach(function(el) { el.textContent = val; });
     });
   }
   document.querySelectorAll('select option[data-en]').forEach(function(o) {
     o.textContent = isAr ? (o.dataset.ar || o.dataset.en) : o.dataset.en;
   });
+  if (typeof _applyDashboardTextEditsSoon === 'function') _applyDashboardTextEditsSoon();
 }
 window.applyDOMTranslations = applyDOMTranslations;
 
@@ -298,6 +313,7 @@ function _applyDashboardTextEditsSoon(){
   try{ requestAnimationFrame(function(){ try{_applyDashboardTextEdits();}catch(_){} }); }catch(_){}
   setTimeout(function(){ try{_applyDashboardTextEdits();}catch(_){} },80);
   setTimeout(function(){ try{_applyDashboardTextEdits();}catch(_){} },300);
+  setTimeout(function(){ try{_applyDashboardTextEdits();}catch(_){} },900);
 }
 window._applyDashboardTextEditsSoon=_applyDashboardTextEditsSoon;
 

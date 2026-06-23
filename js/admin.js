@@ -2199,23 +2199,21 @@ function _saveTextEdits(){
     if(!key||!en||!ar) return;
     const enVal=en.value.trim();
     const arVal=ar.value.trim();
+    const oldObj=ST.textEdits[key]||{};
+    const next=Object.assign({}, oldObj);
+    if(enVal) next.en=enVal;
+    if(arVal) next.ar=arVal;
     if(enVal || arVal){
-      const old=JSON.stringify(ST.textEdits[key]||{});
-      ST.textEdits[key]={en:enVal,ar:arVal};
+      const old=JSON.stringify(oldObj);
+      ST.textEdits[key]=next;
       if(JSON.stringify(ST.textEdits[key])!==old) changed++;
     }
   });
   if(!changed){ _teFeedback('No changes detected.', false); return; }
-  /* Apply to TR immediately (single source of truth) */
-  if(typeof tSet==='function'){
-    Object.keys(ST.textEdits).forEach(function(key){
-      tSet(key, ST.textEdits[key].en, ST.textEdits[key].ar);
-    });
-  } else if(typeof applyDOMTranslations==='function'){
-    applyDOMTranslations();
-  }
+  if(typeof window._applyDashboardTextEditsSoon==='function') window._applyDashboardTextEditsSoon();
   /* Save to localStorage + Firestore via unified helper */
   persistST('TEXT_EDIT').then(function(){
+    if(typeof window._applyDashboardTextEditsSoon==='function') window._applyDashboardTextEditsSoon();
     _teFeedback('Saved! Changes visible for all users.', true);
   }).catch(function(e){
     _teFeedback('Save failed: '+e.message, false);

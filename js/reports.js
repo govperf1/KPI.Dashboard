@@ -289,7 +289,7 @@ function _buildExcelFull(){
       const priFill=pri.toLowerCase()==='critical'?'#FEE2E2':pri.toLowerCase()==='high'?'#FEF9C3':'#F0FDF4';
       const priFg=pri.toLowerCase()==='critical'?'#7F1D1D':pri.toLowerCase()==='high'?'#713F12':'#166534';
       const bg=i%2===0?'#FFF5F5':'#FEF2F2';
-      const owner=(gd.owner||gd.responsible||gd.responsiblePerson||ac.owner||ac.responsible||DEPT_OWNERS?.[k.dept]||'—');
+      const owner=(DEPT_OWNERS?.[k.dept]||gd.owner||gd.responsible||gd.responsiblePerson||ac.owner||ac.responsible||'—');
       const due=(gd.due||gd.dueDate||gd.date||ac.due||ac.dueDate||'—');
       const root=(gd.gapEn||gd.rootCause||gd.cause||'Not documented');
       const corrective=(gd.actEn||gd.correctiveAction||gd.action||ac.action||ac.correctiveAction||'Not documented');
@@ -479,7 +479,7 @@ function _buildExcelSimple(){
       const priFg=pri==='critical'?'#7F1D1D':pri==='high'?'#713F12':'#166534';
       const staBg=sta.includes('closed')?'#F0FDF4':sta.includes('progress')?'#FEF9C3':'#FEE2E2';
       const staFg=sta.includes('closed')?'#166534':sta.includes('progress')?'#713F12':'#7F1D1D';
-      const owner=(gd.owner||gd.responsible||gd.responsiblePerson||ac.owner||ac.responsible||DEPT_OWNERS?.[k.dept]||'—');
+      const owner=(DEPT_OWNERS?.[k.dept]||gd.owner||gd.responsible||gd.responsiblePerson||ac.owner||ac.responsible||'—');
       const due=(gd.due||gd.dueDate||gd.date||ac.due||ac.dueDate||'—');
       const root=(gd.gapEn||gd.rootCause||gd.cause||'Not documented');
       const corrective=(gd.actEn||gd.correctiveAction||gd.action||ac.action||ac.correctiveAction||'Not documented');

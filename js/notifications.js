@@ -19,18 +19,18 @@
 
 function aiIsDashboardVisible(){
   try{
-    var portal=document.getElementById('_portalOverlay');
-    if(portal){
-      var ps=getComputedStyle(portal);
-      if(ps.display!=='none' && ps.visibility!=='hidden' && portal.offsetParent!==null) return false;
-    }
     var auth=document.getElementById('_authOverlay');
     if(auth){
       var as=getComputedStyle(auth);
-      if(as.display!=='none' && as.visibility!=='hidden' && auth.offsetParent!==null) return false;
+      if(as.display!=='none' && as.visibility!=='hidden' && as.opacity!=='0') return false;
     }
-    var dash=document.querySelector('.page.on, #page-exec.on, #page-dept.on, #page-reg.on, #page-acc.on');
-    return !!dash;
+    var portal=document.getElementById('_portalOverlay');
+    if(portal){
+      var ps=getComputedStyle(portal);
+      if(ps.display!=='none' && ps.visibility!=='hidden' && ps.opacity!=='0') return false;
+    }
+    var dash=document.querySelector('#page-exec.on,#page-dept.on,#page-registry.on,#page-accountability.on');
+    return !!dash && !!window._fbUser;
   }catch(e){return false;}
 }
 function aiSyncVisibility(){

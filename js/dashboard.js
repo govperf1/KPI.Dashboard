@@ -1714,10 +1714,32 @@ function renderAcc(){
 function accTable(ks){
   const hs=lang==='ar'?['المؤشر','الفجوة','المخاطر','التكرار','الشخص المسؤول','الإجراء','الأولوية','الموعد','الحالة','']:
     ['KPI','Gap','Risk','Repeat','Responsible Person','Action','Priority','Due Date','Status',''];
+  const pickAccData=function(k){
+    const gaps=ST.gaps||{}, actions=ST.actions||{};
+    let q=null;
+    try{
+      if(window.F && Array.isArray(window.F.qtr) && window.F.qtr.length===1 && window.F.qtr[0]!=='all') q=window.F.qtr[0];
+    }catch(_){}
+    if(!q){
+      ['q4','q3','q2','q1'].some(function(x){
+        const v=k&&k[x];
+        if(v!==null && v!==undefined && v!==''){ q=x; return true; }
+        return false;
+      });
+    }
+    const keys=[];
+    if(q) keys.push(k.id+'_'+q);
+    ['q4','q3','q2','q1'].forEach(function(x){ keys.push(k.id+'_'+x); });
+    keys.push(k.id);
+    let gd={}, ac={};
+    for(let i=0;i<keys.length;i++){ if(gaps[keys[i]]){ gd=gaps[keys[i]]; break; } }
+    for(let i=0;i<keys.length;i++){ if(actions[keys[i]]){ ac=actions[keys[i]]; break; } }
+    return {gd:gd||{}, ac:ac||{}};
+  };
   let h=`<table class="acc-tbl"><thead><tr>${hs.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>`;
   ks.forEach(k=>{
     const v=qv(k),gap=(k.target-(v||0)).toFixed(1);
-    const gd=(ST.gaps||{})[k.id]||{},ac=(ST.actions||{})[k.id]||{},rc=getRepeat(k);
+    const _acc=pickAccData(k), gd=_acc.gd, ac=_acc.ac, rc=getRepeat(k);
     const sc=ac.status==='closed'?'acc-done':ac.status==='in-progress'?'acc-prog':'acc-open';
     const st=ac.status==='closed'?(lang==='ar'?'مكتمل':'Done'):ac.status==='in-progress'?(lang==='ar'?'جاري':'In Prog'):(lang==='ar'?'مفتوح':'Open');
     const pc={'critical':'var(--red)','high':'#DC2626','medium':'#D97706'};
@@ -1728,7 +1750,7 @@ function accTable(ks){
       <td style="color:var(--red);font-family:var(--mono);font-weight:700">-${gap}%</td>
       <td><span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span></td>
       <td>${rc>=2?`<span class="repeat-b">↩${rc}x</span>`:rc===1?`<span style="font-size:9px;color:var(--amber)">1x</span>`:'\u2014'}</td>
-      <td style="font-size:10.5px">${(()=>{const _ow={'Maintenance':lang==='ar'?'مشرف الصيانة':'Maintenance Supervisor','Safety':lang==='ar'?'مسؤول السلامة':'Safety Officer','Housekeeping':lang==='ar'?'مشرف النظافة':'Housekeeping Supervisor','Project Management':lang==='ar'?'مدير المشاريع':'Project Manager'};return ac.owner||_ow[k.dept]||`<span style="color:var(--t3);font-size:9px">${lang==='ar'?'غير محدد':'Unassigned'}</span>`;})()}</td>
+      <td style="font-size:10.5px">${(()=>{const _ow={maintenance:lang==='ar'?'وليد السريخ':'Waleed Alsuraykh',safety:lang==='ar'?'مشاري السعب':'Meshari Alsaab',housekeeping:lang==='ar'?'أسامة القفص':'Osamah Algafes',projects:lang==='ar'?'سلمان الخضيري':'Salman Alkhodairi'};return (typeof DEPT_OWNERS!=='undefined'&&DEPT_OWNERS[k.dept])||ac.owner||gd.owner||gd.responsiblePerson||_ow[k.dept]||`<span style="color:var(--t3);font-size:9px">${lang==='ar'?'غير محدد':'Unassigned'}</span>`;})()}</td>
       <td style="font-size:10.5px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(lang==='ar'?gd.actAr:gd.actEn)||`<span style="color:var(--t3);font-size:9px">${lang==='ar'?'لم يدخل':'Not entered'}</span>`}</td>
       <td>${ac.priority?`<span style="font-size:9px;font-weight:700;color:${pc[ac.priority]||'var(--t3)'}">${pt[ac.priority]||ac.priority}</span>`:'\u2014'}</td>
       <td style="font-size:10px;font-family:var(--mono);color:${overdue?'var(--red)':'var(--t2)'}">${ac.dueDate||'\u2014'}${overdue?' ':''}</td>
