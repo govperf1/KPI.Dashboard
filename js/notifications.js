@@ -16,7 +16,37 @@
    =========================================================== */
 
 /* -- AI Assistant widget (local KPI intelligence, no external API) -- */
+
+function aiIsDashboardVisible(){
+  try{
+    var portal=document.getElementById('_portalOverlay');
+    if(portal){
+      var ps=getComputedStyle(portal);
+      if(ps.display!=='none' && ps.visibility!=='hidden' && portal.offsetParent!==null) return false;
+    }
+    var auth=document.getElementById('_authOverlay');
+    if(auth){
+      var as=getComputedStyle(auth);
+      if(as.display!=='none' && as.visibility!=='hidden' && auth.offsetParent!==null) return false;
+    }
+    var dash=document.querySelector('.page.on, #page-exec.on, #page-dept.on, #page-reg.on, #page-acc.on');
+    return !!dash;
+  }catch(e){return false;}
+}
+function aiSyncVisibility(){
+  var btn=document.getElementById('aiFloatBtn');
+  var win=document.getElementById('aiWin');
+  var show=aiIsDashboardVisible();
+  if(btn) btn.style.display=show?'flex':'none';
+  if(!show && win){win.style.display='none';win.classList.remove('open');}
+}
+window.aiSyncVisibility=aiSyncVisibility;
+setInterval(aiSyncVisibility,700);
+document.addEventListener('DOMContentLoaded',function(){setTimeout(aiSyncVisibility,80);setTimeout(aiSyncVisibility,600);});
+
 function aiToggle(){
+  aiSyncVisibility();
+  if(!aiIsDashboardVisible()) return;
   var w=document.getElementById('aiWin');
   if(!w) return;
   var show=!(w.style.display==='flex' || w.classList.contains('open'));
