@@ -242,20 +242,57 @@ console.log('[TR] loaded — typeof t:', typeof t, '| typeof window.t:', typeof 
 /* Apply saved dashboard text edits after any render.
    This keeps general dashboard titles/descriptions visible even outside Text Edit mode.
    It intentionally skips KPI name keys; KPI names keep using their existing ST.ov / ST.added flow. */
+function _saCleanText(txt){
+  return String(txt||'').replace(/[✓✕✗↗↩▲▼]/g,'').replace(/\s+/g,' ').trim();
+}
+window._saCleanText=_saCleanText;
+function _saNormText(txt){
+  return _saCleanText(txt).replace(/[^a-zA-Z0-9\u0600-\u06FF]+/g,'_').replace(/^_+|_+$/g,'').toLowerCase().substring(0,50);
+}
+window._saNormText=_saNormText;
+function _saDomPath(el, root){
+  var parts=[]; var n=el;
+  while(n && n!==root && n.nodeType===1 && parts.length<8){
+    var tag=(n.tagName||'x').toLowerCase();
+    var idx=1, sib=n;
+    while((sib=sib.previousElementSibling)){ if((sib.tagName||'').toLowerCase()===tag) idx++; }
+    var cls=String(n.className||'').split(/\s+/).filter(Boolean).slice(0,2).join('_').replace(/[^a-zA-Z0-9_-]/g,'');
+    parts.unshift(tag+(cls?'.'+cls:'')+':'+idx);
+    n=n.parentElement;
+  }
+  return parts.join('/');
+}
+window._saDomPath=_saDomPath;
+function _saStableDomKey(el){
+  if(!el) return '';
+  var root = el.closest('#page-exec,#page-dept,#page-registry,#page-accountability,#page-report') || document.body;
+  var rid = root.id || 'body';
+  var base = el.getAttribute('data-sa-base') || _saCleanText(el.textContent||'');
+  return 'dom_'+rid+'_'+_saNormText(_saDomPath(el,root))+'_'+_saNormText(base);
+}
+window._saStableDomKey=_saStableDomKey;
+function _saExactTRKeyForText(txt){
+  var c=_saCleanText(txt);
+  if(!c || typeof TR==='undefined') return null;
+  for(var k in TR){
+    if(!Object.prototype.hasOwnProperty.call(TR,k)) continue;
+    var tr=TR[k]||{};
+    if(_saCleanText(tr.en)===c || _saCleanText(tr.ar)===c) return k;
+  }
+  return null;
+}
+window._saExactTRKeyForText=_saExactTRKeyForText;
+
 function _applyDashboardTextEdits(){
   try{
     if(typeof ST === 'undefined' || !ST.textEdits) return;
     var curLang = (typeof lang !== 'undefined') ? lang : 'en';
-    var skipTags = {SCRIPT:1,STYLE:1,INPUT:1,TEXTAREA:1,SELECT:1,OPTION:1,SVG:1,PATH:1,CANVAS:1};
+    var skipTags = {SCRIPT:1,STYLE:1,INPUT:1,TEXTAREA:1,SELECT:1,OPTION:1,SVG:1,PATH:1,CANVAS:1,BUTTON:1};
     var containers = [];
-    ['page-exec','page-reg','page-dept','page-acc','page-report'].forEach(function(id){
+    ['page-exec','page-registry','page-dept','page-accountability','page-report'].forEach(function(id){
       var el=document.getElementById(id); if(el) containers.push(el);
     });
     if(!containers.length) return;
-
-    function norm(txt){ return String(txt||'').replace(/[^a-zA-Z0-9]/g,'_').toLowerCase().substring(0,40); }
-    function sessionKeyFromText(txt){ return 'se_'+norm(txt); }
-    function clean(txt){ return String(txt||'').replace(/[✓✕✗↗↩]/g,'').replace(/\s+/g,' ').trim(); }
     function wanted(key){
       if(!key || key.indexOf('kpi_name:')===0) return null;
       var row = ST.textEdits[key];
@@ -267,42 +304,26 @@ function _applyDashboardTextEdits(){
       for(var i=0;i<el.childNodes.length;i++) if(el.childNodes[i].nodeType===1) return true;
       return false;
     }
-    function findKeyForText(txt){
-      var raw=String(txt||'').trim();
-      var c=clean(raw);
-      if(!c) return null;
-      var sk=sessionKeyFromText(c);
-      if(ST.textEdits[sk]) return sk;
-      for(var k in ST.textEdits){
-        if(!Object.prototype.hasOwnProperty.call(ST.textEdits,k)) continue;
-        if(k.indexOf('kpi_name:')===0) continue;
-        var row=ST.textEdits[k]||{};
-        var tr=(typeof TR!=='undefined'&&TR[k])?TR[k]:{};
-        var candidates=[row._baseEn,row._baseAr,row._sourceText,tr.en,tr.ar,row.en,row.ar];
-        for(var i=0;i<candidates.length;i++){
-          var x=candidates[i];
-          if(x!==undefined && x!==null && clean(x)===c) return k;
-        }
-        if(k.indexOf('se_')===0 && norm(c)===k.slice(3)) return k;
-      }
-      return null;
-    }
-
     document.querySelectorAll('[data-tkey]').forEach(function(el){
       var key=el.getAttribute('data-tkey');
       var v=wanted(key);
       if(v!==null && el.textContent!==v) el.textContent=v;
     });
-
     containers.forEach(function(container){
       container.querySelectorAll('*').forEach(function(el){
         if(skipTags[el.tagName]) return;
         if(hasChildElement(el)) return;
-        var txt=(el.textContent||'').trim();
+        var txt=_saCleanText(el.textContent||'');
         if(!txt || txt.length<2 || txt.length>180) return;
-        var key=findKeyForText(txt);
-        var v=wanted(key);
-        if(v!==null && el.textContent!==v) el.textContent=v;
+        var keys=[];
+        if(el.getAttribute('data-tkey')) keys.push(el.getAttribute('data-tkey'));
+        keys.push(_saStableDomKey(el));
+        var trKey=_saExactTRKeyForText(txt);
+        if(trKey) keys.push(trKey);
+        for(var i=0;i<keys.length;i++){
+          var v=wanted(keys[i]);
+          if(v!==null && el.textContent!==v){ el.textContent=v; el.setAttribute('data-sa-base', txt); break; }
+        }
       });
     });
   }catch(e){ console.warn('[TextEdits] apply failed:', e && e.message ? e.message : e); }

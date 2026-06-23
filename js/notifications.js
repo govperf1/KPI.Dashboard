@@ -37,6 +37,7 @@ function aiSyncVisibility(){
   var btn=document.getElementById('aiFloatBtn');
   var win=document.getElementById('aiWin');
   var show=aiIsDashboardVisible();
+  try{ document.body.classList.toggle('dashboard-ready', !!show); }catch(_){}
   if(btn) btn.style.display=show?'flex':'none';
   if(!show && win){win.style.display='none';win.classList.remove('open');}
 }

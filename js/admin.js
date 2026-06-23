@@ -1706,80 +1706,64 @@ function _scanDashboardForEditable(){
     var key = el.getAttribute('data-tkey');
     el.onclick = function(e){ e.stopPropagation(); _showTextKeyPopup(key, el); };
   });
-  if(typeof window.TR === 'undefined') return;
   var isAr = (typeof lang !== 'undefined' && lang === 'ar');
-  /* Build reverse map: lang text → TR key */
-  var valToKey = {};
-  Object.keys(window.TR).forEach(function(key){
-    var stored = ST.textEdits && ST.textEdits[key];
-    var val = stored ? (stored[isAr?'ar':'en'] || stored.en)
-                     : (window.TR[key][isAr?'ar':'en'] || window.TR[key].en);
-    if(val && val.trim().length >= 2 && !/</.test(val)){
-      valToKey[val.trim().toLowerCase()] = {key:key, displayVal:val.trim()};
-    }
-  });
-  /* Scan dashboard — find LEAF elements (whole text = one editable phrase) */
-  var SKIP_TAGS = {SCRIPT:1,STYLE:1,INPUT:1,TEXTAREA:1,SELECT:1,OPTION:1,SVG:1,PATH:1,BUTTON:1};
+  var SKIP_TAGS = {SCRIPT:1,STYLE:1,INPUT:1,TEXTAREA:1,SELECT:1,OPTION:1,SVG:1,PATH:1,BUTTON:1,CANVAS:1};
   var containers = [];
-  ['page-exec','page-reg','page-dept','page-acc'].forEach(function(id){
+  ['page-exec','page-registry','page-dept','page-accountability','page-report'].forEach(function(id){
     var el = document.getElementById(id); if(el) containers.push(el);
   });
   if(!containers.length){
     var m = document.querySelector('.page.on, .page-content, main');
     if(m) containers.push(m); else return;
   }
+  function clean(txt){ return (typeof window._saCleanText==='function') ? window._saCleanText(txt) : String(txt||'').replace(/\s+/g,' ').trim(); }
+  function stableKey(el){
+    return (typeof window._saStableDomKey==='function') ? window._saStableDomKey(el) : ('dom_'+(el.id||clean(el.textContent).replace(/[^a-zA-Z0-9]/g,'_').toLowerCase().substring(0,50)));
+  }
+  function exactTR(txt){
+    if(typeof window._saExactTRKeyForText==='function') return window._saExactTRKeyForText(txt);
+    if(typeof window.TR==='undefined') return null;
+    var c=clean(txt);
+    for(var k in window.TR){
+      if(!Object.prototype.hasOwnProperty.call(window.TR,k)) continue;
+      var tr=window.TR[k]||{};
+      if(clean(tr.en)===c || clean(tr.ar)===c) return k;
+    }
+    return null;
+  }
+  function kpiNameKey(txt){
+    if(typeof allK !== 'function') return null;
+    var c=clean(txt);
+    var arr=allK();
+    for(var i=0;i<arr.length;i++){
+      var k=arr[i];
+      if(clean(k.nameEn)===c) return 'kpi_name:'+k.id+':en';
+      if(clean(k.nameAr)===c) return 'kpi_name:'+k.id+':ar';
+    }
+    return null;
+  }
   containers.forEach(function(container){
-    /* Walk all elements; if element has no child ELEMENTS (leaf), treat its text as one unit */
-    var allEls = container.querySelectorAll('*');
-    allEls.forEach(function(el){
-      if(el.getAttribute('data-tkey')) return; /* already marked */
+    container.querySelectorAll('*').forEach(function(el){
+      if(el.getAttribute('data-sa-bound')) return;
       if(SKIP_TAGS[el.tagName]) return;
-      /* Leaf = no child elements (only text nodes) */
-      var hasChildEl = false;
-      for(var i=0;i<el.childNodes.length;i++){
-        if(el.childNodes[i].nodeType===1){hasChildEl=true;break;}
-      }
+      var hasChildEl=false;
+      for(var i=0;i<el.childNodes.length;i++){ if(el.childNodes[i].nodeType===1){hasChildEl=true;break;} }
       if(hasChildEl) return;
-      var text = (el.textContent||'').trim();
-      if(!text || text.length < 2 || text.length > 120) return;
-      /* Look up in TR */
-      var entry = valToKey[text.toLowerCase()];
-      if(!entry){
-        /* Try partial match for longer phrases */
-        Object.keys(valToKey).forEach(function(v){
-          if(!entry && text.toLowerCase().indexOf(v)===0 && v.length>4) entry=valToKey[v];
-        });
+      var text=clean(el.textContent||'');
+      if(!text || text.length<2 || text.length>140) return;
+      /* Critical order: KPI names first, then exact TR keys, then stable DOM key.
+         No partial matching and no global key based only on text. This prevents
+         edits like "jory" or KPI names from jumping to Met/Missed/other labels. */
+      var key = kpiNameKey(text) || exactTR(text) || stableKey(el);
+      if(!key) return;
+      if(key.indexOf('dom_')===0 && ST.textEdits && ST.textEdits[key]){
+        var ev=ST.textEdits[key][isAr?'ar':'en'];
+        if(ev!==undefined && ev!==null && String(ev).trim()!=='' && ev!==text) el.textContent=ev;
       }
-      if(!entry){
-        /* Session key for non-TR text: edits apply immediately and persist via ST.textEdits.
-           Other users see edits if in edit mode (session re-applies stored edits on scan). */
-        var _sk = 'se_'+text.replace(/[^a-zA-Z0-9]/g,'_').toLowerCase().substring(0,40);
-        if(!window.TR[_sk]) window.TR[_sk]={en:text, ar:text};
-        if(ST.textEdits && ST.textEdits[_sk]){
-          var _ev=ST.textEdits[_sk][isAr?'ar':'en']||ST.textEdits[_sk].en;
-          if(_ev&&_ev!==text) el.textContent=_ev;
-        }
-        entry={key:_sk, displayVal:text};
-      }
-      /* Check if text is a KPI name — route edits to ST.ov not ST.textEdits */
-      if(typeof allK === 'function'){
-        var _aK=allK();
-        for(var _i=0;_i<_aK.length;_i++){
-          var _kk=_aK[_i];
-          if((_kk.nameEn||'').trim()===text){ entry={key:'kpi_name:'+_kk.id+':en',displayVal:text}; break; }
-          if((_kk.nameAr||'').trim()===text){ entry={key:'kpi_name:'+_kk.id+':ar',displayVal:text}; break; }
-        }
-      }
-      var key = entry.key;
       el.setAttribute('data-tkey', key);
       el.setAttribute('data-sa-bound','1');
+      if(!el.getAttribute('data-sa-base')) el.setAttribute('data-sa-base', text);
       el.onclick = function(e){ e.stopPropagation(); _showTextKeyPopup(key, el); };
-      /* If AR mode and we have an AR translation, update the element text */
-      if(isAr){
-        var stored = ST.textEdits&&ST.textEdits[key];
-        var arVal = stored ? (stored.ar||stored.en) : (window.TR[key]?window.TR[key].ar:'');
-        if(arVal && arVal!==text) el.textContent = arVal;
-      }
     });
   });
 }
