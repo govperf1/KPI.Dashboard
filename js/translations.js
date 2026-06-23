@@ -121,21 +121,12 @@ var TR = {
 /* ── Export TR immediately after declaration ── */
 window.TR = TR;
 
-function _trUnsafeTextKey(key){
-  return !!({item_label:1,se_missed:1,se_met:1,met:1,met_label:1,missed:1,missed_label:1,pending:1,status:1,result:1,target:1,yoy_col:1,avg_col:1,risk_col:1,code_col:1,kpi_name_col:1,total:1,achievement:1,gap:1}[String(key||'')]);
-}
-window._trUnsafeTextKey=_trUnsafeTextKey;
-
-
 /* ─── Core API ─── */
 
 function t(key) {
   var val;
   var _lang = (typeof lang !== 'undefined') ? lang : 'en';
   /* F1: NO cross-language fallback. Each language is independent. */
-  if ((typeof _trUnsafeTextKey==='function' && _trUnsafeTextKey(key)) && typeof ST !== 'undefined' && ST.textEdits && ST.textEdits[key]) {
-    try{ delete ST.textEdits[key]; }catch(_){}
-  }
   if (typeof ST !== 'undefined' && ST.textEdits && ST.textEdits[key]) {
     var _te = ST.textEdits[key];
     /* Only use the current language's value — never fall back to the other language */
@@ -163,17 +154,15 @@ function t(key) {
 window.t = t;
 
 function tText(key) {
-  if ((typeof _trUnsafeTextKey==='function' && _trUnsafeTextKey(key)) && typeof ST !== 'undefined' && ST.textEdits && ST.textEdits[key]) { try{ delete ST.textEdits[key]; }catch(_){} }
   if (typeof ST !== 'undefined' && ST.textEdits && ST.textEdits[key]) {
-    return ST.textEdits[key][lang] || ST.textEdits[key]['en'] || key;
+    var _l=(typeof lang!=='undefined'?lang:'en'); return (ST.textEdits[key][_l]!==undefined && ST.textEdits[key][_l]!==null && ST.textEdits[key][_l]!=='' ) ? ST.textEdits[key][_l] : key;
   }
-  if (TR[key]) return TR[key][lang] || TR[key]['en'] || key;
+  if (TR[key]) { var _l2=(typeof lang!=='undefined'?lang:'en'); return (TR[key][_l2]!==undefined && TR[key][_l2]!==null && TR[key][_l2]!=='' ) ? TR[key][_l2] : key; }
   return key;
 }
 window.tText = tText;
 
 function tBoth(key) {
-  if ((typeof _trUnsafeTextKey==='function' && _trUnsafeTextKey(key)) && typeof ST !== 'undefined' && ST.textEdits && ST.textEdits[key]) { try{ delete ST.textEdits[key]; }catch(_){} }
   var base = TR[key] || { en: key, ar: '' };
   var over = (typeof ST !== 'undefined' && ST.textEdits && ST.textEdits[key]) || {};
   return {
@@ -253,68 +242,38 @@ console.log('[TR] loaded — typeof t:', typeof t, '| typeof window.t:', typeof 
 /* Apply saved dashboard text edits after any render.
    This keeps general dashboard titles/descriptions visible even outside Text Edit mode.
    It intentionally skips KPI name keys; KPI names keep using their existing ST.ov / ST.added flow. */
-function _saCleanText(txt){
-  return String(txt||'').replace(/[✓✕✗↗↩▲▼]/g,'').replace(/\s+/g,' ').trim();
-}
-window._saCleanText=_saCleanText;
-function _saNormText(txt){
-  return _saCleanText(txt).replace(/[^a-zA-Z0-9\u0600-\u06FF]+/g,'_').replace(/^_+|_+$/g,'').toLowerCase().substring(0,50);
-}
-window._saNormText=_saNormText;
-function _saDomPath(el, root){
-  var parts=[]; var n=el;
-  while(n && n!==root && n.nodeType===1 && parts.length<8){
-    var tag=(n.tagName||'x').toLowerCase();
-    var idx=1, sib=n;
-    while((sib=sib.previousElementSibling)){ if((sib.tagName||'').toLowerCase()===tag) idx++; }
-    var cls=String(n.className||'').split(/\s+/).filter(Boolean).slice(0,2).join('_').replace(/[^a-zA-Z0-9_-]/g,'');
-    parts.unshift(tag+(cls?'.'+cls:'')+':'+idx);
-    n=n.parentElement;
-  }
-  return parts.join('/');
-}
-window._saDomPath=_saDomPath;
-function _saStableDomKey(el){
-  if(!el) return '';
-  var root = el.closest('#page-exec,#page-dept,#page-registry,#page-accountability,#page-report') || document.body;
-  var rid = root.id || 'body';
-  var base = el.getAttribute('data-sa-base') || _saCleanText(el.textContent||'');
-  return 'dom_'+rid+'_'+_saNormText(_saDomPath(el,root))+'_'+_saNormText(base);
-}
-window._saStableDomKey=_saStableDomKey;
-function _saExactTRKeyForText(txt){
-  var c=_saCleanText(txt);
-  if(!c || typeof TR==='undefined') return null;
-  for(var k in TR){
-    if(!Object.prototype.hasOwnProperty.call(TR,k)) continue;
-    var tr=TR[k]||{};
-    if(_saCleanText(tr.en)===c || _saCleanText(tr.ar)===c) return k;
-  }
-  return null;
-}
-window._saExactTRKeyForText=_saExactTRKeyForText;
-
 function _applyDashboardTextEdits(){
   try{
     if(typeof ST === 'undefined' || !ST.textEdits) return;
     var curLang = (typeof lang !== 'undefined') ? lang : 'en';
-    var skipTags = {SCRIPT:1,STYLE:1,INPUT:1,TEXTAREA:1,SELECT:1,OPTION:1,SVG:1,PATH:1,CANVAS:1,BUTTON:1};
+    var skipTags = {SCRIPT:1,STYLE:1,INPUT:1,TEXTAREA:1,SELECT:1,OPTION:1,SVG:1,PATH:1,CANVAS:1};
     var containers = [];
-    ['page-exec','page-registry','page-dept','page-accountability','page-report'].forEach(function(id){
+    ['page-exec','page-reg','page-dept','page-acc','page-accountability','page-report'].forEach(function(id){
       var el=document.getElementById(id); if(el) containers.push(el);
     });
     if(!containers.length) return;
+
     function wanted(key){
-      if(!key || key.indexOf('kpi_name:')===0) return null;
+      if(!key || key.indexOf('kpi_name:')===0 || key.indexOf('kpi_name_group:')===0) return null;
       var row = ST.textEdits[key];
       if(!row) return null;
       var v = row[curLang];
       return (v !== undefined && v !== null && String(v).trim() !== '') ? String(v) : null;
     }
-    function hasChildElement(el){
-      for(var i=0;i<el.childNodes.length;i++) if(el.childNodes[i].nodeType===1) return true;
-      return false;
+    function isLeaf(el){for(var i=0;i<el.childNodes.length;i++) if(el.childNodes[i].nodeType===1) return false; return true;}
+    function domKey(el){
+      if(typeof window._saDomKey==='function') return window._saDomKey(el);
+      var parts=[], n=el;
+      while(n&&n.nodeType===1&&n.id!=='root'&&parts.length<7){
+        if(n.id && /^page-/.test(n.id)){parts.unshift(n.id);break;}
+        var idx=1,sib=n; while((sib=sib.previousElementSibling)){if(sib.tagName===n.tagName)idx++;}
+        parts.unshift(n.tagName.toLowerCase()+':'+idx); n=n.parentElement;
+      }
+      return 'dom_'+parts.join('>');
     }
+
+    /* Apply explicit keys only. No text matching: text matching was the root cause
+       of edits jumping between unrelated labels and between KPI/status labels. */
     document.querySelectorAll('[data-tkey]').forEach(function(el){
       var key=el.getAttribute('data-tkey');
       var v=wanted(key);
@@ -323,18 +282,9 @@ function _applyDashboardTextEdits(){
     containers.forEach(function(container){
       container.querySelectorAll('*').forEach(function(el){
         if(skipTags[el.tagName]) return;
-        if(hasChildElement(el)) return;
-        var txt=_saCleanText(el.textContent||'');
-        if(!txt || txt.length<2 || txt.length>180) return;
-        var keys=[];
-        if(el.getAttribute('data-tkey')) keys.push(el.getAttribute('data-tkey'));
-        keys.push(_saStableDomKey(el));
-        var trKey=_saExactTRKeyForText(txt);
-        if(trKey) keys.push(trKey);
-        for(var i=0;i<keys.length;i++){
-          var v=wanted(keys[i]);
-          if(v!==null && el.textContent!==v){ el.textContent=v; el.setAttribute('data-sa-base', txt); break; }
-        }
+        if(!isLeaf(el)) return;
+        var v=wanted(domKey(el));
+        if(v!==null && el.textContent!==v) el.textContent=v;
       });
     });
   }catch(e){ console.warn('[TextEdits] apply failed:', e && e.message ? e.message : e); }

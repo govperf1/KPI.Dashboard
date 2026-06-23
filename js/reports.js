@@ -1065,7 +1065,66 @@ async function doExportPDF(){doExportPage('exec');}
    REPORT TAB — Executive Performance Report Generator
 
 ========================================================== */
+
+function renderReportArabic(){
+  const el=document.getElementById('page-report'); if(!el)return;
+  if(typeof window._rptKpi==='undefined')window._rptKpi='';
+  if(typeof window._rptDept==='undefined')window._rptDept='';
+  let ks_base=allK();
+  const _rptRole=window._fbRole||'';
+  const _rptLocked=window._lockedDept||null;
+  const _rptAssigned=window._fbAssignedKpis;
+  if(_rptLocked) ks_base=ks_base.filter(k=>k.dept===_rptLocked);
+  if(_rptRole==='kpi_owner'&&Array.isArray(_rptAssigned)&&_rptAssigned.length>0) ks_base=ks_base.filter(k=>_rptAssigned.includes(k.id));
+  if(_rptLocked&&window._rptDept!==_rptLocked) window._rptDept=_rptLocked;
+  const ks_all=ks_base.filter(k=>F.year==='all'||k.yr===parseInt(F.year));
+  const deptOpts=(!_rptLocked?'<option value=""'+(window._rptDept===''?' selected':'')+'>كل الأقسام</option>':'')+
+    Object.keys(DM).filter(d=>!_rptLocked||d===_rptLocked).map(d=>'<option value="'+d+'"'+(window._rptDept===d?' selected':'')+'>'+(DM[d].ar||DM[d].en)+'</option>').join('');
+  const ks_dept=window._rptDept?ks_all.filter(k=>k.dept===window._rptDept):ks_all;
+  const kpiOpts='<option value=""'+(window._rptKpi===''?' selected':'')+'>— كل المؤشرات —</option>'+ks_dept.map(k=>'<option value="'+k.id+'"'+(window._rptKpi===k.id?' selected':'')+'>'+k.id+' — '+(k.nameAr||k.nameEn)+'</option>').join('');
+  const ks=window._rptKpi?ks_dept.filter(k=>k.id===window._rptKpi):ks_dept;
+  const k1=ks.length===1?ks[0]:null;
+  const rptDm=window._rptDept?DM[window._rptDept]:null;
+  const deptFull=rptDm?((rptDm.ar||rptDm.en)+''):'كل الأقسام';
+  const metKs=ks.filter(k=>ok(k)===true), missKs=ks.filter(k=>ok(k)===false);
+  const avgV=ks.map(k=>qv(k)).filter(v=>v!==null);
+  const kpiResult=avgV.length?+(avgV.reduce((a,b)=>a+b,0)/avgV.length).toFixed(0):null;
+  const kpiTarget=k1?k1.target:(ks.length?Math.round(ks.reduce((a,k)=>a+k.target,0)/ks.length):96);
+  const isMet=kpiResult!==null&&kpiResult>=kpiTarget;
+  const kpiYear=k1?String(k1.yr):(F.year!=='all'?String(F.year):'كل السنوات');
+  const today=new Date();
+  const dateStr=today.toLocaleDateString('ar-SA',{day:'2-digit',month:'long',year:'numeric'});
+  const period=kpiYear+(F.qtr.includes('all')?'':' ('+F.qtr.map(q=>q.toUpperCase()).join('، ')+')');
+  const kpiNameFull=ks.map(k=>k.nameAr||k.nameEn).join('، ')||'تقرير أداء المؤشرات';
+  const kpiNameShort=k1?(k1.nameAr||k1.nameEn):(ks.length===0?'تقرير أداء المؤشرات':ks.length<=2?kpiNameFull:ks.length+' مؤشرات');
+  const qAvg=q=>{const v=ks.map(k=>k[q]).filter(x=>x!==null);return v.length?+(v.reduce((a,b)=>a+b)/v.length).toFixed(0):null;};
+  const [q1v,q2v,q3v,q4v]=['q1','q2','q3','q4'].map(qAvg);
+  const SH=(n,t)=>'<div style="display:flex;align-items:center;gap:10px;margin:28px 0 13px;break-after:avoid;page-break-after:avoid"><div style="width:4px;height:22px;background:linear-gradient(180deg,#0195af,#007A96);border-radius:2px;flex-shrink:0"></div><h2 style="font-size:14px;font-weight:800;color:#152538;margin:0">'+n+'. '+t+'</h2></div>';
+  let _eid=0;
+  const EP=(txt,style='')=>{const id='ep'+(++_eid); const key='rpt_'+(window._rptKpi||'_all_')+'_'+_eid; const saved=(ST.rptEdits||{})[key]; let content=txt; if(saved&&typeof saved==='object'&&saved.ar)content=saved.ar; return '<div class="rpt-ep" id="'+id+'-w" style="display:flex;align-items:flex-start;gap:8px;'+style+'"><p id="'+id+'" dir="rtl" style="font-size:12px;color:#334155;line-height:1.9;margin:0;min-height:20px;flex:1;text-align:right">'+content+'</p><div id="'+id+'-acts" style="flex-shrink:0;display:flex;flex-direction:column;gap:4px;padding-top:2px"><button class="rpt-edit-btn" onclick="rptStartEdit(\''+id+'\')" title="تعديل" style="position:static;opacity:0;transform:translateX(4px)">✎</button></div></div>';};
+  const QR=(q,v)=>{const ok2=v!==null&&v>=kpiTarget;return '<tr><td style="padding:9px 14px;font-weight:700;color:#152538;border:1px solid #E2E8F0">'+q+'</td><td style="padding:9px 14px;text-align:center;font-weight:700;color:#1E40AF;border:1px solid #E2E8F0">'+kpiTarget+'%</td><td style="padding:9px 14px;text-align:center;font-weight:800;background:'+(v===null?'#F8FAFC':ok2?'#DCFCE7':'#FEE2E2')+';color:'+(v===null?'#CBD5E1':ok2?'#166534':'#991B1B')+';border:1px solid #E2E8F0">'+(v!==null?v+'%':'غير متاح')+'</td><td style="padding:9px 14px;text-align:center;border:1px solid #E2E8F0"><span style="padding:3px 12px;border-radius:20px;font-size:10px;font-weight:700;background:'+(v===null?'#F8FAFC':ok2?'#ECFDF5':'#FEF2F2')+';color:'+(v===null?'#94A3B8':ok2?'#06845A':'#C42B2B')+'">'+(v===null?'قيد المتابعة':ok2?'محقق':'أقل من الهدف')+'</span></td></tr>';};
+  const qBullets=[[q1v,'Q1'],[q2v,'Q2'],[q3v,'Q3'],[q4v,'Q4']].filter(([v])=>v!==null).map(([v,q])=>'• <strong>'+q+':</strong> كانت النتيجة <strong style="color:'+(v>=kpiTarget?'#06845A':'#C42B2B')+'">'+v+'%</strong>'+(v<kpiTarget?'، أقل من الهدف '+kpiTarget+'%.':' — تم تحقيق الهدف.')).join('<br>');
+  const recs=[missKs.length?'تنفيذ إجراءات تصحيحية موجهة لعدد <strong>'+missKs.length+'</strong> مؤشر أقل من الهدف.':null,'تعزيز المتابعة الدورية للنتائج وربطها بخطط التحسين.','تحديث تحليل الأسباب الجذرية للمؤشرات غير المحققة.','رفع جاهزية الفرق من خلال التدريب والمتابعة المستمرة.',metKs.length?'المحافظة على الممارسات الفعالة في المؤشرات المحققة وعددها <strong>'+metKs.length+'</strong>.':null].filter(Boolean);
+  el.innerHTML='<div style="padding:0;background:var(--bg);min-height:100%;direction:rtl">'+
+  '<div class="rpt-topbar" style="display:flex;align-items:center;gap:10px;padding:14px 20px;background:var(--bg);flex-wrap:wrap"><div style="display:flex;align-items:center;gap:8px"><label style="font-size:10px;font-weight:700;color:var(--t2);white-space:nowrap">القسم:</label><select class="msel" style="min-width:160px;height:34px;font-size:11px" onchange="window._rptDept=this.value;window._rptKpi=\'\';renderReport()">'+deptOpts+'</select></div><div style="width:1px;height:22px;background:var(--border)"></div><div style="display:flex;align-items:center;gap:8px"><label style="font-size:10px;font-weight:700;color:var(--t2);white-space:nowrap">المؤشر:</label><select class="msel" style="min-width:220px;height:34px;font-size:11px" onchange="window._rptKpi=this.value;renderReport()">'+kpiOpts+'</select></div><button onclick="window.print()" style="padding:7px 18px;background:#C42B2B;color:#fff;border:none;border-radius:8px;cursor:pointer;font-family:inherit;font-size:11px;font-weight:700">تصدير PDF</button><span style="margin-right:auto;font-size:10px;color:var(--t3)">'+period+' · '+dateStr+'</span></div>'+ 
+  '<div id="rptDocument" style="background:#fff;max-width:860px;margin:0 auto 32px;border:1px solid #E2E8F0;box-shadow:0 8px 30px rgba(15,23,42,.08);direction:rtl;text-align:right"><div style="padding:38px 44px">'+
+  '<div style="border-bottom:4px solid #0195af;padding-bottom:18px;margin-bottom:24px"><h1 style="font-size:24px;font-weight:900;color:#152538;margin:0">تقرير أداء المؤشرات</h1><p style="margin:8px 0 0;color:#64748B;font-size:13px">'+deptFull+' · '+kpiNameShort+' · '+period+'</p></div>'+ 
+  '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px"><div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px"><b>إجمالي المؤشرات</b><div style="font-size:26px;font-weight:900;color:#152538">'+ks.length+'</div></div><div style="background:#ECFDF5;border:1px solid #A7F3D0;border-radius:10px;padding:14px"><b>محققة</b><div style="font-size:26px;font-weight:900;color:#06845A">'+metKs.length+'</div></div><div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:14px"><b>غير محققة</b><div style="font-size:26px;font-weight:900;color:#C42B2B">'+missKs.length+'</div></div><div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:14px"><b>متوسط الأداء</b><div style="font-size:26px;font-weight:900;color:'+(isMet?'#06845A':'#C42B2B')+'">'+(kpiResult!==null?kpiResult+'%':'—')+'</div></div></div>'+ 
+  SH(1,'الملخص التنفيذي')+EP('يعرض هذا التقرير أداء '+deptFull+' خلال الفترة '+period+' فيما يتعلق بمؤشر/مؤشرات '+kpiNameFull+'. تمت مقارنة النتائج الفعلية بالهدف السنوي وتحليل حالة الإنجاز والفجوات لدعم اتخاذ القرار والتحسين المستمر.')+
+  SH(2,'بيانات المؤشر')+'<table style="width:100%;border-collapse:collapse;margin-bottom:20px"><tr><td style="padding:10px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:700">اسم المؤشر</td><td style="padding:10px;border:1px solid #E2E8F0">'+kpiNameFull+'</td></tr><tr><td style="padding:10px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:700">القسم</td><td style="padding:10px;border:1px solid #E2E8F0">'+deptFull+'</td></tr><tr><td style="padding:10px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:700">الهدف السنوي</td><td style="padding:10px;border:1px solid #E2E8F0">'+kpiTarget+'%</td></tr><tr><td style="padding:10px;background:#F8FAFC;border:1px solid #E2E8F0;font-weight:700">النتيجة</td><td style="padding:10px;border:1px solid #E2E8F0">'+(kpiResult!==null?kpiResult+'%':'غير متاح')+' — '+(kpiResult===null?'قيد المتابعة':isMet?'محقق':'أقل من الهدف')+'</td></tr></table>'+ 
+  SH(3,'النتائج الربعية')+'<table style="width:100%;border-collapse:collapse;margin-bottom:20px"><thead><tr style="background:#152538;color:#fff"><th style="padding:9px;border:1px solid #E2E8F0">الربع</th><th style="padding:9px;border:1px solid #E2E8F0">الهدف</th><th style="padding:9px;border:1px solid #E2E8F0">النتيجة</th><th style="padding:9px;border:1px solid #E2E8F0">الحالة</th></tr></thead><tbody>'+QR('Q1',q1v)+QR('Q2',q2v)+QR('Q3',q3v)+QR('Q4',q4v)+'</tbody></table>'+ 
+  SH(4,'تحليل الأداء')+EP(qBullets||'لا توجد نتائج ربعية كافية للتحليل في الفترة المحددة.')+
+  '<div style="height:260px;margin:18px 0;border:1px solid #E2E8F0;border-radius:10px;padding:10px"><canvas id="rptBarChart"></canvas></div>'+ 
+  SH(5,'التوصيات وفرص التحسين')+'<div style="display:flex;flex-direction:column;gap:8px">'+recs.map((r,i)=>'<div style="display:flex;gap:12px;padding:11px 15px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:9px"><div style="width:26px;height:26px;background:#152538;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#fff;flex-shrink:0">'+(i+1)+'</div>'+EP(r,'font-size:11.5px;color:#334155;line-height:1.85;margin:0;flex:1')+'</div>').join('')+'</div>'+ 
+  SH(6,'الخلاصة')+EP('بناءً على النتائج الحالية، فإن الأداء '+(isMet?'يحقق الهدف المطلوب ويعكس مستوى جيداً من الالتزام التشغيلي.':'يحتاج إلى متابعة وإجراءات تصحيحية لضمان الوصول إلى الهدف السنوي.')+' توصي إدارة الحوكمة والأداء باستمرار المتابعة الدورية وتحليل الفجوات وتحديث خطط التحسين حسب نتائج كل ربع.')+
+  '<div style="margin-top:28px;background:#152538;border-radius:10px;padding:14px 22px;color:#fff"><b>مدينة جامعة القصيم الطبية</b><br><span style="font-size:10px;color:rgba(255,255,255,.65)">قسم الحوكمة والأداء · إدارة المرافق والسلامة · تاريخ الإنشاء: '+dateStr+'</span></div>'+ 
+  '</div></div></div>';
+  el.querySelectorAll('.rpt-ep').forEach(w=>{w.addEventListener('mouseenter',()=>{const b=w.querySelector('.rpt-edit-btn');if(b)b.style.opacity='1';});w.addEventListener('mouseleave',()=>{const b=w.querySelector('.rpt-edit-btn');if(b&&!w.dataset.editing)b.style.opacity='0';});});
+  setTimeout(()=>{requestAnimationFrame(()=>{['rptBarChart','rptLineChart','rptDonut'].forEach(id=>{if(CH[id]){CH[id].destroy();delete CH[id];}});const qVals=[q1v,q2v,q3v,q4v];let lq=0;qVals.forEach((v,i)=>{if(v!==null)lq=i+1;});const aL=['Q1','Q2','Q3','Q4'].slice(0,lq||4);const aV=qVals.slice(0,lq||4);CH['rptBarChart']=mkChart('rptBarChart',{type:'bar',data:{labels:aL,datasets:[{label:'النتيجة',data:aV,backgroundColor:aV.map(v=>v===null?'#CBD5E1':v>=kpiTarget?'rgba(22,163,74,.72)':'rgba(220,38,38,.68)'),borderRadius:5,borderSkipped:false},{label:'الهدف',data:aL.map(()=>kpiTarget),type:'line',borderColor:'#C42B2B',borderWidth:2,borderDash:[6,4],pointRadius:0,fill:false,order:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{font:{size:10},boxWidth:10,padding:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.parsed.y+'%'}}},scales:{y:{min:0,max:110,ticks:{callback:v=>v+'%',font:{size:10}},grid:{color:'rgba(20,35,80,.06)'}},x:{ticks:{font:{size:11,weight:'600'}},grid:{display:false}}}}});});},120);
+}
+
 function renderReport(){
+  if(typeof lang!=='undefined' && lang==='ar') return renderReportArabic();
   const el=document.getElementById('page-report');if(!el)return;
   if(typeof window._rptKpi==='undefined')window._rptKpi='';
 

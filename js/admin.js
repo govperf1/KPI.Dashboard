@@ -1699,154 +1699,125 @@ function _deactivateSaEditMode(){
 window._deactivateSaEditMode = _deactivateSaEditMode;
 
 
-/* HARD FIX: text edit key safety
-   - KPI names may be edited only when the clicked element is tied to a KPI code in the same card/row.
-   - Repeated operational labels (Met/Missed/Result/Target/etc.) are not editable text keys.
-   - General dashboard titles use DOM-location keys only; no text-only or TR fallback keys. */
-function _saUnsafeTextEditKeys(){
-  return {
-    item_label:1,se_missed:1,se_met:1,
-    met:1,met_label:1,missed:1,missed_label:1,pending:1,status:1,
-    result:1,target:1,yoy_col:1,avg_col:1,risk_col:1,code_col:1,kpi_name_col:1,
-    all:1,dept:1,year:1,quarters:1,quarter:1,total:1,achievement:1,gap:1
-  };
+/* ── FINAL TEXT EDIT ROUTING HELPERS ─────────────────────────────
+   General UI text uses DOM-scoped keys and edits current language only.
+   KPI names use group keys by visible KPI name and update all KPIs that share
+   that name in the edited language, regardless of KPI code. */
+function _saCleanText(v){return String(v||'').replace(/\s+/g,' ').trim();}
+function _saB64(s){try{return btoa(unescape(encodeURIComponent(String(s||'')))).replace(/=+$/,'');}catch(_){return String(s||'').replace(/[^a-zA-Z0-9]+/g,'_').slice(0,60);}}
+function _saUnB64(s){try{var x=String(s||''); while(x.length%4)x+='='; return decodeURIComponent(escape(atob(x)));}catch(_){return '';}}
+function _saCurrentPageId(el){
+  var ids=['page-exec','page-dept','page-reg','page-acc','page-accountability','page-report'];
+  for(var i=0;i<ids.length;i++){var p=document.getElementById(ids[i]); if(p&&p.contains(el)) return ids[i];}
+  var on=el&&el.closest?el.closest('.page.on,.page'):null; return on&&on.id?on.id:'page';
 }
-window._saUnsafeTextEditKeys=_saUnsafeTextEditKeys;
-function _saIsUnsafeTextKey(key){
-  if(!key) return true;
-  if(String(key).indexOf('kpi_name:')===0) return false;
-  return !!_saUnsafeTextEditKeys()[String(key)];
+function _saDomPath(el){
+  var parts=[], n=el;
+  while(n&&n.nodeType===1&&n.id!=='root'&&parts.length<7){
+    if(n.id && /^page-/.test(n.id)){parts.unshift(n.id);break;}
+    var idx=1, sib=n;
+    while((sib=sib.previousElementSibling)){ if(sib.tagName===n.tagName) idx++; }
+    var cls=(n.className&&typeof n.className==='string')?'.'+n.className.trim().split(/\s+/).slice(0,2).join('.'):'';
+    parts.unshift(n.tagName.toLowerCase()+cls+':'+idx); n=n.parentElement;
+  }
+  return parts.join('>');
 }
-window._saIsUnsafeTextKey=_saIsUnsafeTextKey;
-function _saIsNonEditableLabel(txt){
-  var c=(typeof _saCleanText==='function'?_saCleanText(txt):String(txt||'').replace(/\s+/g,' ').trim());
-  if(!c) return true;
-  var bare=c.replace(/[✓✕✗×▲▼↗»•]/g,'').replace(/\d+(\.\d+)?%?/g,'').replace(/[:()\-–—]/g,' ').replace(/\s+/g,' ').trim().toLowerCase();
-  if(!bare) return true;
-  var blocked={
-    'met':1,'missed':1,'pending':1,'result':1,'target':1,'yoy':1,'gap':1,'total':1,'achievement':1,'kpi':1,'kpis':1,
-    'code':1,'year':1,'dept':1,'risk':1,'avg':1,'status':1,'all':1,'q1':1,'q2':1,'q3':1,'q4':1,
-    'محقق':1,'غير محقق':1,'قيد التنفيذ':1,'النتيجة':1,'الهدف':1,'سنوي':1,'الفجوة':1,'الإجمالي':1,'الإنجاز':1,
-    'المؤشر':1,'المؤشرات':1,'الرمز':1,'السنة':1,'القسم':1,'المخاطر':1,'المتوسط':1,'الحالة':1,'الكل':1
-  };
-  return !!blocked[bare];
+function _saDomKey(el){
+  return 'dom_'+_saCurrentPageId(el)+'_'+_saB64(_saDomPath(el));
 }
-window._saIsNonEditableLabel=_saIsNonEditableLabel;
-function _saPurgeUnsafeTextEdits(){
-  try{
-    if(typeof ST==='undefined'||!ST.textEdits) return;
-    Object.keys(_saUnsafeTextEditKeys()).forEach(function(k){ if(ST.textEdits[k]) delete ST.textEdits[k]; });
-    Object.keys(ST.textEdits).forEach(function(k){
-      if(k.indexOf('kpi_name:')===0) delete ST.textEdits[k];
-      if(k.indexOf('TEXT_EDIT:')===0 || k.indexOf('KPI_NAME_EDIT:')===0) delete ST.textEdits[k];
+function _saKpiNameGroupKey(langCode, visibleName){
+  return 'kpi_name_group:'+langCode+':'+_saB64(_saCleanText(visibleName).toLowerCase());
+}
+function _saKpiNameGroupFromKey(key){
+  var m=String(key||'').match(/^kpi_name_group:(en|ar):(.+)$/); if(!m) return null;
+  return {lang:m[1], name:_saUnB64(m[2])};
+}
+function _saFindKpiNameGroupForText(text){
+  if(typeof allK!=='function') return null;
+  var t=_saCleanText(text); if(!t) return null;
+  var ks=allK(), en=[], ar=[];
+  ks.forEach(function(k){ if(_saCleanText(k.nameEn)===t) en.push(k); if(_saCleanText(k.nameAr)===t) ar.push(k); });
+  if((typeof lang!=='undefined'&&lang==='ar') && ar.length) return {key:_saKpiNameGroupKey('ar',t), lang:'ar', name:t, list:ar};
+  if((typeof lang!=='undefined'&&lang==='en') && en.length) return {key:_saKpiNameGroupKey('en',t), lang:'en', name:t, list:en};
+  if(en.length) return {key:_saKpiNameGroupKey('en',t), lang:'en', name:t, list:en};
+  if(ar.length) return {key:_saKpiNameGroupKey('ar',t), lang:'ar', name:t, list:ar};
+  return null;
+}
+function _saApplyKpiNameGroupEdit(key,newVal){
+  var g=_saKpiNameGroupFromKey(key); if(!g||!newVal) return 0;
+  var oldName=_saCleanText(g.name), count=0;
+  if(!ST.ov) ST.ov={};
+  function upd(id){ if(!id) return; if(!ST.ov[id]) ST.ov[id]={}; if(g.lang==='ar') ST.ov[id].nameAr=newVal; else ST.ov[id].nameEn=newVal; count++; }
+  if(typeof allK==='function'){
+    allK().forEach(function(k){
+      var cur=_saCleanText(g.lang==='ar'?k.nameAr:k.nameEn).toLowerCase();
+      if(cur===oldName) upd(k.id);
     });
-  }catch(_){ }
+  }
+  if(Array.isArray(ST.added)){
+    ST.added.forEach(function(k){
+      var cur=_saCleanText(g.lang==='ar'?k.nameAr:k.nameEn).toLowerCase();
+      if(cur===oldName){ if(g.lang==='ar') k.nameAr=newVal; else k.nameEn=newVal; }
+    });
+  }
+  return count;
 }
-window._saPurgeUnsafeTextEdits=_saPurgeUnsafeTextEdits;
-function _saKpiNameKeyForElement(el,txt){
-  try{
-    if(typeof allK!=='function') return null;
-    var c=(typeof _saCleanText==='function'?_saCleanText(txt):String(txt||'').replace(/\s+/g,' ').trim());
-    if(!c || _saIsNonEditableLabel(c)) return null;
-    var arr=allK().filter(function(k){return (typeof _saCleanText==='function'?_saCleanText(k.nameEn):String(k.nameEn||'').trim())===c || (typeof _saCleanText==='function'?_saCleanText(k.nameAr):String(k.nameAr||'').trim())===c;});
-    if(!arr.length) return null;
-    var node=el;
-    for(var depth=0; node && depth<8; depth++, node=node.parentElement){
-      var block=(node.textContent||'');
-      for(var i=0;i<arr.length;i++){
-        if(block.indexOf(arr[i].id)>=0){
-          var en=(typeof _saCleanText==='function'?_saCleanText(arr[i].nameEn):String(arr[i].nameEn||'').trim())===c;
-          var ar=(typeof _saCleanText==='function'?_saCleanText(arr[i].nameAr):String(arr[i].nameAr||'').trim())===c;
-          return 'kpi_name:'+arr[i].id+':'+(ar?'ar':'en');
-        }
-      }
-    }
-    return null;
-  }catch(_){return null;}
+function _saReadKpiNameGroup(key){
+  var g=_saKpiNameGroupFromKey(key); if(!g) return {en:'',ar:''};
+  var out={en:'',ar:''};
+  if(typeof allK==='function'){
+    var old=g.name;
+    var k=(allK()||[]).find(function(x){return _saCleanText(g.lang==='ar'?x.nameAr:x.nameEn).toLowerCase()===old;});
+    if(k){out.en=k.nameEn||'';out.ar=k.nameAr||'';}
+  }
+  return out;
 }
-window._saKpiNameKeyForElement=_saKpiNameKeyForElement;
+function _saIsKpiGroupKey(key){return /^kpi_name_group:(en|ar):/.test(String(key||''));}
 
 function _scanDashboardForEditable(){
   if(!_saEditModeActive) return;
-  try{ if(typeof _saPurgeUnsafeTextEdits==='function') _saPurgeUnsafeTextEdits(); }catch(_){}
-  /* Bind existing t() spans only when their key is safe. Repeated status/metric labels are intentionally not editable. */
-  document.querySelectorAll('[data-tkey]:not([data-sa-bound])').forEach(function(el){
-    var key = el.getAttribute('data-tkey');
-    var txt = clean(el.textContent||'');
-    if((typeof _saIsUnsafeTextKey==='function' && _saIsUnsafeTextKey(key)) || (typeof _saIsNonEditableLabel==='function' && _saIsNonEditableLabel(txt))){
-      el.setAttribute('data-sa-bound','1');
-      el.classList.remove('sa-ed');
-      el.removeAttribute('title');
-      return;
-    }
-    el.setAttribute('data-sa-bound','1');
-    el.onclick = function(e){ e.stopPropagation(); _showTextKeyPopup(key, el); };
-  });
-  var isAr = (typeof lang !== 'undefined' && lang === 'ar');
   var SKIP_TAGS = {SCRIPT:1,STYLE:1,INPUT:1,TEXTAREA:1,SELECT:1,OPTION:1,SVG:1,PATH:1,BUTTON:1,CANVAS:1};
   var containers = [];
-  ['page-exec','page-registry','page-dept','page-accountability','page-report'].forEach(function(id){
-    var el = document.getElementById(id); if(el) containers.push(el);
+  ['page-exec','page-reg','page-dept','page-acc','page-accountability','page-report'].forEach(function(id){
+    var el=document.getElementById(id); if(el) containers.push(el);
   });
-  if(!containers.length){
-    var m = document.querySelector('.page.on, .page-content, main');
-    if(m) containers.push(m); else return;
+  if(!containers.length){var m=document.querySelector('.page.on,.page-content,main'); if(m) containers.push(m); else return;}
+
+  function bind(el,key){
+    if(!el||!key) return;
+    el.setAttribute('data-tkey',key);
+    el.setAttribute('data-sa-bound','1');
+    el.onclick=function(e){e.stopPropagation(); _showTextKeyPopup(key,el);};
+    if(window._saEditMode){el.classList.add('sa-ed');}
   }
-  function clean(txt){ return (typeof window._saCleanText==='function') ? window._saCleanText(txt) : String(txt||'').replace(/\s+/g,' ').trim(); }
-  function stableKey(el){
-    return (typeof window._saStableDomKey==='function') ? window._saStableDomKey(el) : ('dom_'+(el.id||clean(el.textContent).replace(/[^a-zA-Z0-9]/g,'_').toLowerCase().substring(0,50)));
-  }
-  function exactTR(txt){
-    if(typeof window._saExactTRKeyForText==='function') return window._saExactTRKeyForText(txt);
-    if(typeof window.TR==='undefined') return null;
-    var c=clean(txt);
-    for(var k in window.TR){
-      if(!Object.prototype.hasOwnProperty.call(window.TR,k)) continue;
-      var tr=window.TR[k]||{};
-      if(clean(tr.en)===c || clean(tr.ar)===c) return k;
-    }
-    return null;
-  }
-  function kpiNameKey(el,txt){
-    return (typeof window._saKpiNameKeyForElement==='function') ? window._saKpiNameKeyForElement(el,txt) : null;
-  }
+  function isLeaf(el){for(var i=0;i<el.childNodes.length;i++) if(el.childNodes[i].nodeType===1) return false; return true;}
+
   containers.forEach(function(container){
     container.querySelectorAll('*').forEach(function(el){
-      if(el.getAttribute('data-sa-bound')) return;
       if(SKIP_TAGS[el.tagName]) return;
-      var hasChildEl=false;
-      for(var i=0;i<el.childNodes.length;i++){ if(el.childNodes[i].nodeType===1){hasChildEl=true;break;} }
-      if(hasChildEl) return;
-      var text=clean(el.textContent||'');
-      if(!text || text.length<2 || text.length>140) return;
-      if(typeof _saIsNonEditableLabel==='function' && _saIsNonEditableLabel(text)) return;
-      /* Critical order: KPI names only when the element is tied to a KPI code, otherwise DOM-location key.
-         No TR fallback and no text-only key: this prevents edits from jumping to Met/Missed/other labels. */
-      var key = kpiNameKey(el,text) || stableKey(el);
-      if(!key) return;
-      if(key.indexOf('dom_')===0 && ST.textEdits && ST.textEdits[key]){
-        var ev=ST.textEdits[key][isAr?'ar':'en'];
-        if(ev!==undefined && ev!==null && String(ev).trim()!=='' && ev!==text) el.textContent=ev;
-      }
-      el.setAttribute('data-tkey', key);
-      el.setAttribute('data-sa-bound','1');
-      if(!el.getAttribute('data-sa-base')) el.setAttribute('data-sa-base', text);
-      el.onclick = function(e){ e.stopPropagation(); _showTextKeyPopup(key, el); };
+      if(!isLeaf(el)) return;
+      var text=_saCleanText(el.textContent);
+      if(!text || text.length<2 || text.length>180) return;
+      var kpiGrp=_saFindKpiNameGroupForText(text);
+      if(kpiGrp){ bind(el,kpiGrp.key); return; }
+      /* General UI text: always DOM scoped, never text scoped. This prevents
+         editing one label from changing another label with similar text. */
+      bind(el,_saDomKey(el));
     });
   });
 }
 window._scanDashboardForEditable = _scanDashboardForEditable;
 
 function _showTextKeyPopup(key, anchorEl){
-  if((typeof _saIsUnsafeTextKey==='function' && _saIsUnsafeTextKey(key)) || (anchorEl && typeof _saIsNonEditableLabel==='function' && _saIsNonEditableLabel(anchorEl.textContent||''))) return;
   var existing = document.getElementById('saTextKeyPopup');
   if(existing) existing.remove();
   var isAr = (typeof lang !== 'undefined' && lang === 'ar');
   var stored = ST.textEdits && ST.textEdits[key];
   var tr = window.TR && window.TR[key];
   /* For kpi_name: keys, skip ST.textEdits/TR — values come from ST.ov/allK() block below */
-  var enVal = key.indexOf('kpi_name:')===0 ? '' : (stored ? (stored.en !== undefined ? stored.en : (tr ? tr.en||'' : '')) : (tr ? tr.en||'' : ''));
-  var arVal = key.indexOf('kpi_name:')===0 ? '' : (stored ? (stored.ar !== undefined ? stored.ar : (tr ? tr.ar||'' : '')) : (tr ? tr.ar||'' : ''));
+  var _isKpiKey = (key.indexOf('kpi_name:')===0) || (typeof _saIsKpiGroupKey==='function' && _saIsKpiGroupKey(key));
+  var enVal = _isKpiKey ? '' : (stored ? (stored.en !== undefined ? stored.en : (tr ? tr.en||'' : '')) : (tr ? tr.en||'' : ''));
+  var arVal = _isKpiKey ? '' : (stored ? (stored.ar !== undefined ? stored.ar : (tr ? tr.ar||'' : '')) : (tr ? tr.ar||'' : ''));
 
   var popup = document.createElement('div');
   popup.id = 'saTextKeyPopup';
@@ -1858,7 +1829,11 @@ function _showTextKeyPopup(key, anchorEl){
   popup.style.top = top + 'px'; popup.style.left = left + 'px';
 
   /* If KPI name key, read from ST.ov not ST.textEdits */
-  if(key.indexOf('kpi_name:') === 0){
+  if(typeof _saIsKpiGroupKey==='function' && _saIsKpiGroupKey(key)){
+    var _grpVals = _saReadKpiNameGroup(key);
+    enVal = _grpVals.en || enVal;
+    arVal = _grpVals.ar || arVal;
+  } else if(key.indexOf('kpi_name:') === 0){
     var _parts0 = key.split(':');
     var _kpiId0 = _parts0[1];
     var _nameLang0 = _parts0[2];
@@ -1868,11 +1843,12 @@ function _showTextKeyPopup(key, anchorEl){
     arVal = _ov0.nameAr || _kpiK0.nameAr || arVal;
   }
   var editLang = isAr ? 'ar' : 'en';
-  var readLang = isAr ? 'en' : 'ar';
-  var editVal  = isAr ? arVal : enVal;
-  var readVal  = isAr ? enVal : arVal;
-  var editLabel = isAr ? 'النص بالعربية (قابل للتعديل)' : 'English text (editable)';
-  var readLabel = isAr ? 'النص بالإنجليزية (مرجع فقط)' : 'Arabic text (reference only)';
+  if(typeof _saIsKpiGroupKey==='function' && _saIsKpiGroupKey(key)){ var _g0=_saKpiNameGroupFromKey(key); if(_g0&&_g0.lang) editLang=_g0.lang; }
+  var readLang = editLang === 'ar' ? 'en' : 'ar';
+  var editVal  = editLang === 'ar' ? arVal : enVal;
+  var readVal  = editLang === 'ar' ? enVal : arVal;
+  var editLabel = editLang === 'ar' ? 'النص بالعربية (قابل للتعديل)' : 'English text (editable)';
+  var readLabel = editLang === 'ar' ? 'النص بالإنجليزية (مرجع فقط)' : 'Arabic text (reference only)';
 
   popup.innerHTML =
     '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'
@@ -1895,7 +1871,10 @@ function _showTextKeyPopup(key, anchorEl){
   document.getElementById('_saPopSave').onclick = function(){
     var newVal = input ? input.value : editVal;
     /* Route KPI name edits ONLY to ST.ov — never mix into ST.textEdits */
-    if(key.indexOf('kpi_name:') === 0){
+    if(typeof _saIsKpiGroupKey==='function' && _saIsKpiGroupKey(key)){
+      _saApplyKpiNameGroupEdit(key,newVal);
+      if(ST.textEdits) delete ST.textEdits[key];
+    } else if(key.indexOf('kpi_name:') === 0){
       var _parts = key.split(':');
       var _kpiId2 = _parts[1];
       var _nameLang = _parts[2]; /* 'en' or 'ar' from the scan key */
@@ -1926,8 +1905,7 @@ function _showTextKeyPopup(key, anchorEl){
          labels lose their original lookup after a refresh/re-render. */
       if(typeof window._applyDashboardTextEditsSoon==='function') window._applyDashboardTextEditsSoon();
     }
-        try{ if(typeof _saPurgeUnsafeTextEdits==='function') _saPurgeUnsafeTextEdits(); }catch(_){}
-        persistST(key.indexOf('kpi_name:')===0 ? 'KPI_NAME_EDIT:'+key : 'TEXT_EDIT:'+key).then(function(){
+        persistST(((key.indexOf('kpi_name:')===0)||(typeof _saIsKpiGroupKey==='function'&&_saIsKpiGroupKey(key))) ? 'KPI_NAME_EDIT:'+key : 'TEXT_EDIT:'+key).then(function(){
       var fb = document.getElementById('_saPopFb');
       if(fb){fb.textContent='✓ '+(typeof lang!=='undefined'&&lang==='ar'?'تم الحفظ — سيظهر لجميع المستخدمين':'Saved — reflects for all users');fb.style.color='#16A34A';fb.style.display='block';}
       /* Re-render dashboard so KPI names update everywhere */
