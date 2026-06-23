@@ -520,94 +520,149 @@ window.persistST=persistST;
 
 /* ══════════════════════════════════════════════════════
    calcForecastYE()
-   Dynamic forecast — no hardcoded years.
-   Current year = max(k.yr) where k has actual data.
-   Groups KPIs by nameEn+dept across all years.
-   Formula: (HistoricalAvg + 3×CurrentYearAvg) / 4
-   Returns: { exec, byDept, currentYear }
+   Forecast YE methodology — dynamic year + dynamic quarter weighting.
+
+   Current Year:
+     Latest year found in KPI records that contain at least one actual result.
+     No hardcoded 2025 / 2026 / 2027.
+
+   Per KPI forecast:
+     Historical Average = average of all actual results available for the KPI
+                          from all years up to and including the current year.
+     Current Year Average = average of actual results entered only in Current Year.
+     entered_quarters = number of current-year quarters that have actual values.
+
+     Q1 only: (0.75 × Historical Average) + (0.25 × Current Year Average)
+     Q1+Q2:   (0.50 × Historical Average) + (0.50 × Current Year Average)
+     Q1-Q3:   (0.25 × Historical Average) + (0.75 × Current Year Average)
+     Q1-Q4:   Current Year Average
+
+   Returns:
+     { exec, byDept, currentYear, kpis }
    ══════════════════════════════════════════════════════ */
 function calcForecastYE(opts){
   opts = opts || {};
   var all = (typeof allK === 'function') ? allK() : [];
-  if(!all.length) return {exec:null,byDept:{},currentYear:null};
+  if(!all.length) return {exec:null,byDept:{},currentYear:null,kpis:[]};
 
-  /* Respect dashboard filters when requested, without losing historical data needed for the formula. */
-  var FF = (opts.respectFilters && typeof F !== 'undefined' && F && typeof F === 'object')
-    ? F
-    : {year:'all',qtr:['q1','q2','q3','q4'],dept:'all',status:'all'};
+  var qtrs = ['q1','q2','q3','q4'];
+  function _num(v){
+    if(v === null || v === undefined || v === '') return null;
+    var n = Number(v);
+    return isFinite(n) ? n : null;
+  }
+  function _avg(arr){
+    var vals = (arr || []).filter(function(v){ return v !== null && v !== undefined && isFinite(v); });
+    return vals.length ? vals.reduce(function(a,b){return a+b;},0) / vals.length : null;
+  }
+  function _normName(k){
+    return String((k && (k.nameEn || k.nameAr || k.name || k.title || k.id)) || '').trim().toLowerCase().replace(/\s+/g,' ');
+  }
+  function _deptOf(k){ return String((k && k.dept) || ''); }
+  function _hasAnyActual(k){
+    return !!qtrs.some(function(q){ return _num(k && k[q]) !== null; });
+  }
 
-  var selectedQtrs = Array.isArray(FF.qtr) ? FF.qtr.slice() : ['q1','q2','q3','q4'];
-  if(!selectedQtrs.length || selectedQtrs.indexOf('all') > -1) selectedQtrs = ['q1','q2','q3','q4'];
-
-  var selectedDept = window._lockedDept || (FF.dept && FF.dept !== 'all' ? FF.dept : null);
-  var selectedYear = (FF.year && FF.year !== 'all') ? parseInt(FF.year,10) : null;
+  /* Optional scope support for department pages or assistant filters.
+     Executive dashboard calls this without filters so the card stays organizational. */
+  var requestedDept = opts.dept || null;
+  if(!requestedDept && opts.respectFilters && typeof F !== 'undefined' && F && F.dept && F.dept !== 'all') requestedDept = F.dept;
+  if(!requestedDept && opts.respectFilters && window._lockedDept) requestedDept = window._lockedDept;
 
   var ks = all.filter(function(k){
     if(!k || typeof k !== 'object') return false;
-    if(selectedDept && String(k.dept) !== String(selectedDept)) return false;
-    if(selectedYear && Number(k.yr) > selectedYear) return false; /* do not use future years as historical context */
-    if(opts.respectFilters && FF.status && FF.status !== 'all' && typeof ok === 'function'){
-      var a = ok(k);
-      if(FF.status === 'achieved' && (a === null || !a)) return false;
-      if(FF.status === 'missed' && (a === null ||  a)) return false;
-    }
-    return true;
+    if(requestedDept && _deptOf(k) !== String(requestedDept)) return false;
+    return _hasAnyActual(k);
   });
-  if(!ks.length) return {exec:null,byDept:{},currentYear:null};
+  if(!ks.length) return {exec:null,byDept:{},currentYear:null,kpis:[]};
 
-  /* Current year = selected year, or latest year found in the filtered KPI data. */
-  var currentYear = selectedYear || 0;
-  if(!currentYear){
-    ks.forEach(function(k){
-      var hasData = selectedQtrs.some(function(q){
-        var v = k[q];
-        return v !== null && v !== undefined && typeof v === 'number' && isFinite(v);
-      });
-      if(hasData && Number(k.yr) > currentYear) currentYear = Number(k.yr);
-    });
-  }
-  if(!currentYear) return {exec:null,byDept:{},currentYear:null};
+  var currentYear = ks.reduce(function(mx,k){
+    var y = Number(k.yr) || 0;
+    return y > mx ? y : mx;
+  }, 0);
+  if(!currentYear) return {exec:null,byDept:{},currentYear:null,kpis:[]};
 
-  /* Group by KPI name + department so the same KPI continues across years/codes. */
+  /* Group by KPI name + department. This allows the same KPI trend to continue
+     when the KPI code changes, while keeping department breakdown mathematically correct. */
   var groups = {};
   ks.forEach(function(k){
-    var gKey = String(k.nameEn || k.id || '').toLowerCase().trim() + '__' + String(k.dept || '');
-    if(!groups[gKey]) groups[gKey] = {nameEn:k.nameEn,dept:k.dept,histVals:[],curVals:[]};
+    var y = Number(k.yr) || 0;
+    if(!y || y > currentYear) return;
 
-    var vals = selectedQtrs.map(function(q){ return k[q]; })
-      .filter(function(v){ return v !== null && v !== undefined && typeof v === 'number' && isFinite(v); });
-    if(!vals.length) return;
+    var key = _normName(k) + '__' + _deptOf(k);
+    if(!groups[key]){
+      groups[key] = {
+        key:key,
+        nameEn:k.nameEn || k.name || k.id || '',
+        nameAr:k.nameAr || '',
+        dept:_deptOf(k),
+        historicalVals:[],
+        currentVals:[],
+        currentQuarterSet:{},
+        codes:{}
+      };
+    }
+    if(k.id) groups[key].codes[String(k.id)] = true;
 
-    groups[gKey].histVals = groups[gKey].histVals.concat(vals);
-    if(Number(k.yr) === currentYear) groups[gKey].curVals = groups[gKey].curVals.concat(vals);
+    qtrs.forEach(function(q){
+      var v = _num(k[q]);
+      if(v === null) return;
+      groups[key].historicalVals.push(v);
+      if(y === currentYear){
+        groups[key].currentVals.push(v);
+        groups[key].currentQuarterSet[q] = true;
+      }
+    });
   });
 
-  var kpiFcs = [];
-  var deptFcs = {};
-  Object.keys(groups).forEach(function(gk){
-    var g = groups[gk];
-    if(!g.histVals.length || !g.curVals.length) return;
-    var histAvg = g.histVals.reduce(function(a,b){return a+b;},0) / g.histVals.length;
-    var curAvg  = g.curVals.reduce(function(a,b){return a+b;},0) / g.curVals.length;
-    var fc = (histAvg + (3 * curAvg)) / 4;
-    kpiFcs.push(fc);
-    if(!deptFcs[g.dept]) deptFcs[g.dept] = [];
-    deptFcs[g.dept].push(fc);
+  var kpiForecasts = [];
+  var deptBuckets = {};
+
+  Object.keys(groups).forEach(function(key){
+    var g = groups[key];
+    var histAvg = _avg(g.historicalVals);
+    var curAvg  = _avg(g.currentVals);
+    var enteredQuarters = Object.keys(g.currentQuarterSet || {}).length;
+
+    if(histAvg === null || curAvg === null || enteredQuarters < 1) return;
+
+    var forecast;
+    if(enteredQuarters >= 4){
+      forecast = curAvg;
+      enteredQuarters = 4;
+    }else{
+      var curWeight = enteredQuarters / 4;
+      var histWeight = 1 - curWeight;
+      forecast = (histWeight * histAvg) + (curWeight * curAvg);
+    }
+
+    var item = {
+      key:g.key,
+      nameEn:g.nameEn,
+      nameAr:g.nameAr,
+      dept:g.dept,
+      currentYear:currentYear,
+      enteredQuarters:enteredQuarters,
+      historicalAverage:histAvg,
+      currentYearAverage:curAvg,
+      forecast:forecast,
+      codes:Object.keys(g.codes)
+    };
+    kpiForecasts.push(item);
+
+    if(!deptBuckets[g.dept]) deptBuckets[g.dept] = [];
+    deptBuckets[g.dept].push(forecast);
   });
 
-  if(!kpiFcs.length) return {exec:null,byDept:{},currentYear:currentYear};
+  if(!kpiForecasts.length) return {exec:null,byDept:{},currentYear:currentYear,kpis:[]};
 
-  var exec = kpiFcs.reduce(function(a,b){return a+b;},0) / kpiFcs.length;
+  var exec = _avg(kpiForecasts.map(function(x){return x.forecast;}));
   var byDept = {};
-  Object.keys(deptFcs).forEach(function(d){
-    var arr = deptFcs[d];
-    byDept[d] = arr.reduce(function(a,b){return a+b;},0) / arr.length;
-  });
+  Object.keys(deptBuckets).forEach(function(d){ byDept[d] = _avg(deptBuckets[d]); });
 
-  return {exec:exec,byDept:byDept,currentYear:currentYear};
+  return {exec:exec,byDept:byDept,currentYear:currentYear,kpis:kpiForecasts};
 }
 window.calcForecastYE=calcForecastYE;
-
 
 /* ── Smart Dashboard Assistant (restored) ── */
 function aiToggle(){

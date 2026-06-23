@@ -634,7 +634,7 @@ function renderExec(){
     const _ab=document.getElementById('eis_actions_badge');if(_ab){_ab.textContent=_openAct===0?'All documented':_openAct===1?'1 pending':''+_openAct+' pending';_ab.style.color=_openAct>0?'#FBBF24':'#4ADE80';_ab.style.background=_openAct>0?'rgba(217,119,6,.25)':'rgba(22,163,74,.20)';}
 
     /* Forecast YE — dynamic, no hardcoded years */
-    let _fcRes={exec:null,byDept:{},currentYear:null};try{if(typeof calcForecastYE==='function')_fcRes=calcForecastYE({respectFilters:true});}catch(_fce){console.warn('[Forecast]',_fce);}
+    let _fcRes={exec:null,byDept:{},currentYear:null};try{if(typeof calcForecastYE==='function')_fcRes=calcForecastYE({scope:'organization'});}catch(_fce){console.warn('[Forecast]',_fce);}
     const _fcVal=_fcRes.exec;
     const _forecastTxt=_fcVal!==null?_fcVal.toFixed(2)+'%':'—';
     const _fcColor=_fcVal!==null?(_fcVal>=80?'#4ADE80':_fcVal>=60?'#0195af':'#FBBF24'):'#64748B';
@@ -732,11 +732,13 @@ function _showForecastDrilldown(fcRes){
   if(prev){prev.remove();return;}
   var isAr=(typeof lang!=='undefined'&&lang==='ar');
   function _e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');}
-  function _col(v){return v>=80?'#4ADE80':v>=60?'#0195af':'#FBBF24';}
-  var entries=Object.keys(fcRes.byDept||{}).map(function(d){return{dept:d,fc:fcRes.byDept[d]};});
-  entries.sort(function(a,b){return b.fc-a.fc;});
-  var execPct=fcRes.exec!==null?fcRes.exec.toFixed(2)+'%':'—';
-  var execC=fcRes.exec!==null?_col(fcRes.exec):'#64748b';
+  function _col(v){return (v===null||v===undefined||!isFinite(v))?'#64748b':v>=80?'#4ADE80':v>=60?'#0195af':'#FBBF24';}
+  var deptOrder=['maintenance','safety','housekeeping','projects'];
+  var seen={};
+  var entries=deptOrder.map(function(d){seen[d]=true;return{dept:d,fc:(fcRes.byDept&&fcRes.byDept[d]!==undefined)?fcRes.byDept[d]:null};});
+  Object.keys(fcRes.byDept||{}).forEach(function(d){if(!seen[d]) entries.push({dept:d,fc:fcRes.byDept[d]});});
+  var execPct=(fcRes.exec!==null&&fcRes.exec!==undefined&&isFinite(fcRes.exec))?fcRes.exec.toFixed(2)+'%':'—';
+  var execC=(fcRes.exec!==null&&fcRes.exec!==undefined&&isFinite(fcRes.exec))?_col(fcRes.exec):'#64748b';
   var yr=fcRes.currentYear?String(fcRes.currentYear):'—';
   var ov=document.createElement('div');
   ov.id='_forecastDrillOv';
@@ -769,10 +771,10 @@ function _showForecastDrilldown(fcRes){
     var row=document.createElement('div');row.style.cssText='padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06);';
     row.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">'
       +'<span style="font-size:11px;color:#94a3b8">'+name+'</span>'
-      +'<span style="font-size:14px;font-weight:900;color:'+_col(e.fc)+';font-family:var(--mono)">'+e.fc.toFixed(2)+'%</span>'
+      +'<span style="font-size:14px;font-weight:900;color:'+_col(e.fc)+';font-family:var(--mono)">'+((e.fc!==null&&e.fc!==undefined&&isFinite(e.fc))?e.fc.toFixed(2)+'%':'—')+'</span>'
       +'</div>'
       +'<div style="height:4px;background:rgba(255,255,255,.06);border-radius:2px">'
-      +'<div style="height:4px;background:'+_col(e.fc)+';border-radius:2px;width:'+Math.min(100,Math.round(e.fc))+'%"></div>'
+      +'<div style="height:4px;background:'+_col(e.fc)+';border-radius:2px;width:'+((e.fc!==null&&e.fc!==undefined&&isFinite(e.fc))?Math.min(100,Math.round(e.fc)):0)+'%"></div>'
       +'</div>';
     dr.appendChild(row);
   });
