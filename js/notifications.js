@@ -588,7 +588,9 @@ function updateExecTrend(yr){
     if(!notifCache){
       notifCache=mergeHistory(fresh);
     } else {
-      notifCache=fresh.length?mergeHistory(fresh):readHistory();
+      /* If a timer refresh runs while data is temporarily empty/loading,
+         keep the in-memory history instead of replacing the open panel with empty. */
+      notifCache=fresh.length?mergeHistory(fresh):(notifCache&&notifCache.length?notifCache:readHistory());
     }
     return notifCache||[];
   }
@@ -603,7 +605,12 @@ function updateExecTrend(yr){
     if(c){c.textContent=unreadArr.length;c.style.display=unreadArr.length?'flex':'none';}
     var arr=getNotifications(false);  /* all (for list display) */
     if(list){
-      if(!arr.length && !(notifCache&&notifCache.length)){list.innerHTML='<div class="qumc-n-empty-final">No important notifications.</div>';}
+      if(!arr.length && !(notifCache&&notifCache.length)){
+        /* Do not wipe an already-open list during temporary empty refresh. */
+        if(!list.querySelector('.qumc-nrow-final')){
+          list.innerHTML='<div class="qumc-n-empty-final">No important notifications.</div>';
+        }
+      }
       else{
   /* Show ALL notifications (read + unread); dim read ones */
   var allNotifs=(function(){
