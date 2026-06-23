@@ -598,10 +598,21 @@ function aiSend(){
   var out=document.getElementById('aiBody')||document.getElementById('aiOut');
   if(!inp||!out) return;
   var q=inp.value.trim(); if(!q) return; inp.value='';
+  inp.style.height='auto';
   function _e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');}
-  out.innerHTML+='<div style="color:#0195af;font-weight:700;margin:6px 0 2px">You: '+_e(q)+'</div>';
-  out.scrollTop=out.scrollHeight;
-  /* Local KPI analytical engine — works without external API */
+  function addBubble(txt,isUser){
+    var d=document.createElement('div');
+    d.style.cssText=isUser
+      ?'align-self:flex-end;background:rgba(1,149,175,.2);border:1px solid rgba(1,149,175,.3);border-radius:14px 14px 4px 14px;padding:8px 12px;font-size:11.5px;color:#e2e8f0;max-width:85%;word-break:break-word;line-height:1.5'
+      :'align-self:flex-start;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:14px 14px 14px 4px;padding:8px 12px;font-size:11.5px;color:#e2e8f0;max-width:92%;word-break:break-word;line-height:1.5';
+    d.innerHTML=isUser?_e(txt):txt;
+    out.appendChild(d);
+    out.scrollTop=out.scrollHeight;
+    return d;
+  }
+  addBubble(q, true);
+  var thinking=addBubble('<span style="color:#64748b;font-style:italic">Thinking…</span>', false);
+  /* Local KPI analytical engine */
   setTimeout(function(){
     var ans='';
     try{
@@ -615,28 +626,28 @@ function aiSend(){
       ks.forEach(function(k){if(!depts[k.dept])depts[k.dept]=[];depts[k.dept].push(k);});
       if(/best|top|high/i.test(q)){
         var ranks=Object.keys(depts).map(function(d){var ks2=depts[d],m=ks2.filter(isMet);return{d:d,pct:ks2.length?Math.round(m.length/ks2.length*100):0};}).sort(function(a,b){return b.pct-a.pct;});
-        ans='Best performing department: '+(ranks[0]?ranks[0].d+' ('+ranks[0].pct+'% KPIs meeting target)':'No data.')+'. All departments: '+ranks.map(function(r){return r.d+' '+r.pct+'%';}).join(', ')+'.';
+        ans='Best performing department: '+(ranks[0]?'<b>'+ranks[0].d+'</b> ('+ranks[0].pct+'% of KPIs meeting target)':'No data.')+'. All departments: '+ranks.map(function(r){return r.d+' '+r.pct+'%';}).join(', ')+'.';
       } else if(/worst|poor|risk|low/i.test(q)){
-        ans='KPIs at risk ('+missed.length+'): '+missed.slice(0,5).map(function(k){var vs=[pn(k.q1),pn(k.q2),pn(k.q3),pn(k.q4)].filter(function(v){return v!==null;});var avg=vs.length?Math.round(vs.reduce(function(a,b){return a+b;},0)/vs.length):null;return k.nameEn+(avg!==null?' (avg '+avg+'%/target '+k.target+'%)':'');}).join('; ')+'.';
+        ans='KPIs at risk ('+missed.length+'): '+missed.slice(0,5).map(function(k){var vs=[pn(k.q1),pn(k.q2),pn(k.q3),pn(k.q4)].filter(function(v){return v!==null;});var avg=vs.length?Math.round(vs.reduce(function(a,b){return a+b;},0)/vs.length):null;return '<b>'+_e(k.nameEn)+'</b>'+(avg!==null?' (avg '+avg+'%, target '+k.target+'%)':'');}).join(', ')+'.';
       } else if(/miss|below|fail/i.test(q)){
-        ans='Missed KPIs: '+missed.length+' of '+ks.length+'. Examples: '+missed.slice(0,4).map(function(k){return k.nameEn+'['+k.dept+']';}).join(', ')+(missed.length>4?' + '+(missed.length-4)+' more':'')+'.';
-      } else if(/summar|overview|status|total|all/i.test(q)){
-        ans='Summary: '+ks.length+' KPIs across '+Object.keys(depts).length+' departments. '+met.length+' meeting target ('+Math.round(met.length/Math.max(ks.length,1)*100)+'%). '+missed.length+' below target. Departments: '+Object.keys(depts).map(function(d){var m=depts[d].filter(isMet);return d+'('+m.length+'/'+depts[d].length+')';}).join(', ')+'.';
-      } else if(/dept|division|team|section/i.test(q)){
-        ans='Departments: '+Object.keys(depts).map(function(d){var ks2=depts[d],m=ks2.filter(isMet);return d+': '+m.length+'/'+ks2.length+' KPIs met ('+Math.round(m.length/Math.max(ks2.length,1)*100)+'%)';}).join(' | ')+'.';
-      } else if(/trend|improv|increas|grow/i.test(q)){
+        ans='Missed KPIs: <b>'+missed.length+'</b> of '+ks.length+'. '+missed.slice(0,4).map(function(k){return _e(k.nameEn)+'['+k.dept+']';}).join(', ')+(missed.length>4?' + '+(missed.length-4)+' more':'')+'.';
+      } else if(/summar|overview|status|total/i.test(q)){
+        ans='<b>'+ks.length+'</b> KPIs across '+Object.keys(depts).length+' departments. <span style="color:#4ADE80">'+met.length+' meeting target</span> ('+Math.round(met.length/Math.max(ks.length,1)*100)+'%). <span style="color:#F87171">'+missed.length+' below target.</span> Departments: '+Object.keys(depts).map(function(d){var m=depts[d].filter(isMet);return d+'('+m.length+'/'+depts[d].length+')';}).join(', ')+'.';
+      } else if(/dept|division|team/i.test(q)){
+        ans='Department performance: '+Object.keys(depts).map(function(d){var ks2=depts[d],m=ks2.filter(isMet);return '<b>'+d+'</b>: '+m.length+'/'+ks2.length+' ('+Math.round(m.length/Math.max(ks2.length,1)*100)+'%)';}).join(' | ')+'.';
+      } else if(/trend|improv/i.test(q)){
         var imp=ks.filter(function(k){var q1=pn(k.q1),q4=pn(k.q4);return q1!==null&&q4!==null&&q4>q1;}).slice(0,4);
-        ans='Improving KPIs: '+(imp.length?imp.map(function(k){return k.nameEn+' (Q1:'+k.q1+'%→Q4:'+k.q4+'%)';}).join(', '):'No clear improvement trend detected.')+'.';
+        ans='Improving KPIs: '+(imp.length?imp.map(function(k){return '<b>'+_e(k.nameEn)+'</b> (Q1:'+k.q1+'%→Q4:'+k.q4+'%)';}).join(', '):'No clear trend detected.')+'.';
       } else {
         var found=ks.filter(function(k){return k.nameEn.toLowerCase().indexOf(qLow)>-1||(k.nameAr&&k.nameAr.indexOf(q)>-1)||k.dept.toLowerCase().indexOf(qLow)>-1;}).slice(0,4);
         if(found.length){
-          ans='Matching KPIs: '+found.map(function(k){var vs=[pn(k.q1),pn(k.q2),pn(k.q3),pn(k.q4)].filter(function(v){return v!==null;});var avg=vs.length?Math.round(vs.reduce(function(a,b){return a+b;},0)/vs.length):null;return k.nameEn+'['+k.dept+'] target:'+k.target+'%'+(avg!==null?' avg:'+avg+'%':' no data');}).join(' | ')+'.';
+          ans='<b>'+found.length+' matching KPI(s):</b> '+found.map(function(k){var vs=[pn(k.q1),pn(k.q2),pn(k.q3),pn(k.q4)].filter(function(v){return v!==null;});var avg=vs.length?Math.round(vs.reduce(function(a,b){return a+b;},0)/vs.length):null;return _e(k.nameEn)+' ['+k.dept+'] target:'+k.target+'%'+(avg!==null?' avg:'+avg+'%':' (no data)');}).join('<br>');
         } else {
-          ans='Dashboard: '+ks.length+' KPIs, '+met.length+' meeting targets ('+Math.round(met.length/Math.max(ks.length,1)*100)+'%). Try asking: summary, best/worst department, missed KPIs, trends, or search by KPI name.';
+          ans='<b>Dashboard:</b> '+ks.length+' KPIs, '+met.length+' meeting targets ('+Math.round(met.length/Math.max(ks.length,1)*100)+'%). Try: <i>summary</i>, <i>best department</i>, <i>missed KPIs</i>, <i>trends</i>.';
         }
       }
-    }catch(err){ ans='Analysis error: '+err.message; }
-    out.innerHTML+='<div style="color:#e2e8f0;line-height:1.6;margin-bottom:8px;padding:8px 10px;background:rgba(1,149,175,.07);border-radius:8px;border-left:3px solid #0195af">'+_e(ans)+'</div>';
+    }catch(err){ ans='<span style="color:#F87171">Analysis error: '+_e(err.message)+'</span>'; }
+    thinking.innerHTML=ans;
     out.scrollTop=out.scrollHeight;
   },60);
 }
@@ -715,7 +726,16 @@ function _findMasterKpiByName(nameEn){
   if(!nameEn) return null;
   var search = nameEn.toLowerCase().trim();
   /* Check SA-created configs first */
-  var allMaster = Object.assign({}, BUILTIN_MASTER_KPIS, (typeof ST!=='undefined'&&ST.masterKpis)||{});
+  /* Deep merge: ST.masterKpis overrides individual FIELDS (e.g. resultFormula)
+     but never replaces the entire BUILTIN entry (fieldConfig, nameEn etc. preserved) */
+  var _overrides=(typeof ST!=='undefined'&&ST.masterKpis)||{};
+  var allMaster={};
+  Object.keys(BUILTIN_MASTER_KPIS).forEach(function(mid){
+    allMaster[mid]=Object.assign({},BUILTIN_MASTER_KPIS[mid],_overrides[mid]||{});
+  });
+  Object.keys(_overrides).forEach(function(mid){
+    if(!allMaster[mid]) allMaster[mid]=Object.assign({},_overrides[mid]);
+  });
   /* 1. Exact match on nameEn */
   for(var mid in allMaster){
     if((allMaster[mid].nameEn||'').toLowerCase() === search) return {id:mid, config:allMaster[mid]};

@@ -634,7 +634,7 @@ function renderExec(){
     const _ab=document.getElementById('eis_actions_badge');if(_ab){_ab.textContent=_openAct===0?'All documented':_openAct===1?'1 pending':''+_openAct+' pending';_ab.style.color=_openAct>0?'#FBBF24':'#4ADE80';_ab.style.background=_openAct>0?'rgba(217,119,6,.25)':'rgba(22,163,74,.20)';}
 
     /* Forecast YE — dynamic, no hardcoded years */
-    const _fcRes=(typeof calcForecastYE==='function')?calcForecastYE():{exec:null,byDept:{},currentYear:null};
+    let _fcRes={exec:null,byDept:{},currentYear:null};try{if(typeof calcForecastYE==='function')_fcRes=calcForecastYE();}catch(_fce){console.warn('[Forecast]',_fce);}
     const _fcVal=_fcRes.exec;
     const _forecastTxt=_fcVal!==null?_fcVal.toFixed(2)+'%':'—';
     const _fcColor=_fcVal!==null?(_fcVal>=80?'#4ADE80':_fcVal>=60?'#0195af':'#FBBF24'):'#64748B';
@@ -701,12 +701,12 @@ function renderExec(){
     /* KPI Trend Analysis in exec page */
     renderExecKpiTrends(ks);
     fetchAI();
-    [300,700,1200].forEach(t=>setTimeout(()=>{const s=document.getElementById('trendYrSel');updateExecTrend(s?s.value:'2025');},t));
+    [300,700,1200].forEach(t=>setTimeout(()=>{const s=document.getElementById('trendYrSel');var _dy=(function(){var _ks=allK();var _mx=Math.max.apply(null,_ks.map(function(k){return k.yr||0;}));return _mx>0?String(_mx):'all';})();updateExecTrend(s?s.value:_dy);},t));
 
     /* Draw executive summary mini trend chart */
     [300,600,1000].forEach(t=>setTimeout(()=>{
       const _sel=document.getElementById('trendYrSel');
-      updateExecTrend(_sel?_sel.value:'2025');
+      var _dy2=(function(){var _ks2=allK();var _mx2=Math.max.apply(null,_ks2.map(function(k){return k.yr||0;}));return _mx2>0?String(_mx2):'all';})();updateExecTrend(_sel?_sel.value:_dy2);
     },t));
   },30);
 }
@@ -743,7 +743,7 @@ function _showForecastDrilldown(fcRes){
   sum.style.cssText='text-align:center;background:rgba(1,149,175,.07);border:1px solid rgba(1,149,175,.15);border-radius:12px;padding:16px;margin-bottom:18px;';
   sum.innerHTML='<div style="font-size:10px;color:#64748b;margin-bottom:4px">'+_e(isAr?'متوسط التوقع العام':'Overall Executive Forecast')+'</div>'
     +'<div style="font-size:42px;font-weight:900;color:'+execC+';font-family:var(--mono);line-height:1">'+execPct+'</div>'
-    +'<div style="font-size:9px;color:#475569;margin-top:6px">'+_e(isAr?'المعادلة: (تاريخي + ٣×حالي) ÷ ٤':'Formula: (Hist Avg + 3 × Cur Avg) ÷ 4')+'</div>';
+    ;
   /* Dept label */
   var dl=document.createElement('div');dl.style.cssText='font-size:8px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;';
   dl.textContent=isAr?'توقعات الأقسام':'Department Forecasts';
@@ -1675,8 +1675,8 @@ function renderAcc(){
 </div>`;
 }
 function accTable(ks){
-  const hs=lang==='ar'?['المؤشر','الفجوة','المخاطر','التكرار','المسؤول','الإجراء','الأولوية','الموعد','الحالة','']:
-    ['KPI','Gap','Risk','Repeat','Owner','Action','Priority','Due Date','Status',''];
+  const hs=lang==='ar'?['المؤشر','الفجوة','المخاطر','التكرار','الشخص المسؤول','الإجراء','الأولوية','الموعد','الحالة','']:
+    ['KPI','Gap','Risk','Repeat','Responsible Person','Action','Priority','Due Date','Status',''];
   let h=`<table class="acc-tbl"><thead><tr>${hs.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>`;
   ks.forEach(k=>{
     const v=qv(k),gap=(k.target-(v||0)).toFixed(1);
@@ -1691,7 +1691,7 @@ function accTable(ks){
       <td style="color:var(--red);font-family:var(--mono);font-weight:700">-${gap}%</td>
       <td><span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span></td>
       <td>${rc>=2?`<span class="repeat-b">↩${rc}x</span>`:rc===1?`<span style="font-size:9px;color:var(--amber)">1x</span>`:'\u2014'}</td>
-      <td style="font-size:10.5px">${ac.owner||`<span style="color:var(--t3);font-size:9px">${lang==='ar'?'غير محدد':'Unassigned'}</span>`}</td>
+      <td style="font-size:10.5px">${(()=>{const _ow={'Maintenance':lang==='ar'?'مشرف الصيانة':'Maintenance Supervisor','Safety':lang==='ar'?'مسؤول السلامة':'Safety Officer','Housekeeping':lang==='ar'?'مشرف النظافة':'Housekeeping Supervisor','Project Management':lang==='ar'?'مدير المشاريع':'Project Manager'};return ac.owner||_ow[k.dept]||`<span style="color:var(--t3);font-size:9px">${lang==='ar'?'غير محدد':'Unassigned'}</span>`;})()}</td>
       <td style="font-size:10.5px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(lang==='ar'?gd.actAr:gd.actEn)||`<span style="color:var(--t3);font-size:9px">${lang==='ar'?'لم يدخل':'Not entered'}</span>`}</td>
       <td>${ac.priority?`<span style="font-size:9px;font-weight:700;color:${pc[ac.priority]||'var(--t3)'}">${pt[ac.priority]||ac.priority}</span>`:'\u2014'}</td>
       <td style="font-size:10px;font-family:var(--mono);color:${overdue?'var(--red)':'var(--t2)'}">${ac.dueDate||'\u2014'}${overdue?' ':''}</td>
