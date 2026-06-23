@@ -703,7 +703,7 @@ var BUILTIN_MASTER_KPIS = {
       { nameEn:'Compliance Rate of Critical Care Areas',         nameAr:'معدل الامتثال في مناطق الرعاية الحرجة',      type:'percentage', inputMode:'manual' },
       { nameEn:'Compliance Rate of Non-Critical and Regular Areas', nameAr:'معدل الامتثال في المناطق العادية وغير الحرجة', type:'percentage', inputMode:'manual' }
     ],
-    resultFormula: '(A*0.3)+(B*0.5)+(C*0.2)'
+    resultFormula: '((A*0.3)+(B*0.5)+(C*0.2))'
   },
   'emergency_response_time': {
     nameEn: 'Emergency Request Response Time',
@@ -755,7 +755,19 @@ function _findMasterKpiByName(nameEn){
   var _overrides=(typeof ST!=='undefined'&&ST.masterKpis)||{};
   var allMaster={};
   Object.keys(BUILTIN_MASTER_KPIS).forEach(function(mid){
-    allMaster[mid]=Object.assign({},BUILTIN_MASTER_KPIS[mid],_overrides[mid]||{});
+    var base = BUILTIN_MASTER_KPIS[mid] || {};
+    var ov   = _overrides[mid] || {};
+    /* Built-in master KPI table columns are canonical.
+       Allow Super Admin formula overrides, but never let stale Firestore/localStorage
+       overrides replace fieldConfig/name/matchKeywords for built-ins. */
+    allMaster[mid] = Object.assign({}, base, ov);
+    allMaster[mid].nameEn = base.nameEn;
+    allMaster[mid].nameAr = base.nameAr;
+    allMaster[mid].matchKeywords = base.matchKeywords;
+    allMaster[mid].fieldConfig = base.fieldConfig;
+    allMaster[mid].resultFormula = (ov.resultFormula !== undefined && ov.resultFormula !== null && String(ov.resultFormula).trim() !== '')
+      ? ov.resultFormula
+      : base.resultFormula;
   });
   Object.keys(_overrides).forEach(function(mid){
     if(!allMaster[mid]) allMaster[mid]=Object.assign({},_overrides[mid]);
