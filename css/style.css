@@ -477,7 +477,7 @@ select.fb option{background:#fff;color:var(--ink)}
 ═══════════════════════════════════════════════════════════════ */
 .acc-tbl{width:100%;border-collapse:separate;border-spacing:0 5px}
 .acc-tbl thead{position:sticky;top:0;z-index:2;background:var(--card-alt);box-shadow:0 1px 0 var(--border)}
-.acc-tbl th{font-size:10px;font-weight:700;color:var(--t2);letter-spacing:.06em;text-transform:uppercase;padding:8px 12px;text-align:start;white-space:nowrap}
+.acc-tbl th{font-size:10px;font-weight:700;color:#0195af;letter-spacing:.06em;text-transform:uppercase;padding:8px 12px;text-align:start;white-space:nowrap;border-bottom:2px solid rgba(1,149,175,.25)}
 html[lang="ar"] 
 .acc-tbl td{font-size:11px;color:var(--t2);padding:9px 12px;background:var(--card-alt);vertical-align:middle;border-bottom:1px solid var(--border);transition:background var(--fast)}
 .acc-tbl tr:hover td{background:var(--teal-dim)}
