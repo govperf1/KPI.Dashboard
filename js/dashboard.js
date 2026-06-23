@@ -645,9 +645,25 @@ function renderExec(){
       _fe.onclick=function(){if(typeof _showForecastDrilldown==='function')_showForecastDrilldown(_fcRes);};
     }
     const _curPerfEl=document.getElementById('eis_current_perf');
-    if(_curPerfEl){const _curKs=_ks.filter(k=>ok(k)!==null);const _curPct=_curKs.length?Math.round(_curKs.filter(k=>ok(k)===true).length/_curKs.length*100):0;_curPerfEl.textContent=_curPct+'%';_curPerfEl.style.color=_curPct>=80?'#4ADE80':_curPct>=60?'#0195af':'#FBBF24';}
+    if(_curPerfEl){
+      let _curRes={exec:null,byDept:{},currentYear:null,count:0};
+      try{if(typeof calcCurrentYearPerformance==='function')_curRes=calcCurrentYearPerformance();}catch(_cpe){console.warn('[Current Performance]',_cpe);}
+      const _curPct=_curRes.exec;
+      _curPerfEl.textContent=_curPct!==null?_curPct.toFixed(2)+'%':'—';
+      _curPerfEl.style.color=_curPct!==null?(_curPct>=80?'#4ADE80':_curPct>=60?'#0195af':'#FBBF24'):'#64748B';
+      _curPerfEl.title=_curRes.currentYear?('Latest year average: '+_curRes.currentYear+' | KPIs counted: '+_curRes.count):'No actual KPI data';
+    }
     const _fb=document.getElementById('eis_forecast_badge');
-    if(_fb&&_fcVal!==null){_fb.innerHTML=tText(_fcVal>=80?'likely_to_meet_target':_fcVal>=60?'moderate_risk':'at_risk_label');_fb.style.color=_fcColor;_fb.style.background=_fcVal>=80?'rgba(22,163,74,.20)':_fcVal>=60?'rgba(1,149,175,.25)':'rgba(217,119,6,.25)';}
+    if(_fb&&_fcVal!==null){
+      const _deptParts=Object.keys((_fcRes&&_fcRes.byDept)||{}).map(function(d){
+        const dm=(typeof DM!=='undefined'&&DM[d])||{abbr:d,en:d,ar:d};
+        const nm=dm.abbr||dm.en||d;
+        return nm+' '+_fcRes.byDept[d].toFixed(2)+'%';
+      });
+      _fb.innerHTML=_deptParts.length?_deptParts.join(' · '):tText(_fcVal>=80?'likely_to_meet_target':_fcVal>=60?'moderate_risk':'at_risk_label');
+      _fb.title='Click Forecast YE % to view department breakdown';
+      _fb.style.color=_fcColor;_fb.style.background=_fcVal>=80?'rgba(22,163,74,.20)':_fcVal>=60?'rgba(1,149,175,.25)':'rgba(217,119,6,.25)';
+    }
     else if(_fb&&_fcVal===null){_fb.innerHTML='Insufficient data';_fb.style.color='#64748B';_fb.style.background='rgba(100,116,139,.20)';}
 
     /* At-Risk KPIs */

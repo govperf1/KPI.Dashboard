@@ -584,6 +584,54 @@ function calcForecastYE(){
 }
 window.calcForecastYE=calcForecastYE;
 
+/* ══════════════════════════════════════════════════════
+   calcCurrentYearPerformance()
+   Current Performance = average of actual KPI results in the latest
+   available data year. Each KPI contributes once using the average
+   of its entered quarters in that latest year. Blank/null values are ignored.
+   Returns: { exec, byDept, currentYear, count }
+   ══════════════════════════════════════════════════════ */
+function calcCurrentYearPerformance(){
+  var ks=(typeof allK==='function')?allK():[];
+  if(!ks.length) return {exec:null,byDept:{},currentYear:null,count:0};
+
+  var maxYr=0;
+  ks.forEach(function(k){
+    var hasData=['q1','q2','q3','q4'].some(function(q){
+      return typeof k[q]==='number' && !isNaN(k[q]);
+    });
+    if(hasData && k.yr>maxYr) maxYr=k.yr;
+  });
+  if(!maxYr) return {exec:null,byDept:{},currentYear:null,count:0};
+
+  var vals=[];
+  var deptVals={};
+  ks.forEach(function(k){
+    if(k.yr!==maxYr) return;
+    var qVals=['q1','q2','q3','q4'].map(function(q){return k[q];})
+      .filter(function(v){return typeof v==='number' && !isNaN(v);});
+    if(!qVals.length) return;
+    var avg=qVals.reduce(function(a,b){return a+b;},0)/qVals.length;
+    vals.push(avg);
+    if(!deptVals[k.dept]) deptVals[k.dept]=[];
+    deptVals[k.dept].push(avg);
+  });
+
+  if(!vals.length) return {exec:null,byDept:{},currentYear:maxYr,count:0};
+  var byDept={};
+  Object.keys(deptVals).forEach(function(d){
+    var arr=deptVals[d];
+    byDept[d]=arr.reduce(function(a,b){return a+b;},0)/arr.length;
+  });
+  return {
+    exec: vals.reduce(function(a,b){return a+b;},0)/vals.length,
+    byDept: byDept,
+    currentYear: maxYr,
+    count: vals.length
+  };
+}
+window.calcCurrentYearPerformance=calcCurrentYearPerformance;
+
 
 /* ── Smart Dashboard Assistant (restored) ── */
 function aiToggle(){
