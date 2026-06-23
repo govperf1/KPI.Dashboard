@@ -833,17 +833,17 @@ window._doResetPassword=async function(){
 <div id="aiWin" class="ai-chat-window" aria-live="polite">
   <div class="ai-chat-head">
     <div class="ai-chat-title-wrap">
-      <div class="ai-chat-icon" aria-hidden="true">📊</div>
+      <div class="ai-chat-icon" aria-hidden="true">💬</div>
       <div>
-        <div class="ai-chat-title">Dashboard Assistant</div>
-        <div class="ai-chat-subtitle">Local KPI analysis · No external API</div>
+        <div class="ai-chat-title">KPI Chat</div>
+        <div class="ai-chat-subtitle">Dashboard insights</div>
       </div>
     </div>
-    <button type="button" class="ai-chat-close" onclick="aiToggle()" aria-label="Close assistant">×</button>
+    <button type="button" class="ai-chat-close" onclick="aiToggle()" aria-label="Close chat"></button>
   </div>
   <div id="aiMsgs" class="ai-chat-messages">
     <div class="ai-msg-bubble assistant">
-      <b>Hi, I’m your KPI assistant.</b><br>
+      <b>Hi 👋</b><br>
       Ask me about best department, missed KPIs, forecast, trends, or a specific KPI name/code.
     </div>
     <div id="aiSugg" class="ai-suggestion-row">
@@ -858,8 +858,8 @@ window._doResetPassword=async function(){
     <button id="aiSendBtn" type="button" onclick="aiSend()" aria-label="Send message">➤</button>
   </div>
 </div>
-<button id="aiFloatBtn" class="ai-float-btn" onclick="aiToggle()" aria-label="Open Dashboard Assistant">
-  <span class="ai-float-chart">📊</span><span>Assistant</span>
+<button id="aiFloatBtn" class="ai-float-btn" onclick="aiToggle()" aria-label="Open KPI chat">
+  <span class="ai-float-chart">💬</span>
 </button>
 
 </body>
