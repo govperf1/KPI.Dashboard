@@ -1841,29 +1841,32 @@ function _showTextKeyPopup(key, anchorEl){
 
   document.getElementById('_saPopSave').onclick = function(){
     var newVal = input ? input.value : editVal;
-    if(!ST.textEdits) ST.textEdits = {};
-    if(!ST.textEdits[key]) ST.textEdits[key] = {en: enVal, ar: arVal};
-    ST.textEdits[key][editLang] = newVal;
-    /* Apply immediately */
-    /* Apply immediately to TR so all t() calls use new value */
-    /* For KPI name edits, save to ST.ov[id] instead of ST.textEdits */
+    /* Route KPI name edits ONLY to ST.ov — never mix into ST.textEdits */
     if(key.indexOf('kpi_name:') === 0){
       var _parts = key.split(':');
       var _kpiId2 = _parts[1];
-      var _nameLang = _parts[2]; /* 'en' or 'ar' */
+      var _nameLang = _parts[2]; /* 'en' or 'ar' from the scan key */
       if(!ST.ov) ST.ov = {};
       if(!ST.ov[_kpiId2]) ST.ov[_kpiId2] = {};
-      if(_nameLang === 'en') ST.ov[_kpiId2].nameEn = newVal;
-      else ST.ov[_kpiId2].nameAr = newVal;
-      /* Remove the se_ textEdit if it existed */
-      delete ST.textEdits[key];
+      if(_nameLang === 'en'){
+        /* Update ONLY English — preserve existing Arabic */
+        ST.ov[_kpiId2].nameEn = newVal;
+        if(!ST.ov[_kpiId2].nameAr && arVal) ST.ov[_kpiId2].nameAr = arVal;
+      } else {
+        /* Update ONLY Arabic — preserve existing English */
+        ST.ov[_kpiId2].nameAr = newVal;
+        if(!ST.ov[_kpiId2].nameEn && enVal) ST.ov[_kpiId2].nameEn = enVal;
+      }
+      /* Never store KPI names in ST.textEdits — avoids cross-language contamination */
+      if(ST.textEdits) delete ST.textEdits[key];
     } else {
+      /* General text edits: only the edited language, not both */
+      if(!ST.textEdits) ST.textEdits = {};
+      if(!ST.textEdits[key]) ST.textEdits[key] = {};
+      ST.textEdits[key][editLang] = newVal;
       if(typeof tSet === 'function') tSet(key, ST.textEdits[key].en, ST.textEdits[key].ar);
     }
-    /* Update visible [data-tkey] spans right away */
-    document.querySelectorAll('[data-tkey="'+key+'"]').forEach(function(el){ el.textContent = newVal; });
-    /* Save to Firestore + propagate to all users */
-    persistST(key.indexOf('kpi_name:')===0 ? 'KPI_NAME_EDIT:'+key : 'TEXT_EDIT:'+key).then(function(){
+        persistST(key.indexOf('kpi_name:')===0 ? 'KPI_NAME_EDIT:'+key : 'TEXT_EDIT:'+key).then(function(){
       var fb = document.getElementById('_saPopFb');
       if(fb){fb.textContent='✓ '+(typeof lang!=='undefined'&&lang==='ar'?'تم الحفظ — سيظهر لجميع المستخدمين':'Saved — reflects for all users');fb.style.color='#16A34A';fb.style.display='block';}
       /* Re-render dashboard so KPI names update everywhere */
@@ -2264,9 +2267,18 @@ function _buildQtrTableHTML(masterConfig, prefix){
   var thead2 = '<thead><tr>'
     +'<th style="width:42px;text-align:left;padding-left:12px">QTR</th>';
   fields.forEach(function(f, i){
-    thead2 += '<th style="color:#93C5FD;font-size:9px;font-weight:600;padding:6px 8px;line-height:1.4;word-break:break-word;white-space:normal;min-width:70px;max-width:140px">'+htmlEsc(f.nameEn)+'</th>';
+    var letter = letters[i];
+    var nameDisplay = (typeof lang!=='undefined'&&lang==='ar') ? (f.nameAr||htmlEsc(f.nameEn)) : htmlEsc(f.nameEn);
+    thead2 += '<th style="padding:6px 8px;line-height:1.4;word-break:break-word;white-space:normal;min-width:80px;max-width:150px;vertical-align:top">'
+      + '<div style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:rgba(1,149,175,.25);border-radius:4px;font-size:10px;font-weight:900;color:#0195af;margin-bottom:3px;font-family:var(--mono)">' + letter + '</div>'
+      + '<div style="font-size:9px;font-weight:600;color:#93C5FD;margin-top:2px">' + nameDisplay + '</div>'
+      + '</th>';
   });
-  thead2 += '<th style="color:#67E8F9;width:90px;min-width:70px">Result</th></tr></thead>';
+    var _fl = (lang==='ar') ? 'النتيجة' : 'Result';
+  thead2 += '<th style="color:#67E8F9;width:90px;min-width:70px;vertical-align:top">'
+    + '<div style="font-size:10px;font-weight:700">' + _fl + '</div>'
+    + (formula ? '<div style="font-size:8px;color:rgba(103,232,249,.6);font-family:var(--mono);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:88px" title="' + htmlEsc(formula) + '">' + htmlEsc(formula) + '</div>' : '')
+    + '</th></tr></thead>';
 
   var tbody2 = '<tbody>';
   ['Q1','Q2','Q3','Q4'].forEach(function(Q){
@@ -2387,9 +2399,7 @@ function _saveCustomFormula(){
   if(!ST.masterKpis) ST.masterKpis = {};
   if(!ST.masterKpis[masterId]) ST.masterKpis[masterId] = {};
   ST.masterKpis[masterId].resultFormula = newFormula;
-  /* Also update BUILTIN_MASTER_KPIS in memory */
-  if(window.BUILTIN_MASTER_KPIS && window.BUILTIN_MASTER_KPIS[masterId])
-    window.BUILTIN_MASTER_KPIS[masterId].resultFormula = newFormula;
+  /* Do NOT mutate BUILTIN_MASTER_KPIS — ST.masterKpis is the override layer */
   persistST('FORMULA_EDIT:'+masterId).then(function(){
     if(fb){fb.textContent='✓ Formula saved';fb.style.color='#16A34A';fb.style.display='block';}
     /* Refresh the quarterly table with new formula */
@@ -2412,8 +2422,55 @@ function _updateEditQtrTable(kpiNameEn){
     lbl.textContent = cfg ? ' Quarterly Results — Custom Fields' : ' Quarterly Results';
     lbl.style.color = cfg ? '#0195af' : '';
   }
+  /* ── Formula Editor for Edit KPI (same as Add KPI) ── */
+  var _efed=document.getElementById('_editFormulaEditorBox');
+  if(_efed) _efed.remove();
+  if(cfg && cfg.fieldConfig && cfg.fieldConfig.length > 0 && section){
+    var _eLetters=cfg.fieldConfig.map(function(_,i){return String.fromCharCode(65+i);});
+    var _eiSa=(typeof window._fbRole!=='undefined'&&window._fbRole==='super_admin');
+    var _eFed=document.createElement('div');
+    _eFed.id='_editFormulaEditorBox';
+    _eFed.style.cssText='margin-top:10px;padding:12px 14px;background:rgba(1,149,175,.06);border:1px solid rgba(1,149,175,.2);border-radius:10px;';
+    var _eMapHtml=cfg.fieldConfig.map(function(f,i){
+      return '<span style="font-size:9.5px;color:#64748B;margin-right:12px"><b style="color:#0195af">'+_eLetters[i]+'</b> = '+(f.nameEn||f.label||'Field '+_eLetters[i])+'</span>';
+    }).join('');
+    var _eCurFormula=cfg.resultFormula||'';
+    _eFed.innerHTML=
+      '<div style="font-size:9px;font-weight:700;color:#0195af;margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em">Formula Reference</div>'
+      +'<div style="margin-bottom:8px">'+_eMapHtml+'</div>'
+      +'<div style="font-size:9px;font-weight:700;color:#64748B;margin-bottom:4px">Result Formula</div>'
+      +(_eiSa
+        ?'<div style="display:flex;gap:6px;align-items:center">'
+          +'<input id="_editFormulaInput" value="'+(_eCurFormula.replace(/"/g,'&quot;'))+'" style="flex:1;padding:5px 8px;background:#fff;border:1px solid rgba(1,149,175,.35);border-radius:6px;font-size:11px;font-family:monospace;color:#152538">'
+          +'<button onclick="_saveEditFormula()" style="padding:5px 12px;background:rgba(1,149,175,.15);border:1px solid rgba(1,149,175,.3);border-radius:6px;color:#0195af;font-size:10px;font-weight:700;cursor:pointer">Save</button>'
+          +'</div><div id="_editFormulaSaveFb" style="font-size:10px;color:#16A34A;margin-top:4px;display:none"></div>'
+        :'<div style="font-family:monospace;font-size:11px;color:#0195af;padding:4px 8px;background:rgba(1,149,175,.08);border-radius:6px">'+(_eCurFormula||'—')+'</div>'
+      );
+    section.appendChild(_eFed);
+  }
 }
-window._updateEditQtrTable = _updateEditQtrTable;
+
+function _saveEditFormula(){
+  var inp=document.getElementById('_editFormulaInput');
+  var fb=document.getElementById('_editFormulaSaveFb');
+  var section=document.getElementById('editQtrSection');
+  var masterId=section?section.getAttribute('data-master'):'';
+  if(!inp||!masterId){if(fb){fb.textContent='No formula config.';fb.style.display='block';}return;}
+  var newF=inp.value.trim();
+  try{var tv={A:80,B:90,C:85,D:75};var te=newF.replace(/\b([A-Z])\b/g,function(m,l){return tv[l]!==undefined?tv[l]:'0';});var tr2=new Function('return ('+te+')')();if(isNaN(tr2)||!isFinite(tr2))throw new Error('invalid');}
+  catch(e){if(fb){fb.textContent='⚠ Invalid: '+e.message;fb.style.color='#DC2626';fb.style.display='block';}return;}
+  if(!ST.masterKpis)ST.masterKpis={};
+  if(!ST.masterKpis[masterId])ST.masterKpis[masterId]={};
+  ST.masterKpis[masterId].resultFormula=newF;
+  /* Do NOT mutate BUILTIN_MASTER_KPIS — ST.masterKpis is the persistent override layer */
+  persistST('FORMULA_EDIT:'+masterId).then(function(){
+    if(fb){fb.textContent='✓ Formula saved';fb.style.color='#16A34A';fb.style.display='block';}
+    _updateEditQtrTable();
+  });
+}
+window._saveEditFormula=_saveEditFormula;
+
+window._updateEditQtrTablewindow._updateEditQtrTable = _updateEditQtrTable;
 
 /* Read quarterly values from Add form (custom or standard) */
 function _readQtrValuesFromForm(kpiId, prefix, sectionId){
