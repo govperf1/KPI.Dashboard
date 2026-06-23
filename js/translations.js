@@ -222,6 +222,79 @@ window.tSet  = tSet;
 console.log('[TR] loaded — typeof t:', typeof t, '| typeof window.t:', typeof window.t);
 
 /* ─── Language toggle, tab navigation, render dispatcher ─── */
+
+
+/* Apply saved dashboard text edits after any render.
+   This keeps general dashboard titles/descriptions visible even outside Text Edit mode.
+   It intentionally skips KPI name keys; KPI names keep using their existing ST.ov / ST.added flow. */
+function _applyDashboardTextEdits(){
+  try{
+    if(typeof ST === 'undefined' || !ST.textEdits) return;
+    var curLang = (typeof lang !== 'undefined') ? lang : 'en';
+    var isAr = curLang === 'ar';
+    var skipTags = {SCRIPT:1,STYLE:1,INPUT:1,TEXTAREA:1,SELECT:1,OPTION:1,SVG:1,PATH:1,BUTTON:1,CANVAS:1};
+    var containers = [];
+    ['page-exec','page-reg','page-dept','page-acc','page-report'].forEach(function(id){
+      var el=document.getElementById(id); if(el) containers.push(el);
+    });
+    if(!containers.length) return;
+
+    function wanted(key){
+      if(!key || key.indexOf('kpi_name:')===0) return null;
+      var row = ST.textEdits[key];
+      if(!row) return null;
+      var v = row[curLang];
+      return (v !== undefined && v !== null && String(v).trim() !== '') ? String(v) : null;
+    }
+    function sessionKeyFromText(txt){
+      return 'se_'+String(txt||'').replace(/[^a-zA-Z0-9]/g,'_').toLowerCase().substring(0,40);
+    }
+    function hasChildElement(el){
+      for(var i=0;i<el.childNodes.length;i++) if(el.childNodes[i].nodeType===1) return true;
+      return false;
+    }
+
+    /* 1) Elements already marked with data-tkey in edit mode */
+    document.querySelectorAll('[data-tkey]').forEach(function(el){
+      var key=el.getAttribute('data-tkey');
+      var v=wanted(key);
+      if(v!==null && el.textContent!==v) el.textContent=v;
+    });
+
+    /* 2) Normal rendered dashboard text without edit mode */
+    containers.forEach(function(container){
+      container.querySelectorAll('*').forEach(function(el){
+        if(skipTags[el.tagName]) return;
+        if(hasChildElement(el)) return;
+        var txt=(el.textContent||'').trim();
+        if(!txt || txt.length<2 || txt.length>160) return;
+
+        var key=null, v=null;
+        /* Match translation keys by their default EN/AR text */
+        if(typeof TR !== 'undefined'){
+          for(var k in ST.textEdits){
+            if(!Object.prototype.hasOwnProperty.call(ST.textEdits,k)) continue;
+            if(k.indexOf('kpi_name:')===0) continue;
+            var tr=TR[k];
+            if(!tr) continue;
+            if(txt === String(tr.en||'') || txt === String(tr.ar||'')) { key=k; break; }
+            var row=ST.textEdits[k]||{};
+            if(txt === String(row.en||'') || txt === String(row.ar||'')) { key=k; break; }
+          }
+        }
+        /* Match session-generated keys for hardcoded/non-TR leaf text */
+        if(!key){
+          var sk=sessionKeyFromText(txt);
+          if(ST.textEdits[sk]) key=sk;
+        }
+        v=wanted(key);
+        if(v!==null && el.textContent!==v) el.textContent=v;
+      });
+    });
+  }catch(e){ console.warn('[TextEdits] apply failed:', e && e.message ? e.message : e); }
+}
+window._applyDashboardTextEdits = _applyDashboardTextEdits;
+
 function toggleLang() {
   if (typeof lang === 'undefined') return;
   lang = lang === 'en' ? 'ar' : 'en';
@@ -265,6 +338,7 @@ function renderCurrent() {
     else if (cur === 'registry') { if (typeof renderRegistry === 'function') renderRegistry(); }
     else if (cur === 'accountability') { if (typeof renderAcc === 'function') renderAcc(); }
     else if (cur === 'report') { if (typeof renderReport === 'function') renderReport(); }
+    if (typeof _applyDashboardTextEdits === 'function') _applyDashboardTextEdits();
   } catch(e) {
     console.error('[Dashboard] renderCurrent error:', e);
   }
