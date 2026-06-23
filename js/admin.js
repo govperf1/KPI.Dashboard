@@ -2470,7 +2470,7 @@ function _saveEditFormula(){
 }
 window._saveEditFormula=_saveEditFormula;
 
-window._updateEditQtrTablewindow._updateEditQtrTable = _updateEditQtrTable;
+window._updateEditQtrTable = _updateEditQtrTable;
 
 /* Read quarterly values from Add form (custom or standard) */
 function _readQtrValuesFromForm(kpiId, prefix, sectionId){

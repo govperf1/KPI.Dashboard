@@ -795,9 +795,7 @@ function renderExecKpiCards(ks){
   window._showKpiDetail=(kId)=>{
     const k=allK().find(x=>x.id===kId);if(!k)return;
     const v=qv(k),dm=DM[k.dept];
-    const old=doc
-
-ument.getElementById('kpiDetailOv');if(old)old.remove();
+    const old=document.getElementById('kpiDetailOv');if(old)old.remove();
     const ov=document.createElement('div');
     ov.id='kpiDetailOv';
     ov.style.cssText='position:fixed;inset:0;background:rgba(10,22,48,.60);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center';
