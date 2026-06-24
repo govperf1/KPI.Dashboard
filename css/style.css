@@ -2295,3 +2295,63 @@ html[dir="rtl"] .nav-export-combined .nav-export-menu{
     flex:0 0 auto!important;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   QUMC EXPORT MENU VISIBILITY FIX
+   Keeps the Export page selector above cards/charts and prevents
+   the single header rectangle from clipping the dropdown.
+   ───────────────────────────────────────────────────────────── */
+.tabnav.nav-export-combined,
+.nav-export-combined,
+.nav-export-combined .nav-export-group,
+.nav-export-combined .nav-export-menu-wrap{
+  overflow:visible!important;
+}
+.tabnav.nav-export-combined,
+.nav-export-combined{
+  position:relative!important;
+  z-index:2147482000!important;
+  isolation:isolate!important;
+}
+.nav-export-combined .nav-export-group{
+  position:relative!important;
+  z-index:2147482100!important;
+}
+.nav-export-combined .nav-export-menu-wrap{
+  position:relative!important;
+  z-index:2147482200!important;
+}
+#exportMenuDrop,
+.nav-export-combined .nav-export-menu{
+  position:absolute!important;
+  top:calc(100% + 10px)!important;
+  right:0!important;
+  left:auto!important;
+  z-index:2147483000!important;
+  max-height:70vh!important;
+  overflow:auto!important;
+  transform:none!important;
+  pointer-events:auto!important;
+}
+html[dir="rtl"] #exportMenuDrop,
+html[dir="rtl"] .nav-export-combined .nav-export-menu{
+  right:0!important;
+  left:auto!important;
+}
+.dashwrap,
+.page,
+.gg{
+  position:relative;
+  z-index:1;
+}
+@media(max-width:1050px){
+  .tabnav.nav-export-combined,
+  .nav-export-combined{
+    overflow:visible!important;
+  }
+  .nav-export-combined .nav-export-menu{
+    top:calc(100% + 10px)!important;
+    right:0!important;
+    left:auto!important;
+  }
+}
