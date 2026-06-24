@@ -1740,7 +1740,7 @@ function accTable(ks){
   };
   let h=`<table class="acc-tbl"><thead><tr>${hs.map(x=>`<th>${x}</th>`).join('')}</tr></thead><tbody>`;
   ks.forEach(k=>{
-    const v=qv(k),gap=(k.target-(v||0)).toFixed(1);
+    const v=qv(k),gap=(v!=null?Math.abs(k.target-v):0).toFixed(1);
     const _acc=pickAccData(k), gd=_acc.gd, ac=_acc.ac, rc=getRepeat(k);
     const sc=ac.status==='closed'?'acc-done':ac.status==='in-progress'?'acc-prog':'acc-open';
     const st=ac.status==='closed'?(lang==='ar'?'مكتمل':'Done'):ac.status==='in-progress'?(lang==='ar'?'جاري':'In Prog'):(lang==='ar'?'مفتوح':'Open');
@@ -1749,7 +1749,7 @@ function accTable(ks){
     const overdue=ac.dueDate&&new Date(ac.dueDate)<new Date();
     h+=`<tr>
       <td><div style="font-size:10px;font-family:var(--mono);font-weight:700;color:var(--teal)">${k.id}</div><div style="font-size:9.5px;color:var(--t3);margin-top:1px">${lang==='ar'?k.nameAr:k.nameEn}</div></td>
-      <td style="color:var(--red);font-family:var(--mono);font-weight:700">-${gap}%</td>
+      <td style="color:var(--red);font-family:var(--mono);font-weight:700">${gap}%</td>
       <td><span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span></td>
       <td>${rc>=2?`<span class="repeat-b">↩${rc}x</span>`:rc===1?`<span style="font-size:9px;color:var(--amber)">1x</span>`:'\u2014'}</td>
       <td style="font-size:10.5px">${(()=>{const _ow={maintenance:lang==='ar'?'وليد الصريخ':'Waleed Alsuraykh',safety:lang==='ar'?'مشاري الصعب':'Meshari Alsaab',housekeeping:lang==='ar'?'اسامه الغفيص':'Osamah Algafes',projects:lang==='ar'?'سلمان الخضيري':'Salman Alkhodairi'};return (lang==='ar'?(_ow[k.dept]||ac.owner||gd.owner||gd.responsiblePerson):(ac.owner||gd.owner||gd.responsiblePerson||(typeof DEPT_OWNERS!=='undefined'&&DEPT_OWNERS[k.dept])||_ow[k.dept]))||`<span style="color:var(--t3);font-size:9px">${lang==='ar'?'غير محدد':'Unassigned'}</span>`;})()}</td>
@@ -1783,7 +1783,7 @@ async function fetchAI(){
     const dk=ks.filter(k=>k.dept===d);const o=dk.filter(k=>ok(k)===true).length;
     return`- ${DM[d].en}: ${dk.length?Math.round(o/dk.length*100):0}% (${o}/${dk.length})`;
   }).join('\n');
-  const missStr=missKpis.map(k=>{const v=qv(k),gap=(k.target-(v||0)).toFixed(1);const rc=getRepeat(k);const gd=(ST.gaps||{})[k.id]||{};
+  const missStr=missKpis.map(k=>{const v=qv(k),gap=(v!=null?Math.abs(k.target-v):0).toFixed(1);const rc=getRepeat(k);const gd=(ST.gaps||{})[k.id]||{};
     return`- ${k.id} (${k.nameEn}): ${(v||0).toFixed(1)}% vs ${k.target}% target | Gap: ${gap}% | Risk Tier ${k.tier||3}(${TIERS[k.tier||3].en})${rc>=2?` | REPEAT MISS: ${rc} quarters`:''} | Root cause: ${gd.gapEn||'Not documented'}`;
   }).join('\n');
   const prompt=lang==='ar'

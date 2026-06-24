@@ -442,16 +442,22 @@ r.nameEn=(r.nameEn!==undefined&&r.nameEn!==null&&r.nameEn!=='')
   r.tier=parseInt(r.tier||3)||3;
   ['q1','q2','q3','q4'].forEach(q=>{r[q]=_kpiPnSafe(r[q]);});
   
-  /* Apply ST.pci quarterly results so added KPIs appear in trend chart */
+  /* Apply ST.pci quarterly results as the latest user-entered source.
+     This makes dashboard + Excel export use the newest Add/Edit KPI table values,
+     while still ignoring empty PCI rows. */
   try{
     if(typeof ST!=='undefined'&&ST&&ST.pci&&ST.pci[r.id]){
       var _pciR=ST.pci[r.id];
       ['q1','q2','q3','q4'].forEach(function(q){
-        if(r[q]!==null&&r[q]!==undefined) return;
         var _qd=_pciR[q]; if(!_qd) return;
-        if(_qd._result!==null&&_qd._result!==undefined) r[q]=_qd._result;
-        else if(_qd.planned&&_qd.planned>0&&_qd.complete!==undefined)
-          r[q]=Math.min(100,Math.round((_qd.complete||0)/_qd.planned*100));
+        var _hasCustomInput=Object.keys(_qd).some(function(key){
+          return /^[A-Z]$/.test(key) && _qd[key]!==null && _qd[key]!==undefined && isFinite(Number(_qd[key])) && Number(_qd[key])!==0;
+        });
+        if(_hasCustomInput&&_qd._result!==null&&_qd._result!==undefined&&isFinite(Number(_qd._result))){
+          r[q]=Number(_qd._result);
+        }else if(_qd.planned!==null&&_qd.planned!==undefined&&Number(_qd.planned)>0&&_qd.complete!==undefined&&_qd.complete!==null){
+          r[q]=Math.min(100,Math.round((Number(_qd.complete)||0)/Number(_qd.planned)*1000)/10);
+        }
       });
     }
   }catch(_pciErr){}

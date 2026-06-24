@@ -25,6 +25,28 @@
      External libs: ExcelJS (window.ExcelJS), SheetJS (XLSX)
    =========================================================== */
 
+function _qumcFreshKpisForExport(){
+  /* Export must use the latest saved dashboard state, not an old in-memory snapshot. */
+  try{
+    const raw=localStorage.getItem('kpi_v3');
+    if(raw){
+      const d=JSON.parse(raw);
+      if(d&&typeof d==='object'&&!Array.isArray(d)&&typeof ST==='object'){
+        ['added','ov','deleted','pci','codeOv','gaps','actions','masterKpis','kpiFormulaOverrides','rptEdits','textEdits'].forEach(function(k){
+          if(Object.prototype.hasOwnProperty.call(d,k)) ST[k]=d[k];
+        });
+      }
+    }
+  }catch(_e){console.warn('[Excel] state refresh skipped',_e);}
+  try{ if(typeof _reconcileDeletedVsAdded==='function') _reconcileDeletedVsAdded(ST); }catch(_e){}
+  try{ return (typeof filt==='function') ? filt() : []; }catch(_e){ return []; }
+}
+
+function _qumcGapValue(k,v){
+  if(v===null||v===undefined||!isFinite(Number(v))) return null;
+  return Math.abs((Number(k&&k.target)||0)-Number(v));
+}
+
 function exportExcel(){
   addAudit('EXPORT_EXCEL','Excel export downloaded','Filters: dept='+F.dept+' year='+F.year,'Excel file');
   toast(lang==='ar'?'جاري تحضير ملف Excel...':'Building Excel report...');
@@ -42,7 +64,7 @@ function exportExcel_UNUSED(){/* XLSX library kept for future use */
 
 /* == SheetJS XLSX — two sheets, works on Mac/PC/LibreOffice == */
 function _buildExcelXLSX(){
-  const ks=filt();
+  const ks=_qumcFreshKpisForExport();
   const depts=['maintenance','safety','housekeeping','projects'];
   const missKsAll=ks.filter(k=>ok(k)===false);
   const qLbl=F.qtr.includes('all')?'All Quarters':F.qtr.map(q=>q.toUpperCase()).join('+');
@@ -89,7 +111,7 @@ function _buildExcelXLSX(){
       const v=qv(k);
       const gd=(ST?.gaps||{})[k.id]||{};
       const ac=(ST?.actions||{})[k.id]||{};
-      const gap=v!=null?(k.target-v).toFixed(1)+'%':'—';
+      const gap=v!=null?_qumcGapValue(k,v).toFixed(1)+'%':'—';
       sh2.push([
         k.id, k.nameEn, DM[k.dept].en,
         v!=null?v.toFixed(1)+'%':'—', gap,
@@ -122,7 +144,7 @@ function _buildExcelXLSX(){
 /* ── Simple HTML-table Excel (100% browser compatible) ── */
 function _buildExcelFull(){
   if(typeof ExcelJS==='undefined'){_buildExcelSimple();return;}
-  const ks=filt();
+  const ks=_qumcFreshKpisForExport();
   const miss=ks.filter(k=>ok(k)===false);
   const depts=['maintenance','safety','housekeeping','projects'];
   const today=new Date().toLocaleDateString('en-GB');
@@ -281,7 +303,7 @@ function _buildExcelFull(){
   if(miss.length){
     miss.forEach((k,i)=>{
       const v=qv(k);
-      const gap=v!=null?(k.target-v).toFixed(1)+'%':'—';
+      const gap=v!=null?_qumcGapValue(k,v).toFixed(1)+'%':'—';
       const gd=(ST?.gaps||{})[k.id]||{};
       const ac=(ST?.actions||{})[k.id]||{};
       const pri=(ac.priority||gd.priority||'Medium');
@@ -326,7 +348,7 @@ function _buildExcelFull(){
 }
 
 function _buildExcelSimple(){
-  const ks=filt(),depts=['maintenance','safety','housekeeping','projects'];
+  const ks=_qumcFreshKpisForExport(),depts=['maintenance','safety','housekeeping','projects'];
   const miss=ks.filter(k=>ok(k)===false);
   const metKs=ks.filter(k=>ok(k)===true);
   const period=(F.year==='all'?'2025–2026':F.year)+(F.qtr.includes('all')?' (Full Year)':' ('+F.qtr.map(q=>q.toUpperCase()).join('+')+')')
@@ -471,7 +493,7 @@ function _buildExcelSimple(){
       ${th('Corrective Action','#7F1D1D','#FFFFFF','text-align:center')}
     </tr>`;
     miss.forEach((k,i)=>{
-      const v=qv(k),gap=v!=null?(k.target-v).toFixed(1):null;
+      const v=qv(k),gap=v!=null?_qumcGapValue(k,v).toFixed(1):null;
       const gd=(ST?.gaps||{})[k.id]||{},ac=(ST?.actions||{})[k.id]||{};
       const pri=(ac.priority||gd.priority||'medium').toLowerCase();
       const sta=(ac.status||gd.status||'open').toLowerCase();
@@ -556,7 +578,7 @@ ${t2}
 }
 
 async function _buildExcel(){
-  const ks=filt();
+  const ks=_qumcFreshKpisForExport();
   const wb=new ExcelJS.Workbook();
   wb.creator='Qassim University Medical City';wb.created=new Date();
   const ws=wb.addWorksheet('KPI Report',{properties:{tabColor:{argb:'FF006766'}},views:[{rightToLeft:false}]});
@@ -650,7 +672,7 @@ async function _buildExcel(){
   });
 
   /* ── Gap Analysis Sheet — always create as Sheet 2 ── */
-  const missKs=filt().filter(k=>ok(k)===false);
+  const missKs=ks.filter(k=>ok(k)===false);
   {
     const ws2=wb.addWorksheet('Gap Analysis',{properties:{tabColor:{argb:'FFB91C1C'}}});
     /* Title row */
@@ -688,8 +710,8 @@ async function _buildExcel(){
       missKs.forEach((k,i)=>{
         const v=qv(k);
         const tgt=k.target;
-        const gap=v!==null?(v-tgt).toFixed(1):'—';
-        const gapStr=v!==null?(v>=tgt?'+'+gap:gap)+'%':'—';
+        const gap=v!==null?_qumcGapValue(k,v).toFixed(1):'—';
+        const gapStr=v!==null?gap+'%':'—';
         const gd=(ST?.gaps||{})[k.id]||{};
         const ac=(ST?.actions||{})[k.id]||{};
         const priority=(k.tier||3)===1?'High':'Medium';
