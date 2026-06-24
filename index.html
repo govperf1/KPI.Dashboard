@@ -252,8 +252,8 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <div class="tb-vline" style="height:14px"></div>
 <span class="fs-lbl" data-ar="الحالة" data-en="Status">Status</span>
 <button class="fb on" data-ar="الكل" data-en="All" data-filter="status" data-val="all" onclick="setF('status','all',this)">All</button>
-<button class="fb" data-ar=" تحقق الهدف" data-en=" Met" data-filter="status" data-val="achieved" onclick="setF('status','achieved',this)"> Met</button>
-<button class="fb" data-ar=" لم يتحقق الهدف" data-en=" Missed" data-filter="status" data-val="missed" onclick="setF('status','missed',this)"> Missed</button>
+<button class="fb" data-ar=" محقق الهدف" data-en=" Met" data-filter="status" data-val="achieved" onclick="setF('status','achieved',this)"> Met</button>
+<button class="fb" data-ar=" لم يحقق الهدف" data-en=" Missed" data-filter="status" data-val="missed" onclick="setF('status','missed',this)"> Missed</button>
 <button class="fs-reset" data-ar="↺ إعادة الضبط" data-en="↺ Reset" onclick="resetFilters()">↺ Reset</button>
 </div>
 <!-- ═══ TABS ════════════════════════════════════════ -->
@@ -425,9 +425,9 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <input class="af-inp" id="eTg" max="100" min="0" placeholder="e.g. 95" step="1" type="number"/>
 </div>
 <div class="af-field">
-<label class="af-lbl">Risk Tier</label>
+<label class="af-lbl" data-en="Risk Tier" data-ar="تصنيف الخطر">Risk Tier</label>
 <select class="af-sel" id="eTier">
-<option value="1">T1 — Patient Safety</option>
+<option value="1">T1 — سلامة المرضى</option>
 <option value="2">T2 — Regulatory</option>
 <option selected="" value="3">T3 — Operational</option>
 </select>
@@ -509,10 +509,10 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 </select>
 </div>
 <div class="af-field">
-<label class="af-lbl">Risk Tier <span style="color:#DC2626">*</span></label>
+<label class="af-lbl" data-en="Risk Tier" data-ar="تصنيف الخطر">Risk Tier <span style="color:#DC2626">*</span></label>
 <select class="af-sel" id="aTier" required="">
 <option disabled="" selected="" value="">— Select risk tier —</option>
-<option value="1">T1 — Patient Safety</option>
+<option value="1">T1 — سلامة المرضى</option>
 <option value="2">T2 — Regulatory</option>
 <option value="3">T3 — Operational</option>
 </select>
@@ -613,7 +613,7 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <div class="ap" id="ap-gap">
 <!-- Select KPI -->
 <div class="af-row">
-<label class="af-lbl">Select KPI (Missed) <span style="color:#DC2626">*</span></label>
+<label class="af-lbl" data-en="Select KPI (Missed)" data-ar="اختر المؤشر (لم يحقق الهدف)">Select KPI (Missed) <span style="color:#DC2626">*</span></label>
 <select class="af-sel" id="gS" onchange="loadGD()">
 <option value="">— Select a KPI —</option>
 </select>
@@ -655,7 +655,7 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <!-- At Risk -->
 <label style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(196,43,43,.06);border:1px solid rgba(196,43,43,.20);border-radius:9px;cursor:pointer;user-select:none">
 <input id="gAtRisk" style="width:16px;height:16px;accent-color:var(--missed);cursor:pointer;flex-shrink:0" type="checkbox"/>
-<span style="font-size:11px;font-weight:700;color:var(--missed)"> At Risk — Flag this KPI for immediate escalation</span>
+<span style="font-size:11px;font-weight:700;color:var(--missed)"> في خطر — تصعيد فوري للمؤشر</span>
 </label>
 <!-- Bilingual text areas -->
 <div class="af-sec-lbl" style="margin-top:4px">Root Cause &amp; Gap Reasons</div>
@@ -854,7 +854,7 @@ window._doResetPassword=async function(){
     <div id="aiSugg" class="ai-suggestion-row">
       <button type="button" onclick="aiAsk('summary')">Summary</button>
       <button type="button" onclick="aiAsk('best department')">Best dept</button>
-      <button type="button" onclick="aiAsk('missed KPIs')">Missed KPIs</button>
+      <button type="button" onclick="aiAsk('missed KPIs')" data-en="Missed KPIs" data-ar="مؤشرات لم تحقق الهدف">Missed KPIs</button>
       <button type="button" onclick="aiAsk('forecast analysis')">Forecast</button>
     </div>
   </div>
