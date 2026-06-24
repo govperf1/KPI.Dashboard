@@ -39,6 +39,7 @@ function _qumcFreshKpisForExport(){
        inputs into ST first, so export reflects the latest typed values.
   */
   try{ _qumcFlushOpenKpiFormToLiveState(); }catch(_e){ console.warn('[Excel] live form flush skipped', _e); }
+  try{ _qumcFlushOpenGapFormToLiveState(); }catch(_e){ console.warn('[Excel] live gap flush skipped', _e); }
   try{ if(typeof _reconcileDeletedVsAdded==='function') _reconcileDeletedVsAdded(ST); }catch(_e){}
   try{ return (typeof filt==='function') ? filt() : []; }catch(_e){ console.warn('[Excel] filt failed', _e); return []; }
 }
@@ -91,6 +92,134 @@ function _qumcFlushOpenKpiFormToLiveState(){
 function _qumcGapValue(k,v){
   if(v===null||v===undefined||!isFinite(Number(v))) return null;
   return Math.abs((Number(k&&k.target)||0)-Number(v));
+}
+
+
+function _qumcAccKeysForKpi(k){
+  var id=String((k&&k.id)||'').trim();
+  if(!id) return [];
+  var keys=[];
+  var add=function(x){ if(x && keys.indexOf(x)<0) keys.push(x); };
+
+  /* Match the dashboard Accountability logic: selected quarter first, then
+     the latest quarter that has actual KPI data, then older quarters, then
+     the legacy KPI-only key. */
+  try{
+    if(typeof F!=='undefined' && F && Array.isArray(F.qtr) && F.qtr.length===1 && F.qtr[0] && F.qtr[0]!=='all'){
+      add(id+'_'+String(F.qtr[0]).toLowerCase());
+    }
+  }catch(_e){}
+
+  ['q4','q3','q2','q1'].forEach(function(q){
+    try{
+      var v=k&&k[q];
+      var hasDirect=(v!==null && v!==undefined && v!=='');
+      var hasPci=(typeof ST!=='undefined' && ST && ST.pci && ST.pci[id] && ST.pci[id][q]);
+      if(hasDirect||hasPci) add(id+'_'+q);
+    }catch(_e){}
+  });
+  ['q4','q3','q2','q1'].forEach(function(q){ add(id+'_'+q); });
+  add(id);
+  return keys;
+}
+
+function _qumcPickAccData(k){
+  var gaps=(typeof ST!=='undefined' && ST && ST.gaps) ? ST.gaps : {};
+  var actions=(typeof ST!=='undefined' && ST && ST.actions) ? ST.actions : {};
+  var keys=_qumcAccKeysForKpi(k);
+  var gd={}, ac={}, gapKey='', actionKey='';
+  for(var i=0;i<keys.length;i++){
+    if(gaps[keys[i]]){ gd=gaps[keys[i]]||{}; gapKey=keys[i]; break; }
+  }
+  for(var j=0;j<keys.length;j++){
+    if(actions[keys[j]]){ ac=actions[keys[j]]||{}; actionKey=keys[j]; break; }
+  }
+  return {gd:gd||{}, ac:ac||{}, gapKey:gapKey, actionKey:actionKey, keys:keys};
+}
+
+function _qumcFirstText(){
+  for(var i=0;i<arguments.length;i++){
+    var v=arguments[i];
+    if(v===null||v===undefined) continue;
+    v=String(v).trim();
+    if(v) return v;
+  }
+  return '';
+}
+
+function _qumcAccRoot(gd){
+  gd=gd||{};
+  return _qumcFirstText(
+    gd.gapEn,
+    gd.rootCause,
+    gd.rootCauseEn,
+    gd.rootCauseGapReasons,
+    gd.rootCauseGapReasonsEn,
+    gd.gapReasons,
+    gd.gapReasonsEn,
+    gd.cause,
+    gd.reason,
+    gd.reasons,
+    gd.gap
+  );
+}
+
+function _qumcAccCorrective(gd,ac){
+  gd=gd||{}; ac=ac||{};
+  return _qumcFirstText(
+    gd.actEn,
+    gd.correctiveActions,
+    gd.correctiveActionsEn,
+    gd.correctiveAction,
+    gd.correctiveActionEn,
+    gd.action,
+    gd.actions,
+    gd.act,
+    ac.correctiveActions,
+    ac.correctiveAction,
+    ac.action,
+    ac.actions
+  );
+}
+
+function _qumcFlushOpenGapFormToLiveState(){
+  if(typeof ST==='undefined' || !ST || typeof document==='undefined') return;
+  var nodes=[].slice.call(document.querySelectorAll('[id^="kpo_gE_"]'));
+  if(!nodes.length) return;
+  if(!ST.gaps) ST.gaps={};
+  if(!ST.actions) ST.actions={};
+  nodes.forEach(function(gE){
+    var sfx=gE.id.replace(/^kpo_gE_/, '');
+    var parts=sfx.split('_');
+    if(parts.length<2) return;
+    var qtr=parts.pop();
+    var id=parts.join('_');
+    if(!id||!qtr) return;
+    var aE=document.getElementById('kpo_aE_'+sfx);
+    var owner=document.getElementById('kpo_gOwner_'+sfx);
+    var due=document.getElementById('kpo_gDue_'+sfx);
+    var pri=document.getElementById('kpo_actPri_'+sfx);
+    var status=document.getElementById('kpo_actStatus_'+sfx);
+    var key=id+'_'+qtr;
+    var hasAny=[gE,aE,owner,due,pri,status].some(function(el){return el && String(el.value||'').trim();});
+    if(!hasAny) return;
+    var oldG=ST.gaps[key]||{};
+    var oldA=ST.actions[key]||{};
+    ST.gaps[key]=Object.assign({}, oldG, {
+      gapEn: gE ? String(gE.value||'').trim() : oldG.gapEn,
+      actEn: aE ? String(aE.value||'').trim() : oldG.actEn,
+      owner: owner ? String(owner.value||'').trim() : oldG.owner,
+      dueDate: due ? String(due.value||'').trim() : oldG.dueDate,
+      priority: pri ? String(pri.value||'').trim() : oldG.priority,
+      status: status ? String(status.value||'').trim() : oldG.status
+    });
+    ST.actions[key]=Object.assign({}, oldA, {
+      owner: owner ? String(owner.value||'').trim() : oldA.owner,
+      dueDate: due ? String(due.value||'').trim() : oldA.dueDate,
+      priority: pri ? String(pri.value||'').trim() : oldA.priority,
+      status: status ? String(status.value||'').trim() : oldA.status
+    });
+  });
 }
 
 function exportExcel(){
@@ -155,16 +284,15 @@ function _buildExcelXLSX(){
   if(missKsAll.length){
     missKsAll.forEach(k=>{
       const v=qv(k);
-      const gd=(ST?.gaps||{})[k.id]||{};
-      const ac=(ST?.actions||{})[k.id]||{};
+      const _acc=_qumcPickAccData(k), gd=_acc.gd, ac=_acc.ac;
       const gap=v!=null?_qumcGapValue(k,v).toFixed(1)+'%':'—';
       sh2.push([
         k.id, k.nameEn, DM[k.dept].en,
         v!=null?v.toFixed(1)+'%':'—', gap,
         ac.priority||gd.priority||'Medium',
         ac.status||gd.status||'Open',
-        gd.gapEn||'Not documented',
-        gd.actEn||'Not documented'
+        _qumcAccRoot(gd)||'Not documented',
+        _qumcAccCorrective(gd,ac)||'Not documented'
       ]);
     });
   } else {
@@ -350,8 +478,7 @@ function _buildExcelFull(){
     miss.forEach((k,i)=>{
       const v=qv(k);
       const gap=v!=null?_qumcGapValue(k,v).toFixed(1)+'%':'—';
-      const gd=(ST?.gaps||{})[k.id]||{};
-      const ac=(ST?.actions||{})[k.id]||{};
+      const _acc=_qumcPickAccData(k), gd=_acc.gd, ac=_acc.ac;
       const pri=(ac.priority||gd.priority||'Medium');
       const sta=(ac.status||gd.status||'Open');
       const priFill=pri.toLowerCase()==='critical'?'#FEE2E2':pri.toLowerCase()==='high'?'#FEF9C3':'#F0FDF4';
@@ -359,8 +486,8 @@ function _buildExcelFull(){
       const bg=i%2===0?'#FFF5F5':'#FEF2F2';
       const owner=(DEPT_OWNERS?.[k.dept]||gd.owner||gd.responsible||gd.responsiblePerson||ac.owner||ac.responsible||'—');
       const due=(gd.due||gd.dueDate||gd.date||ac.due||ac.dueDate||'—');
-      const root=(gd.gapEn||gd.rootCause||gd.cause||'Not documented');
-      const corrective=(gd.actEn||gd.correctiveAction||gd.action||ac.action||ac.correctiveAction||'Not documented');
+      const root=(_qumcAccRoot(gd)||'Not documented');
+      const corrective=(_qumcAccCorrective(gd,ac)||'Not documented');
       const gr=ws2.addRow([
         k.id,k.nameEn,DM[k.dept]?.abbr||k.dept,
         (k.op==='='?'=':'≥')+k.target+'%',
@@ -540,7 +667,7 @@ function _buildExcelSimple(){
     </tr>`;
     miss.forEach((k,i)=>{
       const v=qv(k),gap=v!=null?_qumcGapValue(k,v).toFixed(1):null;
-      const gd=(ST?.gaps||{})[k.id]||{},ac=(ST?.actions||{})[k.id]||{};
+      const _acc=_qumcPickAccData(k), gd=_acc.gd, ac=_acc.ac;
       const pri=(ac.priority||gd.priority||'medium').toLowerCase();
       const sta=(ac.status||gd.status||'open').toLowerCase();
       const priBg=pri==='critical'?'#FEE2E2':pri==='high'?'#FEF9C3':'#F0FDF4';
@@ -549,8 +676,8 @@ function _buildExcelSimple(){
       const staFg=sta.includes('closed')?'#166534':sta.includes('progress')?'#713F12':'#7F1D1D';
       const owner=(DEPT_OWNERS?.[k.dept]||gd.owner||gd.responsible||gd.responsiblePerson||ac.owner||ac.responsible||'—');
       const due=(gd.due||gd.dueDate||gd.date||ac.due||ac.dueDate||'—');
-      const root=(gd.gapEn||gd.rootCause||gd.cause||'Not documented');
-      const corrective=(gd.actEn||gd.correctiveAction||gd.action||ac.action||ac.correctiveAction||'Not documented');
+      const root=(_qumcAccRoot(gd)||'Not documented');
+      const corrective=(_qumcAccCorrective(gd,ac)||'Not documented');
       const rb='#FFFFFF';
       t2+=`<tr>
         <td bgcolor="#FFF5F5" style="color:#C42B2B;font-family:Courier New,Courier;font-weight:bold;font-size:9pt;padding:8px 10px;border:1px solid #FECACA;border-left:4px solid #C42B2B">${e(k.id)}</td>
@@ -758,8 +885,7 @@ async function _buildExcel(){
         const tgt=k.target;
         const gap=v!==null?_qumcGapValue(k,v).toFixed(1):'—';
         const gapStr=v!==null?gap+'%':'—';
-        const gd=(ST?.gaps||{})[k.id]||{};
-        const ac=(ST?.actions||{})[k.id]||{};
+        const _acc=_qumcPickAccData(k), gd=_acc.gd, ac=_acc.ac;
         const priority=(k.tier||3)===1?'High':'Medium';
         const bgColor=i%2===0?'FFFFFFFF':'FFFFF8F8';
         const row=ws2.addRow([
@@ -771,7 +897,7 @@ async function _buildExcel(){
           gapStr,
           priority,
           ac.status||'Open',
-          gd.gapEn||ac.action||'Not documented'
+          [_qumcAccRoot(gd), _qumcAccCorrective(gd,ac)].filter(Boolean).join(' | ')||'Not documented'
         ]);
         row.height=18;
         row.eachCell((cell,ci)=>{
@@ -869,14 +995,15 @@ async function _buildWordDoc(){
   if(isSingle){
     /* === SINGLE KPI FULL REPORT (matches template exactly) === */
     const v=qv(k),a=ok(k);
-    const gd=(ST.gaps||{})[k.id]||{};const ac=(ST.actions||{})[k.id]||{};
+    const _acc=_qumcPickAccData(k), gd=_acc.gd, ac=_acc.ac;
     const allV=[k.q1,k.q2,k.q3,k.q4].filter(x=>x!==null);
     const avgVal=allV.length?(allV.reduce((s,x)=>s+x)/allV.length).toFixed(1):null;
     const dm=DM[k.dept];
     const metW=a===true?'achieved':'did not achieve';
     /* Executive Summary */
     children.push(new Paragraph({children:[new TextRun({text:'Executive Summary',bold:true,font:'Times New Roman',size:26,color:GREEN})],spacing:{before:120,after:100}}));
-    const summaryBody=gd.gapEn?`The ${dm.en} Department ${metW} the ${k.nameEn} KPI target of ${k.target}%. ${gd.gapEn}`:`The ${dm.en} Department demonstrated ${a===true?'strong':'moderate'} performance in the ${k.nameEn} KPI, achieving an overall result of ${avgVal!==null?avgVal+'%':'N/A'}, which is ${a===true?'at or above':'below'} the annual target of ${k.target}%. ${allV.length>=2?(k.q4!==null&&k.q1!==null&&k.q4>k.q1?'Performance showed an improving trend throughout the period.':k.q4!==null&&k.q1!==null&&k.q4<k.q1?'Performance showed a declining trend during the period.':'Performance remained relatively stable.'):''}`;
+    const _rootCauseText=_qumcAccRoot(gd);
+    const summaryBody=_rootCauseText?`The ${dm.en} Department ${metW} the ${k.nameEn} KPI target of ${k.target}%. ${_rootCauseText}`:`The ${dm.en} Department demonstrated ${a===true?'strong':'moderate'} performance in the ${k.nameEn} KPI, achieving an overall result of ${avgVal!==null?avgVal+'%':'N/A'}, which is ${a===true?'at or above':'below'} the annual target of ${k.target}%. ${allV.length>=2?(k.q4!==null&&k.q1!==null&&k.q4>k.q1?'Performance showed an improving trend throughout the period.':k.q4!==null&&k.q1!==null&&k.q4<k.q1?'Performance showed a declining trend during the period.':'Performance remained relatively stable.'):''}`;
     children.push(P(summaryBody));
     /* 1. Introduction */
     children.push(H2('1. Introduction'));
@@ -917,7 +1044,7 @@ async function _buildWordDoc(){
     children.push(new Table({width:{size:9026,type:WidthType.DXA},columnWidths:[1200,1600,1600,1200,3426],rows:qRows}));
     children.push(SP());
     children.push(new Paragraph({children:[new TextRun({text:'Analysis:',bold:true,font:'Times New Roman',size:24,color:GREEN})],spacing:{before:120,after:80}}));
-    qls.forEach((ql,i)=>{const qv_v=qvs[i];if(qv_v===null)return;const met=qv_v>=k.target;const gap=Math.abs(qv_v-k.target).toFixed(1);children.push(BUL(`${ql}: Performance was ${qv_v.toFixed(1)}%, ${met?`exceeding the target by ${gap}%.`:`${gap}% below the target of ${k.target}%.`}${!met&&gd.gapEn?' '+gd.gapEn.split('.')[0]+'.':''}`));});
+    qls.forEach((ql,i)=>{const qv_v=qvs[i];if(qv_v===null)return;const met=qv_v>=k.target;const gap=Math.abs(qv_v-k.target).toFixed(1);children.push(BUL(`${ql}: Performance was ${qv_v.toFixed(1)}%, ${met?`exceeding the target by ${gap}%.`:`${gap}% below the target of ${k.target}%.`}${!met&&_rootCauseText?' '+_rootCauseText.split('.')[0]+'.':''}`));});
     /* 4. Target vs Actual */
     children.push(H2('4. Target vs Actual KPI (Quarterly)'));
     children.push(P(`This comparison illustrates the gap between actual performance and the annual target of ${k.target}% across the available quarters.`));
@@ -946,21 +1073,23 @@ async function _buildWordDoc(){
     children.push(P(`This distribution highlights ${a===true?'that the department successfully met the annual target, demonstrating strong operational performance.':'that a performance gap remains when considering overall annual performance against the target of '+k.target+'%.'}`));
     /* 7. Key Performance Enablers */
     children.push(H2('7. Key Performance Enablers'));
-    const enabs=gd.actEn?gd.actEn.split('.').filter(s=>s.trim()).map(s=>s.trim()):['Enhanced operational procedures and protocols','Effective management oversight and monitoring','Improved communication between teams','Timely escalation and follow-up mechanisms'];
+    const _enabText=_qumcAccCorrective(gd,ac);
+    const enabs=_enabText?_enabText.split('.').filter(s=>s.trim()).map(s=>s.trim()):['Enhanced operational procedures and protocols','Effective management oversight and monitoring','Improved communication between teams','Timely escalation and follow-up mechanisms'];
     enabs.forEach(e=>children.push(BUL(e+(e.endsWith('.')?'':'.'))));
     /* 8. Recommendations */
     children.push(H2('8. Recommendations and Improvement Opportunities'));
     const recs=a===true?['Continue practices that led to achieving the target of '+k.target+'%.','Maintain monitoring and reporting mechanisms.','Share best practices across departments.','Set a higher benchmark target for continuous improvement.']:['Strengthen operational controls to achieve the '+k.target+'% target.','Conduct root cause analysis for quarters where target was missed.','Implement and monitor corrective action plans closely.','Increase management oversight and escalation protocols.','Provide additional resources and training as needed.'];
-    if(gd.actEn)gd.actEn.split('.').filter(s=>s.trim()).forEach(s=>children.push(BUL(s.trim()+'.')));
+    const _corrText=_qumcAccCorrective(gd,ac);
+    if(_corrText)_corrText.split('.').filter(s=>s.trim()).forEach(s=>children.push(BUL(s.trim()+'.')));
     else recs.forEach(r=>children.push(BUL(r)));
     /* 9. Conclusion */
     children.push(H2('9. Conclusion & Forward Outlook'));
     const yoyTxt=k.yoy!==null&&v!==null?` Year-over-year performance ${v>=k.yoy?'improved':'declined'} by ${Math.abs(v-k.yoy).toFixed(1)}%.`:'';
-    children.push(P(a===true?`The ${dm.en} Department successfully achieved the ${k.nameEn} KPI target of ${k.target}%.${yoyTxt} This demonstrates effective operational management. Sustained commitment to current practices will ensure continued compliance in future cycles.`:`The ${dm.en} Department did not achieve the ${k.nameEn} KPI target of ${k.target}%, with an overall result of ${avgVal||'N/A'}%.${yoyTxt} ${gd.gapEn?'Root causes have been identified and documented.':'Root cause analysis and corrective action plans should be developed.'} By implementing the recommendations in this report, the department can achieve full compliance in future performance cycles.`));
+    children.push(P(a===true?`The ${dm.en} Department successfully achieved the ${k.nameEn} KPI target of ${k.target}%.${yoyTxt} This demonstrates effective operational management. Sustained commitment to current practices will ensure continued compliance in future cycles.`:`The ${dm.en} Department did not achieve the ${k.nameEn} KPI target of ${k.target}%, with an overall result of ${avgVal||'N/A'}%.${yoyTxt} ${_qumcAccRoot(gd)?'Root causes have been identified and documented.':'Root cause analysis and corrective action plans should be developed.'} By implementing the recommendations in this report, the department can achieve full compliance in future performance cycles.`));
     /* Action Plan (if documented) */
-    if(gd.gapEn||gd.actEn||ac.owner||ac.status){
+    if(_qumcAccRoot(gd)||_qumcAccCorrective(gd,ac)||ac.owner||ac.status){
       children.push(H2('Appendix: Documented Action Plan'));
-      const ap=[['Responsible Person',ac.owner||gd.owner||'\u2014'],['Expected Closure Date',ac.dueDate||gd.dueDate||'\u2014'],['Action Status',ac.status||gd.status||'Open'],['Priority',ac.priority||gd.priority||'\u2014'],['Gap Reasons (EN)',gd.gapEn||'\u2014'],['Corrective Actions (EN)',gd.actEn||'\u2014'],['Gap Reasons (AR)',gd.gapAr||'\u2014'],['Corrective Actions (AR)',gd.actAr||'\u2014']];
+      const ap=[['Responsible Person',ac.owner||gd.owner||'\u2014'],['Expected Closure Date',ac.dueDate||gd.dueDate||'\u2014'],['Action Status',ac.status||gd.status||'Open'],['Priority',ac.priority||gd.priority||'\u2014'],['Gap Reasons (EN)',_qumcAccRoot(gd)||'\u2014'],['Corrective Actions (EN)',_qumcAccCorrective(gd,ac)||'\u2014'],['Gap Reasons (AR)',gd.gapAr||'\u2014'],['Corrective Actions (AR)',gd.actAr||'\u2014']];
       children.push(new Table({width:{size:9026,type:WidthType.DXA},columnWidths:[2800,6226],rows:ap.filter(([,v])=>v&&v!=='\u2014').map(([l,v],i)=>new TableRow({children:[dCell(l,2800,LT_TEAL,true,DARK),dCell(v,6226,i%2===0?WHITE:LT_TEAL)]})) }));
     }
   }else{
@@ -987,7 +1116,7 @@ async function _buildWordDoc(){
     });
     children.push(new Table({width:{size:9026,type:WidthType.DXA},columnWidths:[w1,w2,w3,w4d,w5,w6+100],rows:sRows}));
     const missKs=ks.filter(k=>ok(k)===false);
-    if(missKs.length){children.push(SP(2));children.push(H2('Missed KPIs — Gap Analysis'));missKs.forEach(k=>{const gd=(ST.gaps||{})[k.id]||{};const v=qv(k);children.push(new Paragraph({children:[new TextRun({text:`${k.id}: ${k.nameEn}`,bold:true,font:'Times New Roman',size:22,color:'7F1D1D'})],spacing:{before:100,after:40}}));if(v!==null)children.push(BUL(`Result: ${v.toFixed(1)}% vs Target: ${k.target}% (Gap: ${(k.target-v).toFixed(1)}%)`));if(gd.gapEn)children.push(BUL(`Root Cause: ${gd.gapEn}`));if(gd.actEn)children.push(BUL(`Corrective Action: ${gd.actEn}`));});}
+    if(missKs.length){children.push(SP(2));children.push(H2('Missed KPIs — Gap Analysis'));missKs.forEach(k=>{const _acc=_qumcPickAccData(k), gd=_acc.gd, ac=_acc.ac;const v=qv(k);children.push(new Paragraph({children:[new TextRun({text:`${k.id}: ${k.nameEn}`,bold:true,font:'Times New Roman',size:22,color:'7F1D1D'})],spacing:{before:100,after:40}}));if(v!==null)children.push(BUL(`Result: ${v.toFixed(1)}% vs Target: ${k.target}% (Gap: ${_qumcGapValue(k,v).toFixed(1)}%)`));const _root=_qumcAccRoot(gd), _corr=_qumcAccCorrective(gd,ac);if(_root)children.push(BUL(`Root Cause: ${_root}`));if(_corr)children.push(BUL(`Corrective Action: ${_corr}`));});}
   }
   /* Footer line */
   children.push(SP(2));
