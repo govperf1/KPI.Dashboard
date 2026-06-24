@@ -394,6 +394,10 @@ function saveGapKPO(kpiId,qtr){
   const fb=document.getElementById('kpo_fb'+sfx);
   if(fb){fb.textContent='✓ Saved';fb.style.color='#16A34A';fb.style.display='block';}
   toast(' Saved');
+  try{
+    if(typeof window.renderCurrent==='function')setTimeout(function(){window.renderCurrent();},80);
+    else if(typeof window.renderDept==='function')setTimeout(function(){window.renderDept();},80);
+  }catch(_e){}
   setTimeout(()=>openGapQuarter(id,qtr),400);
 }
 

@@ -1437,6 +1437,56 @@ function renderDept(){
     return Object.values(map).filter(function(g){return g.records&&g.records.length;});
   }
 
+  function _htmlEsc(v){
+    return String(v==null?'':v).replace(/[&<>"]/g,function(ch){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch];});
+  }
+  function _gapTextObj(obj){
+    obj=obj||{};
+    return {
+      rootEn: obj.gapEn || obj.rootCause || obj.root || obj.cause || obj.reason || obj.gapReasons || '',
+      rootAr: obj.gapAr || obj.rootCauseAr || obj.rootAr || obj.causeAr || obj.reasonAr || obj.gapReasonsAr || '',
+      actEn: obj.actEn || obj.correctiveAction || obj.correctiveActions || obj.actionPlan || obj.action || obj.actions || '',
+      actAr: obj.actAr || obj.correctiveActionAr || obj.correctiveActionsAr || obj.actionPlanAr || obj.actionAr || obj.actionsAr || ''
+    };
+  }
+  function _hasGapContent(obj){
+    var t=_gapTextObj(obj);
+    return !!(String(t.rootEn||t.rootAr||t.actEn||t.actAr||'').trim() || (obj&&String(obj.status||obj.priority||obj.dueDate||obj.due||'').trim()));
+  }
+  function _latestGapAction(k){
+    var gaps=(typeof ST!=='undefined'&&ST&&ST.gaps)||{}, actions=(typeof ST!=='undefined'&&ST&&ST.actions)||{};
+    var keys=[], chosenQ=null;
+    try{
+      if(window.F && Array.isArray(window.F.qtr) && window.F.qtr.length===1 && window.F.qtr[0] && window.F.qtr[0]!=='all') chosenQ=String(window.F.qtr[0]).toLowerCase();
+    }catch(_e){}
+    if(chosenQ) keys.push(k.id+'_'+chosenQ);
+    ['q4','q3','q2','q1'].forEach(function(q){ keys.push(k.id+'_'+q); });
+    keys.push(k.id);
+    var pickedKey=null, gd={}, ac={};
+    for(var i=0;i<keys.length;i++){
+      var key=keys[i];
+      if(_hasGapContent(gaps[key]) || _hasGapContent(actions[key])){ pickedKey=key; gd=gaps[key]||{}; ac=actions[key]||{}; break; }
+    }
+    if(!pickedKey){ gd=gaps[k.id]||{}; ac=actions[k.id]||{}; pickedKey=k.id; }
+    var txt=_gapTextObj(gd), actTxt=_gapTextObj(ac);
+    if(!txt.actEn) txt.actEn=actTxt.actEn;
+    if(!txt.actAr) txt.actAr=actTxt.actAr;
+    if(!txt.rootEn) txt.rootEn=actTxt.rootEn;
+    if(!txt.rootAr) txt.rootAr=actTxt.rootAr;
+    return {key:pickedKey,gd:gd,ac:ac,rootEn:txt.rootEn,rootAr:txt.rootAr,actEn:txt.actEn,actAr:txt.actAr};
+  }
+  function _gapFooterText(k){
+    var g=_latestGapAction(k);
+    var root=(lang==='ar'?(g.rootAr||g.rootEn):(g.rootEn||g.rootAr));
+    var act=(lang==='ar'?(g.actAr||g.actEn):(g.actEn||g.actAr));
+    var noRoot=lang==='ar'?'لم يتم توثيق سبب الفجوة':'Root cause not documented';
+    var noAct=lang==='ar'?'لم يتم إدخال خطة الإجراء':'Action plan not entered';
+    return '<div style="min-width:0;display:flex;flex-direction:column;gap:2px;line-height:1.25;text-align:'+(lang==='ar'?'right':'left')+'">'
+      +'<span title="'+_htmlEsc(root||noRoot)+'" style="font-size:8.8px;color:#64748B;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px"><b style="color:#475569">'+(lang==='ar'?'السبب: ':'RC: ')+'</b>'+_htmlEsc(root||noRoot)+'</span>'
+      +(act?'<span title="'+_htmlEsc(act)+'" style="font-size:8.8px;color:#64748B;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px"><b style="color:#475569">'+(lang==='ar'?'الإجراء: ':'Action: ')+'</b>'+_htmlEsc(act)+'</span>':'<span style="font-size:8.8px;color:#94A3B8"><b style="color:#64748B">'+(lang==='ar'?'الإجراء: ':'Action: ')+'</b>'+noAct+'</span>')
+      +'</div>';
+  }
+
   function mkCard(k25,k26,dept){
     var k=k26||k25,dm=DM[dept],dC=dm.color;
     var v=qv(k),a=ok(k),isMet=a===true,isMiss=a===false;
@@ -1448,7 +1498,7 @@ function renderDept(){
     var _ravg=v!==null?+v.toFixed(2):null;var _rMet=_ravg!==null?metStatus(k,_ravg):null;var gap=(_ravg!==null&&_rMet===false)?+Math.abs(tgt-_ravg).toFixed(1):null;
     /* Does ANY quarter have a gap, even if the overall KPI is Met? */
     var _qtrGapHas=['q1','q2','q3','q4'].some(function(qq){var qvv=k[qq];return qvv!==null&&qvv!==undefined&&!metStatus(k,qvv);});
-    var gd=(ST.gaps||{})[k.id]||{};
+    var gd=_latestGapAction(k).gd||{};
     var cid='dt_'+k.id.replace(/[^a-z0-9]/gi,'_');
     setTimeout(function(){
       dch(cid);var cv=document.getElementById(cid);if(!cv)return;
@@ -1530,9 +1580,9 @@ function renderDept(){
           +'<span style="font-size:12px;font-weight:900;color:'+(fcOk?'#16A34A':'#DC2626')+';font-family:var(--mono);padding:2px 10px;border-radius:8px;background:'+(fcOk?'rgba(22,163,74,.08)':'rgba(220,38,38,.06)')+'">'+fc.toFixed(1)+'%</span>'
         +'</div>';
       }())
-      +'<div style="margin-top:auto;padding:7px 12px;border-top:1px solid '+(isMiss?'rgba(220,38,38,.10)':'#F0F4F8')+';background:'+(isMiss?'rgba(220,38,38,.02)':'#FAFBFC')+';display:flex;align-items:center;justify-content:space-between;min-height:36px">'
-        +(isMiss?'<span style="font-size:9px;color:#64748B">'+(gd.gapEn?gd.gapEn.slice(0,40)+'…':'Root cause not documented')+'</span><button onclick="openGap(\''+k.id+'\')" style="font-size:9px;font-weight:700;color:#DC2626;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.18);border-radius:6px;padding:4px 9px;cursor:pointer;font-family:inherit">Gap »</button>'
-        :'<span style="font-size:9px;color:#94A3B8">'+(a===true?'\u2713 Met':'\u23f3 Pending')+'</span>'+(_qtrGapHas?'<button onclick="openGap(\''+k.id+'\')\" style="font-size:9px;font-weight:700;color:#D97706;background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.2);border-radius:6px;padding:4px 9px;cursor:pointer;font-family:inherit">\u26a0\ufe0f Quarter Gap \u00bb</button>':''))
+      +'<div style="margin-top:auto;padding:7px 12px;border-top:1px solid '+(isMiss?'rgba(220,38,38,.10)':'#F0F4F8')+';background:'+(isMiss?'rgba(220,38,38,.02)':'#FAFBFC')+';display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px">'
+        +(isMiss?_gapFooterText(k)+'<button onclick="openGap(&quot;'+k.id+'&quot;)" style="font-size:9px;font-weight:700;color:#DC2626;background:rgba(220,38,38,.07);border:1px solid rgba(220,38,38,.18);border-radius:6px;padding:4px 9px;cursor:pointer;font-family:inherit;white-space:nowrap">'+(lang==='ar'?'الفجوة »':'Gap »')+'</button>'
+        :(_qtrGapHas?_gapFooterText(k)+'<button onclick="openGap(&quot;'+k.id+'&quot;)" style="font-size:9px;font-weight:700;color:#D97706;background:rgba(217,119,6,.08);border:1px solid rgba(217,119,6,.2);border-radius:6px;padding:4px 9px;cursor:pointer;font-family:inherit;white-space:nowrap">'+(lang==='ar'?'فجوة الربع »':'Quarter Gap »')+'</button>':'<span style="font-size:9px;color:#94A3B8">'+(a===true?(lang==='ar'?'✓ محقق':'✓ Met'):(lang==='ar'?'⏳ قيد الانتظار':'⏳ Pending'))+'</span>'))
       +'</div>'
     +'</div>';
   }
