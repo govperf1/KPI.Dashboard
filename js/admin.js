@@ -619,7 +619,7 @@ function loadEK(){
   });
   document.getElementById('eTg').value=k.target;document.getElementById('eTier').value=k.tier||3;document.getElementById('eYr').value=k.yr;
   /* Rebuild quarterly table columns for this KPI's master config, then fill values */
-  if(typeof _updateEditQtrTable==='function') _updateEditQtrTable(k.nameEn||'');
+  if(typeof _updateEditQtrTable==='function') _updateEditQtrTable(k.nameEn||'', id, k.nameAr||'');
   setTimeout(function(){
     if(typeof _fillQtrFormFromPci==='function'){
       _fillQtrFormFromPci(id,'eAd','editQtrSection');
@@ -1096,6 +1096,11 @@ function saveAdmin(){
   }
   if(_newNE) ST.ov[id].nameEn=_newNE;
   if(_newNA) ST.ov[id].nameAr=_newNA;
+  /* Keep KPI-specific formula overrides tied to the edited KPI code + current names. */
+  if(ST.kpiFormulaOverrides && ST.kpiFormulaOverrides[_adminNormKpiCode(id)]){
+    ST.kpiFormulaOverrides[_adminNormKpiCode(id)].kpiNameEn = _newNE || ST.kpiFormulaOverrides[_adminNormKpiCode(id)].kpiNameEn || '';
+    ST.kpiFormulaOverrides[_adminNormKpiCode(id)].kpiNameAr = _newNA || ST.kpiFormulaOverrides[_adminNormKpiCode(id)].kpiNameAr || '';
+  }
   if(_newCode && _newCode!==displayId){
     /* Renaming the KPI code — check for duplicates among OTHER KPIs */
     const dup=allK().some(x=>x.id===_newCode && realId(x.id)!==id);
@@ -1982,6 +1987,87 @@ function _ensureMasterOverride(masterId, cfg){
 }
 window._ensureMasterOverride=_ensureMasterOverride;
 
+
+/* ── KPI-specific Formula Override Helpers ─────────────────────────────
+   Add KPI keeps master/name-level formula config in ST.masterKpis.
+   Edit KPI saves formula references/formula under the specific KPI code + name,
+   so KPIs sharing the same name can still have different formulas/references when edited. */
+function _adminNormKpiCode(id){
+  var v=String(id||'').trim();
+  try{ if(typeof realId==='function') v=realId(v); }catch(_){ }
+  return String(v||'').trim().toUpperCase();
+}
+function _adminGetEditKpiId(section){
+  section = section || document.getElementById('editQtrSection');
+  var id = section ? (section.getAttribute('data-kpi-id') || '') : '';
+  if(!id){ var sel=document.getElementById('eSel'); if(sel) id=sel.value||''; }
+  return _adminNormKpiCode(id);
+}
+function _adminGetEditKpiNameEn(section){
+  section = section || document.getElementById('editQtrSection');
+  var v = section ? (section.getAttribute('data-kpi-name-en') || '') : '';
+  if(!v){ var e=document.getElementById('eNE'); if(e) v=e.value||''; }
+  return String(v||'').trim();
+}
+function _adminGetEditKpiNameAr(section){
+  section = section || document.getElementById('editQtrSection');
+  var v = section ? (section.getAttribute('data-kpi-name-ar') || '') : '';
+  if(!v){ var e=document.getElementById('eNA'); if(e) v=e.value||''; }
+  return String(v||'').trim();
+}
+function _adminEnsureKpiFormulaStore(){
+  if(typeof ST==='undefined') return {};
+  if(!ST.kpiFormulaOverrides) ST.kpiFormulaOverrides={};
+  return ST.kpiFormulaOverrides;
+}
+function _adminGetKpiFormulaOverride(kpiId){
+  var store=(typeof ST!=='undefined'&&ST.kpiFormulaOverrides)?ST.kpiFormulaOverrides:null;
+  if(!store) return null;
+  var key=_adminNormKpiCode(kpiId);
+  return store[key] || store[String(kpiId||'')] || null;
+}
+function _adminCloneFieldConfig(fields){
+  return (Array.isArray(fields)?fields:[]).map(function(f){return Object.assign({},f||{});});
+}
+function _adminEnsureKpiFormulaOverride(kpiId, kpiNameEn, masterId, baseCfg){
+  var key=_adminNormKpiCode(kpiId);
+  if(!key) return null;
+  var store=_adminEnsureKpiFormulaStore();
+  if(!store[key]) store[key]={};
+  var ov=store[key];
+  baseCfg = baseCfg || (masterId ? _adminMergedMasterConfig(masterId) : {}) || {};
+  ov.kpiCode = key;
+  ov.kpiNameEn = String(kpiNameEn || ov.kpiNameEn || _adminGetEditKpiNameEn() || '').trim();
+  ov.kpiNameAr = String(ov.kpiNameAr || _adminGetEditKpiNameAr() || '').trim();
+  ov.masterId = masterId || ov.masterId || '';
+  if(!Array.isArray(ov.fieldConfig) || !ov.fieldConfig.length){
+    ov.fieldConfig = _adminCloneFieldConfig(baseCfg.fieldConfig);
+  }
+  if((ov.resultFormula===undefined || ov.resultFormula===null || String(ov.resultFormula).trim()==='') && baseCfg.resultFormula){
+    ov.resultFormula = baseCfg.resultFormula;
+  }
+  return ov;
+}
+function _adminMergeKpiSpecificConfig(masterId, kpiId, kpiNameEn){
+  var base=(masterId && typeof _adminMergedMasterConfig==='function') ? _adminMergedMasterConfig(masterId) : null;
+  if(!base) return null;
+  var ov=_adminGetKpiFormulaOverride(kpiId);
+  if(!ov) return base;
+  /* Code is the primary key; name is stored for audit/clarity, not for broad matching. */
+  var cfg=Object.assign({},base,ov);
+  var bf=Array.isArray(base.fieldConfig)?base.fieldConfig:[];
+  var of=Array.isArray(ov.fieldConfig)?ov.fieldConfig:[];
+  var max=Math.max(bf.length,of.length);
+  cfg.fieldConfig=[];
+  for(var i=0;i<max;i++) cfg.fieldConfig.push(Object.assign({},bf[i]||{},of[i]||{}));
+  cfg.resultFormula=(ov.resultFormula!==undefined&&ov.resultFormula!==null&&String(ov.resultFormula).trim()!=='')?ov.resultFormula:(base.resultFormula||'');
+  cfg._kpiSpecific=true;
+  cfg._kpiCode=_adminNormKpiCode(kpiId);
+  cfg._kpiNameEn=kpiNameEn||ov.kpiNameEn||'';
+  return cfg;
+}
+window._adminMergeKpiSpecificConfig=_adminMergeKpiSpecificConfig;
+
 function _getMasterKpiId(kpiNameEn){
   if(!kpiNameEn) return '';
   return kpiNameEn.trim().toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
@@ -2357,10 +2443,19 @@ function _saveFormulaReference(mode){
   var fb=document.getElementById('_'+mode+'FormulaRefFb');
   var masterId=section?section.getAttribute('data-master'):'';
   if(!masterId){ if(fb){fb.textContent='No KPI formula reference found.';fb.style.color='#DC2626';fb.style.display='block';} return; }
-  var cfg=(typeof _adminMergedMasterConfig==='function')?_adminMergedMasterConfig(masterId):null;
-  var ov=_ensureMasterOverride(masterId,cfg||{});
-  if(!ov.fieldConfig) ov.fieldConfig=[];
   var isAr=(typeof lang!=='undefined'&&lang==='ar');
+  var kpiId=(mode==='edit')?_adminGetEditKpiId(section):'';
+  var kpiNameEn=(mode==='edit')?_adminGetEditKpiNameEn(section):'';
+  var cfg=(mode==='edit')
+    ? ((typeof _adminMergeKpiSpecificConfig==='function')?_adminMergeKpiSpecificConfig(masterId,kpiId,kpiNameEn):_adminMergedMasterConfig(masterId))
+    : ((typeof _adminMergedMasterConfig==='function')?_adminMergedMasterConfig(masterId):null);
+  var ov=(mode==='edit')
+    ? _adminEnsureKpiFormulaOverride(kpiId,kpiNameEn,masterId,cfg||{})
+    : _ensureMasterOverride(masterId,cfg||{});
+  if(!ov){ if(fb){fb.textContent='No KPI-specific formula config found.';fb.style.color='#DC2626';fb.style.display='block';} return; }
+  ov.kpiNameEn = (mode==='edit') ? (kpiNameEn || ov.kpiNameEn || '') : ov.kpiNameEn;
+  if(mode==='edit') ov.kpiNameAr = _adminGetEditKpiNameAr(section) || ov.kpiNameAr || '';
+  if(!ov.fieldConfig) ov.fieldConfig=[];
   Array.prototype.forEach.call(section.querySelectorAll('.formula-ref-input'),function(inp){
     var idx=parseInt(inp.getAttribute('data-idx'),10);
     if(isNaN(idx)) return;
@@ -2368,11 +2463,12 @@ function _saveFormulaReference(mode){
     if(isAr) ov.fieldConfig[idx].nameAr=inp.value.trim();
     else ov.fieldConfig[idx].nameEn=inp.value.trim();
   });
-  persistST('FORMULA_REFERENCE_EDIT:'+masterId+':'+(isAr?'ar':'en')).then(function(){
+  var saveTag=(mode==='edit') ? ('FORMULA_REFERENCE_EDIT_KPI:'+kpiId+':'+masterId+':'+(isAr?'ar':'en')) : ('FORMULA_REFERENCE_EDIT:'+masterId+':'+(isAr?'ar':'en'));
+  persistST(saveTag).then(function(){
     if(fb){fb.textContent=isAr?'✓ تم حفظ مراجع الصيغة':'✓ Formula reference saved';fb.style.color='#16A34A';fb.style.display='block';}
     if(mode==='edit'){
       var nm=section.getAttribute('data-kpi-name-en')||'';
-      setTimeout(function(){_updateEditQtrTable(nm);},150);
+      setTimeout(function(){_updateEditQtrTable(nm,kpiId,_adminGetEditKpiNameAr(section));},150);
     }else{
       setTimeout(function(){_updateAddQtrTable();},150);
     }
@@ -2558,13 +2654,14 @@ function _saveCustomFormula(){
 window._saveCustomFormula = _saveCustomFormula;
 
 /* Rebuild the Edit KPI quarterly table when KPI is loaded in edit panel */
-function _updateEditQtrTable(kpiNameEn){
+function _updateEditQtrTable(kpiNameEn,kpiId,kpiNameAr){
+  if(!kpiId){ var _sel=document.getElementById('eSel'); if(_sel) kpiId=_sel.value||''; }
   var master = (typeof _findMasterKpiByName === 'function') ? _findMasterKpiByName(kpiNameEn||'') : null;
-  var cfg = master ? master.config : null;
+  var cfg = master ? ((typeof _adminMergeKpiSpecificConfig==='function') ? _adminMergeKpiSpecificConfig(master.id,kpiId,kpiNameEn) : master.config) : null;
   var table = document.getElementById('editQtrTable');
   if(!table) return;
   var section = document.getElementById('editQtrSection');
-  if(section){ section.setAttribute('data-master', master ? master.id : ''); section.setAttribute('data-kpi-name-en', kpiNameEn||''); }
+  if(section){ section.setAttribute('data-master', master ? master.id : ''); section.setAttribute('data-kpi-name-en', kpiNameEn||''); section.setAttribute('data-kpi-name-ar', kpiNameAr||_adminGetEditKpiNameAr(section)||''); section.setAttribute('data-kpi-id', _adminNormKpiCode(kpiId||'')); }
   table.innerHTML = _buildQtrTableHTML(cfg, 'eAd');
   var lbl = section ? section.querySelector('.af-sec-lbl') : null;
   if(lbl){
@@ -2608,14 +2705,17 @@ function _saveEditFormula(){
   var newF=inp.value.trim();
   try{var tv={A:80,B:90,C:85,D:75};var te=newF.replace(/\b([A-Z])\b/g,function(m,l){return tv[l]!==undefined?tv[l]:'0';});var tr2=new Function('return ('+te+')')();if(isNaN(tr2)||!isFinite(tr2))throw new Error('invalid');}
   catch(e){if(fb){fb.textContent='⚠ Invalid: '+e.message;fb.style.color='#DC2626';fb.style.display='block';}return;}
-  if(!ST.masterKpis)ST.masterKpis={};
-  if(!ST.masterKpis[masterId])ST.masterKpis[masterId]={};
-  ST.masterKpis[masterId].resultFormula=newF;
-  /* Do NOT mutate BUILTIN_MASTER_KPIS — ST.masterKpis is the persistent override layer */
-  persistST('FORMULA_EDIT:'+masterId).then(function(){
-    if(fb){fb.textContent='✓ Formula saved';fb.style.color='#16A34A';fb.style.display='block';}
-    var nm=(section&&section.getAttribute('data-kpi-name-en'))||'';
-    _updateEditQtrTable(nm);
+  var kpiId=_adminGetEditKpiId(section);
+  var kpiNameEn=_adminGetEditKpiNameEn(section);
+  var baseCfg=(typeof _adminMergeKpiSpecificConfig==='function')?_adminMergeKpiSpecificConfig(masterId,kpiId,kpiNameEn):_adminMergedMasterConfig(masterId);
+  var ov=_adminEnsureKpiFormulaOverride(kpiId,kpiNameEn,masterId,baseCfg||{});
+  if(!ov){if(fb){fb.textContent='No KPI-specific formula config.';fb.style.color='#DC2626';fb.style.display='block';}return;}
+  ov.resultFormula=newF;
+  ov.kpiNameAr=_adminGetEditKpiNameAr(section)||ov.kpiNameAr||'';
+  persistST('FORMULA_EDIT_KPI:'+kpiId+':'+masterId).then(function(){
+    if(fb){fb.textContent='✓ Formula saved for this KPI code + name';fb.style.color='#16A34A';fb.style.display='block';}
+    var nm=(section&&section.getAttribute('data-kpi-name-en'))||kpiNameEn||'';
+    _updateEditQtrTable(nm,kpiId,_adminGetEditKpiNameAr(section));
   });
 }
 window._saveEditFormula=_saveEditFormula;
@@ -2626,7 +2726,7 @@ window._updateEditQtrTable = _updateEditQtrTable;
 function _readQtrValuesFromForm(kpiId, prefix, sectionId){
   var section = document.getElementById(sectionId || 'addQtrSection');
   var masterId = section ? section.getAttribute('data-master') : '';
-  var cfg = masterId ? ((typeof _adminMergedMasterConfig==='function') ? _adminMergedMasterConfig(masterId) : Object.assign({}, ((window.BUILTIN_MASTER_KPIS||{})[masterId]||{}), (((typeof ST!=='undefined'&&ST.masterKpis)||{})[masterId]||{}))) : null;
+  var cfg = masterId ? ((sectionId==='editQtrSection' && typeof _adminMergeKpiSpecificConfig==='function') ? _adminMergeKpiSpecificConfig(masterId,kpiId,_adminGetEditKpiNameEn(section)) : ((typeof _adminMergedMasterConfig==='function') ? _adminMergedMasterConfig(masterId) : Object.assign({}, ((window.BUILTIN_MASTER_KPIS||{})[masterId]||{}), (((typeof ST!=='undefined'&&ST.masterKpis)||{})[masterId]||{})))) : null;
   var pciData = {};
 
   if(cfg && cfg.fieldConfig && cfg.fieldConfig.length > 0){
@@ -2660,7 +2760,7 @@ function _fillQtrFormFromPci(kpiId, prefix, sectionId){
   var pciData = (ST.pci||{})[kpiId] || {};
   var section = document.getElementById(sectionId || 'editQtrSection');
   var masterId = section ? section.getAttribute('data-master') : '';
-  var cfg = masterId ? ((typeof _adminMergedMasterConfig==='function') ? _adminMergedMasterConfig(masterId) : Object.assign({}, ((window.BUILTIN_MASTER_KPIS||{})[masterId]||{}), (((typeof ST!=='undefined'&&ST.masterKpis)||{})[masterId]||{}))) : null;
+  var cfg = masterId ? ((sectionId==='editQtrSection' && typeof _adminMergeKpiSpecificConfig==='function') ? _adminMergeKpiSpecificConfig(masterId,kpiId,_adminGetEditKpiNameEn(section)) : ((typeof _adminMergedMasterConfig==='function') ? _adminMergedMasterConfig(masterId) : Object.assign({}, ((window.BUILTIN_MASTER_KPIS||{})[masterId]||{}), (((typeof ST!=='undefined'&&ST.masterKpis)||{})[masterId]||{})))) : null;
 
   ['Q1','Q2','Q3','Q4'].forEach(function(Q){
     var ql = Q.toLowerCase();
@@ -2704,7 +2804,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   window._readQtrValuesFromForm=_readQtrValuesFromForm=function(kpiId,prefix,sectionId){
     var section=document.getElementById(sectionId||'addQtrSection');
     var masterId=section?section.getAttribute('data-master'):'';
-    var cfg=masterId?((typeof _adminMergedMasterConfig==='function')?_adminMergedMasterConfig(masterId):Object.assign({},((window.BUILTIN_MASTER_KPIS||{})[masterId]||{}),(((typeof ST!=='undefined'&&ST.masterKpis)||{})[masterId]||{}))):null;
+    var cfg=masterId?(((sectionId==='editQtrSection')&&typeof _adminMergeKpiSpecificConfig==='function')?_adminMergeKpiSpecificConfig(masterId,kpiId,_adminGetEditKpiNameEn(section)):((typeof _adminMergedMasterConfig==='function')?_adminMergedMasterConfig(masterId):Object.assign({},((window.BUILTIN_MASTER_KPIS||{})[masterId]||{}),(((typeof ST!=='undefined'&&ST.masterKpis)||{})[masterId]||{})))):null;
     var pciData={};
     if(cfg&&cfg.fieldConfig&&cfg.fieldConfig.length>0){
       var letters=cfg.fieldConfig.map(function(_,i){return String.fromCharCode(65+i);});
