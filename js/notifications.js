@@ -788,6 +788,15 @@ function updateExecTrend(yr){
   }
   document.addEventListener('click',function(ev){var w=$('userNotifyWidget');if(w&&w.contains(ev.target))return;var d=$('userAlertDrop');if(d){d.style.display='none';d.classList.remove('qumc-final-open','qumc-stay-open');}},true);
   var oldUpdate=window.updateUserBadge; window.updateUserBadge=function(){try{if(oldUpdate)oldUpdate.apply(this,arguments);}catch(e){}setTimeout(bindFinal,0); /* do NOT clear notifCache here — history must survive badge refresh */};
+  function polishUserAccountUI(){
+    try{
+      var wrap=document.getElementById('userNotifyWidget'); if(wrap)wrap.classList.add('qumc-user-widget-modern');
+      var badge=document.getElementById('topUserBadge'); if(badge)badge.classList.add('qumc-user-badge-modern');
+      var alert=document.getElementById('userAlertBtn'); if(alert)alert.classList.add('qumc-alert-btn-modern');
+      var drop=document.getElementById('userProfileDrop'); if(drop)drop.classList.add('qumc-profile-glass');
+    }catch(_){ }
+  }
+  polishUserAccountUI();
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindFinal);else bindFinal();
   setTimeout(function(){bindFinal();},1200); /* first init after FS load */
   setTimeout(function(){
@@ -816,12 +825,12 @@ function updateExecTrend(yr){
     var isAr=(typeof lang!=='undefined'&&lang==='ar');
     var wrap=document.createElement('div');
     wrap.id='_profileReqBtns';
-    wrap.style.cssText='display:flex;flex-direction:column;gap:6px;padding:10px 12px 4px;border-top:1px solid rgba(255,255,255,.07);margin-top:4px;';
+    wrap.className='qumc-profile-requests-panel'; wrap.style.cssText='display:flex;flex-direction:column;gap:8px;padding:12px;border-top:1px solid rgba(255,255,255,.07);margin-top:4px;';
     wrap.innerHTML=
       '<div style="font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px">'+(isAr?'الطلبات':'Requests')+'</div>'
-      +'<button id="_profileSubmitReq" style="width:100%;padding:7px 12px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.28);border-radius:8px;color:#0195af;font-size:10px;font-weight:700;cursor:pointer;text-align:left;">'
+      +'<button id="_profileSubmitReq" class="qumc-profile-request-btn qumc-profile-request-btn-primary" style="width:100%;padding:9px 12px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.28);border-radius:12px;color:#0195af;font-size:10px;font-weight:800;cursor:pointer;text-align:left;">'
       +'✚ '+(isAr?'إرسال طلب جديد':'Submit a Request')+'</button>'
-      +'<button id="_profileMyReqs" style="width:100%;padding:7px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:8px;color:#94a3b8;font-size:10px;font-weight:700;cursor:pointer;text-align:left;">'
+      +'<button id="_profileMyReqs" class="qumc-profile-request-btn qumc-profile-request-btn-soft" style="width:100%;padding:9px 12px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:12px;color:#94a3b8;font-size:10px;font-weight:800;cursor:pointer;text-align:left;">'
       +'📋 '+(isAr?'طلباتي':'My Requests')+'</button>';
     /* Insert before logout button */
     var logout=drop.querySelector('.qumc-logout-btn,#profileLogoutBtn');
@@ -853,12 +862,12 @@ function updateExecTrend(yr){
   window._showSubmitRequestForm=function(){
     var existing=document.getElementById('submitReqOv'); if(existing)existing.remove();
     var isAr=(typeof lang!=='undefined'&&lang==='ar');
-    var ov=document.createElement('div'); ov.id='submitReqOv';
+    var ov=document.createElement('div'); ov.id='submitReqOv'; ov.className='qumc-request-overlay qumc-submit-request-overlay';
     ov.style.cssText='position:fixed;inset:0;z-index:9200;background:rgba(0,8,20,.84);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;';
     var typeOpts=isAr
       ?REQ_TYPES_AR.map(function(t,i){return '<option value="'+REQ_TYPES_EN[i]+'">'+t+'</option>';}).join('')
       :REQ_TYPES_EN.map(function(t){return '<option value="'+t+'">'+t+'</option>';}).join('');
-    ov.innerHTML='<div style="background:linear-gradient(135deg,#0d1b2e,#0a2040);border:1px solid rgba(1,149,175,.25);border-radius:18px;padding:28px;width:min(480px,100%);display:flex;flex-direction:column;gap:16px">'
+    ov.innerHTML='<div class="qumc-request-card qumc-submit-request-card" style="background:linear-gradient(135deg,#0d1b2e,#0a2040);border:1px solid rgba(1,149,175,.25);border-radius:18px;padding:28px;width:min(480px,100%);display:flex;flex-direction:column;gap:16px">'
       +'<div style="display:flex;align-items:center;justify-content:space-between">'
       +'<div><div style="font-size:14px;font-weight:800;color:#e2e8f0">'+(isAr?'إرسال طلب جديد':'Submit a Request')+'</div>'
       +'<div style="font-size:10px;color:#64748b;margin-top:2px">'+(isAr?'سيتم مراجعته من قِبل المسؤول الأعلى':'Will be reviewed by Super Admin')+'</div></div>'
@@ -953,10 +962,10 @@ function updateExecTrend(yr){
   window._showMyRequests=function(){
     var existing=document.getElementById('myReqOv'); if(existing)existing.remove();
     var isAr=(typeof lang!=='undefined'&&lang==='ar');
-    var ov=document.createElement('div'); ov.id='myReqOv';
+    var ov=document.createElement('div'); ov.id='myReqOv'; ov.className='qumc-request-overlay qumc-my-requests-overlay';
     ov.style.cssText='position:fixed;inset:0;z-index:9200;background:rgba(0,8,20,.84);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;';
     var box=document.createElement('div');
-    box.style.cssText='background:linear-gradient(135deg,#0d1b2e,#0a2040);border:1px solid rgba(1,149,175,.25);border-radius:18px;padding:28px;width:min(700px,100%);max-height:80vh;display:flex;flex-direction:column;gap:16px;';
+    box.className='qumc-request-card qumc-my-requests-card'; box.style.cssText='background:linear-gradient(135deg,#0d1b2e,#0a2040);border:1px solid rgba(1,149,175,.25);border-radius:18px;padding:28px;width:min(700px,100%);max-height:80vh;display:flex;flex-direction:column;gap:16px;';
     box.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between">'
       +'<div><div style="font-size:14px;font-weight:800;color:#e2e8f0">'+(isAr?'طلباتي':'My Requests')+'</div>'
       +'<div style="font-size:10px;color:#64748b;margin-top:2px">'+(isAr?'جميع طلباتك والردود عليها':'All your submitted requests and responses')+'</div></div>'
