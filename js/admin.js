@@ -86,6 +86,23 @@ function savePCI(){closePCI();}
 function closePCI(){const m=document.getElementById('pciModal');if(!m)return;m.classList.remove('open');setTimeout(()=>{m.style.display='none';},280);_pciKpiId=null;_pciQ=null;}
 
 /* == PCI helper for admin forms — colored result vs target == */
+function _adminParseNumber(v){
+  if(v === null || v === undefined) return null;
+  var s = String(v).trim();
+  if(!s) return null;
+  var ar='٠١٢٣٤٥٦٧٨٩', fa='۰۱۲۳۴۵۶۷۸۹';
+  s = s.replace(/[٠-٩]/g, function(d){ return String(ar.indexOf(d)); })
+       .replace(/[۰-۹]/g, function(d){ return String(fa.indexOf(d)); })
+       .replace(/[\u066B]/g, '.')
+       .replace(/[,%٪\u066C]/g, '')
+       .replace(/،/g, '')
+       .replace(/\s+/g, '');
+  if(s === '' || s === '-' || s === '.') return null;
+  var n = Number(s);
+  return isFinite(n) ? n : null;
+}
+window._adminParseNumber = _adminParseNumber;
+
 function calcAdminPCI(q,prefix){
   const Q=q.toUpperCase();
   const plEl=document.getElementById(prefix+Q+'_pl');
@@ -118,8 +135,8 @@ function calcAdminPCI(q,prefix){
 
   const plRaw=plEl?.value??'';
   const coRaw=coEl?.value??'';
-  const pl=parseFloat(plRaw)||0;
-  const co=parseFloat(coRaw);
+  const pl=_adminParseNumber(plRaw) || 0;
+  const co=_adminParseNumber(coRaw);
 
   /* Always clear if Complete not yet entered */
   if(coRaw.trim()===''){clearAll();clearErr();return;}
@@ -138,7 +155,7 @@ function calcAdminPCI(q,prefix){
 
   const pct=pl>0?+(co/pl*100).toFixed(1):0;
   const tgtEl=document.getElementById(prefix==='eAd'?'eTg':'aTg');
-  const tgt=tgtEl?parseFloat(tgtEl.value)||0:0;
+  const tgt=tgtEl?(_adminParseNumber(tgtEl.value)||0):0;
   const isMet=tgt>0?pct>=tgt:pct>0;
   if(resEl){
     resEl.textContent=(isMet?'✓ ':'✗ ')+pct+'%';
@@ -662,7 +679,7 @@ function populateAddYears(){
   const yrs=[];for(let y=2025;y<=2060;y++)yrs.push(y);
   sel.innerHTML='<option value="" selected disabled>— Select year —</option>'+yrs.map(y=>`<option value="${y}">${y}</option>`).join('');
 }
-const pn=v=>{const n=parseFloat(v);return isNaN(n)?null:n;};
+const pn=v=>{const n=(typeof _adminParseNumber==='function')?_adminParseNumber(v):parseFloat(v);return (n===null||isNaN(n))?null:n;};
 /* ==========================================================
    Dedicated Add-KPI save — awaits Firestore confirmation
    Shows green ONLY after Firestore confirms, red on failure
@@ -837,7 +854,7 @@ async function saveNewKPI(){
     yr:parseInt(_gv('aY','2026'))||new Date().getFullYear(),
     nameEn:(_gv('aNE')).trim(),
     nameAr:(_gv('aNA')).trim()||'',
-    target:parseFloat(_gv('aTg','100'))||100,
+    target:(_adminParseNumber(_gv('aTg','100'))||100),
     op:normalizeOperator(_gv('aO','>=')),
     type:'core',
     tier:parseInt(_gv('aTier','3'))||3,
@@ -1027,9 +1044,9 @@ function saveAdmin(){
   if(!_hasCustomValid||!(_hasCustomValid.config&&_hasCustomValid.config.fieldConfig&&_hasCustomValid.config.fieldConfig.length>0)){
     let pciValid=true;
     ['Q1','Q2','Q3','Q4'].forEach(Q=>{
-      const pl=parseFloat(document.getElementById('eAd'+Q+'_pl')?.value)||0;
-      const co=parseFloat(document.getElementById('eAd'+Q+'_co')?.value)||0;
-      const ic=parseFloat(document.getElementById('eAd'+Q+'_ic')?.value)||0;
+      const pl=_adminParseNumber(document.getElementById('eAd'+Q+'_pl')?.value)||0;
+      const co=_adminParseNumber(document.getElementById('eAd'+Q+'_co')?.value)||0;
+      const ic=_adminParseNumber(document.getElementById('eAd'+Q+'_ic')?.value)||0;
       if(pl>0&&(co+ic)>pl){
         toast(lang==='ar'?(' '+Q+': المجموع ('+(co+ic)+') يتجاوز المخطط ('+pl+')'):(' '+Q+': Total ('+(co+ic)+') exceeds planned ('+pl+')'));
         pciValid=false;
@@ -1048,11 +1065,11 @@ function saveAdmin(){
     if(_masterMatch&&_masterMatch.config&&_masterMatch.config.fieldConfig&&_masterMatch.config.fieldConfig.length>0){
       /* Read formula result from result span */
       var resEl=document.getElementById('eAd'+Q+'_res');
-      if(resEl){var resText=resEl.textContent.replace('%','').trim();var rv=parseFloat(resText);return isNaN(rv)?null:rv;}
+      if(resEl){var resText=resEl.textContent.replace('%','').trim();var rv=_adminParseNumber(resText);return (rv===null||isNaN(rv))?null:rv;}
       return null;
     }
-    const pl=parseFloat(document.getElementById('eAd'+Q+'_pl')?.value)||0;
-    const co=parseFloat(document.getElementById('eAd'+Q+'_co')?.value);
+    const pl=_adminParseNumber(document.getElementById('eAd'+Q+'_pl')?.value)||0;
+    const co=_adminParseNumber(document.getElementById('eAd'+Q+'_co')?.value);
     return(pl>0&&!isNaN(co)&&co!==null)?+(co/pl*100).toFixed(1):null;
   };
   if(!ST.ov[id])ST.ov[id]={};
@@ -1060,7 +1077,7 @@ function saveAdmin(){
   const _eYrVal=_eYrEl?parseInt(_eYrEl.value)||null:null;
   ST.ov[id]={...ST.ov[id],
     q1:_gQV('Q1'),q2:_gQV('Q2'),q3:_gQV('Q3'),q4:_gQV('Q4'),
-    target:parseFloat(document.getElementById('eTg').value)||90,
+    target:(_adminParseNumber(document.getElementById('eTg').value)||90),
     tier:parseInt(document.getElementById('eTier').value)||3
   };
   /* Year: update in ST.ov AND in ST.added if this KPI was user-added */
@@ -1095,9 +1112,9 @@ function saveAdmin(){
     Object.keys(_editQR.pciData).forEach(function(ql){ST.pci[id][ql]=_editQR.pciData[ql];});
   } else {
     ['Q1','Q2','Q3','Q4'].forEach(Q=>{
-      const pl=parseFloat(document.getElementById('eAd'+Q+'_pl')?.value)||0;
-      const co=parseFloat(document.getElementById('eAd'+Q+'_co')?.value)||0;
-      const ic=parseFloat(document.getElementById('eAd'+Q+'_ic')?.value)||0;
+      const pl=_adminParseNumber(document.getElementById('eAd'+Q+'_pl')?.value)||0;
+      const co=_adminParseNumber(document.getElementById('eAd'+Q+'_co')?.value)||0;
+      const ic=_adminParseNumber(document.getElementById('eAd'+Q+'_ic')?.value)||0;
       if(pl>0||co>0)ST.pci[id][Q.toLowerCase()]={planned:pl,complete:co,incomplete:ic};
     });
   }
@@ -2383,9 +2400,9 @@ function _buildQtrTableHTML(masterConfig, prefix){
     ['Q1','Q2','Q3','Q4'].forEach(function(Q){
       tbody += '<tr>'
         +'<td>'+Q+'</td>'
-        +'<td><input class="pci-pl" id="'+prefix+Q+'_pl" min="0" type="number" placeholder="0" oninput="calcAdminPCI(\''+Q.toLowerCase()+'\',\''+prefix+'\')"></td>'
-        +'<td><input class="pci-co" id="'+prefix+Q+'_co" min="0" type="number" placeholder="0" oninput="calcAdminPCI(\''+Q.toLowerCase()+'\',\''+prefix+'\')"></td>'
-        +'<td><input class="pci-ic" id="'+prefix+Q+'_ic" min="0" type="number" placeholder="—" readonly style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete"></td>'
+        +'<td><input class="pci-pl" id="'+prefix+Q+'_pl" min="0" type="text" inputmode="decimal" autocomplete="off" placeholder="0" oninput="calcAdminPCI(\''+Q.toLowerCase()+'\',\''+prefix+'\')"></td>'
+        +'<td><input class="pci-co" id="'+prefix+Q+'_co" min="0" type="text" inputmode="decimal" autocomplete="off" placeholder="0" oninput="calcAdminPCI(\''+Q.toLowerCase()+'\',\''+prefix+'\')"></td>'
+        +'<td><input class="pci-ic" id="'+prefix+Q+'_ic" min="0" type="text" inputmode="decimal" autocomplete="off" placeholder="—" readonly style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete"></td>'
         +'<td><span class="pci-calc" id="'+prefix+Q+'_res">—</span></td>'
         +'</tr>';
     });
@@ -2417,7 +2434,7 @@ function _buildQtrTableHTML(masterConfig, prefix){
     tbody2 += '<tr><td style="font-weight:700;font-size:10px">'+Q+'</td>';
     letters.forEach(function(letter){
       tbody2 += '<td><input class="pci-pl custom-field-input" id="'+prefix+Q+'_'+letter+'"'
-        +' type="number" min="0" step="any" placeholder="0"'
+        +' type="text" inputmode="decimal" autocomplete="off" placeholder="0"'
         +' data-q="'+Q.toLowerCase()+'" data-prefix="'+prefix+'" data-formula="'+formulaEscaped+'" data-letters="'+letters.join(',')+'" oninput="_onCustomFieldInput(this)">'
         +'</td>';
     });
@@ -2436,8 +2453,8 @@ function _calcCustomResult(q, prefix, formula, letters){
   letters.forEach(function(letter){
     var el = document.getElementById(prefix+Q+'_'+letter);
     if(!el || el.value.trim() === ''){ valid = false; return; }
-    var v = parseFloat(el.value);
-    if(isNaN(v)){ valid = false; return; }
+    var v = _adminParseNumber(el.value);
+    if(v===null||isNaN(v)){ valid = false; return; }
     vals[letter] = v;
   });
   var resEl = document.getElementById(prefix+Q+'_res');
@@ -2619,7 +2636,7 @@ function _readQtrValuesFromForm(kpiId, prefix, sectionId){
       var vals = {};
       letters.forEach(function(letter){
         var el = document.getElementById(prefix+Q+'_'+letter);
-        vals[letter] = el ? (parseFloat(el.value)||0) : 0;
+        vals[letter] = el ? (_adminParseNumber(el.value)||0) : 0;
       });
       var result = (typeof _evalFormula==='function') ? _evalFormula(cfg.resultFormula||'', vals) : null;
       pciData[ql] = Object.assign({_custom:true, _masterId:masterId, _formula:cfg.resultFormula}, vals);
@@ -2628,8 +2645,8 @@ function _readQtrValuesFromForm(kpiId, prefix, sectionId){
   } else {
     ['Q1','Q2','Q3','Q4'].forEach(function(Q){
       var ql = Q.toLowerCase();
-      var pl = parseFloat((document.getElementById(prefix+Q+'_pl')||{}).value)||0;
-      var co = parseFloat((document.getElementById(prefix+Q+'_co')||{}).value)||0;
+      var pl = _adminParseNumber((document.getElementById(prefix+Q+'_pl')||{}).value)||0;
+      var co = _adminParseNumber((document.getElementById(prefix+Q+'_co')||{}).value)||0;
       var ic = Math.max(0, pl-co);
       pciData[ql] = { planned:pl, complete:co, incomplete:ic };
     });
@@ -2656,7 +2673,7 @@ function _fillQtrFormFromPci(kpiId, prefix, sectionId){
       });
       /* Recompute result display */
       var vals = {};
-      letters.forEach(function(letter){ vals[letter] = parseFloat(qd[letter])||0; });
+      letters.forEach(function(letter){ vals[letter] = _adminParseNumber(qd[letter])||0; });
       var resEl = document.getElementById(prefix+Q+'_res');
       if(resEl){
         var result = (typeof _evalFormula==='function') ? _evalFormula(cfg.resultFormula||'', vals) : null;
@@ -2683,7 +2700,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
    ========================================================== */
 (function(){
   function _hasText(id){var el=document.getElementById(id);return !!(el&&String(el.value||'').trim()!=='');}
-  function _pf(id){var el=document.getElementById(id); if(!el||String(el.value||'').trim()==='') return null; var n=parseFloat(el.value); return isFinite(n)?n:null;}
+  function _pf(id){var el=document.getElementById(id); if(!el||String(el.value||'').trim()==='') return null; var n=(typeof _adminParseNumber==='function')?_adminParseNumber(el.value):parseFloat(el.value); return (n!==null&&isFinite(n))?n:null;}
   window._readQtrValuesFromForm=_readQtrValuesFromForm=function(kpiId,prefix,sectionId){
     var section=document.getElementById(sectionId||'addQtrSection');
     var masterId=section?section.getAttribute('data-master'):'';
