@@ -26,20 +26,66 @@
    =========================================================== */
 
 function _qumcFreshKpisForExport(){
-  /* Export must use the latest saved dashboard state, not an old in-memory snapshot. */
+  /*
+    Excel must export the SAME live dashboard data the user is seeing.
+    Previous fix reloaded `kpi_v3` from localStorage right before export,
+    which could overwrite fresh in-memory Firestore/dashboard edits with an
+    older cached copy. That is why Excel sometimes showed old values.
+
+    New rule:
+    1) Do NOT overwrite ST from localStorage during export.
+    2) Use the live ST object already rendered on the dashboard.
+    3) If Add/Edit KPI form is currently open, flush its visible quarterly
+       inputs into ST first, so export reflects the latest typed values.
+  */
+  try{ _qumcFlushOpenKpiFormToLiveState(); }catch(_e){ console.warn('[Excel] live form flush skipped', _e); }
+  try{ if(typeof _reconcileDeletedVsAdded==='function') _reconcileDeletedVsAdded(ST); }catch(_e){}
+  try{ return (typeof filt==='function') ? filt() : []; }catch(_e){ console.warn('[Excel] filt failed', _e); return []; }
+}
+
+function _qumcExportNum(v){
+  if(v===null||v===undefined||v==='') return null;
+  var n = (typeof _adminParseNumber==='function') ? _adminParseNumber(v) : Number(String(v).replace(/,/g,''));
+  return (n!==null&&n!==undefined&&isFinite(Number(n))) ? Number(n) : null;
+}
+
+function _qumcFlushOpenKpiFormToLiveState(){
+  if(typeof ST==='undefined' || !ST || typeof document==='undefined') return;
+  if(!ST.pci) ST.pci={};
+  if(!ST.ov) ST.ov={};
+
+  /* Edit KPI modal: update the selected KPI in live state before Excel export. */
+  var editSel=document.getElementById('eSel');
+  var editVisible=false;
   try{
-    const raw=localStorage.getItem('kpi_v3');
-    if(raw){
-      const d=JSON.parse(raw);
-      if(d&&typeof d==='object'&&!Array.isArray(d)&&typeof ST==='object'){
-        ['added','ov','deleted','pci','codeOv','gaps','actions','masterKpis','kpiFormulaOverrides','rptEdits','textEdits'].forEach(function(k){
-          if(Object.prototype.hasOwnProperty.call(d,k)) ST[k]=d[k];
+    var editOverlay=document.getElementById('editKpiModal') || (editSel && editSel.closest('.overlay'));
+    editVisible=!!(editSel && editSel.value && (!editOverlay || getComputedStyle(editOverlay).display!=='none'));
+  }catch(_e){ editVisible=!!(editSel && editSel.value); }
+
+  if(editVisible){
+    var displayId=editSel.value;
+    var id=(typeof realId==='function') ? realId(displayId) : displayId;
+    if(id){
+      var read=(typeof _readQtrValuesFromForm==='function') ? _readQtrValuesFromForm(id,'eAd','editQtrSection') : null;
+      if(read && read.pciData){
+        if(!ST.pci[id]) ST.pci[id]={};
+        Object.keys(read.pciData).forEach(function(q){ ST.pci[id][q]=read.pciData[q]; });
+        ['q1','q2','q3','q4'].forEach(function(q){
+          var qd=read.pciData[q]||{};
+          var result=null;
+          if(qd._custom){ result=_qumcExportNum(qd._result); }
+          else if(_qumcExportNum(qd.planned)>0 && _qumcExportNum(qd.complete)!==null){
+            result=Math.min(100,Math.round((_qumcExportNum(qd.complete)||0)/_qumcExportNum(qd.planned)*1000)/10);
+          }
+          if(!ST.ov[id]) ST.ov[id]={};
+          ST.ov[id][q]=result;
         });
       }
     }
-  }catch(_e){console.warn('[Excel] state refresh skipped',_e);}
-  try{ if(typeof _reconcileDeletedVsAdded==='function') _reconcileDeletedVsAdded(ST); }catch(_e){}
-  try{ return (typeof filt==='function') ? filt() : []; }catch(_e){ return []; }
+  }
+
+  /* Add KPI modal: if a new unsaved row is being typed, do not create a KPI
+     automatically. Excel exports saved/dashboard data only. */
 }
 
 function _qumcGapValue(k,v){
