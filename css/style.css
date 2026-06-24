@@ -1582,3 +1582,77 @@ html[dir="rtl"] #_profileReqBtns button{text-align:right!important;}
   border:1px solid rgba(14,116,144,.12)!important;
   border-radius:18px!important;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   QUMC SUPER ADMIN HUB — match Submit a Request glass style
+   Scope: visual only. Does not change hub actions or permissions.
+   ───────────────────────────────────────────────────────────── */
+#saHubOv{
+  background:
+    radial-gradient(circle at top left,rgba(34,211,238,.18),transparent 34%),
+    radial-gradient(circle at bottom right,rgba(74,222,128,.11),transparent 34%),
+    rgba(15,23,42,.34)!important;
+  backdrop-filter:blur(14px) saturate(150%)!important;
+  -webkit-backdrop-filter:blur(14px) saturate(150%)!important;
+}
+#saHubOv > div{
+  background:linear-gradient(145deg,rgba(248,252,255,.90),rgba(226,248,255,.74))!important;
+  border:1px solid rgba(255,255,255,.62)!important;
+  color:#0F172A!important;
+  box-shadow:0 28px 90px rgba(15,23,42,.24), inset 0 1px 0 rgba(255,255,255,.72)!important;
+  backdrop-filter:blur(22px) saturate(150%)!important;
+  -webkit-backdrop-filter:blur(22px) saturate(150%)!important;
+  position:relative!important;
+  overflow:hidden!important;
+}
+#saHubOv > div::before{
+  content:''!important;
+  position:absolute!important;
+  inset:0!important;
+  pointer-events:none!important;
+  background:radial-gradient(circle at 18% 0%,rgba(1,149,175,.13),transparent 34%),linear-gradient(120deg,rgba(255,255,255,.34),transparent 45%)!important;
+  z-index:0!important;
+}
+#saHubOv > div > *{position:relative!important;z-index:1!important;}
+#saHubOv [style*="color:#e2e8f0"],
+#saHubOv [style*="color: #e2e8f0"]{color:#0F172A!important;}
+#saHubOv [style*="color:#64748b"],
+#saHubOv [style*="color: #64748b"],
+#saHubOv [style*="color:#94a3b8"],
+#saHubOv [style*="color: #94a3b8"]{color:rgba(51,65,85,.72)!important;}
+#saHubOv button{
+  background:rgba(255,255,255,.72)!important;
+  color:#0F172A!important;
+  border:1px solid rgba(14,116,144,.14)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.78),0 8px 20px rgba(15,23,42,.06)!important;
+}
+#saHubOv button:hover{
+  background:linear-gradient(135deg,rgba(255,255,255,.88),rgba(34,211,238,.18))!important;
+  border-color:rgba(1,149,175,.36)!important;
+}
+#saHubOv div[onclick^="_saHubAction"]{
+  background:linear-gradient(135deg,rgba(255,255,255,.82),rgba(226,248,255,.58))!important;
+  border:1px solid rgba(14,116,144,.16)!important;
+  border-radius:18px!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.78),0 8px 20px rgba(15,23,42,.06)!important;
+  color:#0F172A!important;
+}
+#saHubOv div[onclick^="_saHubAction"]:hover{
+  transform:translateY(-2px)!important;
+  background:linear-gradient(135deg,rgba(255,255,255,.90),rgba(34,211,238,.20))!important;
+  border-color:rgba(1,149,175,.36)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.82),0 14px 32px rgba(15,23,42,.10)!important;
+}
+#saHubOv div[onclick^="_saHubAction"] > div:first-child{
+  background:linear-gradient(135deg,rgba(1,149,175,.16),rgba(255,255,255,.72))!important;
+  border:1px solid rgba(1,149,175,.24)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.78),0 8px 20px rgba(1,149,175,.10)!important;
+}
+#saHubOv div[onclick^="_saHubAction"] [style*="font-size:13px"]{color:#0F172A!important;font-weight:900!important;}
+#saHubOv div[onclick^="_saHubAction"] [style*="font-size:10px"]{color:rgba(51,65,85,.72)!important;}
+#saHubOv div[onclick^="_saHubAction"] [style*="color:#0195af"]{color:#07596A!important;}
+html[dir="rtl"] #saHubOv{text-align:right!important;}
+@media(max-width:760px){
+  #saHubOv{padding:14px!important;}
+  #saHubOv > div{padding:22px 18px!important;border-radius:22px!important;}
+}
