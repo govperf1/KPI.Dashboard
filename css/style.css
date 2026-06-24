@@ -1029,3 +1029,257 @@ html[lang="ar"] .acc-tbl td:last-child{border-radius:7px 0 0 7px}
 /* Gap row: only left border — no full background (avoids KPO layout conflicts) */
 tr.gap-row { border-left: 3px solid var(--missed) !important; }
 .gap-dot { background: var(--missed) !important; }
+
+/* ─────────────────────────────────────────────────────────────
+   QUMC UI POLISH — User account + User Request glass design
+   Scope: visual only. Does not change request / notification logic.
+   ───────────────────────────────────────────────────────────── */
+#userNotifyWidget.qumc-user-widget-modern,
+#userNotifyWidget{
+  gap:10px!important;
+  align-items:center!important;
+}
+.qumc-user-badge,
+.qumc-user-badge-modern{
+  min-width:184px!important;
+  min-height:42px!important;
+  padding:7px 10px 7px 8px!important;
+  border-radius:20px!important;
+  background:
+    radial-gradient(circle at 12% 10%,rgba(34,211,238,.30),transparent 34%),
+    linear-gradient(135deg,rgba(255,255,255,.16),rgba(255,255,255,.06))!important;
+  border:1px solid rgba(255,255,255,.24)!important;
+  box-shadow:0 14px 35px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.20)!important;
+  backdrop-filter:blur(18px) saturate(145%)!important;
+  -webkit-backdrop-filter:blur(18px) saturate(145%)!important;
+  position:relative!important;
+  overflow:hidden!important;
+}
+.qumc-user-badge::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  border-radius:20px;
+  background:linear-gradient(120deg,rgba(255,255,255,.16),transparent 34%,rgba(1,149,175,.12));
+  pointer-events:none;
+}
+.qumc-user-badge:hover{
+  transform:translateY(-2px)!important;
+  background:
+    radial-gradient(circle at 12% 10%,rgba(74,222,128,.28),transparent 34%),
+    linear-gradient(135deg,rgba(255,255,255,.20),rgba(1,149,175,.12))!important;
+  border-color:rgba(34,211,238,.50)!important;
+  box-shadow:0 18px 44px rgba(1,149,175,.26), inset 0 1px 0 rgba(255,255,255,.24)!important;
+}
+.qumc-user-avatar{
+  width:32px!important;
+  height:32px!important;
+  border-radius:14px!important;
+  background:linear-gradient(135deg,#00AFC8,#22C55E)!important;
+  box-shadow:0 0 0 1px rgba(255,255,255,.22),0 10px 24px rgba(1,149,175,.30)!important;
+  font-size:12px!important;
+  position:relative!important;
+  z-index:1!important;
+}
+.qumc-user-name{
+  max-width:118px!important;
+  font-size:11.5px!important;
+  line-height:1.1!important;
+  letter-spacing:.01em!important;
+  color:#fff!important;
+  position:relative!important;
+  z-index:1!important;
+}
+.qumc-user-role{
+  max-width:118px!important;
+  font-size:8px!important;
+  color:rgba(226,248,255,.68)!important;
+  letter-spacing:.08em!important;
+  position:relative!important;
+  z-index:1!important;
+}
+.qumc-user-badge svg{position:relative!important;z-index:1!important;opacity:.86!important;}
+.qumc-alert-btn,
+.qumc-alert-btn-modern{
+  width:42px!important;
+  height:42px!important;
+  border-radius:18px!important;
+  background:
+    radial-gradient(circle at 30% 18%,rgba(34,211,238,.24),transparent 35%),
+    linear-gradient(135deg,rgba(255,255,255,.15),rgba(255,255,255,.055))!important;
+  border:1px solid rgba(255,255,255,.22)!important;
+  box-shadow:0 14px 35px rgba(0,0,0,.20), inset 0 1px 0 rgba(255,255,255,.17)!important;
+  backdrop-filter:blur(16px) saturate(145%)!important;
+  -webkit-backdrop-filter:blur(16px) saturate(145%)!important;
+}
+.qumc-alert-btn:hover{
+  transform:translateY(-2px)!important;
+  border-color:rgba(34,211,238,.55)!important;
+  background:linear-gradient(135deg,rgba(34,211,238,.24),rgba(255,255,255,.08))!important;
+}
+.qumc-alert-count{
+  top:-7px!important;
+  right:-7px!important;
+  min-width:19px!important;
+  height:19px!important;
+  border-radius:999px!important;
+  background:linear-gradient(135deg,#EF4444,#F97316)!important;
+  border:2px solid #122033!important;
+  box-shadow:0 8px 20px rgba(239,68,68,.35)!important;
+}
+.qumc-profile-drop,
+.qumc-profile-glass{
+  width:340px!important;
+  border-radius:24px!important;
+  background:linear-gradient(145deg,rgba(11,26,46,.92),rgba(13,36,64,.78))!important;
+  border:1px solid rgba(148,213,228,.22)!important;
+  box-shadow:0 30px 90px rgba(0,0,0,.36), inset 0 1px 0 rgba(255,255,255,.10)!important;
+  backdrop-filter:blur(22px) saturate(150%)!important;
+  -webkit-backdrop-filter:blur(22px) saturate(150%)!important;
+  color:#EAF7FB!important;
+}
+.qumc-profile-head{
+  background:
+    radial-gradient(circle at 18% 22%,rgba(34,211,238,.28),transparent 38%),
+    linear-gradient(135deg,rgba(255,255,255,.10),rgba(1,149,175,.12))!important;
+  border-bottom:1px solid rgba(255,255,255,.10)!important;
+  padding:16px!important;
+}
+.qumc-profile-avatar{width:44px!important;height:44px!important;border-radius:16px!important;}
+.qumc-profile-name{font-size:14px!important;color:#fff!important;}
+.qumc-profile-email{color:rgba(226,248,255,.62)!important;}
+.qumc-profile-section-title{color:rgba(180,229,240,.55)!important;padding:13px 16px 7px!important;}
+.qumc-profile-grid{grid-template-columns:104px 1fr!important;padding:6px 16px 12px!important;}
+.qumc-profile-grid span{color:rgba(201,231,239,.58)!important;}
+.qumc-profile-grid b{color:#F8FEFF!important;}
+.qumc-logout-btn{
+  width:calc(100% - 32px)!important;
+  margin:4px 16px 16px!important;
+  border-radius:14px!important;
+  background:linear-gradient(135deg,rgba(239,68,68,.88),rgba(153,27,27,.82))!important;
+  border:1px solid rgba(255,255,255,.12)!important;
+  box-shadow:0 16px 34px rgba(239,68,68,.22)!important;
+}
+#_profileReqBtns,
+.qumc-profile-requests-panel{
+  margin:8px 16px 12px!important;
+  padding:12px!important;
+  border:1px solid rgba(255,255,255,.12)!important;
+  border-radius:18px!important;
+  background:rgba(255,255,255,.06)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10)!important;
+}
+#_profileReqBtns > div:first-child{color:rgba(180,229,240,.66)!important;}
+#_profileSubmitReq,
+#_profileMyReqs,
+.qumc-profile-request-btn{
+  border-radius:14px!important;
+  padding:10px 12px!important;
+  font-size:10.5px!important;
+  font-weight:900!important;
+  color:#EAFBFF!important;
+  background:linear-gradient(135deg,rgba(1,149,175,.30),rgba(255,255,255,.07))!important;
+  border:1px solid rgba(67,220,240,.25)!important;
+  box-shadow:0 12px 26px rgba(0,0,0,.14)!important;
+  transition:transform .16s ease, border-color .16s ease, background .16s ease!important;
+}
+#_profileMyReqs{
+  background:linear-gradient(135deg,rgba(255,255,255,.09),rgba(255,255,255,.04))!important;
+  color:rgba(234,251,255,.84)!important;
+}
+#_profileSubmitReq:hover,
+#_profileMyReqs:hover{transform:translateY(-1px)!important;border-color:rgba(67,220,240,.46)!important;}
+html[dir="rtl"] #_profileReqBtns button{text-align:right!important;}
+
+/* User Request modals — glass, transparent, modern */
+#submitReqOv,
+#myReqOv,
+.qumc-request-overlay{
+  background:
+    radial-gradient(circle at top left,rgba(1,149,175,.23),transparent 32%),
+    radial-gradient(circle at bottom right,rgba(74,222,128,.16),transparent 34%),
+    rgba(2,8,23,.66)!important;
+  backdrop-filter:blur(14px) saturate(145%)!important;
+  -webkit-backdrop-filter:blur(14px) saturate(145%)!important;
+}
+#submitReqOv > div,
+#myReqOv > div,
+.qumc-request-card{
+  border-radius:28px!important;
+  background:
+    linear-gradient(145deg,rgba(15,31,52,.78),rgba(15,42,65,.60))!important;
+  border:1px solid rgba(180,229,240,.20)!important;
+  box-shadow:0 34px 100px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.12)!important;
+  backdrop-filter:blur(22px) saturate(150%)!important;
+  -webkit-backdrop-filter:blur(22px) saturate(150%)!important;
+  overflow:hidden!important;
+  position:relative!important;
+}
+#submitReqOv > div::before,
+#myReqOv > div::before,
+.qumc-request-card::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 18% 0%,rgba(34,211,238,.20),transparent 34%),
+    linear-gradient(120deg,rgba(255,255,255,.10),transparent 45%);
+}
+#submitReqOv > div > *,
+#myReqOv > div > *,
+.qumc-request-card > *{position:relative!important;z-index:1!important;}
+#submitReqOv label,
+#myReqOv label{color:rgba(210,240,248,.72)!important;letter-spacing:.04em!important;}
+#reqTypeSel,
+#reqMessageArea{
+  background:rgba(255,255,255,.08)!important;
+  color:#F8FEFF!important;
+  border:1px solid rgba(180,229,240,.18)!important;
+  border-radius:16px!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08)!important;
+  outline:none!important;
+}
+#reqTypeSel:focus,
+#reqMessageArea:focus{
+  border-color:rgba(34,211,238,.58)!important;
+  box-shadow:0 0 0 4px rgba(34,211,238,.10), inset 0 1px 0 rgba(255,255,255,.10)!important;
+}
+#reqMessageArea::placeholder{color:rgba(226,248,255,.38)!important;}
+#reqFeedback{
+  border-radius:14px!important;
+  border:1px solid rgba(255,255,255,.10)!important;
+  backdrop-filter:blur(8px)!important;
+}
+#submitReqOv button,
+#myReqOv button{
+  border-radius:14px!important;
+  font-weight:900!important;
+}
+#submitReqOv button[onclick*="_submitUserRequest"]{
+  background:linear-gradient(135deg,#0195af,#00BFE0)!important;
+  color:#fff!important;
+  box-shadow:0 18px 38px rgba(1,149,175,.26)!important;
+}
+#myReqBody{
+  background:rgba(255,255,255,.035)!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  border-radius:18px!important;
+  padding:8px!important;
+}
+#myReqBody > div > div{
+  background:rgba(255,255,255,.07)!important;
+  border:1px solid rgba(180,229,240,.14)!important;
+  border-radius:16px!important;
+  box-shadow:0 14px 30px rgba(0,0,0,.16)!important;
+}
+#myReqBody span,
+#myReqBody div{color:inherit;}
+#myReqBody [style*="color:#e2e8f0"]{color:#F8FEFF!important;}
+#myReqBody [style*="color:#94a3b8"]{color:rgba(226,248,255,.72)!important;}
+@media(max-width:760px){
+  .qumc-user-badge{min-width:142px!important;}
+  .qumc-user-name,.qumc-user-role{max-width:82px!important;}
+  .qumc-profile-drop{right:12px!important;width:min(340px,calc(100vw - 24px))!important;}
+  #submitReqOv > div,#myReqOv > div{width:min(94vw,700px)!important;padding:22px!important;}
+}
