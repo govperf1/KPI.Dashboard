@@ -1283,3 +1283,152 @@ html[dir="rtl"] #_profileReqBtns button{text-align:right!important;}
   .qumc-profile-drop{right:12px!important;width:min(340px,calc(100vw - 24px))!important;}
   #submitReqOv > div,#myReqOv > div{width:min(94vw,700px)!important;padding:22px!important;}
 }
+
+/* ─────────────────────────────────────────────────────────────
+   QUMC FINAL UI TUNE — compact user account + lighter request glass
+   Scope: visual only. Keeps request/notification logic unchanged.
+   ───────────────────────────────────────────────────────────── */
+#userNotifyWidget.qumc-user-widget-modern,
+#userNotifyWidget{
+  gap:8px!important;
+  align-items:center!important;
+  flex-shrink:0!important;
+}
+.qumc-user-badge,
+.qumc-user-badge-modern{
+  min-width:148px!important;
+  max-width:168px!important;
+  min-height:36px!important;
+  height:36px!important;
+  padding:4px 8px!important;
+  gap:7px!important;
+  border-radius:16px!important;
+  background:
+    radial-gradient(circle at 14% 8%,rgba(255,255,255,.34),transparent 34%),
+    linear-gradient(135deg,rgba(255,255,255,.22),rgba(255,255,255,.095))!important;
+  border:1px solid rgba(226,248,255,.30)!important;
+  box-shadow:0 8px 22px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.26)!important;
+  backdrop-filter:blur(16px) saturate(145%)!important;
+  -webkit-backdrop-filter:blur(16px) saturate(145%)!important;
+}
+.qumc-user-badge::before{border-radius:16px!important;background:linear-gradient(120deg,rgba(255,255,255,.18),transparent 42%,rgba(34,211,238,.10))!important;}
+.qumc-user-badge:hover{
+  transform:translateY(-1px)!important;
+  background:
+    radial-gradient(circle at 14% 8%,rgba(255,255,255,.40),transparent 34%),
+    linear-gradient(135deg,rgba(255,255,255,.26),rgba(34,211,238,.12))!important;
+  box-shadow:0 10px 26px rgba(1,149,175,.18), inset 0 1px 0 rgba(255,255,255,.30)!important;
+}
+.qumc-user-avatar{
+  width:27px!important;
+  height:27px!important;
+  min-width:27px!important;
+  border-radius:11px!important;
+  font-size:10.5px!important;
+  box-shadow:0 0 0 1px rgba(255,255,255,.24),0 6px 16px rgba(1,149,175,.24)!important;
+}
+.qumc-user-name{max-width:90px!important;font-size:10.5px!important;line-height:1.05!important;}
+.qumc-user-role{max-width:90px!important;font-size:7.4px!important;line-height:1.05!important;letter-spacing:.065em!important;}
+.qumc-user-badge svg{width:12px!important;height:12px!important;opacity:.78!important;}
+.qumc-alert-btn,
+.qumc-alert-btn-modern{
+  width:36px!important;
+  height:36px!important;
+  border-radius:15px!important;
+  background:linear-gradient(135deg,rgba(255,255,255,.20),rgba(255,255,255,.08))!important;
+  border:1px solid rgba(226,248,255,.26)!important;
+  box-shadow:0 8px 22px rgba(0,0,0,.15), inset 0 1px 0 rgba(255,255,255,.22)!important;
+}
+.qumc-alert-count{top:-6px!important;right:-6px!important;min-width:18px!important;height:18px!important;font-size:9px!important;}
+
+/* Profile request area — lighter glass buttons */
+#_profileReqBtns,
+.qumc-profile-requests-panel{
+  background:linear-gradient(135deg,rgba(255,255,255,.15),rgba(255,255,255,.075))!important;
+  border:1px solid rgba(226,248,255,.22)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 10px 24px rgba(0,0,0,.10)!important;
+}
+#_profileReqBtns > div:first-child{color:rgba(234,251,255,.82)!important;}
+#_profileSubmitReq,
+#_profileMyReqs,
+.qumc-profile-request-btn{
+  background:linear-gradient(135deg,rgba(248,254,255,.24),rgba(248,254,255,.12))!important;
+  color:#F8FEFF!important;
+  border:1px solid rgba(226,248,255,.32)!important;
+  box-shadow:0 10px 22px rgba(0,0,0,.10), inset 0 1px 0 rgba(255,255,255,.24)!important;
+}
+#_profileSubmitReq:hover,
+#_profileMyReqs:hover{
+  background:linear-gradient(135deg,rgba(255,255,255,.31),rgba(34,211,238,.14))!important;
+  border-color:rgba(125,234,250,.48)!important;
+}
+
+/* User Request modal — lighter transparent glass */
+#submitReqOv,
+#myReqOv,
+.qumc-request-overlay{
+  background:
+    radial-gradient(circle at top left,rgba(34,211,238,.18),transparent 34%),
+    radial-gradient(circle at bottom right,rgba(74,222,128,.11),transparent 34%),
+    rgba(15,23,42,.34)!important;
+  backdrop-filter:blur(14px) saturate(150%)!important;
+  -webkit-backdrop-filter:blur(14px) saturate(150%)!important;
+}
+#submitReqOv > div,
+#myReqOv > div,
+.qumc-request-card{
+  background:linear-gradient(145deg,rgba(248,252,255,.86),rgba(226,248,255,.70))!important;
+  border:1px solid rgba(255,255,255,.58)!important;
+  color:#0F172A!important;
+  box-shadow:0 28px 90px rgba(15,23,42,.24), inset 0 1px 0 rgba(255,255,255,.72)!important;
+}
+#submitReqOv > div::before,
+#myReqOv > div::before,
+.qumc-request-card::before{
+  background:radial-gradient(circle at 18% 0%,rgba(1,149,175,.13),transparent 34%),linear-gradient(120deg,rgba(255,255,255,.34),transparent 45%)!important;
+}
+#submitReqOv label,
+#myReqOv label{color:rgba(15,23,42,.72)!important;font-weight:800!important;}
+#submitReqOv h1,#submitReqOv h2,#submitReqOv h3,#submitReqOv h4,
+#myReqOv h1,#myReqOv h2,#myReqOv h3,#myReqOv h4,
+#submitReqOv [style*="color:#e2e8f0"],#myReqOv [style*="color:#e2e8f0"]{color:#0F172A!important;}
+
+/* Request Type list visibility */
+#reqTypeSelect,
+#reqTypeSel,
+#reqMessageArea{
+  background:rgba(255,255,255,.86)!important;
+  color:#0F172A!important;
+  border:1px solid rgba(14,116,144,.20)!important;
+  border-radius:14px!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.70),0 8px 20px rgba(15,23,42,.06)!important;
+}
+#reqTypeSelect option,
+#reqTypeSel option{
+  background:#FFFFFF!important;
+  color:#0F172A!important;
+}
+#reqTypeSelect:focus,
+#reqTypeSel:focus,
+#reqMessageArea:focus{
+  border-color:rgba(1,149,175,.56)!important;
+  box-shadow:0 0 0 4px rgba(1,149,175,.12), inset 0 1px 0 rgba(255,255,255,.74)!important;
+}
+#reqMessageArea::placeholder{color:rgba(15,23,42,.42)!important;}
+#reqFeedback{color:#0F172A!important;background:rgba(255,255,255,.58)!important;border:1px solid rgba(14,116,144,.14)!important;}
+#myReqBody{
+  background:rgba(255,255,255,.48)!important;
+  border:1px solid rgba(14,116,144,.12)!important;
+}
+#myReqBody > div > div{
+  background:rgba(255,255,255,.74)!important;
+  border:1px solid rgba(14,116,144,.13)!important;
+  color:#0F172A!important;
+}
+#myReqBody [style*="color:#94a3b8"],
+#myReqBody [style*="color: #94a3b8"]{color:rgba(51,65,85,.78)!important;}
+
+@media(max-width:760px){
+  .qumc-user-badge{min-width:132px!important;max-width:146px!important;}
+  .qumc-user-name,.qumc-user-role{max-width:76px!important;}
+}
