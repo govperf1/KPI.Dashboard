@@ -1849,3 +1849,193 @@ html[dir="rtl"] #saReqOv th,
 html[dir="rtl"] #saReqOv td,
 html[dir="rtl"] #saTextEdOv th,
 html[dir="rtl"] #saTextEdOv td{text-align:right!important;}
+
+/* ─────────────────────────────────────────────────────────────
+   QUMC HEADER OPTION 2 — Simple Executive Header
+   Subtle upgrade only: keeps the current structure, not sticky,
+   smaller spacing, calmer colors, and cleaner pill navigation.
+   ───────────────────────────────────────────────────────────── */
+.topbar{
+  height:58px!important;
+  padding:0 22px!important;
+  gap:12px!important;
+  background:
+    linear-gradient(135deg,#0F1F33 0%,#162A42 52%,#10334A 100%)!important;
+  border-bottom:1px solid rgba(1,149,175,.38)!important;
+  box-shadow:0 10px 28px rgba(15,23,42,.18), inset 0 1px 0 rgba(255,255,255,.05)!important;
+  position:relative!important;
+  z-index:100!important;
+}
+.topbar::after{
+  height:1px!important;
+  background:linear-gradient(90deg,transparent,rgba(34,211,238,.55),transparent)!important;
+  box-shadow:none!important;
+  opacity:.85!important;
+}
+.tb-brand{gap:11px!important;min-width:0!important;}
+.tb-logo{height:46px!important;}
+.tb-identity{gap:1px!important;min-width:0!important;}
+.tb-org,.tb-name{
+  font-size:13px!important;
+  font-weight:850!important;
+  letter-spacing:.01em!important;
+  color:rgba(255,255,255,.96)!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+.tb-div,.tb-sub{
+  font-size:9px!important;
+  color:rgba(180,229,240,.68)!important;
+  letter-spacing:.085em!important;
+  text-transform:uppercase!important;
+}
+.tb-vline,.tb-rule{
+  height:24px!important;
+  margin:0 2px!important;
+  background:linear-gradient(180deg,transparent,rgba(226,248,255,.18),transparent)!important;
+}
+.filter-chips{
+  max-width:460px!important;
+  gap:5px!important;
+}
+.fchip{
+  padding:4px 9px!important;
+  border-radius:999px!important;
+  font-size:9px!important;
+  color:rgba(226,248,255,.86)!important;
+  background:rgba(255,255,255,.075)!important;
+  border:1px solid rgba(226,248,255,.14)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06)!important;
+}
+.fchip.dim{
+  color:rgba(226,248,255,.40)!important;
+  background:rgba(255,255,255,.035)!important;
+  border-color:rgba(226,248,255,.08)!important;
+}
+.tb-btn{
+  height:34px!important;
+  padding:0 12px!important;
+  border-radius:13px!important;
+  font-size:10px!important;
+  font-weight:850!important;
+  color:rgba(248,254,255,.86)!important;
+  background:rgba(255,255,255,.075)!important;
+  border:1px solid rgba(226,248,255,.16)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07)!important;
+}
+.tb-btn:hover{
+  transform:translateY(-1px)!important;
+  color:#fff!important;
+  background:rgba(1,149,175,.20)!important;
+  border-color:rgba(34,211,238,.38)!important;
+  box-shadow:0 10px 24px rgba(1,149,175,.18), inset 0 1px 0 rgba(255,255,255,.10)!important;
+}
+.tb-btn.accent,
+#_saHubBtn,
+#_saEditTextBtn{
+  background:linear-gradient(135deg,rgba(1,149,175,.92),rgba(34,211,238,.72))!important;
+  border-color:rgba(226,248,255,.20)!important;
+  color:#fff!important;
+  box-shadow:0 10px 22px rgba(1,149,175,.22)!important;
+}
+#_saEditTextBtn{
+  height:30px!important;
+  padding:0 9px!important;
+  font-size:8.8px!important;
+  max-width:86px!important;
+}
+
+/* Navigation: clean soft pills instead of heavy underline feel */
+.tabnav{
+  min-height:46px!important;
+  padding:7px 22px!important;
+  gap:8px!important;
+  align-items:center!important;
+  background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(248,252,255,.92))!important;
+  border-bottom:1px solid rgba(14,116,144,.10)!important;
+  box-shadow:0 8px 22px rgba(15,23,42,.045)!important;
+}
+.tab{
+  padding:9px 14px!important;
+  border-radius:999px!important;
+  border:1px solid rgba(14,116,144,.10)!important;
+  border-bottom:1px solid rgba(14,116,144,.10)!important;
+  margin-bottom:0!important;
+  background:rgba(255,255,255,.62)!important;
+  color:rgba(51,65,85,.72)!important;
+  font-size:10px!important;
+  font-weight:850!important;
+  letter-spacing:.045em!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.70)!important;
+}
+.tab:hover{
+  color:#07596A!important;
+  background:rgba(226,248,255,.58)!important;
+  border-color:rgba(1,149,175,.20)!important;
+}
+.tab.on{
+  color:#07596A!important;
+  background:linear-gradient(135deg,rgba(226,248,255,.92),rgba(255,255,255,.82))!important;
+  border-color:rgba(1,149,175,.28)!important;
+  box-shadow:0 9px 20px rgba(1,149,175,.10), inset 0 1px 0 rgba(255,255,255,.78)!important;
+}
+.tab-badge{
+  background:#FEF2F2!important;
+  color:#B91C1C!important;
+  border:1px solid rgba(220,38,38,.14)!important;
+}
+
+/* Filter strip: lighter, compact, consistent with the refined header */
+.filter-strip{
+  padding:7px 22px!important;
+  gap:7px!important;
+  background:rgba(255,255,255,.92)!important;
+  border-bottom:1px solid rgba(14,116,144,.10)!important;
+  box-shadow:0 4px 14px rgba(15,23,42,.035)!important;
+}
+.fs-lbl{
+  font-size:7.2px!important;
+  color:rgba(51,65,85,.58)!important;
+}
+.fb,
+.fs-reset{
+  border-radius:999px!important;
+  border:1px solid rgba(14,116,144,.13)!important;
+  background:rgba(255,255,255,.72)!important;
+  color:rgba(51,65,85,.78)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.68)!important;
+}
+.fb:hover,.fs-reset:hover{
+  background:rgba(226,248,255,.54)!important;
+  border-color:rgba(1,149,175,.24)!important;
+  color:#07596A!important;
+}
+.fb.on{
+  background:linear-gradient(135deg,#0F1F33,#10334A)!important;
+  color:#fff!important;
+  border-color:rgba(1,149,175,.34)!important;
+  box-shadow:0 8px 18px rgba(15,31,51,.16)!important;
+}
+
+/* Keep account area compact inside this header version */
+.topbar .qumc-user-badge,
+.topbar .qumc-user-badge-modern{
+  height:34px!important;
+  min-height:34px!important;
+  min-width:142px!important;
+  max-width:158px!important;
+  border-radius:15px!important;
+}
+.topbar .qumc-alert-btn,
+.topbar .qumc-alert-btn-modern{
+  width:34px!important;
+  height:34px!important;
+  border-radius:15px!important;
+}
+
+@media(max-width:900px){
+  .topbar{height:auto!important;min-height:58px!important;flex-wrap:wrap!important;padding:9px 16px!important;}
+  .tabnav,.filter-strip{padding-left:16px!important;padding-right:16px!important;}
+  .filter-chips{max-width:100%!important;}
+}
