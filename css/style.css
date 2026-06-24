@@ -2405,3 +2405,50 @@ html[dir="rtl"] .footer-back-glass{
   .footbar .footbar-back-wrap{margin-inline-end:8px!important;margin-inline-start:0!important;}
   .footer-back-glass{height:32px!important;min-width:70px!important;padding:0 11px!important;font-size:10.5px!important;}
 }
+
+
+/* QUMC Restore Header — single rectangle nav/export + logo-matched topbar color */
+.topbar{
+  background:linear-gradient(135deg,#105090 0%,#155B93 52%,#0E6F8A 100%)!important;
+  border-bottom:1px solid rgba(34,211,238,.42)!important;
+}
+.topbar::after{
+  background:linear-gradient(90deg,transparent,rgba(34,211,238,.58),transparent)!important;
+}
+.tabnav.nav-export-combined{
+  display:flex!important;
+  flex-direction:row!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  flex-wrap:nowrap!important;
+  gap:22px!important;
+  overflow:visible!important;
+}
+.nav-export-combined .nav-tab-group{
+  flex:1 1 auto!important;
+  display:flex!important;
+  flex-direction:row!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  gap:6px!important;
+  min-width:0!important;
+}
+.nav-export-combined .nav-export-group{
+  flex:0 0 auto!important;
+  display:flex!important;
+  flex-direction:row!important;
+  align-items:center!important;
+  justify-content:flex-end!important;
+  gap:6px!important;
+  margin-left:auto!important;
+  white-space:nowrap!important;
+}
+.nav-export-combined .tab,
+.nav-export-combined .nav-export-btn{
+  border-radius:10px!important;
+}
+@media(max-width:900px){
+  .tabnav.nav-export-combined{overflow-x:auto!important;overflow-y:visible!important;}
+  .nav-export-combined .nav-tab-group{flex:1 0 auto!important;}
+  .nav-export-combined .nav-export-group{flex:0 0 auto!important;}
+}
