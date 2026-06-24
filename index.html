@@ -453,30 +453,30 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <tbody>
 <tr>
 <td>Q1<span id="eQ1Cur" style="display:none"></span></td>
-<td><input class="pci-pl" id="eAdQ1_pl" min="0" oninput="calcAdminPCI('q1','eAd')" placeholder="0" type="number"/></td>
-<td><input class="pci-co" id="eAdQ1_co" min="0" oninput="calcAdminPCI('q1','eAd')" placeholder="0" type="number"/></td>
-<td><input class="pci-ic" id="eAdQ1_ic" min="0" placeholder="—" readonly="" style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete" type="number"/></td>
+<td><input class="pci-pl" id="eAdQ1_pl" min="0" oninput="calcAdminPCI('q1','eAd')" placeholder="0" type="text" inputmode="decimal" autocomplete="off"/></td>
+<td><input class="pci-co" id="eAdQ1_co" min="0" oninput="calcAdminPCI('q1','eAd')" placeholder="0" type="text" inputmode="decimal" autocomplete="off"/></td>
+<td><input class="pci-ic" id="eAdQ1_ic" min="0" placeholder="—" readonly="" style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete" type="text" inputmode="decimal" autocomplete="off"/></td>
 <td><span class="pci-calc" id="eAdQ1_res">—</span></td>
 </tr>
 <tr>
 <td>Q2<span id="eQ2Cur" style="display:none"></span></td>
-<td><input class="pci-pl" id="eAdQ2_pl" min="0" oninput="calcAdminPCI('q2','eAd')" placeholder="0" type="number"/></td>
-<td><input class="pci-co" id="eAdQ2_co" min="0" oninput="calcAdminPCI('q2','eAd')" placeholder="0" type="number"/></td>
-<td><input class="pci-ic" id="eAdQ2_ic" min="0" placeholder="—" readonly="" style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete" type="number"/></td>
+<td><input class="pci-pl" id="eAdQ2_pl" min="0" oninput="calcAdminPCI('q2','eAd')" placeholder="0" type="text" inputmode="decimal" autocomplete="off"/></td>
+<td><input class="pci-co" id="eAdQ2_co" min="0" oninput="calcAdminPCI('q2','eAd')" placeholder="0" type="text" inputmode="decimal" autocomplete="off"/></td>
+<td><input class="pci-ic" id="eAdQ2_ic" min="0" placeholder="—" readonly="" style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete" type="text" inputmode="decimal" autocomplete="off"/></td>
 <td><span class="pci-calc" id="eAdQ2_res">—</span></td>
 </tr>
 <tr>
 <td>Q3<span id="eQ3Cur" style="display:none"></span></td>
-<td><input class="pci-pl" id="eAdQ3_pl" min="0" oninput="calcAdminPCI('q3','eAd')" placeholder="0" type="number"/></td>
-<td><input class="pci-co" id="eAdQ3_co" min="0" oninput="calcAdminPCI('q3','eAd')" placeholder="0" type="number"/></td>
-<td><input class="pci-ic" id="eAdQ3_ic" min="0" placeholder="—" readonly="" style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete" type="number"/></td>
+<td><input class="pci-pl" id="eAdQ3_pl" min="0" oninput="calcAdminPCI('q3','eAd')" placeholder="0" type="text" inputmode="decimal" autocomplete="off"/></td>
+<td><input class="pci-co" id="eAdQ3_co" min="0" oninput="calcAdminPCI('q3','eAd')" placeholder="0" type="text" inputmode="decimal" autocomplete="off"/></td>
+<td><input class="pci-ic" id="eAdQ3_ic" min="0" placeholder="—" readonly="" style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete" type="text" inputmode="decimal" autocomplete="off"/></td>
 <td><span class="pci-calc" id="eAdQ3_res">—</span></td>
 </tr>
 <tr>
 <td>Q4<span id="eQ4Cur" style="display:none"></span></td>
-<td><input class="pci-pl" id="eAdQ4_pl" min="0" oninput="calcAdminPCI('q4','eAd')" placeholder="0" type="number"/></td>
-<td><input class="pci-co" id="eAdQ4_co" min="0" oninput="calcAdminPCI('q4','eAd')" placeholder="0" type="number"/></td>
-<td><input class="pci-ic" id="eAdQ4_ic" min="0" placeholder="—" readonly="" style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete" type="number"/></td>
+<td><input class="pci-pl" id="eAdQ4_pl" min="0" oninput="calcAdminPCI('q4','eAd')" placeholder="0" type="text" inputmode="decimal" autocomplete="off"/></td>
+<td><input class="pci-co" id="eAdQ4_co" min="0" oninput="calcAdminPCI('q4','eAd')" placeholder="0" type="text" inputmode="decimal" autocomplete="off"/></td>
+<td><input class="pci-ic" id="eAdQ4_ic" min="0" placeholder="—" readonly="" style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete" type="text" inputmode="decimal" autocomplete="off"/></td>
 <td><span class="pci-calc" id="eAdQ4_res">—</span></td>
 </tr>
 </tbody>
@@ -564,10 +564,10 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <th style="color:#67E8F9;width:100px">Result</th>
 </tr></thead>
 <tbody>
-<tr><td>Q1</td><td><input class="pci-pl" id="aAdQ1_pl" min="0" oninput="calcAdminPCI('q1','aAd')" placeholder="0" type="number"/></td><td><input class="pci-co" id="aAdQ1_co" min="0" oninput="calcAdminPCI('q1','aAd')" placeholder="0" type="number"/></td><td><input class="pci-ic" id="aAdQ1_ic" min="0" placeholder="—" readonly="" style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete" type="number"/></td><td><span class="pci-calc" id="aAdQ1_res">—</span></td></tr>
-<tr><td>Q2</td><td><input class="pci-pl" id="aAdQ2_pl" min="0" oninput="calcAdminPCI('q2','aAd')" placeholder="0" type="number"/></td><td><input class="pci-co" id="aAdQ2_co" min="0" oninput="calcAdminPCI('q2','aAd')" placeholder="0" type="number"/></td><td><input class="pci-ic" id="aAdQ2_ic" min="0" placeholder="—" readonly="" style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete" type="number"/></td><td><span class="pci-calc" id="aAdQ2_res">—</span></td></tr>
-<tr><td>Q3</td><td><input class="pci-pl" id="aAdQ3_pl" min="0" oninput="calcAdminPCI('q3','aAd')" placeholder="0" type="number"/></td><td><input class="pci-co" id="aAdQ3_co" min="0" oninput="calcAdminPCI('q3','aAd')" placeholder="0" type="number"/></td><td><input class="pci-ic" id="aAdQ3_ic" min="0" placeholder="—" readonly="" style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete" type="number"/></td><td><span class="pci-calc" id="aAdQ3_res">—</span></td></tr>
-<tr><td>Q4</td><td><input class="pci-pl" id="aAdQ4_pl" min="0" oninput="calcAdminPCI('q4','aAd')" placeholder="0" type="number"/></td><td><input class="pci-co" id="aAdQ4_co" min="0" oninput="calcAdminPCI('q4','aAd')" placeholder="0" type="number"/></td><td><input class="pci-ic" id="aAdQ4_ic" min="0" placeholder="—" readonly="" style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete" type="number"/></td><td><span class="pci-calc" id="aAdQ4_res">—</span></td></tr>
+<tr><td>Q1</td><td><input class="pci-pl" id="aAdQ1_pl" min="0" oninput="calcAdminPCI('q1','aAd')" placeholder="0" type="text" inputmode="decimal" autocomplete="off"/></td><td><input class="pci-co" id="aAdQ1_co" min="0" oninput="calcAdminPCI('q1','aAd')" placeholder="0" type="text" inputmode="decimal" autocomplete="off"/></td><td><input class="pci-ic" id="aAdQ1_ic" min="0" placeholder="—" readonly="" style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete" type="text" inputmode="decimal" autocomplete="off"/></td><td><span class="pci-calc" id="aAdQ1_res">—</span></td></tr>
+<tr><td>Q2</td><td><input class="pci-pl" id="aAdQ2_pl" min="0" oninput="calcAdminPCI('q2','aAd')" placeholder="0" type="text" inputmode="decimal" autocomplete="off"/></td><td><input class="pci-co" id="aAdQ2_co" min="0" oninput="calcAdminPCI('q2','aAd')" placeholder="0" type="text" inputmode="decimal" autocomplete="off"/></td><td><input class="pci-ic" id="aAdQ2_ic" min="0" placeholder="—" readonly="" style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete" type="text" inputmode="decimal" autocomplete="off"/></td><td><span class="pci-calc" id="aAdQ2_res">—</span></td></tr>
+<tr><td>Q3</td><td><input class="pci-pl" id="aAdQ3_pl" min="0" oninput="calcAdminPCI('q3','aAd')" placeholder="0" type="text" inputmode="decimal" autocomplete="off"/></td><td><input class="pci-co" id="aAdQ3_co" min="0" oninput="calcAdminPCI('q3','aAd')" placeholder="0" type="text" inputmode="decimal" autocomplete="off"/></td><td><input class="pci-ic" id="aAdQ3_ic" min="0" placeholder="—" readonly="" style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete" type="text" inputmode="decimal" autocomplete="off"/></td><td><span class="pci-calc" id="aAdQ3_res">—</span></td></tr>
+<tr><td>Q4</td><td><input class="pci-pl" id="aAdQ4_pl" min="0" oninput="calcAdminPCI('q4','aAd')" placeholder="0" type="text" inputmode="decimal" autocomplete="off"/></td><td><input class="pci-co" id="aAdQ4_co" min="0" oninput="calcAdminPCI('q4','aAd')" placeholder="0" type="text" inputmode="decimal" autocomplete="off"/></td><td><input class="pci-ic" id="aAdQ4_ic" min="0" placeholder="—" readonly="" style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete" type="text" inputmode="decimal" autocomplete="off"/></td><td><span class="pci-calc" id="aAdQ4_res">—</span></td></tr>
 </tbody>
 </table>
 </div>
