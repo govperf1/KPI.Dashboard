@@ -816,7 +816,7 @@ function updateExecTrend(yr){
   'use strict';
 
   var REQ_TYPES_EN=['Add KPI','Edit KPI','Delete KPI','Report Issue','Access Request','General Request','Other'];
-  var REQ_TYPES_AR=['إضافة مؤشر','تعديل مؤشر','حذف مؤشر','بلاغ مشكلة','طلب وصول','طلب عام','أخرى'];
+  var REQ_TYPES_AR=['إضافة مؤشر','تعديل مؤشر','حذف مؤشر','إبلاغ عن مشكلة','طلب وصول','طلب عام','أخرى'];
 
   /* ── Inject "Submit Request" + "My Requests" buttons into profile dropdown ── */
   function _injectReqButtons(){

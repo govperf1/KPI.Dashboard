@@ -57,7 +57,7 @@ var DM ={
   projects:{en:'Project Management',ar:'إدارة المشاريع',abbr:'PMD',color:'#fbbf24'}
 };
 var TIERS ={
-  1:{en:'Patient Safety',ar:'سلامة المريض'},
+  1:{en:'Patient Safety',ar:'سلامة المرضى'},
   2:{en:'Regulatory',ar:'تنظيمي'},
   3:{en:'Operational',ar:'تشغيلي'}
 };
