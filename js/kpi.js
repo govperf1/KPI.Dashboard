@@ -53,7 +53,7 @@ var LOGO ='data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEU
 var DM ={
   maintenance:{en:'Maintenance',ar:'الصيانة',abbr:'MNT',color:'#60a5fa'},
   safety:{en:'Safety',ar:'السلامة',abbr:'SAF',color:'#f87171'},
-  housekeeping:{en:'Housekeeping',ar:'خدمات النظافة',abbr:'HK',color:'#34d399'},
+  housekeeping:{en:'Housekeeping',ar:'النظافة',abbr:'HK',color:'#34d399'},
   projects:{en:'Project Management',ar:'إدارة المشاريع',abbr:'PMD',color:'#fbbf24'}
 };
 var TIERS ={
@@ -1388,5 +1388,42 @@ window.addEventListener('storage', function(e){
   var _oldPersist=window.persistST||persistST;
   if(typeof _oldPersist==='function'){
     window.persistST=window.persistSTWrapper=persistST=function(reason){ _syncLastDataPeriod(); return _oldPersist.apply(this,arguments); };
+  }
+})();
+
+
+/* ==========================================================
+   QUMC AR/KPI NORMALIZATION — Arabic mode only where applicable.
+   - Department Arabic labels.
+   - Arabic KPI names for maintenance/core KPIs.
+   - Responsible person Arabic names by department.
+   ========================================================== */
+(function(){
+  var KPI_AR={
+    'Preventive Maintenance Compliance':'معدل الالتزام بالصيانة الوقائية',
+    'Corrective Maintenance Resolution Rate':'معدل إغلاق طلبات الصيانة التصحيحية',
+    'Fire Safety Compliance':'معدل الالتزام بالسلامة من الحريق',
+    'Emergency Drill Compliance':'معدل الالتزام بتمارين الطوارئ',
+    'Hazardous Waste Segregation Rate':'معدل الفصل الصحيح للنفايات الطبية الخطرة',
+    'Emergency Request Response Time':'الالتزام بوقت الاستجابة للطلبات الطارئة',
+    'Hygiene Standards Compliance':'معدل الالتزام بمعايير النظافة',
+    'Laundry Turnaround Time Compliance':'الالتزام بوقت دورة الغسيل',
+    'Schedule Performance Index':'مؤشر أداء الجدول الزمني'
+  };
+  var OWNER_AR={maintenance:'وليد الصريخ',projects:'سلمان الخضيري',housekeeping:'اسامه الغفيص',safety:'مشاري الصعب'};
+  var OWNER_EN={maintenance:'Waleed Alsuraykh',projects:'Salman Alkhodairi',housekeeping:'Osamah Algafes',safety:'Meshari Alsaab'};
+  window.qumcDeptOwner=function(dept){return (typeof lang!=='undefined'&&lang==='ar')?(OWNER_AR[dept]||'غير محدد'):(OWNER_EN[dept]||'Unassigned');};
+  function normalizeOne(k){
+    if(!k||typeof k!=='object')return k;
+    if(k.nameEn&&KPI_AR[k.nameEn]&&(!k.nameAr||/^[\x00-\x7F\s\-()/%]+$/.test(String(k.nameAr)))) k.nameAr=KPI_AR[k.nameEn];
+    if(k.dept==='maintenance'&&k.nameEn&&KPI_AR[k.nameEn]) k.nameAr=KPI_AR[k.nameEn];
+    return k;
+  }
+  try{ if(window.DM&&DM.housekeeping)DM.housekeeping.ar='النظافة'; }catch(_){ }
+  try{ if(Array.isArray(window.BASE))window.BASE.forEach(normalizeOne); }catch(_){ }
+  var oldAll=window.allK;
+  if(typeof oldAll==='function'){
+    window.allK=function(){ var arr=oldAll.apply(this,arguments)||[]; try{arr.forEach(normalizeOne);}catch(_){ } return arr; };
+    try{ allK=window.allK; }catch(_){ }
   }
 })();

@@ -1473,10 +1473,10 @@ function renderDept(){
     var statColor=function(val){return val===null?'#94A3B8':val>=tgt?'#16A34A':'#DC2626';};
     var _resultAvg=null;
     var stats=[
-      {l:'Result',v:(function(){_resultAvg=_ravg;return _resultAvg!==null?_resultAvg.toFixed(1)+'%':'—';}()),c:_resultAvg!==null?(_resultAvg>=tgt?'#16A34A':'#DC2626'):'#94A3B8'},
-      {l:'Target',v:(k.op==='='?'=':'\u2265')+tgt+'%',c:TEAL},
-      {l:'YoY',v:yoyDiff!==null?(yoyDiff>0?'\u25b2':yoyDiff<0?'\u25bc':'\u2014')+' '+Math.abs(yoyDiff).toFixed(1)+'%':'—',c:yoyDiff===null?'#94A3B8':yoyDiff>=0?'#16A34A':'#DC2626'},
-      {l:'Gap',v:gap!==null?gap.toFixed(1)+'%':'—',c:gap!==null?'#DC2626':'#94A3B8'}
+      {l:(lang==='ar'?'النتيجة':'Result'),v:(function(){_resultAvg=_ravg;return _resultAvg!==null?_resultAvg.toFixed(1)+'%':'—';}()),c:_resultAvg!==null?(_resultAvg>=tgt?'#16A34A':'#DC2626'):'#94A3B8'},
+      {l:(lang==='ar'?'الهدف':'Target'),v:(k.op==='='?'=':'\u2265')+tgt+'%',c:TEAL},
+      {l:(lang==='ar'?'مقارنة سنوية':'YoY'),v:yoyDiff!==null?(yoyDiff>0?'\u25b2':yoyDiff<0?'\u25bc':'\u2014')+' '+Math.abs(yoyDiff).toFixed(1)+'%':'—',c:yoyDiff===null?'#94A3B8':yoyDiff>=0?'#16A34A':'#DC2626'},
+      {l:(lang==='ar'?'الفجوة':'Gap'),v:gap!==null?gap.toFixed(1)+'%':'—',c:gap!==null?'#DC2626':'#94A3B8'}
     ];
     return '<div class="dept-kpi-uniform-card" style="background:#fff;border:1px solid '+(isMiss?'rgba(220,38,38,.22)':'#E2E8F0')+';border-radius:12px;overflow:hidden;box-shadow:0 1px 8px rgba(10,22,48,.06);display:flex;flex-direction:column;height:100%;min-height:310px;width:100%;max-width:420px">'
       +'<div style="padding:10px 14px 9px;border-bottom:1px solid #F0F4F8;display:flex;gap:10px">'
@@ -1485,7 +1485,7 @@ function renderDept(){
           +'<div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">'
             +'<span style="font-size:10px;font-weight:900;font-family:var(--mono);color:'+dC+'">'+k.id+'</span>'
             +'<span style="font-size:8px;font-weight:700;padding:2px 6px;border-radius:4px;background:'+(tier===1?'rgba(220,38,38,.10)':tier===2?'rgba(217,119,6,.10)':'rgba(1,149,175,.10)')+';color:'+(tier===1?'#DC2626':tier===2?'#D97706':TEAL)+'">T'+tier+'</span>'
-            +'<span style="margin-left:auto;font-size:9px;font-weight:700;padding:2px 8px;border-radius:12px;background:'+(isMet?'#ECFDF5':isMiss?'#FEF2F2':'#F8FAFC')+';color:'+(isMet?'#16A34A':isMiss?'#DC2626':'#94A3B8')+'">'+(isMet?'\u2713 Met':isMiss?'\u2717 Missed':'\u23f3')+'</span>'
+            +'<span style="margin-left:auto;font-size:9px;font-weight:700;padding:2px 8px;border-radius:12px;background:'+(isMet?'#ECFDF5':isMiss?'#FEF2F2':'#F8FAFC')+';color:'+(isMet?'#16A34A':isMiss?'#DC2626':'#94A3B8')+'">'+(isMet?(lang==='ar'?'✓ محقق':'\u2713 Met'):isMiss?(lang==='ar'?'✗ غير محقق':'\u2717 Missed'):'\u23f3')+'</span>'
           +'</div>'
           +'<div style="font-size:11.5px;font-weight:700;color:#152538;line-height:1.3">'+(lang==='ar'?k.nameAr:k.nameEn)+'</div>'
         +'</div>'
@@ -1603,17 +1603,17 @@ function renderDept(){
       +'</div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid #F0F4F8">'
         +'<div style="padding:14px 16px;border-right:1px solid #F0F4F8">'
-          +'<div style="font-size:8px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">KPI Achievement vs Target</div>'
+          +'<div style="font-size:8px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">'+(lang==='ar'?'تحقيق المؤشرات مقابل الهدف':'KPI Achievement vs Target')+'</div>'
           +'<div style="background:#FAFBFC;border:1px solid #E2E8F0;border-radius:8px;padding:8px 8px 4px"><div style="height:130px"><canvas id="'+cKB+'"></canvas></div></div>'
         +'</div>'
         +'<div style="padding:14px 16px">'
-          +'<div style="font-size:8px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">KPI Trends</div>'
+          +'<div style="font-size:8px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">'+(lang==='ar'?'اتجاهات المؤشرات':'KPI Trends')+'</div>'
           +trendHtml
         +'</div>'
       +'</div>'
       +(function(){
         /* Fixed-size KPI card layout: all departments use identical card size and start from the left, even with one KPI */
-        var _cardGrid='display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px;align-items:start;direction:ltr;width:100%';
+        var _cardGrid='display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:18px;align-items:start;direction:'+(lang==='ar'?'rtl':'ltr')+';width:100%;justify-items:'+(lang==='ar'?'end':'start');
         return '<div class="dept-kpi-card-grid" style="padding:14px;'+_cardGrid+'">'
           +groups.map(function(g){return mkCard(g.k25,g.k26,dept);}).join('')
         +'</div>';
@@ -1752,7 +1752,7 @@ function accTable(ks){
       <td style="color:var(--red);font-family:var(--mono);font-weight:700">-${gap}%</td>
       <td><span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span></td>
       <td>${rc>=2?`<span class="repeat-b">↩${rc}x</span>`:rc===1?`<span style="font-size:9px;color:var(--amber)">1x</span>`:'\u2014'}</td>
-      <td style="font-size:10.5px">${(()=>{const _ow={maintenance:lang==='ar'?'وليد السريخ':'Waleed Alsuraykh',safety:lang==='ar'?'مشاري السعب':'Meshari Alsaab',housekeeping:lang==='ar'?'أسامة القفص':'Osamah Algafes',projects:lang==='ar'?'سلمان الخضيري':'Salman Alkhodairi'};return (typeof DEPT_OWNERS!=='undefined'&&DEPT_OWNERS[k.dept])||ac.owner||gd.owner||gd.responsiblePerson||_ow[k.dept]||`<span style="color:var(--t3);font-size:9px">${lang==='ar'?'غير محدد':'Unassigned'}</span>`;})()}</td>
+      <td style="font-size:10.5px">${(()=>{const _ow={maintenance:lang==='ar'?'وليد الصريخ':'Waleed Alsuraykh',safety:lang==='ar'?'مشاري الصعب':'Meshari Alsaab',housekeeping:lang==='ar'?'اسامه الغفيص':'Osamah Algafes',projects:lang==='ar'?'سلمان الخضيري':'Salman Alkhodairi'};return (lang==='ar'?(_ow[k.dept]||ac.owner||gd.owner||gd.responsiblePerson):(ac.owner||gd.owner||gd.responsiblePerson||(typeof DEPT_OWNERS!=='undefined'&&DEPT_OWNERS[k.dept])||_ow[k.dept]))||`<span style="color:var(--t3);font-size:9px">${lang==='ar'?'غير محدد':'Unassigned'}</span>`;})()}</td>
       <td style="font-size:10.5px;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(lang==='ar'?gd.actAr:gd.actEn)||`<span style="color:var(--t3);font-size:9px">${lang==='ar'?'لم يدخل':'Not entered'}</span>`}</td>
       <td>${ac.priority?`<span style="font-size:9px;font-weight:700;color:${pc[ac.priority]||'var(--t3)'}">${pt[ac.priority]||ac.priority}</span>`:'\u2014'}</td>
       <td style="font-size:10px;font-family:var(--mono);color:${overdue?'var(--red)':'var(--t2)'}">${ac.dueDate||'\u2014'}${overdue?' ':''}</td>
@@ -1942,7 +1942,7 @@ function drilldept(d){
       if(fe&&fc){fe.textContent=_fmt(fc.exec);fe.style.color=_col(fc.exec);fe.style.cursor='pointer';fe.onclick=function(){window._showForecastDrilldown(fc);};}
       var cp=(typeof calcCurrentPerformanceBreakdown==='function')?calcCurrentPerformanceBreakdown({respectFilters:true}):null;
       var ce=document.getElementById('eis_current_perf');
-      if(ce&&cp){ce.textContent=_fmt(cp.exec);ce.style.color=_col(cp.exec);ce.style.cursor='pointer';ce.title=(lang==='ar'?'اضغط لعرض الأقسام':'Click for department breakdown');ce.onclick=function(){window._showCurrentPerformanceDrilldown(cp);};}
+      if(ce&&cp){ce.textContent=_fmt(cp.exec);ce.style.color=_col(cp.exec);ce.style.cursor='pointer';ce.title=(lang==='ar'?'اضغط لالأقسام':'Click for department breakdown');ce.onclick=function(){window._showCurrentPerformanceDrilldown(cp);};}
     }catch(e){console.warn('[QUMC enhance cards]',e);}
     if(typeof window.qumcApplyArabicUI==='function') window.qumcApplyArabicUI();
   }
@@ -1959,4 +1959,48 @@ function drilldept(d){
     }catch(_e){}
     return _oldMk.apply(this,[id,cfg]);
   };
+})();
+
+
+/* ==========================================================
+   QUMC ARABIC DASHBOARD POLISH — Arabic mode only.
+   - RTL department KPI card layout.
+   - Arabic chart legends/titles after every render.
+   - Header / executive labels sweep.
+   ========================================================== */
+(function(){
+  function ar(s){return (typeof window.qumcAr==='function')?window.qumcAr(s):s;}
+  function isAr(){return typeof lang!=='undefined'&&lang==='ar';}
+  function apply(){
+    if(!isAr())return;
+    try{ if(window.DM&&DM.housekeeping)DM.housekeeping.ar='النظافة'; }catch(_){ }
+    try{
+      var dg=document.getElementById('deptGrid');
+      if(dg){dg.dir='rtl';dg.style.textAlign='right';}
+      document.querySelectorAll('#page-dept .dept-kpi-card-grid').forEach(function(g){g.style.direction='rtl';g.style.justifyItems='end';});
+      document.querySelectorAll('#page-dept .dept-kpi-uniform-card').forEach(function(c){c.dir='rtl';c.style.textAlign='right';});
+      document.querySelectorAll('#page-dept .ch,#page-exec .ch,#page-exec .ch-r,#page-dept .ch-r').forEach(function(el){el.textContent=ar(el.textContent);});
+      document.querySelectorAll('#page-dept [style*="text-transform:uppercase"],#page-exec [style*="text-transform:uppercase"]').forEach(function(el){el.textContent=ar(el.textContent);});
+      document.querySelectorAll('#page-dept span,#page-dept div,#page-exec span,#page-exec div').forEach(function(el){
+        if(el.children&&el.children.length>0)return;
+        var b=el.textContent, a=ar(b); if(a!==b)el.textContent=a;
+      });
+    }catch(e){console.warn('[Arabic dashboard polish]',e);}
+  }
+  var oldMk=window.mkChart||mkChart;
+  window.mkChart=mkChart=function(id,cfg){
+    try{
+      if(isAr()&&cfg&&cfg.data){
+        cfg=JSON.parse(JSON.stringify(cfg));
+        var m={'Met':'محقق','Missed':'غير محقق','Target':'الهدف','Result':'النتيجة','Result (2025)':'النتيجة (2025)','Result (2026)':'النتيجة (2026)','Performance':'الأداء','Actual':'الفعلي','Gap':'الفجوة'};
+        if(Array.isArray(cfg.data.datasets))cfg.data.datasets.forEach(function(ds){if(ds&&ds.label){ds.label=m[ds.label]||ar(ds.label);}});
+        if(Array.isArray(cfg.data.labels))cfg.data.labels=cfg.data.labels.map(function(x){return ar(x);});
+      }
+    }catch(_){ }
+    return oldMk.apply(this,[id,cfg]);
+  };
+  ['renderExec','renderDept','renderRegistry','renderAcc'].forEach(function(fn){
+    var old=window[fn]; if(typeof old==='function')window[fn]=eval(fn+'=function(){var r=old.apply(this,arguments);setTimeout(apply,80);setTimeout(apply,350);return r;}');
+  });
+  setTimeout(apply,500);
 })();

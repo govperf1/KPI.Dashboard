@@ -1935,3 +1935,45 @@ async function importSnapshot(){
   var oldRender=window.renderReport;
   window.renderReport=function(){ if(typeof lang!=='undefined'&&lang==='ar') return window.renderReportArabic(); return oldRender?oldRender.apply(this,arguments):undefined; };
 })();
+
+
+/* ==========================================================
+   QUMC ARABIC REPORT VISUALS — Arabic report keeps the same visual layer.
+   English report remains untouched.
+   ========================================================== */
+(function(){
+  function isAr(){return typeof lang!=='undefined'&&lang==='ar';}
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+  function kname(k){return (k&&(k.nameAr||k.nameEn||k.name||k.id))||'';}
+  function addArabicCharts(){
+    if(!isAr())return;
+    var doc=document.getElementById('rptDocument'); if(!doc||document.getElementById('rptArCharts'))return;
+    var ksBase=(typeof allK==='function'?allK():[]);
+    var ksAll=ksBase.filter(function(k){return !F||F.year==='all'||String(k.yr)===String(F.year);});
+    var ksDept=window._rptDept?ksAll.filter(function(k){return k.dept===window._rptDept;}):ksAll;
+    var ks=window._rptKpi?ksDept.filter(function(k){return k.id===window._rptKpi;}):ksDept;
+    function qAvg(q){var v=ks.map(function(k){return k[q];}).filter(function(x){return x!==null&&x!==undefined&&isFinite(x);});return v.length?+(v.reduce(function(a,b){return a+b;},0)/v.length).toFixed(1):null;}
+    var met=ks.filter(function(k){return ok(k)===true;}).length, miss=ks.filter(function(k){return ok(k)===false;}).length, pending=ks.filter(function(k){return ok(k)===null;}).length;
+    var target=ks.length?Math.round(ks.reduce(function(a,k){return a+(Number(k.target)||0);},0)/ks.length):0;
+    var qvls=[qAvg('q1'),qAvg('q2'),qAvg('q3'),qAvg('q4')];
+    var block=document.createElement('div'); block.id='rptArCharts'; block.dir='rtl';
+    block.innerHTML='<div style="margin:24px 0;page-break-inside:avoid"><div style="display:flex;align-items:center;gap:10px;margin:24px 0 13px"><div style="width:4px;height:22px;background:linear-gradient(180deg,#0195af,#007A96);border-radius:2px"></div><h2 style="font-size:14px;font-weight:900;color:#152538;margin:0">الرسوم البيانية وتحليل الأداء</h2></div>'+ 
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px"><div style="border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#FAFBFC"><div style="font-size:11px;font-weight:900;color:#152538;margin-bottom:10px">النتيجة مقابل الهدف</div><div style="height:210px"><canvas id="rptArBar"></canvas></div></div><div style="border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#FAFBFC"><div style="font-size:11px;font-weight:900;color:#152538;margin-bottom:10px">توزيع حالة المؤشرات</div><div style="height:210px"><canvas id="rptArDonut"></canvas></div></div></div>'+ 
+      '<div style="border:1px solid #E2E8F0;border-radius:12px;padding:14px;background:#FAFBFC"><div style="font-size:11px;font-weight:900;color:#152538;margin-bottom:10px">اتجاه الأداء الربعي</div><div style="height:220px"><canvas id="rptArLine"></canvas></div></div></div>';
+    var host=doc.querySelector('div[style*="padding:30px 38px"]')||doc.lastElementChild||doc;
+    var ref=Array.prototype.find.call(host.children,function(ch){return /الهدف مقابل الأداء الفعلي/.test(ch.textContent||'');});
+    if(ref&&ref.nextSibling)host.insertBefore(block,ref.nextSibling);else host.appendChild(block);
+    setTimeout(function(){try{
+      if(typeof Chart==='undefined')return;
+      var qlabels=['Q1','Q2','Q3','Q4'];
+      var bar=document.getElementById('rptArBar'), line=document.getElementById('rptArLine'), donut=document.getElementById('rptArDonut');
+      if(bar)new Chart(bar,{type:'bar',data:{labels:qlabels,datasets:[{label:'النتيجة',data:qvls,backgroundColor:qvls.map(function(v){return v===null?'#E2E8F0':v>=target?'#86EFAC':'#FCA5A5';}),borderRadius:8},{type:'line',label:'الهدف',data:[target,target,target,target],borderColor:'#0195af',borderDash:[6,4],pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{y:{min:0,max:105,ticks:{callback:function(v){return v+'%';}}}}}});
+      if(line)new Chart(line,{type:'line',data:{labels:qlabels,datasets:[{label:'الأداء الربعي',data:qvls,borderColor:'#152538',backgroundColor:'rgba(1,149,175,.10)',fill:true,tension:.35,pointRadius:4},{label:'الهدف',data:[target,target,target,target],borderColor:'#0195af',borderDash:[6,4],pointRadius:0,fill:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{y:{min:0,max:105,ticks:{callback:function(v){return v+'%';}}}}}});
+      if(donut)new Chart(donut,{type:'doughnut',data:{labels:['محقق','غير محقق','قيد المتابعة'],datasets:[{data:[met,miss,pending],backgroundColor:['#22C55E','#EF4444','#CBD5E1'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}}}});
+    }catch(e){console.warn('[Arabic report charts]',e);}},120);
+  }
+  var old=window.renderReportArabic;
+  if(typeof old==='function')window.renderReportArabic=function(){var r=old.apply(this,arguments);setTimeout(addArabicCharts,150);return r;};
+  var oldRender=window.renderReport;
+  if(typeof oldRender==='function')window.renderReport=function(){var r=oldRender.apply(this,arguments);if(isAr())setTimeout(addArabicCharts,150);return r;};
+})();

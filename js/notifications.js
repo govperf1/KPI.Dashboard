@@ -1265,3 +1265,31 @@ function updateExecTrend(yr){
   setInterval(function(){try{window.renderNotifications();}catch(_e){}},2500);
   setTimeout(function(){try{window.renderNotifications();}catch(_e){}},300);
 })();
+
+
+/* ==========================================================
+   QUMC NOTIFICATION BADGE STABILITY — final guard.
+   Badge stays visible when notification history exists; other refreshes cannot hide it.
+   ========================================================== */
+(function(){
+  function $(id){return document.getElementById(id);} 
+  function emailKey(){var e=String(window._fbUser||window._fbEmail||window.currentUserEmail||'').toLowerCase().trim();try{if(!e)e=String(sessionStorage.getItem('qumc_user_email')||localStorage.getItem('qumc_user_email')||'').toLowerCase().trim();}catch(_){}return e||'guest';}
+  function readJson(k){try{var a=JSON.parse(localStorage.getItem(k)||'[]');return Array.isArray(a)?a:[];}catch(_){return[];}}
+  function hist(){
+    var keys=['qumc_notifications_history_stable_'+emailKey(),'qumc_notifications_history_v4_'+emailKey()];
+    var out=[]; keys.forEach(function(k){out=out.concat(readJson(k));});
+    var by={}; out.forEach(function(n){if(n&&n.id)by[n.id]=n;});
+    return Object.keys(by).map(function(id){return by[id];});
+  }
+  function enforce(){
+    var c=$('userAlertCount'); if(!c)return;
+    var h=hist();
+    var n=h.length;
+    if(n>0){c.textContent=String(n);c.style.display='flex';c.style.visibility='visible';c.style.opacity='1';}
+  }
+  var oldRender=window.renderNotifications;
+  if(typeof oldRender==='function')window.renderNotifications=function(){var r=oldRender.apply(this,arguments);setTimeout(enforce,30);return r;};
+  var oldUpdate=window.updateAlertUI;
+  if(typeof oldUpdate==='function')window.updateAlertUI=function(){var r=oldUpdate.apply(this,arguments);setTimeout(enforce,30);return r;};
+  setInterval(enforce,1000);setTimeout(enforce,500);setTimeout(enforce,2000);
+})();

@@ -13,14 +13,14 @@ var TR = {
   'dept': { en: 'Dept', ar: 'القسم' },
   'maintenance': { en: 'Maintenance', ar: 'الصيانة' },
   'safety': { en: 'Safety', ar: 'السلامة' },
-  'housekeeping': { en: 'Housekeeping', ar: 'خدمات الفندقة والنظافة' },
+  'housekeeping': { en: 'Housekeeping', ar: 'النظافة' },
   'project_management': { en: 'Project Management', ar: 'إدارة المشاريع' },
   'status': { en: 'Status', ar: 'الحالة' },
   'met': { en: 'Met', ar: 'محقق' },
   'missed': { en: 'Missed', ar: 'غير محقق' },
   'reset': { en: '↺ Reset', ar: '↺ إعادة الضبط' },
   'executive_command': { en: 'Executive Command', ar: 'لوحة القيادة التنفيذية' },
-  'departments': { en: 'Departments', ar: 'عرض الأقسام' },
+  'departments': { en: 'Departments', ar: 'الأقسام' },
   'kpi_register': { en: 'KPI Register', ar: 'سجل المؤشرات' },
   'accountability': { en: 'Accountability', ar: 'المساءلة والمتابعة' },
   'kpi_performance_command_center': { en: 'KPI Performance Command Center', ar: 'مركز قيادة مؤشرات الأداء' },
@@ -87,7 +87,7 @@ var TR = {
   'dept_performance': { en: 'Department Performance', ar: 'أداء الأقسام' },
   'kpi_name_col': { en: 'KPI Name', ar: 'اسم المؤشر' },
   'risk_col': { en: 'Risk', ar: 'المخاطر' },
-  'yoy_col': { en: 'YoY', ar: 'سنوي' },
+  'yoy_col': { en: 'YoY', ar: 'مقارنة سنوية' },
   'avg_col': { en: 'Avg', ar: 'المتوسط' },
   'code_col': { en: 'Code', ar: 'الرمز' },
   'on_track_label': { en: 'ON TRACK', ar: 'في المسار' },
@@ -363,7 +363,7 @@ if (typeof resetFilters === 'function') window.resetFilters = resetFilters;
     'Dept':'القسم','Department':'القسم','Status':'الحالة','All':'الكل','Met':'محقق','Missed':'غير محقق','Pending':'قيد المتابعة','Reset':'إعادة الضبط','↺ Reset':'↺ إعادة الضبط',
     'Total':'الإجمالي','KPI Indicators':'مؤشرات الأداء','View all →':'عرض الكل ←','evaluated':'تم تقييمها','Target achieved':'تم تحقيق الهدف','Need attention':'بحاجة إلى متابعة','Critical':'حرج','Tier 1 escalations':'تصعيدات المستوى الأول',
     'Current Performance':'الأداء الحالي','Forecast YE':'التوقع السنوي','Selected period average':'متوسط الفترة المحددة','Expected year-end':'التوقع لنهاية السنة','Department Forecasts':'توقعات الأقسام','Overall Executive Forecast':'التوقع التنفيذي العام',
-    'KPI':'المؤشر','KPI Name':'اسم المؤشر','Code':'الرمز','Target':'الهدف','Result':'النتيجة','Achievement':'التحقيق','Avg':'المتوسط','Average':'المتوسط','YoY':'مقارنة سنوية','Risk':'المخاطر','Risk Tier':'مستوى المخاطر','Trend':'الاتجاه','Last Result':'آخر نتيجة','Owner':'المسؤول','KPI Owner':'مسؤول المؤشر',
+    'KPI':'المؤشر','KPI Name':'اسم المؤشر','Code':'الرمز','Target':'الهدف','Result':'النتيجة','Achievement':'المحقق','Avg':'المتوسط','Average':'المتوسط','YoY':'مقارنة سنوية','Risk':'المخاطر','Risk Tier':'مستوى المخاطر','Trend':'الاتجاه','Last Result':'آخر نتيجة','Owner':'المسؤول','KPI Owner':'مسؤول المؤشر',
     'Target:':'الهدف:','Result:':'النتيجة:','Performance':'الأداء','Filters':'الفلاتر','Overview':'نظرة عامة','Executive Intelligence':'التحليل التنفيذي','Department Performance':'أداء الأقسام','Detailed KPI Performance Cards':'بطاقات أداء المؤشرات التفصيلية','DETAILED KPI PERFORMANCE CARDS':'بطاقات أداء المؤشرات التفصيلية',
     'Repeat Misses':'الإخفاقات المتكررة','Last Updated':'آخر تحديث','Top Risk':'أعلى خطر','Recommended Action':'الإجراء الموصى به','Critical Escalations':'تصعيدات حرجة','Gap Analysis Open':'تحليل فجوات مفتوح','At-Risk KPIs':'مؤشرات معرضة للخطر','Priority Department':'القسم ذو الأولوية','Biggest Gap':'أكبر فجوة',
     'ON TRACK':'في المسار','CRITICAL ATTENTION REQUIRED':'يتطلب انتباهاً عاجلاً','ATTENTION REQUIRED':'مطلوب الانتباه','NEEDS IMPROVEMENT':'يحتاج تحسيناً','All documented':'موثق بالكامل','Insufficient data':'بيانات غير كافية',
@@ -404,4 +404,61 @@ if (typeof resetFilters === 'function') window.resetFilters = resetFilters;
     window.renderCurrent=function(){var r=old.apply(this,arguments);setTimeout(function(){apply(document.body);},100);return r;};
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){apply(document.body);},200);});else setTimeout(function(){apply(document.body);},200);
+})();
+
+
+/* ==========================================================
+   QUMC ARABIC POLISH — Arabic mode only. English is untouched.
+   - Translates static dashboard labels, chart titles, header actions.
+   - Does not translate form inputs or KPI name editable fields.
+   ========================================================== */
+(function(){
+  var AR_MAP={
+    'Housekeeping':'النظافة','خدمات النظافة':'النظافة','خدمات الفندقة والنظافة':'النظافة',
+    'Executive Command':'لوحة القيادة التنفيذية','Executive Intelligence':'التحليل التنفيذي','Departments':'الأقسام','Department':'القسم','KPI Register':'سجل المؤشرات','Accountability':'المساءلة والمتابعة','Reports':'التقارير','Dashboard':'لوحة القيادة',
+    'Excel':'إكسل','Report':'التقرير','Export':'تصدير','Export ▾':'تصدير ▾','Select Page to Export':'اختر الصفحة للتصدير','All Pages':'كل الصفحات','Export to PDF':'تصدير إلى PDF','Page to Export':'الصفحة المراد تصديرها','Download PDF':'تحميل PDF','Cancel':'إلغاء',
+    'Year':'السنة','Quarters':'الأرباع','Dept':'القسم','Status':'الحالة','All':'الكل','Met':'محقق','Missed':'غير محقق','Pending':'قيد المتابعة','Reset':'إعادة الضبط','↺ Reset':'↺ إعادة الضبط',
+    'Total':'الإجمالي','TOTAL':'الإجمالي','KPI Indicators':'مؤشرات الأداء','KPIs':'مؤشرات','View all →':'عرض الكل ←','evaluated':'تم تقييمها','evaluated 22':'تم تقييمها 22',
+    'Current Performance':'الأداء الحالي','Forecast YE':'التوقع السنوي','Selected period average':'متوسط الفترة المحددة','Expected year-end':'التوقع لنهاية السنة','Department Forecasts':'توقعات الأقسام','Overall Executive Forecast':'التوقع التنفيذي العام',
+    'Annual avg vs prior year':'المتوسط السنوي مقارنة بالسنة السابقة','Annual Average vs Prior Year':'المتوسط السنوي مقارنة بالسنة السابقة','Below target':'أقل من الهدف','Success rate':'معدل النجاح','Gap rate':'معدل الفجوة',
+    'KPI':'المؤشر','KPI Name':'اسم المؤشر','Code':'الرمز','Target':'الهدف','Result':'النتيجة','Achievement':'المحقق','Avg':'المتوسط','Average':'المتوسط','YoY':'مقارنة سنوية','Risk':'المخاطر','Risk Tier':'مستوى المخاطر','Trend':'الاتجاه','Last Result':'آخر نتيجة','Owner':'المسؤول','KPI Owner':'مسؤول المؤشر',
+    'KPI Achievement vs Target':'تحقيق المؤشرات مقابل الهدف','KPI ACHIEVEMENT VS TARGET':'تحقيق المؤشرات مقابل الهدف','KPI Trends':'اتجاهات المؤشرات','KPI TRENDS':'اتجاهات المؤشرات','KPI Trend Analysis':'تحليل اتجاه المؤشرات','Quarterly Achievement':'الإنجاز الربعي','Quarterly Trend by Department':'الاتجاه الربعي حسب القسم','Risk Tiers':'مستويات المخاطر',
+    'Detailed KPI Performance Cards':'بطاقات أداء المؤشرات التفصيلية','DETAILED KPI PERFORMANCE CARDS':'بطاقات أداء المؤشرات التفصيلية','Summary':'الملخص','Critical Risks':'المخاطر الحرجة','Recommendations':'التوصيات','Last Updated':'آخر تحديث',
+    'Target achieved':'تم تحقيق الهدف','Need attention':'بحاجة إلى متابعة','Critical':'حرج','Tier 1 escalations':'تصعيدات المستوى الأول','At-Risk KPIs':'مؤشرات معرضة للخطر','Priority Department':'القسم ذو الأولوية','Biggest Gap':'أكبر فجوة','Repeat Misses':'الإخفاقات المتكررة',
+    'ON TRACK':'في المسار','CRITICAL ATTENTION REQUIRED':'يتطلب انتباهاً عاجلاً','ATTENTION REQUIRED':'مطلوب الانتباه','NEEDS IMPROVEMENT':'يحتاج تحسيناً','All documented':'موثق بالكامل','Insufficient data':'بيانات غير كافية','No data':'لا توجد بيانات',
+    'Maintenance':'الصيانة','Safety':'السلامة','Project Management':'إدارة المشاريع','Projects':'إدارة المشاريع',
+    'Preventive Maintenance Compliance':'معدل الالتزام بالصيانة الوقائية','Corrective Maintenance Resolution Rate':'معدل إغلاق طلبات الصيانة التصحيحية',
+    'Fire Safety Compliance':'معدل الالتزام بالسلامة من الحريق','Emergency Drill Compliance':'معدل الالتزام بتمارين الطوارئ','Hazardous Waste Segregation Rate':'معدل الفصل الصحيح للنفايات الطبية الخطرة','Emergency Request Response Time':'الالتزام بوقت الاستجابة للطلبات الطارئة','Hygiene Standards Compliance':'معدل الالتزام بمعايير النظافة','Laundry Turnaround Time Compliance':'الالتزام بوقت دورة الغسيل','Schedule Performance Index':'مؤشر أداء الجدول الزمني',
+    'Responsible Person':'الشخص المسؤول','Action':'الإجراء','Priority':'الأولوية','Due Date':'تاريخ الاستحقاق','Root Cause':'السبب الجذري','Corrective Action':'الإجراء التصحيحي','Open':'مفتوح','In Prog':'جاري','Done':'مكتمل','Details':'تفاصيل'
+  };
+  function escRe(s){return String(s).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+  window.qumcAr=function(s){
+    if(s==null)return s; var out=String(s);
+    if(AR_MAP[out.trim()]) return AR_MAP[out.trim()];
+    Object.keys(AR_MAP).sort(function(a,b){return b.length-a.length;}).forEach(function(k){ if(k.length>2) out=out.replace(new RegExp(escRe(k),'g'),AR_MAP[k]); });
+    return out;
+  };
+  function skip(el){
+    if(!el)return true; var tag=(el.tagName||'').toLowerCase();
+    if(['script','style','textarea','input','select','option','canvas','svg','path'].indexOf(tag)>=0)return true;
+    if(el.closest&&el.closest('.kpi-name,[data-kpi-name],.rpt-ep,#aiMsgs,#aiInp,[contenteditable="true"]'))return true;
+    return false;
+  }
+  function apply(root){
+    if(typeof lang==='undefined'||lang!=='ar')return; root=root||document.body; if(!root)return;
+    try{document.documentElement.dir='rtl'; var rt=document.getElementById('root'); if(rt)rt.dir='rtl';}catch(_){ }
+    root.querySelectorAll('[data-ar]').forEach(function(el){ if(skip(el))return; var ar=el.getAttribute('data-ar'); if(ar)el.textContent=ar; });
+    var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:function(n){return skip(n.parentElement)?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;}});
+    var arr=[],n; while((n=walker.nextNode()))arr.push(n);
+    arr.forEach(function(node){ var before=node.nodeValue; var after=window.qumcAr(before); if(after!==before)node.nodeValue=after; });
+    // Header action buttons and export menu, without touching English mode.
+    document.querySelectorAll('button,.export-menu-item,.tab span,.ch,.ch-r').forEach(function(el){ if(skip(el))return; var before=el.textContent; var after=window.qumcAr(before); if(after!==before)el.textContent=after; });
+    var deptF=document.getElementById('deptF'); if(deptF){ Array.prototype.forEach.call(deptF.options,function(o){ if(o.value==='housekeeping')o.textContent='النظافة'; }); }
+  }
+  window.qumcApplyArabicUI=apply;
+  var prev=window.applyDOMTranslations;
+  window.applyDOMTranslations=function(){ if(prev)prev.apply(this,arguments); setTimeout(function(){apply(document.body);},0); setTimeout(function(){apply(document.body);},100); };
+  var oldToggle=window.toggleLang;
+  if(typeof oldToggle==='function')window.toggleLang=function(){ var r=oldToggle.apply(this,arguments); setTimeout(function(){apply(document.body);},80); setTimeout(function(){apply(document.body);},350); return r; };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){apply(document.body);},300);}); else setTimeout(function(){apply(document.body);},300);
 })();
