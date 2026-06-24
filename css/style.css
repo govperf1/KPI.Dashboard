@@ -1656,3 +1656,196 @@ html[dir="rtl"] #saHubOv{text-align:right!important;}
   #saHubOv{padding:14px!important;}
   #saHubOv > div{padding:22px 18px!important;border-radius:22px!important;}
 }
+
+/* ─────────────────────────────────────────────────────────────
+   QUMC SUPER ADMIN HUB SUB-SECTIONS — match Submit a Request
+   Applies the same light glass style to the three panels opened
+   from Super Admin Hub: User Requests, KPI Management, Dashboard
+   Text Editor. Visual only; no logic/permissions changed.
+   ───────────────────────────────────────────────────────────── */
+#saReqOv,
+#kpiMgmtOv,
+#saTextEdOv{
+  background:
+    radial-gradient(circle at top left,rgba(34,211,238,.18),transparent 34%),
+    radial-gradient(circle at bottom right,rgba(74,222,128,.11),transparent 34%),
+    rgba(15,23,42,.34)!important;
+  backdrop-filter:blur(14px) saturate(150%)!important;
+  -webkit-backdrop-filter:blur(14px) saturate(150%)!important;
+}
+
+#saReqOv > div,
+#kpiMgmtOv > div,
+#saTextEdOv > div,
+#saTextEdOv > div:first-child{
+  background:linear-gradient(145deg,rgba(248,252,255,.88),rgba(226,248,255,.72))!important;
+  border:1px solid rgba(255,255,255,.62)!important;
+  color:#0F172A!important;
+  box-shadow:0 28px 90px rgba(15,23,42,.24), inset 0 1px 0 rgba(255,255,255,.72)!important;
+  backdrop-filter:blur(22px) saturate(150%)!important;
+  -webkit-backdrop-filter:blur(22px) saturate(150%)!important;
+  position:relative!important;
+  overflow:hidden!important;
+}
+
+#saReqOv > div::before,
+#kpiMgmtOv > div::before,
+#saTextEdOv > div::before{
+  content:''!important;
+  position:absolute!important;
+  inset:0!important;
+  pointer-events:none!important;
+  background:radial-gradient(circle at 18% 0%,rgba(1,149,175,.13),transparent 34%),linear-gradient(120deg,rgba(255,255,255,.34),transparent 45%)!important;
+  z-index:0!important;
+}
+#saReqOv > div > *,
+#kpiMgmtOv > div > *,
+#saTextEdOv > div > *{position:relative!important;z-index:1!important;}
+
+/* Convert old dark inline text colors to readable light-glass colors */
+#saReqOv [style*="color:#e2e8f0"],
+#saReqOv [style*="color: #e2e8f0"],
+#kpiMgmtOv [style*="color:#e2e8f0"],
+#kpiMgmtOv [style*="color: #e2e8f0"],
+#saTextEdOv [style*="color:#e2e8f0"],
+#saTextEdOv [style*="color: #e2e8f0"]{color:#0F172A!important;}
+
+#saReqOv [style*="color:#64748b"],
+#saReqOv [style*="color: #64748b"],
+#saReqOv [style*="color:#94a3b8"],
+#saReqOv [style*="color: #94a3b8"],
+#kpiMgmtOv [style*="color:#64748b"],
+#kpiMgmtOv [style*="color: #64748b"],
+#kpiMgmtOv [style*="color:#94a3b8"],
+#kpiMgmtOv [style*="color: #94a3b8"],
+#saTextEdOv [style*="color:#64748b"],
+#saTextEdOv [style*="color: #64748b"],
+#saTextEdOv [style*="color:#94a3b8"],
+#saTextEdOv [style*="color: #94a3b8"]{color:rgba(51,65,85,.74)!important;}
+
+/* Headers inside the three SA panels */
+#saReqOv > div > div:first-child,
+#kpiMgmtOv > div > div:first-child,
+#saTextEdOv > div:first-child{
+  background:rgba(255,255,255,.38)!important;
+  border-bottom:1px solid rgba(14,116,144,.12)!important;
+  border-radius:18px!important;
+  padding:14px 16px!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.68)!important;
+}
+
+/* Controls: buttons, selects, inputs, textareas */
+#saReqOv button,
+#kpiMgmtOv button,
+#saTextEdOv button,
+#kpiMgmtOv select,
+#kpiMgmtOv input,
+#kpiMgmtOv textarea,
+#saReqOv textarea,
+#saReqOv input,
+#saTextEdOv input,
+#saTextEdOv textarea{
+  background:rgba(255,255,255,.78)!important;
+  color:#0F172A!important;
+  border:1px solid rgba(14,116,144,.16)!important;
+  border-radius:14px!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.78),0 8px 20px rgba(15,23,42,.06)!important;
+}
+#saReqOv button:hover,
+#kpiMgmtOv button:hover,
+#saTextEdOv button:hover{
+  transform:translateY(-1px)!important;
+  background:linear-gradient(135deg,rgba(255,255,255,.90),rgba(34,211,238,.18))!important;
+  border-color:rgba(1,149,175,.36)!important;
+}
+#kpiMgmtOv select option{background:#FFFFFF!important;color:#0F172A!important;}
+#kpiMgmtOv select:focus,
+#kpiMgmtOv input:focus,
+#kpiMgmtOv textarea:focus,
+#saReqOv textarea:focus,
+#saTextEdOv input:focus,
+#saTextEdOv textarea:focus{
+  border-color:rgba(1,149,175,.56)!important;
+  box-shadow:0 0 0 4px rgba(1,149,175,.12), inset 0 1px 0 rgba(255,255,255,.74)!important;
+  outline:none!important;
+}
+
+/* User Requests table/list inside SA panel */
+#saReqBody{
+  background:rgba(255,255,255,.48)!important;
+  border:1px solid rgba(14,116,144,.12)!important;
+  border-radius:18px!important;
+  color:#0F172A!important;
+}
+#saReqBody table{
+  background:rgba(255,255,255,.42)!important;
+  border-radius:18px!important;
+  overflow:hidden!important;
+  border-collapse:separate!important;
+  border-spacing:0!important;
+}
+#saReqBody thead tr{background:rgba(255,255,255,.54)!important;border-bottom:1px solid rgba(14,116,144,.12)!important;}
+#saReqBody th{color:rgba(51,65,85,.78)!important;}
+#saReqBody td{color:#0F172A!important;border-bottom:1px solid rgba(14,116,144,.08)!important;}
+#saReqBody tr:hover td{background:rgba(226,248,255,.42)!important;}
+
+/* KPI Management content cards */
+#kpiMgmtConfig,
+#kpiMgmtConfig > div,
+#kpiMgmtOv .admin-section,
+#kpiMgmtOv .card,
+#kpiMgmtOv .glass-card{
+  background:rgba(255,255,255,.52)!important;
+  border:1px solid rgba(14,116,144,.13)!important;
+  border-radius:18px!important;
+  color:#0F172A!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.70),0 10px 26px rgba(15,23,42,.07)!important;
+}
+
+/* Dashboard Text Editor panel */
+#saTextEdOv > div:nth-child(2),
+#saTextEdOv [style*="overflow"]{
+  background:rgba(255,255,255,.48)!important;
+  border:1px solid rgba(14,116,144,.12)!important;
+  color:#0F172A!important;
+}
+#saTextEdOv table{
+  background:rgba(255,255,255,.44)!important;
+  border:1px solid rgba(14,116,144,.10)!important;
+  border-radius:18px!important;
+  overflow:hidden!important;
+  border-collapse:separate!important;
+  border-spacing:0!important;
+}
+#saTextEdOv thead tr{background:rgba(255,255,255,.62)!important;}
+#saTextEdOv th{color:rgba(51,65,85,.78)!important;border-bottom:1px solid rgba(14,116,144,.12)!important;}
+#saTextEdOv td{color:#0F172A!important;border-bottom:1px solid rgba(14,116,144,.08)!important;}
+#saTextEdOv tr[data-tekey]{background:rgba(255,255,255,.30)!important;}
+#saTextEdOv tr[data-tekey]:hover{background:rgba(226,248,255,.46)!important;}
+#saTextEdOv .te-en,
+#saTextEdOv .te-ar{
+  background:rgba(255,255,255,.84)!important;
+  color:#0F172A!important;
+  border:1px solid rgba(14,116,144,.16)!important;
+}
+
+/* Primary/semantic SA panel buttons */
+#saReqRefresh,
+#_saTeSave{
+  background:linear-gradient(135deg,rgba(1,149,175,.18),rgba(255,255,255,.76))!important;
+  color:#07596A!important;
+  border:1px solid rgba(1,149,175,.28)!important;
+}
+#_saTeReset{
+  background:linear-gradient(135deg,rgba(254,242,242,.92),rgba(255,255,255,.70))!important;
+  color:#B91C1C!important;
+  border:1px solid rgba(220,38,38,.18)!important;
+}
+
+html[dir="rtl"] #saReqOv,
+html[dir="rtl"] #kpiMgmtOv,
+html[dir="rtl"] #saTextEdOv{text-align:right!important;}
+html[dir="rtl"] #saReqOv th,
+html[dir="rtl"] #saReqOv td,
+html[dir="rtl"] #saTextEdOv th,
+html[dir="rtl"] #saTextEdOv td{text-align:right!important;}
