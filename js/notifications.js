@@ -1200,105 +1200,221 @@ function updateExecTrend(yr){
   },1500);
 })();
 
+
 /* ==========================================================
-   FINAL QUMC FIX — stable badge + professional translucent notification modal
+   FINAL QUMC FIX — role-scoped notifications only
+   Purpose:
+   - Super Admin/Admin/Executive: all important notifications.
+   - Department Manager/Viewer: only their department notifications.
+   - KPI Owner/Gap Owner: only assigned KPIs, or owned/department KPIs when assignments are absent.
+   - History and badge are scoped by email + role + department + assigned KPIs.
    ========================================================== */
 (function(){
+  'use strict';
   function $(id){return document.getElementById(id);} 
-  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-  function emailKey(){
-    var e=String(window._fbUser||window._fbEmail||window.currentUserEmail||'').toLowerCase().trim();
-    if(!e){try{e=String(sessionStorage.getItem('qumc_user_email')||localStorage.getItem('qumc_user_email')||'').toLowerCase().trim();}catch(_){}}
-    return e||'guest';
-  }
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
   function readJson(k){try{var a=JSON.parse(localStorage.getItem(k)||'[]');return Array.isArray(a)?a:[];}catch(_){return[];}}
   function writeJson(k,a){try{localStorage.setItem(k,JSON.stringify((a||[]).slice(0,200)));}catch(_){}}
-  function hKey(){return 'qumc_notifications_history_stable_'+emailKey();}
-  function sKey(){return 'qumc_notifications_seen_stable_'+emailKey();}
+  function langIsAr(){return (typeof window.lang!=='undefined' && window.lang==='ar') || document.documentElement.lang==='ar' || document.body.classList.contains('rtl');}
+  function norm(s){return String(s||'').toLowerCase().trim().replace(/[\u200e\u200f]/g,'').replace(/[_\s\-]+/g,' ');}
+  function normKey(s){return norm(s).replace(/[^a-z0-9\u0600-\u06ff]+/g,'');}
+  function role(){return norm(window._fbRole||window.currentUserRole||'viewer').replace(/\s+/g,'_');}
+  function emailKey(){
+    var e=String(window._fbUser||window._fbEmail||window.currentUserEmail||'').toLowerCase().trim();
+    try{if(!e)e=String(sessionStorage.getItem('qumc_user_email')||localStorage.getItem('qumc_user_email')||'').toLowerCase().trim();}catch(_){ }
+    return e||'guest';
+  }
+  function userName(){return String(window._fbName||window.currentUserName||emailKey().split('@')[0]||'user').toLowerCase().trim();}
+  function deptRaw(){return String(window._fbDept||window._lockedDept||window.currentUserDept||'').trim();}
+  function deptAlias(v){
+    var x=normKey(v);
+    if(!x)return '';
+    if(x.indexOf('maintenance')>-1 || x.indexOf('صيانة')>-1)return 'maintenance';
+    if(x.indexOf('safety')>-1 || x.indexOf('سلامة')>-1)return 'safety';
+    if(x.indexOf('housekeeping')>-1 || x.indexOf('cleaning')>-1 || x.indexOf('hospitality')>-1 || x.indexOf('نظافة')>-1 || x.indexOf('فندقة')>-1)return 'housekeeping';
+    if(x.indexOf('project')>-1 || x.indexOf('مشاريع')>-1 || x.indexOf('المشاريع')>-1)return 'projects';
+    if(x.indexOf('governance')>-1 || x.indexOf('حوكمة')>-1)return 'governance';
+    return x;
+  }
+  function dept(){return deptAlias(deptRaw());}
+  function isAdminRole(){var r=role();return r==='super_admin'||r==='superadmin'||r==='admin'||r==='executive';}
+  function assignedList(){
+    var a=window._fbAssignedKpis||window.assignedKpis||[];
+    if(typeof a==='string')a=a.split(/[;,|]/);
+    if(!Array.isArray(a))return [];
+    return a.map(function(x){return normKey(x);}).filter(Boolean);
+  }
+  function scopeKey(){return [emailKey(),role(),dept()||'nodept',assignedList().sort().join('-')||'noassigned'].join('|');}
+  function hKey(){return 'qumc_notifications_history_scoped_v7_'+scopeKey();}
+  function sKey(){return 'qumc_notifications_seen_scoped_v7_'+scopeKey();}
   function readSeen(){return readJson(sKey());}
   function writeSeen(a){writeJson(sKey(),Array.from(new Set(a||[])));}
   function readHistory(){
-    var out=readJson(hKey()), by={};
-    out.forEach(function(n){if(n&&n.id)by[n.id]=n;});
+    var by={};
+    readJson(hKey()).forEach(function(n){if(n&&n.id&&notificationAllowed(n))by[n.id]=n;});
     return Object.keys(by).map(function(id){return by[id];}).sort(function(a,b){return (b.ts||0)-(a.ts||0);});
   }
   function writeHistory(a){
-    var by={}; (a||[]).forEach(function(n){if(n&&n.id)by[n.id]=Object.assign({},by[n.id]||{},n,{ts:n.ts||Date.now()});});
+    var by={};
+    (a||[]).forEach(function(n){if(n&&n.id&&notificationAllowed(n))by[n.id]=Object.assign({},by[n.id]||{},n,{ts:n.ts||Date.now()});});
     writeJson(hKey(),Object.keys(by).map(function(id){return by[id];}).sort(function(a,b){return (b.ts||0)-(a.ts||0);}));
   }
-  function num(v){var n=Number(v);return isFinite(n)?n:null;}
-  function kId(k){return String(k&&(k.id||k.code||'')).trim();}
-  function qValues(k){var out=[];['q1','q2','q3','q4'].forEach(function(q){var v=k&&k[q];if(v!==undefined&&v!==null&&v!=='')out.push({q:q,v:v});});return out;}
-  function isMet(k,v){try{if(typeof window.metStatus==='function')return !!window.metStatus(k,v);}catch(_){ }var n=num(v),t=num(k&&k.target);if(n===null)return true;if(t===null)t=100;var op=String((k&&k.op)||'>=');if(op==='<=')return n<=t;if(op==='=')return Math.abs(n-t)<=0.05;return n>=t;}
-  function canSee(k){var role=String(window._fbRole||window.currentUserRole||'').toLowerCase();if(role.indexOf('super')>-1||role==='admin'||role==='executive')return true;var d=String(window._fbDept||window._lockedDept||window.currentUserDept||'').toLowerCase().trim();var kd=String(k&&(k.dept||k.department)||'').toLowerCase().trim();return !d||!kd||d===kd;}
-  function fresh(){
-    var ks=[];try{ks=(typeof allK==='function')?allK():[];}catch(_){ks=[];}
+  function getState(){try{return window.ST||JSON.parse(localStorage.getItem('kpi_v3')||'{}')||{};}catch(_){return window.ST||{};}}
+  function allKpis(){try{if(typeof window.allK==='function')return window.allK()||[];}catch(_){ }try{if(Array.isArray(window.KPIS))return window.KPIS;}catch(_){ }var st=getState();return Array.isArray(st.kpis)?st.kpis:[];}
+  function kCode(k){return String(k&&(k.id||k.code||k.kpiCode||k.kpi_id)||'').trim();}
+  function kName(k){return String(k&&(k.nameEn||k.name||k.nameAr||k.kpiName)||'').trim();}
+  function kDept(k){return deptAlias(k&&(k.dept||k.department||k.departmentId||k.section||k.sectionName));}
+  function ownedBy(obj){
+    if(!obj)return false;
+    var me=emailKey(), nm=userName();
+    var vals=[obj.email,obj.userEmail,obj.ownerEmail,obj.assignedEmail,obj.responsibleEmail,obj.kpiOwnerEmail,obj.gapOwnerEmail,obj.owner,obj.kpiOwner,obj.gapOwner,obj.responsible,obj.responsiblePerson,obj.assignee,obj.user,obj.name].map(function(v){return norm(v);}).filter(Boolean);
+    return vals.some(function(v){return (me&&v.indexOf(me)>-1)||(nm&&v.indexOf(nm)>-1);});
+  }
+  function canSeeKpi(k, extra){
+    if(!k && !extra)return false;
+    if(isAdminRole())return true;
+    var r=role(), d=dept(), asg=assignedList();
+    var code=normKey(kCode(k));
+    var name=normKey(kName(k));
+    var kd=kDept(k);
+    if(asg.length){
+      if(code && asg.indexOf(code)>-1)return true;
+      if(name && asg.indexOf(name)>-1)return true;
+      if(extra && ownedBy(extra))return true;
+      return false;
+    }
+    if(r==='kpi_owner'||r==='gap_owner'){
+      if(extra && ownedBy(extra))return true;
+      if(k && ownedBy(k))return true;
+      if(d && kd && d===kd)return true;
+      return false;
+    }
+    if(r==='department_manager'||r==='dept_manager'||r==='viewer'){
+      return !!(d && kd && d===kd);
+    }
+    return !!(d && kd && d===kd);
+  }
+  function notificationAllowed(n){
+    if(!n)return false;
+    if(isAdminRole())return true;
+    var d=dept();
+    var nd=deptAlias(n.dept||n.department||'');
+    if(n.kpiCode){
+      var code=normKey(n.kpiCode), name=normKey(n.kpiName||n.title||''), asg=assignedList();
+      if(asg.length)return (code&&asg.indexOf(code)>-1)||(name&&asg.indexOf(name)>-1);
+    }
+    if(d && nd)return d===nd;
+    return false;
+  }
+  function num(v){
+    if(v===null||v===undefined||v==='')return null;
+    var n=Number(String(v).replace(/,/g,'').replace(/[٠-٩]/g,function(c){return '٠١٢٣٤٥٦٧٨٩'.indexOf(c);}).replace(/[۰-۹]/g,function(c){return '۰۱۲۳۴۵۶۷۸۹'.indexOf(c);}));
+    return isFinite(n)?n:null;
+  }
+  function qValues(k){
     var out=[];
-    (ks||[]).forEach(function(k){
-      if(!k||!canSee(k))return;
-      var bad=qValues(k).filter(function(x){return !isMet(k,x.v);}); if(!bad.length)return;
-      var qs=bad.map(function(x){return x.q.toUpperCase();}).join(', ');
-      out.push({id:'miss_'+kId(k)+'_'+String(k.yr||'')+'_'+qs,level:'red',title:(kId(k)||'KPI')+' — '+(k.nameEn||k.nameAr||''),meta:(lang==='ar'?'لم يحقق الهدف في ':'Missed target in ')+qs,body:(lang==='ar'?'هذا الإشعار مرتبط بمؤشر أقل من الهدف ويحتاج متابعة الإجراء التصحيحي.':'This KPI is below target and requires follow-up on the corrective action.'),ts:Date.now()});
+    ['q1','q2','q3','q4'].forEach(function(q){
+      var v=k&&k[q]; if(v===undefined)v=k&&k[q.toUpperCase()];
+      if(v!==undefined&&v!==null&&v!=='')out.push({q:q,v:v});
     });
+    if(k&&k.quarters&&typeof k.quarters==='object')Object.keys(k.quarters).forEach(function(q){var v=k.quarters[q];if(v!==undefined&&v!==null&&v!=='')out.push({q:String(q).toLowerCase(),v:v});});
     return out;
   }
-  function merge(a){var h=readHistory(); if(a&&a.length)h=a.concat(h); writeHistory(h); return readHistory();}
-  function all(){var f=fresh(); if(f.length)return merge(f); return readHistory();}
-  window.renderNotifications=function(){
+  function isMet(k,v){
+    try{if(typeof window.metStatus==='function')return !!window.metStatus(k,v);}catch(_){ }
+    var n=num(v), t=num(k&&(k.target||k.tg||k.targetValue));
+    if(n===null)return true; if(t===null)t=100;
+    var op=String(k&&(k.op||k.operator||k.comparison)||'>=').toLowerCase();
+    if(op.indexOf('<=')>-1||op.indexOf('less')>-1||op.indexOf('at most')>-1)return n<=t;
+    if(op==='='||op.indexOf('equal')>-1)return Math.abs(n-t)<=0.05;
+    return n>=t;
+  }
+  function baseGapCode(key){return String(key||'').replace(/_(q[1-4])$/i,'').replace(/-(q[1-4])$/i,'');}
+  function gapQuarter(key){var m=String(key||'').match(/(?:_|-)(q[1-4])$/i);return m?m[1].toUpperCase():'';}
+  function findKpi(ks, code){var c=normKey(code);return (ks||[]).find(function(k){return normKey(kCode(k))===c;})||null;}
+  function kTitle(k){return (kCode(k)||'KPI')+(kName(k)?' — '+kName(k):'');}
+  function fresh(){
+    var ks=allKpis(), out=[];
+    (ks||[]).forEach(function(k){
+      if(!canSeeKpi(k))return;
+      var bad=qValues(k).filter(function(x){return !isMet(k,x.v);});
+      if(!bad.length)return;
+      var qs=bad.map(function(x){return String(x.q).toUpperCase();}).join(', ');
+      out.push({
+        id:'miss_'+normKey(kCode(k))+'_'+String(k.year||k.yr||'')+'_'+qs,
+        type:'kpi_miss',level:'red',kpiCode:kCode(k),kpiName:kName(k),dept:kDept(k),
+        title:kTitle(k),
+        meta:langIsAr()?('لم يحقق الهدف في '+qs):('Missed target in '+qs),
+        body:langIsAr()?'هذا الإشعار يظهر لك لأن المؤشر ضمن صلاحيتك ولم يحقق الهدف ويحتاج متابعة.':'This notification is shown because this KPI is within your permission scope and is below target.',
+        ts:Date.now()
+      });
+    });
+    var st=getState(), gaps=st.gaps||st.gapAnalysis||st.gap_analysis||{};
+    if(Array.isArray(gaps)){var tmp={};gaps.forEach(function(g,i){tmp[g.kpiId||g.kpiCode||g.id||i]=g;});gaps=tmp;}
+    Object.keys(gaps||{}).forEach(function(key){
+      var g=gaps[key]||{}, base=baseGapCode(key), k=findKpi(ks,base);
+      if(!canSeeKpi(k,g))return;
+      var status=norm(g.status||g.actionStatus||g.state||'');
+      var pri=norm(g.priority||g.risk||g.severity||'');
+      var hasText=String(g.gapEn||g.gapAr||g.rootCause||g.rootCauseEn||g.reason||g.actEn||g.actAr||g.correctiveAction||g.actionPlan||'').trim();
+      var open=!status || ['open','pending','in progress','inprogress','active','overdue'].some(function(x){return status.indexOf(x)>-1;});
+      var important=open||pri.indexOf('high')>-1||pri.indexOf('critical')>-1||hasText;
+      if(!important)return;
+      var q=gapQuarter(key);
+      out.push({
+        id:'gap_'+normKey(base)+'_'+(q||'all')+'_'+normKey(status||'open')+'_'+normKey(pri||''),
+        type:'gap_action',level:(pri.indexOf('critical')>-1||pri.indexOf('high')>-1)?'red':'orange',kpiCode:k?kCode(k):base,kpiName:k?kName(k):'',dept:k?kDept(k):deptAlias(g.dept||g.department),
+        title:k?kTitle(k):(base||'Gap action'),
+        meta:langIsAr()?('إجراء فجوة يحتاج متابعة'+(q?' - '+q:'')):('Gap action requires follow-up'+(q?' - '+q:'')),
+        body:(g.actAr||g.actEn||g.correctiveAction||g.actionPlan||g.gapAr||g.gapEn||g.rootCause||g.reason||''),
+        ts:Date.now()
+      });
+    });
+    var by={}; out.forEach(function(n){if(n&&n.id&&notificationAllowed(n))by[n.id]=n;});
+    return Object.keys(by).map(function(id){return by[id];}).sort(function(a,b){return (b.ts||0)-(a.ts||0);});
+  }
+  function allRows(){
+    var f=fresh();
+    var h=readHistory();
+    var by={};
+    h.forEach(function(n){if(n&&n.id&&notificationAllowed(n))by[n.id]=n;});
+    f.forEach(function(n){if(n&&n.id&&notificationAllowed(n))by[n.id]=Object.assign({},by[n.id]||{},n,{ts:n.ts||Date.now()});});
+    var rows=Object.keys(by).map(function(id){return by[id];}).sort(function(a,b){return (b.ts||0)-(a.ts||0);});
+    writeHistory(rows);
+    return rows;
+  }
+  function render(){
     var list=$('userAlertList'), count=$('userAlertCount'), seen=readSeen();
-    var rows=all();
+    var rows=allRows();
     var unread=rows.filter(function(n){return seen.indexOf(n.id)<0;});
-    if(count){count.textContent=unread.length;count.style.display=unread.length?'flex':'none';}
+    if(count){count.textContent=String(unread.length);count.style.display=unread.length?'flex':'none';count.style.visibility=unread.length?'visible':'hidden';count.style.opacity=unread.length?'1':'0';}
     if(!list)return;
-    if(!rows.length){ if(window.__qumcNotifLastHtml){list.innerHTML=window.__qumcNotifLastHtml;return;} list.innerHTML='<div class="qumc-n-empty-final">'+(lang==='ar'?'لا توجد إشعارات مهمة حالياً.':'No important notifications.')+'</div>'; return; }
+    if(!rows.length){list.innerHTML='<div class="qumc-n-empty-final">'+(langIsAr()?'لا توجد إشعارات مهمة ضمن صلاحيتك حالياً.':'No important notifications for your permission scope.')+'</div>';window.__qumcNotifLastHtml='';return;}
     var ordered=unread.concat(rows.filter(function(n){return seen.indexOf(n.id)>=0;}));
     window._notifMap={}; ordered.forEach(function(n){window._notifMap[n.id]=n;});
-    var html=ordered.map(function(n){var r=seen.indexOf(n.id)>=0;var col=r?'#94A3B8':(n.level==='red'?'#C42B2B':n.level==='orange'?'#D97706':'#0195af');return '<div class="qumc-nrow-final" data-nid="'+esc(n.id)+'" style="opacity:'+(r?'.64':'1')+'"><span class="qumc-n-dot-final" style="background:'+col+'"></span><div><div class="qumc-n-title-final">'+esc(n.title)+(r?' <span style="font-size:9px;color:#94A3B8">'+(lang==='ar'?'(مقروء)':'(read)')+'</span>':'')+'</div><div class="qumc-n-meta-final">'+esc(n.meta||'')+'</div></div></div>';}).join('');
+    var html=ordered.map(function(n){
+      var r=seen.indexOf(n.id)>=0;
+      var col=r?'#94A3B8':(n.level==='red'?'#C42B2B':n.level==='orange'?'#D97706':'#0195af');
+      return '<div class="qumc-nrow-final" data-nid="'+esc(n.id)+'" style="opacity:'+(r?'.64':'1')+'"><span class="qumc-n-dot-final" style="background:'+col+'"></span><div><div class="qumc-n-title-final">'+esc(n.title)+(r?' <span style="font-size:9px;color:#94A3B8">'+(langIsAr()?'(مقروء)':'(read)')+'</span>':'')+'</div><div class="qumc-n-meta-final">'+esc(n.meta||'')+'</div></div></div>';
+    }).join('');
     window.__qumcNotifLastHtml=html; list.innerHTML=html;
-    Array.prototype.forEach.call(list.querySelectorAll('.qumc-nrow-final'),function(row){row.onclick=function(ev){ev.preventDefault();ev.stopPropagation();var id=row.getAttribute('data-nid');var s=readSeen();if(s.indexOf(id)<0){s.push(id);writeSeen(s);} if(window._showNotifModal)window._showNotifModal((window._notifMap||{})[id]); setTimeout(window.renderNotifications,80);};});
-    var clear=$('qumcClearNotifs'); if(clear)clear.onclick=function(ev){ev.preventDefault();ev.stopPropagation();writeSeen(readSeen().concat(ordered.map(function(n){return n.id;})));window.renderNotifications();};
-  };
-  window.updateAlertUI=window.renderNotifications;
-  window.buildUserAlerts=function(){return all();};
-  window.collectNotifications=function(){return all();};
+    Array.prototype.forEach.call(list.querySelectorAll('.qumc-nrow-final'),function(row){row.onclick=function(ev){ev.preventDefault();ev.stopPropagation();var id=row.getAttribute('data-nid');var s=readSeen();if(s.indexOf(id)<0){s.push(id);writeSeen(s);} if(window._showNotifModal)window._showNotifModal((window._notifMap||{})[id]); setTimeout(render,80);};});
+    var clear=$('qumcClearNotifs'); if(clear)clear.onclick=function(ev){ev.preventDefault();ev.stopPropagation();writeSeen(readSeen().concat(ordered.map(function(n){return n.id;})));render();};
+  }
+  window.renderNotifications=render;
+  window.updateAlertUI=render;
+  window.buildUserAlerts=function(){return allRows();};
+  window.collectNotifications=function(){return allRows();};
   window._showNotifModal=function(n){
-    if(!n)return; var old=$('_notifModal'); if(old)old.remove(); var isAr=(typeof lang!=='undefined'&&lang==='ar');
+    if(!n)return; var old=$('_notifModal'); if(old)old.remove(); var isAr=langIsAr();
     var c=n.level==='red'?'#C42B2B':n.level==='orange'?'#D97706':'#0195af';
-    var ov=document.createElement('div');ov.id='_notifModal';ov.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(8,18,35,.42);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:18px;';
-    var box=document.createElement('div');box.style.cssText='width:min(460px,94vw);background:rgba(255,255,255,.88);border:1px solid rgba(255,255,255,.65);box-shadow:0 26px 80px rgba(2,8,23,.28);border-radius:22px;padding:0;overflow:hidden;direction:'+(isAr?'rtl':'ltr');
-    box.innerHTML='<div style="padding:18px 20px;border-bottom:1px solid rgba(15,23,42,.08);display:flex;gap:12px;align-items:flex-start"><div style="width:10px;height:10px;margin-top:5px;border-radius:50%;background:'+c+';box-shadow:0 0 0 5px '+c+'22"></div><div style="flex:1"><div style="font-size:13px;font-weight:900;color:#152538;margin-bottom:5px">'+esc(n.title||'Notification')+'</div><div style="font-size:11px;color:#64748B;line-height:1.6">'+esc(n.meta||'')+'</div></div><button onclick="window._closeNotifModal()" style="border:none;background:rgba(15,23,42,.06);color:#475569;border-radius:10px;width:30px;height:30px;cursor:pointer;font-weight:900">×</button></div>'+
-      '<div style="padding:18px 20px"><div style="font-size:12px;color:#334155;line-height:1.85;background:rgba(248,250,252,.78);border:1px solid rgba(226,232,240,.75);border-radius:14px;padding:14px">'+esc(n.body||n.meta||'')+'</div><button onclick="window._closeNotifModal()" style="margin-top:14px;width:100%;padding:10px;border:none;border-radius:12px;background:#0195af;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">'+(isAr?'تم':'Done')+'</button></div>';
+    var ov=document.createElement('div');ov.id='_notifModal';ov.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(8,18,35,.36);backdrop-filter:blur(9px);display:flex;align-items:center;justify-content:center;padding:18px;';
+    var box=document.createElement('div');box.style.cssText='width:min(460px,94vw);background:rgba(255,255,255,.90);border:1px solid rgba(255,255,255,.70);box-shadow:0 26px 80px rgba(2,8,23,.24);border-radius:22px;padding:0;overflow:hidden;direction:'+(isAr?'rtl':'ltr');
+    box.innerHTML='<div style="padding:18px 20px;border-bottom:1px solid rgba(15,23,42,.08);display:flex;gap:12px;align-items:flex-start"><div style="width:10px;height:10px;margin-top:5px;border-radius:50%;background:'+c+';box-shadow:0 0 0 5px '+c+'22"></div><div style="flex:1"><div style="font-size:13px;font-weight:900;color:#152538;margin-bottom:5px">'+esc(n.title||'Notification')+'</div><div style="font-size:11px;color:#64748B;line-height:1.6">'+esc(n.meta||'')+'</div></div><button onclick="window._closeNotifModal()" style="border:none;background:rgba(15,23,42,.06);color:#475569;border-radius:10px;width:30px;height:30px;cursor:pointer;font-weight:900">×</button></div>'+ '<div style="padding:18px 20px"><div style="font-size:12px;color:#334155;line-height:1.85;background:rgba(248,250,252,.78);border:1px solid rgba(226,232,240,.75);border-radius:14px;padding:14px">'+esc(n.body||n.meta||'')+'</div><button onclick="window._closeNotifModal()" style="margin-top:14px;width:100%;padding:10px;border:none;border-radius:12px;background:#0195af;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">'+(isAr?'تم':'Done')+'</button></div>';
     ov.appendChild(box); ov.onclick=function(e){if(e.target===ov)ov.remove();}; document.body.appendChild(ov);
   };
   window._closeNotifModal=function(){var m=$('_notifModal');if(m)m.remove();};
-  setInterval(function(){try{window.renderNotifications();}catch(_e){}},2500);
-  setTimeout(function(){try{window.renderNotifications();}catch(_e){}},300);
-})();
-
-
-/* ==========================================================
-   QUMC NOTIFICATION BADGE STABILITY — final guard.
-   Badge stays visible when notification history exists; other refreshes cannot hide it.
-   ========================================================== */
-(function(){
-  function $(id){return document.getElementById(id);} 
-  function emailKey(){var e=String(window._fbUser||window._fbEmail||window.currentUserEmail||'').toLowerCase().trim();try{if(!e)e=String(sessionStorage.getItem('qumc_user_email')||localStorage.getItem('qumc_user_email')||'').toLowerCase().trim();}catch(_){}return e||'guest';}
-  function readJson(k){try{var a=JSON.parse(localStorage.getItem(k)||'[]');return Array.isArray(a)?a:[];}catch(_){return[];}}
-  function hist(){
-    var keys=['qumc_notifications_history_stable_'+emailKey(),'qumc_notifications_history_v4_'+emailKey()];
-    var out=[]; keys.forEach(function(k){out=out.concat(readJson(k));});
-    var by={}; out.forEach(function(n){if(n&&n.id)by[n.id]=n;});
-    return Object.keys(by).map(function(id){return by[id];});
-  }
-  function enforce(){
-    var c=$('userAlertCount'); if(!c)return;
-    var h=hist();
-    var n=h.length;
-    if(n>0){c.textContent=String(n);c.style.display='flex';c.style.visibility='visible';c.style.opacity='1';}
-  }
-  var oldRender=window.renderNotifications;
-  if(typeof oldRender==='function')window.renderNotifications=function(){var r=oldRender.apply(this,arguments);setTimeout(enforce,30);return r;};
-  var oldUpdate=window.updateAlertUI;
-  if(typeof oldUpdate==='function')window.updateAlertUI=function(){var r=oldUpdate.apply(this,arguments);setTimeout(enforce,30);return r;};
-  setInterval(enforce,1000);setTimeout(enforce,500);setTimeout(enforce,2000);
+  setInterval(function(){try{render();}catch(_e){}},2500);
+  setTimeout(function(){try{render();}catch(_e){}},300);
+  setTimeout(function(){try{render();}catch(_e){}},1500);
 })();
