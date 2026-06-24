@@ -164,6 +164,10 @@ function _qumcAccRoot(gd){
   );
 }
 
+function _qumcAccImpact(gd){
+  gd=gd||{};
+  return gd.impactEn || gd.impact || gd.impactOfGap || gd.gapImpact || '';
+}
 function _qumcAccCorrective(gd,ac){
   gd=gd||{}; ac=ac||{};
   return _qumcFirstText(
@@ -279,7 +283,7 @@ function _buildExcelXLSX(){
   sh2.push(['Gap Analysis — Missed KPIs Corrective Action Register']);
   sh2.push(['Qassim University Medical City — Facilities & Safety Division']);
   sh2.push([]);
-  sh2.push(['Code','KPI Name','Dept','Result','Gap','Priority','Action Status','Root Cause / Gap Reasons (EN)','Corrective Actions (EN)']);
+  sh2.push(['Code','KPI Name','Dept','Result','Gap','Priority','Action Status','Root Cause / Gap Reasons (EN)','Corrective Actions (EN)','Impact of the Gap (EN)']);
 
   if(missKsAll.length){
     missKsAll.forEach(k=>{
@@ -292,7 +296,8 @@ function _buildExcelXLSX(){
         ac.priority||gd.priority||'Medium',
         ac.status||gd.status||'Open',
         _qumcAccRoot(gd)||'Not documented',
-        _qumcAccCorrective(gd,ac)||'Not documented'
+        _qumcAccCorrective(gd,ac)||'Not documented',
+        _qumcAccImpact(gd)||'Not documented'
       ]);
     });
   } else {
@@ -462,7 +467,7 @@ function _buildExcelFull(){
   t2.fill=fl('#7F1D1D');t2.font=ft('#FFFFFF',16,true);t2.alignment=al('center');
 
   /* Subtitle */
-  ws2.mergeCells('A2:L2');
+  ws2.mergeCells('A2:M2');
   const s2=ws2.getCell('A2');
   s2.value='Qassim University Medical City · Facilities & Safety Division · '+today+' | Period: '+period;
   s2.fill=fl('#991B1B');s2.font=ft('#FFFFFF',10,false);s2.alignment=al('center');
@@ -470,7 +475,7 @@ function _buildExcelFull(){
   ws2.addRow([]);
 
   /* Column headers */
-  const gHdrs=['Code','KPI Name','Dept','Target','Result','Gap','Priority','Responsible Person','Due Date','Status','Root Cause','Corrective Action'];
+  const gHdrs=['Code','KPI Name','Dept','Target','Result','Gap','Priority','Responsible Person','Due Date','Status','Root Cause','Corrective Action','Impact of the Gap'];
   const gh=ws2.addRow(gHdrs);
   gh.eachCell(c=>{c.fill=fl('#7F1D1D');c.font=ft('#FFFFFF',10,true);c.alignment=al('center');c.border=bd();});
 
@@ -488,10 +493,11 @@ function _buildExcelFull(){
       const due=(gd.due||gd.dueDate||gd.date||ac.due||ac.dueDate||'—');
       const root=(_qumcAccRoot(gd)||'Not documented');
       const corrective=(_qumcAccCorrective(gd,ac)||'Not documented');
+      const impact=(_qumcAccImpact(gd)||'Not documented');
       const gr=ws2.addRow([
         k.id,k.nameEn,DM[k.dept]?.abbr||k.dept,
         (k.op==='='?'=':'≥')+k.target+'%',
-        v!=null?v.toFixed(1)+'%':'—', gap, pri, owner, due, sta, root, corrective
+        v!=null?v.toFixed(1)+'%':'—', gap, pri, owner, due, sta, root, corrective, impact
       ]);
       gr.eachCell((c,j)=>{c.fill=fl(bg);c.border=bd();c.alignment=al('center');c.font=ft('#334155',10);});
       gr.getCell(1).fill=fl('#FFF5F5');gr.getCell(1).font=ft('#C42B2B',10,true);
@@ -499,7 +505,7 @@ function _buildExcelFull(){
       gr.getCell(5).fill=fl('#FEE2E2');gr.getCell(5).font=ft('#991B1B',10,true);
       gr.getCell(6).fill=fl('#FEE2E2');gr.getCell(6).font=ft('#991B1B',10,true);
       gr.getCell(7).fill=fl(priFill);gr.getCell(7).font=ft(priFg,10,true);
-      gr.getCell(8).alignment=al('left');gr.getCell(10).font=ft('#991B1B',10,true);gr.getCell(11).alignment=al('left');gr.getCell(12).alignment=al('left');gr.getCell(11).font=ft('#334155',9);gr.getCell(12).font=ft('#334155',9);
+      gr.getCell(8).alignment=al('left');gr.getCell(10).font=ft('#991B1B',10,true);gr.getCell(11).alignment=al('left');gr.getCell(12).alignment=al('left');gr.getCell(13).alignment=al('left');gr.getCell(11).font=ft('#334155',9);gr.getCell(12).font=ft('#334155',9);gr.getCell(13).font=ft('#334155',9);
       gr.height=40;
     });
   }else{
@@ -642,13 +648,13 @@ function _buildExcelSimple(){
      SHEET 2: GAP ANALYSIS
   =============================== */
   let t2=`<table style="border-collapse:collapse;width:100%">`;
-  t2+=`<tr><td colspan="12" bgcolor="#7F1D1D" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:14pt;font-weight:bold;padding:14px 18px;border:none;text-align:center">
+  t2+=`<tr><td colspan="13" bgcolor="#7F1D1D" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:14pt;font-weight:bold;padding:14px 18px;border:none;text-align:center">
      Gap Analysis — Missed KPIs Corrective Action Register
   </td></tr>`;
-  t2+=`<tr><td colspan="12" bgcolor="#991B1B" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:9.5pt;font-weight:bold;padding:7px 18px;border:none;text-align:center">
+  t2+=`<tr><td colspan="13" bgcolor="#991B1B" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:9.5pt;font-weight:bold;padding:7px 18px;border:none;text-align:center">
     Qassim University Medical City · Facilities &amp; Safety Division · ${today} · Period: ${period}
   </td></tr>`;
-  t2+=`<tr><td colspan="12" style="padding:5px;border:none"></td></tr>`;
+  t2+=`<tr><td colspan="13" style="padding:5px;border:none"></td></tr>`;
 
   if(miss.length){
     t2+=`<tr>
@@ -664,6 +670,7 @@ function _buildExcelSimple(){
       ${th('Status','#7F1D1D')}
       ${th('Root Cause','#7F1D1D','#FFFFFF','text-align:center')}
       ${th('Corrective Action','#7F1D1D','#FFFFFF','text-align:center')}
+      ${th('Impact of the Gap','#7F1D1D','#FFFFFF','text-align:center')}
     </tr>`;
     miss.forEach((k,i)=>{
       const v=qv(k),gap=v!=null?_qumcGapValue(k,v).toFixed(1):null;
@@ -678,6 +685,7 @@ function _buildExcelSimple(){
       const due=(gd.due||gd.dueDate||gd.date||ac.due||ac.dueDate||'—');
       const root=(_qumcAccRoot(gd)||'Not documented');
       const corrective=(_qumcAccCorrective(gd,ac)||'Not documented');
+      const impact=(_qumcAccImpact(gd)||'Not documented');
       const rb='#FFFFFF';
       t2+=`<tr>
         <td bgcolor="#FFF5F5" style="color:#C42B2B;font-family:Courier New,Courier;font-weight:bold;font-size:9pt;padding:8px 10px;border:1px solid #FECACA;border-left:4px solid #C42B2B">${e(k.id)}</td>
@@ -692,10 +700,11 @@ function _buildExcelSimple(){
         <td bgcolor="${staBg}" style="color:${staFg};font-family:Calibri,Arial;font-size:9pt;font-weight:bold;padding:8px 10px;border:1px solid #FECACA;text-align:center">${(sta||'open').charAt(0).toUpperCase()+(sta||'open').slice(1)}</td>
         <td bgcolor="${rb}" style="color:#334155;font-family:Calibri,Arial;font-size:9pt;padding:8px 10px;border:1px solid #FECACA;text-align:center">${e(root)}</td>
         <td bgcolor="${rb}" style="color:#334155;font-family:Calibri,Arial;font-size:9pt;padding:8px 10px;border:1px solid #FECACA;text-align:center">${e(corrective)}</td>
+        <td bgcolor="${rb}" style="color:#334155;font-family:Calibri,Arial;font-size:9pt;padding:8px 10px;border:1px solid #FECACA;text-align:center">${e(impact)}</td>
       </tr>`;
     });
   } else {
-    t2+=`<tr><td colspan="12" bgcolor="#ECFDF5" style="color:#06845A;font-family:Calibri,Arial;font-size:11pt;font-weight:bold;padding:16px;text-align:center;border:1px solid #A7F3D0">
+    t2+=`<tr><td colspan="13" bgcolor="#ECFDF5" style="color:#06845A;font-family:Calibri,Arial;font-size:11pt;font-weight:bold;padding:16px;text-align:center;border:1px solid #A7F3D0">
        All KPIs Met Their Targets — No gap analysis required for this period.
     </td></tr>`;
   }
@@ -857,7 +866,7 @@ async function _buildExcel(){
     titleRow.getCell(1).alignment={horizontal:'center',vertical:'middle'};
     titleRow.height=28;
     /* Subtitle row */
-    ws2.mergeCells('A2:L2');
+    ws2.mergeCells('A2:M2');
     const subRow=ws2.getRow(2);
     const subPeriod=(typeof F!=='undefined'&&F.year!=='all'?F.year:'2026')+(typeof F!=='undefined'&&!F.qtr.includes('all')?' ('+F.qtr.map(q=>q.toUpperCase()).join(', ')+')':'(Q1)');
     subRow.getCell(1).value='Qassim University Medical City  Facilities & Safety Division  '+new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})+'  Period: '+subPeriod;
@@ -869,7 +878,7 @@ async function _buildExcel(){
     ws2.getRow(3).height=6;
     /* Header row */
     ws2.columns=[{width:10},{width:38},{width:8},{width:9},{width:9},{width:9},{width:12},{width:10},{width:42}];
-    const hdr=['Code','KPI Name','Dept','Target','Result','Gap','Priority','Status','Root Cause & Corrective Action'];
+    const hdr=['Code','KPI Name','Dept','Target','Result','Gap','Priority','Status','Root Cause & Corrective Action','Impact of the Gap'];
     const hdrRow=ws2.addRow(hdr);
     hdrRow.height=22;
     hdrRow.eachCell((cell,ci)=>{
@@ -897,7 +906,8 @@ async function _buildExcel(){
           gapStr,
           priority,
           ac.status||'Open',
-          [_qumcAccRoot(gd), _qumcAccCorrective(gd,ac)].filter(Boolean).join(' | ')||'Not documented'
+          [_qumcAccRoot(gd), _qumcAccCorrective(gd,ac)].filter(Boolean).join(' | ')||'Not documented',
+          _qumcAccImpact(gd)||'Not documented'
         ]);
         row.height=18;
         row.eachCell((cell,ci)=>{
@@ -1116,7 +1126,7 @@ async function _buildWordDoc(){
     });
     children.push(new Table({width:{size:9026,type:WidthType.DXA},columnWidths:[w1,w2,w3,w4d,w5,w6+100],rows:sRows}));
     const missKs=ks.filter(k=>ok(k)===false);
-    if(missKs.length){children.push(SP(2));children.push(H2('Missed KPIs — Gap Analysis'));missKs.forEach(k=>{const _acc=_qumcPickAccData(k), gd=_acc.gd, ac=_acc.ac;const v=qv(k);children.push(new Paragraph({children:[new TextRun({text:`${k.id}: ${k.nameEn}`,bold:true,font:'Times New Roman',size:22,color:'7F1D1D'})],spacing:{before:100,after:40}}));if(v!==null)children.push(BUL(`Result: ${v.toFixed(1)}% vs Target: ${k.target}% (Gap: ${_qumcGapValue(k,v).toFixed(1)}%)`));const _root=_qumcAccRoot(gd), _corr=_qumcAccCorrective(gd,ac);if(_root)children.push(BUL(`Root Cause: ${_root}`));if(_corr)children.push(BUL(`Corrective Action: ${_corr}`));});}
+    if(missKs.length){children.push(SP(2));children.push(H2('Missed KPIs — Gap Analysis'));missKs.forEach(k=>{const _acc=_qumcPickAccData(k), gd=_acc.gd, ac=_acc.ac;const v=qv(k);children.push(new Paragraph({children:[new TextRun({text:`${k.id}: ${k.nameEn}`,bold:true,font:'Times New Roman',size:22,color:'7F1D1D'})],spacing:{before:100,after:40}}));if(v!==null)children.push(BUL(`Result: ${v.toFixed(1)}% vs Target: ${k.target}% (Gap: ${_qumcGapValue(k,v).toFixed(1)}%)`));const _root=_qumcAccRoot(gd), _corr=_qumcAccCorrective(gd,ac);if(_root)children.push(BUL(`Root Cause: ${_root}`));if(_corr)children.push(BUL(`Corrective Action: ${_corr}`));const _impact=_qumcAccImpact(gd);if(_impact)children.push(BUL(`Impact of the Gap: ${_impact}`));});}
   }
   /* Footer line */
   children.push(SP(2));

@@ -258,6 +258,10 @@ function openGapQuarter(id,qtr){
       <div style="font-size:9.5px;font-weight:800;color:var(--green);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em"> ${lang==='ar'?'الإجراءات التصحيحية':'Corrective Actions'}</div>
       <div style="font-size:11.5px;color:var(--t2);line-height:1.7">${gd.actEn||(lang==='ar'?'لم تُدخل بعد.':'Not entered yet.')}</div>
     </div>
+    <div style="background:rgba(1,149,175,.07);border-left:2px solid var(--teal);border-radius:6px;padding:10px;margin-bottom:8px">
+      <div style="font-size:9.5px;font-weight:800;color:var(--teal);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em"> ${lang==='ar'?'أثر الفجوة':'Impact of the Gap'}</div>
+      <div style="font-size:11.5px;color:var(--t2);line-height:1.7">${gd.impactEn||gd.impact||gd.impactOfGap||(lang==='ar'?'لم يُدخل بعد.':'Not entered yet.')}</div>
+    </div>
     ${gd.owner||gd.dueDate?`<div style="background:rgba(251,191,36,.08);border-left:2px solid var(--amber);border-radius:6px;padding:10px">
       <div style="font-size:9.5px;font-weight:800;color:var(--amber);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em"> ${lang==='ar'?'المساءلة':'Accountability'}</div>
       ${gd.owner?`<div style="font-size:11px;color:var(--t2);margin-bottom:4px">${lang==='ar'?'المسؤول':'Responsible'}: <strong>${gd.owner}</strong></div>`:''}
@@ -283,6 +287,10 @@ function openGapQuarter(id,qtr){
       <div style="margin-bottom:10px">
         <label style="font-size:10px;font-weight:700;color:#64748B;display:block;margin-bottom:4px">Corrective Actions <span style="color:#DC2626">*</span></label>
         <textarea id="kpo_aE_${id}_${qtr}" style="width:100%;padding:8px;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;resize:vertical;min-height:60px;font-family:inherit" placeholder="Actions planned…">${htmlEsc(_gd2.actEn||'')}</textarea>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:10px;font-weight:700;color:#64748B;display:block;margin-bottom:4px">Impact of the Gap</label>
+        <textarea id="kpo_impactE_${id}_${qtr}" style="width:100%;padding:8px;font-size:11px;border:1px solid #E2E8F0;border-radius:8px;resize:vertical;min-height:54px;font-family:inherit" placeholder="Operational/service impact…">${htmlEsc(_gd2.impactEn||_gd2.impact||_gd2.impactOfGap||'')}</textarea>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
         <div>
@@ -345,6 +353,7 @@ function saveGapKPO(kpiId,qtr){
   const id=kpiId, sfx='_'+id+'_'+qtr;
   const gE=document.getElementById('kpo_gE'+sfx);
   const aE=document.getElementById('kpo_aE'+sfx);
+  const impactE=document.getElementById('kpo_impactE'+sfx);
   const gOwner=document.getElementById('kpo_gOwner'+sfx);
   const gDue=document.getElementById('kpo_gDue'+sfx);
   const actPri=document.getElementById('kpo_actPri'+sfx);
@@ -376,6 +385,7 @@ function saveGapKPO(kpiId,qtr){
   ST.gaps[gapKey]={
     gapEn:gE.value,
     actEn:aE.value,
+    impactEn:impactE?impactE.value:'',
     owner:ownerVal,
     dueDate:gDue.value,
     status:actStatus.value,
@@ -416,7 +426,7 @@ function openReport(){
     rows+=`<tr><td><b>${k.id}</b><br><small style="color:#94a3b8">T${k.tier||3}</small></td><td>${lang==='ar'?k.nameAr:k.nameEn}</td><td>${lang==='ar'?DM[k.dept].ar:DM[k.dept].en}</td><td>${k.op==='='?'=':'≥'}${k.target}%</td>${[1,2,3,4].map(i=>`<td>${k['q'+i]!=null?k['q'+i].toFixed(1)+'%':'—'}</td>`).join('')}<td style="font-weight:700;color:${a===null?'#64748b':a?'#065f46':'#7f1d1d'}">${f2(v)}</td><td>${yr}</td><td>${lang==='ar'?TIERS[k.tier||3].ar:TIERS[k.tier||3].en}</td><td><span class="${a===true?'rpt-ok':'rpt-miss'}" style="${a===null?'background:#f1f5f9;color:#64748b':''}">${a===null?'—':a?' Met':' Missed'}</span></td></tr>`;
   });
   ks.filter(k=>ok(k)===false).forEach(k=>{const v=qv(k),g=(k.target-v).toFixed(2);const gd=(ST.gaps||{})[k.id]||{};const ac=(ST.actions||{})[k.id]||{};const rc=getRepeat(k);
-    gapSec+=`<div class="rpt-box warn"><div class="rpt-box-t">${k.id} — ${lang==='ar'?k.nameAr:k.nameEn}</div><p style="margin-bottom:4px"><b>${lang==='ar'?'الفجوة:':'Gap:'}</b> -${g}% | <b>${lang==='ar'?'المخاطر:':'Risk:'}</b> ${lang==='ar'?TIERS[k.tier||3].ar:TIERS[k.tier||3].en}${rc>=2?` | <b>${lang==='ar'?'تكرار:':'Repeat:'}</b> ${rc}x`:''}</p><p><b>${lang==='ar'?'الأسباب:':'Reasons:'}</b> ${(lang==='ar'?gd.gapAr:gd.gapEn)||(lang==='ar'?'لم تُدخل':'Not entered')}</p><p><b>${lang==='ar'?'الإجراءات:':'Actions:'}</b> ${(lang==='ar'?gd.actAr:gd.actEn)||(lang==='ar'?'لم تُدخل':'Not entered')}</p>${ac.owner?`<p><b>${lang==='ar'?'المسؤول:':'Owner:'}</b> ${ac.owner} | <b>${lang==='ar'?'الحالة:':'Status:'}</b> ${ac.status||'—'} | <b>${lang==='ar'?'الموعد:':'Due:'}</b> ${ac.dueDate||'—'}</p>`:''}</div>`;
+    gapSec+=`<div class="rpt-box warn"><div class="rpt-box-t">${k.id} — ${lang==='ar'?k.nameAr:k.nameEn}</div><p style="margin-bottom:4px"><b>${lang==='ar'?'الفجوة:':'Gap:'}</b> -${g}% | <b>${lang==='ar'?'المخاطر:':'Risk:'}</b> ${lang==='ar'?TIERS[k.tier||3].ar:TIERS[k.tier||3].en}${rc>=2?` | <b>${lang==='ar'?'تكرار:':'Repeat:'}</b> ${rc}x`:''}</p><p><b>${lang==='ar'?'الأسباب:':'Reasons:'}</b> ${(lang==='ar'?gd.gapAr:gd.gapEn)||(lang==='ar'?'لم تُدخل':'Not entered')}</p><p><b>${lang==='ar'?'الإجراءات:':'Actions:'}</b> ${(lang==='ar'?gd.actAr:gd.actEn)||(lang==='ar'?'لم تُدخل':'Not entered')}</p><p><b>${lang==='ar'?'أثر الفجوة:':'Impact:'}</b> ${gd.impactEn||gd.impact||gd.impactOfGap||(lang==='ar'?'لم يُدخل':'Not entered')}</p>${ac.owner?`<p><b>${lang==='ar'?'المسؤول:':'Owner:'}</b> ${ac.owner} | <b>${lang==='ar'?'الحالة:':'Status:'}</b> ${ac.status||'—'} | <b>${lang==='ar'?'الموعد:':'Due:'}</b> ${ac.dueDate||'—'}</p>`:''}</div>`;
   });
   document.getElementById('rptB').innerHTML=`<div class="rpt"><div class="rpt-pg">
     <div class="rpt-hdr"><div class="rpt-hdr-l"><img src="${logo}"><div><div class="rpt-org">${lang==='ar'?'المدينة الطبية — جامعة القصيم':'Medical City — Qassim University'}</div><div class="rpt-div">${lang==='ar'?'إدارة المرافق والسلامة':'Facilities & Safety Division'}</div></div></div>
@@ -653,6 +663,7 @@ function loadGD(){
   const gd=(ST.gaps||{})[gapKey]||{};const ac=(ST.actions||{})[gapKey]||{};
   const gE=document.getElementById('gE');if(gE)gE.value=gd.gapEn||'';
   const aE=document.getElementById('aE');if(aE)aE.value=gd.actEn||'';
+  const impactE=document.getElementById('impactE');if(impactE)impactE.value=gd.impactEn||gd.impact||gd.impactOfGap||'';
   document.getElementById('gOwner').value=gd.owner||ac.owner||'';document.getElementById('gDue').value=gd.dueDate||ac.dueDate||'';
   document.getElementById('actStatus').value=ac.status||gd.status||'';
   document.getElementById('actPri').value=ac.priority||gd.priority||'';
@@ -1222,6 +1233,7 @@ function saveAdmin(){
     ST.gaps[id]={
       gapEn:document.getElementById('gE').value,
       actEn:document.getElementById('aE').value,
+      impactEn:(document.getElementById('impactE')||{}).value||'',
       owner:document.getElementById('gOwner').value,
       dueDate:document.getElementById('gDue').value,
       status:document.getElementById('actStatus').value,

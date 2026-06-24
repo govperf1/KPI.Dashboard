@@ -296,8 +296,8 @@ function applyRolePermissions(role,dept,perms){
     
   }
 
-  /* ── Dept lock for dept_manager and kpi_owner ── */
-  if((role==='department_manager'||role==='kpi_owner')&&dept){
+  /* ── Dept lock for users assigned to a specific department ── */
+  if((role==='department_manager'||role==='kpi_owner'||role==='viewer'||role==='gap_owner')&&dept){
     window._lockedDept=dept;
     const orig=window.setF;
     window.setF=function(t,v,e){if(t==='dept'&&v!==dept&&v!=='all')return;if(orig)orig(t,v,e);};
@@ -316,6 +316,7 @@ function applyRolePermissions(role,dept,perms){
           b.style.opacity='';b.style.pointerEvents='';b.style.cursor='';
         }
       });
+      if(typeof applyDepartmentFilterScope==='function')applyDepartmentFilterScope();
       if(typeof renderCurrent==='function')renderCurrent();
     },400);
   }
@@ -328,6 +329,53 @@ function applyRolePermissions(role,dept,perms){
   document.head.appendChild(roleStyle);
 }
 window.applyRolePermissions=applyRolePermissions;
+
+/* ── Department filter scope lock: users assigned to one department see only that department in the filter ── */
+function _qumcDeptKey(v){
+  v=String(v||'').toLowerCase().trim();
+  if(!v)return '';
+  v=v.replace(/&/g,'and').replace(/\s+/g,'_');
+  const m={
+    maintenance:'maintenance',mnt:'maintenance',engineering:'maintenance','الصيانة':'maintenance',
+    safety:'safety','السلامة':'safety',
+    housekeeping:'housekeeping',cleaning:'housekeeping','خدمات_النظافة':'housekeeping','النظافة':'housekeeping',
+    projects:'projects',project:'projects',project_management:'projects','ادارة_المشاريع':'projects','إدارة_المشاريع':'projects'
+  };
+  return m[v]||v;
+}
+function _qumcUserLockedDept(){
+  const role=String(window._fbRole||'').toLowerCase().trim();
+  const dept=_qumcDeptKey(window._lockedDept||window._fbDept||window._fbDepartment||window.userDepartment||'');
+  if(!dept || !DM || !DM[dept]) return '';
+  if(role==='super_admin'||role==='admin'||role==='executive') return '';
+  return dept;
+}
+function applyDepartmentFilterScope(){
+  const sel=document.getElementById('deptF');
+  if(!sel) return;
+  if(!sel.dataset.fullOptions) sel.dataset.fullOptions=sel.innerHTML;
+  const locked=_qumcUserLockedDept();
+  if(locked){
+    window._lockedDept=locked;
+    if(typeof F!=='undefined'&&F&&typeof F==='object') F.dept=locked;
+    const dm=DM[locked]||{en:locked,ar:locked};
+    sel.innerHTML='<option value="'+locked+'" data-en="'+(dm.en||locked)+'" data-ar="'+(dm.ar||dm.en||locked)+'">'+((typeof lang!=='undefined'&&lang==='ar')?(dm.ar||dm.en):(dm.en||locked))+'</option>';
+    sel.value=locked;
+    sel.disabled=true;
+    sel.style.cursor='not-allowed';
+    sel.title=(typeof lang!=='undefined'&&lang==='ar')?'مقيد بالقسم المحدد لحسابك':'Locked to your assigned department';
+  }else{
+    if(sel.dataset.fullOptions && sel.innerHTML.indexOf('value="all"')===-1){
+      sel.innerHTML=sel.dataset.fullOptions;
+    }
+    sel.disabled=false;
+    sel.style.cursor='';
+    sel.title='';
+    if(typeof F!=='undefined'&&F&&F.dept) sel.value=F.dept;
+  }
+}
+window.applyDepartmentFilterScope=applyDepartmentFilterScope;
+
 /* showKpoGapStatusPopup is defined in admin.js (loads after kpi.js).
    Function declarations there become global automatically — no assignment needed here. */
 function updateUserBadge(name, role){
@@ -912,6 +960,7 @@ if(!F.year)F.year='all';
 if(!Array.isArray(F.qtr))F.qtr=['q1','q2','q3','q4'];
 if(!F.dept)F.dept='all';
 if(!F.status)F.status='all';
+setTimeout(function(){try{applyDepartmentFilterScope();}catch(e){}},250);
 
 /* ==========================================
    UTILS
@@ -1082,6 +1131,7 @@ function setF(type,val,el){
   }
     if(type==='year')renderYearFilter();
   }
+  if(typeof applyDepartmentFilterScope==='function')applyDepartmentFilterScope();
   updateChips();updateBadge();renderCurrent();
 
 /* -- Audit log, toast, clock -- */
@@ -1374,6 +1424,7 @@ window.addEventListener('storage', function(e){
     document.querySelectorAll('[data-filter="status"]').forEach(function(b){b.classList.toggle('on',b.dataset.val==='all');});
     document.querySelectorAll('[data-filter="dept"]').forEach(function(b){b.classList.toggle('on',b.dataset.val===F.dept);});
     var df=document.getElementById('deptF'); if(df) df.value=F.dept;
+    if(typeof applyDepartmentFilterScope==='function')applyDepartmentFilterScope();
     if(typeof renderCurrent==='function') renderCurrent();
   };
 })();
