@@ -428,8 +428,8 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <div class="af-field">
 <label class="af-lbl" data-en="Risk Tier" data-ar="تصنيف الخطر">Risk Tier</label>
 <select class="af-sel" id="eTier">
-<option value="1">T1 — سلامة المرضى</option>
-<option value="2">T2 — Regulatory</option>
+<option value="1" data-en="T1 — Patient Safety" data-ar="T1 — سلامة المرضى">T1 — Patient Safety</option>
+<option value="2" data-en="T2 — Regulatory" data-ar="T2 — تنظيمي">T2 — Regulatory</option>
 <option selected="" value="3">T3 — Operational</option>
 </select>
 </div>
@@ -513,9 +513,9 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <label class="af-lbl" data-en="Risk Tier" data-ar="تصنيف الخطر">Risk Tier <span style="color:#DC2626">*</span></label>
 <select class="af-sel" id="aTier" required="">
 <option disabled="" selected="" value="">— Select risk tier —</option>
-<option value="1">T1 — سلامة المرضى</option>
-<option value="2">T2 — Regulatory</option>
-<option value="3">T3 — Operational</option>
+<option value="1" data-en="T1 — Patient Safety" data-ar="T1 — سلامة المرضى">T1 — Patient Safety</option>
+<option value="2" data-en="T2 — Regulatory" data-ar="T2 — تنظيمي">T2 — Regulatory</option>
+<option value="3" data-en="T3 — Operational" data-ar="T3 — تشغيلي">T3 — Operational</option>
 </select>
 </div>
 </div>
@@ -656,7 +656,7 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <!-- At Risk -->
 <label style="display:flex;align-items:center;gap:10px;padding:11px 14px;background:rgba(196,43,43,.06);border:1px solid rgba(196,43,43,.20);border-radius:9px;cursor:pointer;user-select:none">
 <input id="gAtRisk" style="width:16px;height:16px;accent-color:var(--missed);cursor:pointer;flex-shrink:0" type="checkbox"/>
-<span style="font-size:11px;font-weight:700;color:var(--missed)"> في خطر — تصعيد فوري للمؤشر</span>
+<span data-en="At Risk — Flag this KPI for immediate escalation" data-ar="في خطر — تصعيد فوري للمؤشر" style="font-size:11px;font-weight:700;color:var(--missed)">At Risk — Flag this KPI for immediate escalation</span>
 </label>
 <!-- Bilingual text areas -->
 <div class="af-sec-lbl" style="margin-top:4px">Root Cause &amp; Gap Reasons</div>
