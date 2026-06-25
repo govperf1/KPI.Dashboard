@@ -1527,7 +1527,10 @@ window.addEventListener('storage', function(e){
     if(!selectedYear){selectedYear=all.reduce(function(m,k){var y=Number(k.yr)||0;return y>m?y:m;},0);}
     if(!selectedYear)return {exec:null,byDept:{},currentYear:null,kpis:[]};
     var selectedQs=null;
-    if(opts.respectFilters&&Array.isArray(FF.qtr)&&!FF.qtr.includes('all')) selectedQs=FF.qtr.map(function(q){return String(q).toLowerCase();});
+    /* Forecast YE is a year-end estimate, so it uses all actual quarters entered
+       in the selected/current year. Quarter filter affects Current Performance,
+       not the Forecast YE calculation, to avoid Q1-only forecast collapsing into
+       the same value as Current Performance. */
     var groups={};
     all.forEach(function(k){
       var y=Number(k.yr)||0; if(!y||y>selectedYear)return;
@@ -1555,115 +1558,4 @@ window.addEventListener('storage', function(e){
     var byDept={};Object.keys(buckets).forEach(function(d){byDept[d]=avg(buckets[d]);});
     return {exec:avg(items.map(function(x){return x.forecast;})),byDept:byDept,currentYear:selectedYear,kpis:items};
   };
-})();
-
-
-/* ==========================================================
-   QUMC Arabic UI text cleanup — Arabic mode only
-   Scope: Arabic labels only. Does not change English mode, data, formulas, or calculations.
-   ========================================================== */
-(function(){
-  function isAr(){
-    try{return (typeof window.lang!=='undefined'&&window.lang==='ar')||document.documentElement.lang==='ar'||document.body.classList.contains('rtl');}
-    catch(e){return false;}
-  }
-  var KPI_NAME_AR={
-    'Preventive Maintenance Compliance':'معدل الالتزام بالصيانة الوقائية',
-    'Corrective Maintenance Resolution Rate':'معدل إغلاق طلبات الصيانة التصحيحية',
-    'Life Safety Systems PM Compliance':'الالتزام بالصيانة الوقائية لأنظمة سلامة الأرواح',
-    'Environmental Safety Rounds Completion':'إنجاز جولات السلامة البيئية',
-    'Hazardous Waste Segregation Rate':'معدل فرز النفايات الخطرة',
-    'Emergency Request Response Time':'الالتزام بوقت الاستجابة للطلبات الطارئة',
-    'Hygiene Standards Compliance':'الالتزام بمعايير النظافة',
-    'Laundry Turnaround Time Compliance':'الالتزام بزمن إنجاز خدمات الغسيل',
-    'Project Study Completion Rate':'معدل إنجاز دراسات المشاريع',
-    'Core Lab Ventilation Project SPI':'مؤشر أداء الجدول الزمني لمشروع تهوية المختبر المركزي',
-    'Infertility Center Project SPI':'مؤشر أداء الجدول الزمني لمشروع مركز العقم',
-    'Dental Clinic Project SPI':'مؤشر أداء الجدول الزمني لمشروع عيادة الأسنان',
-    'Schedule Performance Index':'مؤشر أداء الجدول الزمني',
-    'Schedule Performance Index (Active Projects)':'مؤشر أداء الجدول الزمني للمشاريع النشطة'
-  };
-  function replNames(txt){
-    Object.keys(KPI_NAME_AR).forEach(function(en){
-      if(txt.indexOf(en)>-1) txt=txt.split(en).join(KPI_NAME_AR[en]);
-    });
-    return txt;
-  }
-  function cleanAr(txt){
-    if(!txt||!isAr()) return txt;
-    var out=String(txt);
-    out=replNames(out);
-
-    /* Requested exact/semantic replacements */
-    out=out.replace(/✓\s*Met\b/g,'✓ محقق الهدف');
-    out=out.replace(/\bMet\b/g,'محقق الهدف');
-    out=out.replace(/\bMISSED\b|\bMissed\b/g,'لم يحقق الهدف');
-    out=out.replace(/معدل\s+النجاح/g,'نسبة تحقيق الهدف');
-    out=out.replace(/أكبر\s+فجوة\s*\([^)]*اسم\s+اسم[^)]*المؤشر[^)]*\)/g,'أكبر فجوة');
-    out=out.replace(/أكبر\s+فجوة\s*\(\s*اسم\s+(?:اسم\s+)*المؤشر\s*\)/g,'أكبر فجوة');
-    out=out.replace(/تحقيق\s+اسم\s+(?:اسم\s+)*المؤشرات\s+مقابل\s+الهدف/g,'تحقيق المؤشرات مقابل الهدف');
-    out=out.replace(/اتجاهات\s+اسم\s+(?:اسم\s+)*المؤشرات/g,'اتجاهات المؤشرات');
-    out=out.replace(/اسم\s+(?:اسم\s+)*(المؤشرات|المؤشر)/g,'$1');
-
-    /* Collapse duplicated target phrase only in Arabic labels */
-    out=out.replace(/✓\s*محقق\s+الهدف(?:\s+الهدف)+/g,'✓ محقق الهدف');
-    out=out.replace(/محقق\s+الهدف(?:\s+الهدف)+/g,'محقق الهدف');
-    out=out.replace(/لم\s+يحقق\s+الهدف(?:\s+الهدف)+/g,'لم يحقق الهدف');
-    out=out.replace(/محقق\s+الهدف\s+الهدفة/g,'محقق الهدف');
-    out=out.replace(/محقق\s+الهدف\s+للأهداف/g,'محقق الهدف');
-    out=out.replace(/المؤشرات\s+محقق\s+الهدف(?:\s+الهدف)*\s*الهدفة?\s+للأهداف/g,'محقق الهدف');
-    out=out.replace(/المؤشرات\s+محقق\s+الهدف/g,'محقق الهدف');
-
-    /* Final safety for repeated Arabic words produced by old text-mapping patches */
-    out=out.replace(/\bاسم(?:\s+اسم){1,}\b/g,'اسم');
-    out=out.replace(/\bالهدف(?:\s+الهدف){1,}\b/g,'الهدف');
-    return out;
-  }
-  window.qumcCleanArabicText=cleanAr;
-  function shouldSkip(el){
-    if(!el||!el.tagName) return true;
-    var t=el.tagName.toUpperCase();
-    return /^(SCRIPT|STYLE|INPUT|TEXTAREA|SELECT|OPTION|CODE|PRE)$/.test(t) || el.isContentEditable;
-  }
-  function applyArabicTextCleanup(root){
-    if(!isAr()) return;
-    root=root||document.body;
-    if(!root) return;
-    try{
-      var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:function(n){
-        var p=n.parentElement;
-        if(!p||shouldSkip(p)) return NodeFilter.FILTER_REJECT;
-        var v=n.nodeValue||'';
-        if(!/[\u0600-\u06FF]|\bMet\b|\bMissed\b|\bMISSED\b|Emergency Request Response Time|Preventive Maintenance Compliance|Corrective Maintenance Resolution Rate|Life Safety Systems PM Compliance|Environmental Safety Rounds Completion|Hazardous Waste Segregation Rate|Hygiene Standards Compliance|Laundry Turnaround Time Compliance|Schedule Performance Index/.test(v)) return NodeFilter.FILTER_REJECT;
-        return NodeFilter.FILTER_ACCEPT;
-      }});
-      var n, next;
-      while((n=walker.nextNode())){
-        next=cleanAr(n.nodeValue);
-        if(next!==n.nodeValue) n.nodeValue=next;
-      }
-    }catch(e){}
-  }
-  window.qumcApplyArabicTextCleanup=applyArabicTextCleanup;
-  function schedule(root){
-    if(!isAr()) return;
-    clearTimeout(window.__qumcArCleanupTimer);
-    window.__qumcArCleanupTimer=setTimeout(function(){applyArabicTextCleanup(root||document.body);},80);
-  }
-  document.addEventListener('DOMContentLoaded',function(){schedule(document.body);});
-  setTimeout(function(){schedule(document.body);},400);
-  setTimeout(function(){schedule(document.body);},1200);
-  try{
-    var mo=new MutationObserver(function(muts){
-      if(!isAr()) return;
-      var target=null;
-      for(var i=0;i<muts.length;i++){ if(muts[i].target){target=muts[i].target;break;} }
-      schedule(target&&target.nodeType===1?target:document.body);
-    });
-    mo.observe(document.documentElement,{childList:true,subtree:true,characterData:true});
-  }catch(e){}
-  var oldToggle=window.toggleLang;
-  if(typeof oldToggle==='function'){
-    window.toggleLang=function(){var r=oldToggle.apply(this,arguments);setTimeout(function(){schedule(document.body);},120);return r;};
-  }
 })();
