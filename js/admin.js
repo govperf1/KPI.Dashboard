@@ -420,13 +420,13 @@ function openReport(){
   const ks=filt(),nOk=ks.filter(k=>ok(k)===true).length,miss=ks.filter(k=>ok(k)===false).length,rate=ks.length?Math.round(nOk/ks.length*100):0;
   const now=new Date().toLocaleDateString(lang==='ar'?'ar-SA':'en-GB',{year:'numeric',month:'long',day:'numeric'});
   const logo='data:image/jpeg;base64,'+LOGO;
-  const hs=lang==='ar'?['الكود','اسم المؤشر','القسم','الهدف','Q1','Q2','Q3','Q4','النتيجة','المقارنة بالسنة الماضية','تصنيف الخطر','الحالة']:['Code','KPI Name','Dept','Target','Q1','Q2','Q3','Q4','Result','YoY','Risk','Status'];
+  const hs=lang==='ar'?['الكود','المؤشر','القسم','الهدف','Q1','Q2','Q3','Q4','النتيجة','YoY','المخاطر','الحالة']:['Code','KPI Name','Dept','Target','Q1','Q2','Q3','Q4','Result','YoY','Risk','Status'];
   let rows='',gapSec='';
   ks.forEach(k=>{const v=qv(k),a=ok(k);const yr=k.yoy!==undefined&&k.yoy!==null&&k.q1!==null?((k.q1-k.yoy>=0?'+':'')+(k.q1-k.yoy).toFixed(1)+'%'):'—';
-    rows+=`<tr><td><b>${k.id}</b><br><small style="color:#94a3b8">T${k.tier||3}</small></td><td>${lang==='ar'?k.nameAr:k.nameEn}</td><td>${lang==='ar'?DM[k.dept].ar:DM[k.dept].en}</td><td>${k.op==='='?'=':'≥'}${k.target}%</td>${[1,2,3,4].map(i=>`<td>${k['q'+i]!=null?k['q'+i].toFixed(1)+'%':'—'}</td>`).join('')}<td style="font-weight:700;color:${a===null?'#64748b':a?'#065f46':'#7f1d1d'}">${f2(v)}</td><td>${yr}</td><td>${lang==='ar'?TIERS[k.tier||3].ar:TIERS[k.tier||3].en}</td><td><span class="${a===true?'rpt-ok':'rpt-miss'}" style="${a===null?'background:#f1f5f9;color:#64748b':''}">${a===null?'—':a?(lang==='ar'?' محقق الهدف':' Met'):(lang==='ar'?' لم يحقق الهدف':' Missed')}</span></td></tr>`;
+    rows+=`<tr><td><b>${k.id}</b><br><small style="color:#94a3b8">T${k.tier||3}</small></td><td>${lang==='ar'?k.nameAr:k.nameEn}</td><td>${lang==='ar'?DM[k.dept].ar:DM[k.dept].en}</td><td>${k.op==='='?'=':'≥'}${k.target}%</td>${[1,2,3,4].map(i=>`<td>${k['q'+i]!=null?k['q'+i].toFixed(1)+'%':'—'}</td>`).join('')}<td style="font-weight:700;color:${a===null?'#64748b':a?'#065f46':'#7f1d1d'}">${f2(v)}</td><td>${yr}</td><td>${lang==='ar'?TIERS[k.tier||3].ar:TIERS[k.tier||3].en}</td><td><span class="${a===true?'rpt-ok':'rpt-miss'}" style="${a===null?'background:#f1f5f9;color:#64748b':''}">${a===null?'—':a?' Met':' Missed'}</span></td></tr>`;
   });
   ks.filter(k=>ok(k)===false).forEach(k=>{const v=qv(k),g=(k.target-v).toFixed(2);const gd=(ST.gaps||{})[k.id]||{};const ac=(ST.actions||{})[k.id]||{};const rc=getRepeat(k);
-    gapSec+=`<div class="rpt-box warn"><div class="rpt-box-t">${k.id} — ${lang==='ar'?k.nameAr:k.nameEn}</div><p style="margin-bottom:4px"><b>${lang==='ar'?'الفجوة:':'Gap:'}</b> -${g}% | <b>${lang==='ar'?'تصنيف الخطر:':'Risk:'}</b> ${lang==='ar'?TIERS[k.tier||3].ar:TIERS[k.tier||3].en}${rc>=2?` | <b>${lang==='ar'?'تكرار:':'Repeat:'}</b> ${rc}x`:''}</p><p><b>${lang==='ar'?'السبب الجذري:':'Reasons:'}</b> ${(lang==='ar'?gd.gapAr:gd.gapEn)||(lang==='ar'?'لم تُدخل':'Not entered')}</p><p><b>${lang==='ar'?'الإجراء التصحيحي:':'Actions:'}</b> ${(lang==='ar'?gd.actAr:gd.actEn)||(lang==='ar'?'لم تُدخل':'Not entered')}</p><p><b>${lang==='ar'?'أثر الفجوة:':'Impact:'}</b> ${gd.impactEn||gd.impact||gd.impactOfGap||(lang==='ar'?'لم يُدخل':'Not entered')}</p>${ac.owner?`<p><b>${lang==='ar'?'الشخص المسؤول:':'Owner:'}</b> ${ac.owner} | <b>${lang==='ar'?'الحالة:':'Status:'}</b> ${ac.status||'—'} | <b>${lang==='ar'?'الموعد:':'Due:'}</b> ${ac.dueDate||'—'}</p>`:''}</div>`;
+    gapSec+=`<div class="rpt-box warn"><div class="rpt-box-t">${k.id} — ${lang==='ar'?k.nameAr:k.nameEn}</div><p style="margin-bottom:4px"><b>${lang==='ar'?'الفجوة:':'Gap:'}</b> -${g}% | <b>${lang==='ar'?'المخاطر:':'Risk:'}</b> ${lang==='ar'?TIERS[k.tier||3].ar:TIERS[k.tier||3].en}${rc>=2?` | <b>${lang==='ar'?'تكرار:':'Repeat:'}</b> ${rc}x`:''}</p><p><b>${lang==='ar'?'الأسباب:':'Reasons:'}</b> ${(lang==='ar'?gd.gapAr:gd.gapEn)||(lang==='ar'?'لم تُدخل':'Not entered')}</p><p><b>${lang==='ar'?'الإجراءات:':'Actions:'}</b> ${(lang==='ar'?gd.actAr:gd.actEn)||(lang==='ar'?'لم تُدخل':'Not entered')}</p><p><b>${lang==='ar'?'أثر الفجوة:':'Impact:'}</b> ${gd.impactEn||gd.impact||gd.impactOfGap||(lang==='ar'?'لم يُدخل':'Not entered')}</p>${ac.owner?`<p><b>${lang==='ar'?'المسؤول:':'Owner:'}</b> ${ac.owner} | <b>${lang==='ar'?'الحالة:':'Status:'}</b> ${ac.status||'—'} | <b>${lang==='ar'?'الموعد:':'Due:'}</b> ${ac.dueDate||'—'}</p>`:''}</div>`;
   });
   document.getElementById('rptB').innerHTML=`<div class="rpt"><div class="rpt-pg">
     <div class="rpt-hdr"><div class="rpt-hdr-l"><img src="${logo}"><div><div class="rpt-org">${lang==='ar'?'المدينة الطبية — جامعة القصيم':'Medical City — Qassim University'}</div><div class="rpt-div">${lang==='ar'?'إدارة المرافق والسلامة':'Facilities & Safety Division'}</div></div></div>
@@ -434,7 +434,7 @@ function openReport(){
     <div class="rpt-ttl">${lang==='ar'?'تقرير مؤشرات الأداء الرئيسية':'KPI Performance Report'}</div>
     <div class="rpt-sub">${lang==='ar'?'قسم الحوكمة والأداء — إدارة المرافق والسلامة':'Governance & Performance Dept — Facilities & Safety Division'}</div>
     <div class="rpt-sec">1. ${lang==='ar'?'الملخص التنفيذي':'Executive Summary'}</div>
-    <div class="rpt-kv"><div class="rpt-kv-i"><div class="rpt-kv-l">${lang==='ar'?'إجمالي':'Total'}</div><div class="rpt-kv-v" style="color:#1a7a6a">${ks.length}</div></div><div class="rpt-kv-i"><div class="rpt-kv-l">${lang==='ar'?'محقق الهدف':'Met'}</div><div class="rpt-kv-v" style="color:#065f46">${nOk}</div></div><div class="rpt-kv-i"><div class="rpt-kv-l">${lang==='ar'?'لم يحقق الهدف':'Missed'}</div><div class="rpt-kv-v" style="color:#7f1d1d">${miss}</div></div></div>
+    <div class="rpt-kv"><div class="rpt-kv-i"><div class="rpt-kv-l">${lang==='ar'?'إجمالي':'Total'}</div><div class="rpt-kv-v" style="color:#1a7a6a">${ks.length}</div></div><div class="rpt-kv-i"><div class="rpt-kv-l"> Met</div><div class="rpt-kv-v" style="color:#065f46">${nOk}</div></div><div class="rpt-kv-i"><div class="rpt-kv-l"> Missed</div><div class="rpt-kv-v" style="color:#7f1d1d">${miss}</div></div></div>
     <div class="rpt-sec">2. ${lang==='ar'?'تفاصيل المؤشرات':'KPI Detail Table'}</div>
     <table class="rpt-tbl"><thead><tr>${hs.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>
     ${gapSec?`<div class="rpt-sec">3. ${lang==='ar'?'تحليل الفجوات والإجراءات':'Gap Analysis & Corrective Actions'}</div>${gapSec}`:''}
@@ -654,7 +654,7 @@ function loadEK(){
   const ar=document.getElementById('eKpiNameAR');if(ar)ar.textContent=k.nameAr;
   const meta=document.getElementById('eKpiMeta');if(meta){
     const v=qv(k),a=ok(k);
-    meta.innerHTML=`<span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span><span style="font-size:9px;color:var(--t3)">${DM[k.dept]?.en||k.dept} · ${k.yr}</span><span class="${a===null?'pill-pend':a?'pill-ok':'pill-miss'}" style="font-size:8.5px">${a===null?'Pending':a?(lang==='ar'?' محقق الهدف':' Met'):(lang==='ar'?' لم يحقق الهدف':' Missed')}</span>${v!==null?`<span style="font-size:10px;font-weight:700;color:${metStatus(k,v)?'var(--green)':'var(--red)'};background:${metStatus(k,v)?'var(--green-dim)':'var(--red-dim)'};padding:2px 7px;border-radius:4px">${v.toFixed(1)}% / ${k.target}%</span>`:''}`;
+    meta.innerHTML=`<span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span><span style="font-size:9px;color:var(--t3)">${DM[k.dept]?.en||k.dept} · ${k.yr}</span><span class="${a===null?'pill-pend':a?'pill-ok':'pill-miss'}" style="font-size:8.5px">${a===null?'Pending':a?' Met':' Missed'}</span>${v!==null?`<span style="font-size:10px;font-weight:700;color:${metStatus(k,v)?'var(--green)':'var(--red)'};background:${metStatus(k,v)?'var(--green-dim)':'var(--red-dim)'};padding:2px 7px;border-radius:4px">${v.toFixed(1)}% / ${k.target}%</span>`:''}`;
   }
 }
 function loadGD(){
@@ -2844,5 +2844,144 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
       });
     }
     return {pciData:pciData,masterId:masterId,cfg:cfg};
+  };
+})();
+
+/* ==========================================================
+   QUMC FORMULA REFERENCE FINAL FIX — hidden virtual C = Result
+   For Laundry Turnaround Time Compliance and Emergency Request Response Time:
+   - Formula Reference shows A, B, C where C = "Result".
+   - C is not rendered as a quarterly input/table column.
+   - C can still be used in formulas as a virtual computed result.
+   ========================================================== */
+(function(){
+  function _isHiddenField(f){return !!(f&&(f.hidden===true||f.virtual===true||f.inputMode==='virtual'||f.type==='computed'));}
+  function _letters(fields){return (fields||[]).map(function(_,i){return String.fromCharCode(65+i);});}
+  function _parse(v){if(typeof _adminParseNumber==='function')return _adminParseNumber(v);if(v===null||v===undefined||v==='')return null;var s=String(v).replace(/[٪%]/g,'').replace(/,/g,'').replace(/\s+/g,'');s=s.replace(/[٠-٩]/g,function(c){return '٠١٢٣٤٥٦٧٨٩'.indexOf(c);}).replace(/[۰-۹]/g,function(c){return '۰۱۲۳۴۵۶۷۸۹'.indexOf(c);});var n=Number(s);return isFinite(n)?n:null;}
+  function _eval(f,vals){return (typeof window._evalFormula==='function')?window._evalFormula(f,vals):null;}
+  function _html(s){return (typeof htmlEsc==='function')?htmlEsc(s):String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function _fieldLabel(f){var ar=(typeof lang!=='undefined'&&lang==='ar');return ar?(f.nameAr||f.nameEn||''):(f.nameEn||f.nameAr||'');}
+  function _withVirtuals(cfg,vals){
+    cfg=cfg||{}; vals=Object.assign({},vals||{});
+    var fields=Array.isArray(cfg.fieldConfig)?cfg.fieldConfig:[];
+    fields.forEach(function(f,i){
+      if(!_isHiddenField(f))return;
+      var L=String.fromCharCode(65+i);
+      if(vals[L]!==undefined&&vals[L]!==null&&vals[L]!=='')return;
+      var base=f.baseFormula||'';
+      if(!base){
+        var nm=String(f.nameEn||f.nameAr||'').toLowerCase();
+        if(nm.indexOf('result')>-1) base=cfg._baseResultFormula||'';
+      }
+      var r=base?_eval(base,vals):null;
+      vals[L]=(r===null||r===undefined||!isFinite(r))?null:r;
+    });
+    return vals;
+  }
+  function _getCfgForSection(sectionId,kpiId){
+    var section=document.getElementById(sectionId||'addQtrSection');
+    var masterId=section?section.getAttribute('data-master'):'';
+    if(!masterId)return null;
+    if(sectionId==='editQtrSection'&&typeof _adminMergeKpiSpecificConfig==='function')return _adminMergeKpiSpecificConfig(masterId,kpiId||_adminGetEditKpiId(section),_adminGetEditKpiNameEn(section));
+    return (typeof _adminMergedMasterConfig==='function')?_adminMergedMasterConfig(masterId):null;
+  }
+
+  window._buildQtrTableHTML=function(masterConfig,prefix){
+    var fields=masterConfig?(masterConfig.fieldConfig||[]):null;
+    var formula=masterConfig?(masterConfig.resultFormula||''):'';
+    var hasCustom=fields&&fields.length>0;
+    if(!hasCustom){
+      var thead='<thead><tr><th style="width:42px;text-align:left;padding-left:12px">QTR</th><th style="color:#93C5FD"> Planned</th><th style="color:#6EE7B7"> Complete</th><th style="color:#FCA5A5"> Incomplete</th><th style="color:#67E8F9;width:100px">Result</th></tr></thead>';
+      var tbody='<tbody>';['Q1','Q2','Q3','Q4'].forEach(function(Q){tbody+='<tr><td>'+Q+'</td><td><input class="pci-pl" id="'+prefix+Q+'_pl" min="0" type="text" inputmode="decimal" autocomplete="off" placeholder="0" oninput="calcAdminPCI(\''+Q.toLowerCase()+'\',\''+prefix+'\')"></td><td><input class="pci-co" id="'+prefix+Q+'_co" min="0" type="text" inputmode="decimal" autocomplete="off" placeholder="0" oninput="calcAdminPCI(\''+Q.toLowerCase()+'\',\''+prefix+'\')"></td><td><input class="pci-ic" id="'+prefix+Q+'_ic" min="0" type="text" inputmode="decimal" autocomplete="off" placeholder="—" readonly style="background:rgba(196,43,43,.05);color:#C42B2B;font-weight:700;cursor:default" title="Planned − Complete"></td><td><span class="pci-calc" id="'+prefix+Q+'_res">—</span></td></tr>';});
+      return thead+tbody+'</tbody>';
+    }
+    var allLetters=_letters(fields);
+    var visible=[]; fields.forEach(function(f,i){if(!_isHiddenField(f))visible.push({f:f,i:i,L:allLetters[i]});});
+    var formulaEscaped=String(formula).replace(/"/g,'&quot;').replace(/'/g,"\\'");
+    var thead2='<thead><tr><th style="width:42px;text-align:left;padding-left:12px">QTR</th>';
+    visible.forEach(function(x){thead2+='<th style="padding:6px 8px;line-height:1.4;word-break:break-word;white-space:normal;min-width:80px;max-width:150px;vertical-align:top"><div style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:rgba(1,149,175,.25);border-radius:4px;font-size:10px;font-weight:900;color:#0195af;margin-bottom:3px;font-family:var(--mono)">'+x.L+'</div><div style="font-size:9px;font-weight:600;color:#93C5FD;margin-top:2px">'+_html(_fieldLabel(x.f))+'</div></th>';});
+    var fl=(typeof lang!=='undefined'&&lang==='ar')?'النتيجة':'Result';
+    thead2+='<th style="color:#67E8F9;width:90px;min-width:70px;vertical-align:top"><div style="font-size:10px;font-weight:700">'+fl+'</div>'+(formula?'<div style="font-size:8px;color:rgba(103,232,249,.6);font-family:var(--mono);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:88px" title="'+_html(formula)+'">'+_html(formula)+'</div>':'')+'</th></tr></thead>';
+    var tbody2='<tbody>';['Q1','Q2','Q3','Q4'].forEach(function(Q){tbody2+='<tr><td style="font-weight:700;font-size:10px">'+Q+'</td>';visible.forEach(function(x){tbody2+='<td><input class="pci-pl custom-field-input" id="'+prefix+Q+'_'+x.L+'" type="text" inputmode="decimal" autocomplete="off" placeholder="0" data-q="'+Q.toLowerCase()+'" data-prefix="'+prefix+'" data-formula="'+formulaEscaped+'" data-letters="'+allLetters.join(',')+'" oninput="_onCustomFieldInput(this)"></td>';});tbody2+='<td><span class="pci-calc" id="'+prefix+Q+'_res" style="min-width:60px;display:inline-block">—</span></td></tr>';});
+    return thead2+tbody2+'</tbody>';
+  };
+
+  window._calcCustomResult=function(q,prefix,formula,letters){
+    var Q=String(q||'').toUpperCase(), vals={}, valid=true, sectionId=(prefix==='eAd')?'editQtrSection':'addQtrSection';
+    var cfg=_getCfgForSection(sectionId);
+    var fields=(cfg&&cfg.fieldConfig)||[]; letters=letters&&letters.length?letters:_letters(fields);
+    letters.forEach(function(L,idx){
+      var f=fields[idx]||{};
+      if(_isHiddenField(f))return;
+      var el=document.getElementById(prefix+Q+'_'+L);
+      if(!el||String(el.value||'').trim()===''){valid=false;return;}
+      var v=_parse(el.value); if(v===null||isNaN(v)){valid=false;return;} vals[L]=v;
+    });
+    vals=_withVirtuals(cfg,vals);
+    var resEl=document.getElementById(prefix+Q+'_res'); if(!resEl)return;
+    if(!valid){resEl.textContent='—';return;}
+    var result=_eval(formula,vals);
+    if(result===null){resEl.textContent='⚠ err';resEl.style.color='#F87171';}
+    else{resEl.textContent=Math.round(result*10)/10+'%';resEl.style.color=result>=0?'#67E8F9':'#F87171';}
+  };
+
+  window._readQtrValuesFromForm=function(kpiId,prefix,sectionId){
+    var section=document.getElementById(sectionId||'addQtrSection');
+    var masterId=section?section.getAttribute('data-master'):'';
+    var cfg=_getCfgForSection(sectionId||'addQtrSection',kpiId);
+    var pciData={};
+    if(cfg&&cfg.fieldConfig&&cfg.fieldConfig.length>0){
+      var fields=cfg.fieldConfig, letters=_letters(fields);
+      ['Q1','Q2','Q3','Q4'].forEach(function(Q){
+        var ql=Q.toLowerCase(), vals={}, any=false;
+        letters.forEach(function(L,idx){
+          var f=fields[idx]||{};
+          if(_isHiddenField(f))return;
+          var el=document.getElementById(prefix+Q+'_'+L);
+          var v=el?_parse(el.value):null;
+          if(v!==null){any=true;vals[L]=v;} else vals[L]=null;
+        });
+        vals=_withVirtuals(cfg,vals);
+        if(!any){pciData[ql]={_custom:true,_masterId:masterId,_formula:cfg.resultFormula,_result:null};return;}
+        var evalVals={}; Object.keys(vals).forEach(function(k){evalVals[k]=vals[k]===null?0:vals[k];});
+        var result=_eval(cfg.resultFormula||'',evalVals);
+        pciData[ql]=Object.assign({_custom:true,_masterId:masterId,_formula:cfg.resultFormula},vals);
+        pciData[ql]._result=(result===null||result===undefined||!isFinite(result))?null:result;
+      });
+    }else{
+      ['Q1','Q2','Q3','Q4'].forEach(function(Q){
+        var ql=Q.toLowerCase();
+        var pl=_parse((document.getElementById(prefix+Q+'_pl')||{}).value), co=_parse((document.getElementById(prefix+Q+'_co')||{}).value), ic=_parse((document.getElementById(prefix+Q+'_ic')||{}).value);
+        if(pl===null&&co===null&&ic===null){pciData[ql]={planned:null,complete:null,incomplete:null};return;}
+        if(ic===null&&pl!==null&&co!==null)ic=Math.max(0,pl-co);
+        pciData[ql]={planned:pl,complete:co,incomplete:ic};
+      });
+    }
+    return {pciData:pciData,masterId:masterId,cfg:cfg};
+  };
+
+  window._fillQtrFormFromPci=function(kpiId,prefix,sectionId){
+    var pciData=(ST.pci||{})[kpiId]||{}, section=document.getElementById(sectionId||'editQtrSection'), masterId=section?section.getAttribute('data-master'):'';
+    var cfg=_getCfgForSection(sectionId||'editQtrSection',kpiId);
+    ['Q1','Q2','Q3','Q4'].forEach(function(Q){
+      var ql=Q.toLowerCase(), qd=pciData[ql]||{};
+      if(cfg&&cfg.fieldConfig&&cfg.fieldConfig.length>0){
+        var fields=cfg.fieldConfig, letters=_letters(fields), vals={};
+        letters.forEach(function(L,idx){
+          var f=fields[idx]||{};
+          if(_isHiddenField(f))return;
+          var el=document.getElementById(prefix+Q+'_'+L); if(el)el.value=(qd[L]!=null&&qd[L]!==undefined)?qd[L]:'';
+          vals[L]=_parse(qd[L]);
+        });
+        vals=_withVirtuals(cfg,vals);
+        var resEl=document.getElementById(prefix+Q+'_res'); if(resEl){var r=_eval(cfg.resultFormula||'',vals);resEl.textContent=(r!==null&&r!==undefined&&isFinite(r))?Math.round(r*10)/10+'%':'—';}
+      }else{
+        var plEl=document.getElementById(prefix+Q+'_pl'),coEl=document.getElementById(prefix+Q+'_co'),icEl=document.getElementById(prefix+Q+'_ic');
+        if(plEl)plEl.value=(qd.planned!=null&&qd.planned!==undefined)?qd.planned:'';
+        if(coEl)coEl.value=(qd.complete!=null&&qd.complete!==undefined)?qd.complete:'';
+        if(icEl)icEl.value=(qd.incomplete!=null&&qd.incomplete!==undefined)?qd.incomplete:'';
+        if(qd.planned&&typeof calcAdminPCI==='function')calcAdminPCI(Q.toLowerCase(),prefix);
+      }
+    });
   };
 })();

@@ -1335,3 +1335,105 @@ function updateExecTrend(yr){
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
   setTimeout(bind,300);setTimeout(bind,1200);setTimeout(bind,3000);setInterval(render,30000);
 })();
+
+/* ==========================================================
+   QUMC NOTIFICATIONS V10 — final stable scoped unread/list engine
+   - One visible source of truth at the very end of file.
+   - Badge = unread active notifications within current user scope only.
+   - List = active scoped notifications, unread first, read remains visible below.
+   - Mutation guard restores V10 if any older timer rewrites the dropdown/badge.
+   ========================================================== */
+(function(){
+  'use strict';
+  window.__QUMC_NOTIF_V10_ACTIVE__ = true;
+  window.__QUMC_NOTIF_ENGINE_VERSION__ = 'v10-scoped-unread-stable-list';
+  var rendering=false, lastSig='';
+  function $(id){return document.getElementById(id);} 
+  function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  function norm(s){return String(s||'').toLowerCase().trim().replace(/[\u200e\u200f]/g,'').replace(/[_\s\-]+/g,' ');} 
+  function normKey(s){return norm(s).replace(/[^a-z0-9\u0600-\u06ff]+/g,'');}
+  function isAr(){return (typeof window.lang!=='undefined'&&window.lang==='ar')||document.documentElement.dir==='rtl'||document.documentElement.lang==='ar';}
+  function role(){return norm(window._fbRole||window.currentUserRole||'').replace(/\s+/g,'_');}
+  function email(){var e=String(window._fbUser||window._fbEmail||window.currentUserEmail||'').toLowerCase().trim();try{if(!e)e=String(sessionStorage.getItem('qumc_user_email')||localStorage.getItem('qumc_user_email')||'').toLowerCase().trim();}catch(_){}return e;}
+  function uname(){return String(window._fbName||window.currentUserName||(email()?email().split('@')[0]:'user')).toLowerCase().trim();}
+  function deptAlias(v){var x=normKey(v);if(!x)return'';if(x.indexOf('maintenance')>-1||x.indexOf('صيانة')>-1)return'maintenance';if(x.indexOf('safety')>-1||x.indexOf('سلامة')>-1)return'safety';if(x.indexOf('housekeeping')>-1||x.indexOf('cleaning')>-1||x.indexOf('hospitality')>-1||x.indexOf('نظافة')>-1||x.indexOf('فندقة')>-1)return'housekeeping';if(x.indexOf('project')>-1||x.indexOf('مشاريع')>-1||x.indexOf('المشاريع')>-1)return'projects';if(x.indexOf('governance')>-1||x.indexOf('حوكمة')>-1)return'governance';return x;}
+  function dept(){return deptAlias(window._fbDept||window._lockedDept||window.currentUserDept||'');}
+  function isAdmin(){var r=role();return r==='super_admin'||r==='superadmin'||r==='admin'||r==='executive';}
+  function assigned(){var a=window._fbAssignedKpis;if(a===undefined||a===null)a=window.assignedKpis;if(typeof a==='string')a=a.split(/[;,|]/);if(!Array.isArray(a))return[];return a.map(normKey).filter(Boolean);}
+  function scopeReady(){var e=email(),r=role();if(!e||!r)return false;if(isAdmin())return true;var d=dept(),a=assigned();if((r==='kpi_owner'||r==='gap_owner')&&a.length)return true;return !!d;}
+  function scopeKey(){return [email()||'nouser',role()||'norole',dept()||'nodept',assigned().join('-')||'all'].map(normKey).join('__');}
+  function seenKey(){return 'qumc_notifications_seen_v10_'+scopeKey();}
+  function readSeen(){try{var a=JSON.parse(localStorage.getItem(seenKey())||'[]');return Array.isArray(a)?a:[];}catch(_){return[];}}
+  function writeSeen(a){try{localStorage.setItem(seenKey(),JSON.stringify(Array.from(new Set(a||[])).slice(-500)));}catch(_){}}
+  function state(){try{return window.ST||JSON.parse(localStorage.getItem('kpi_v3')||'{}')||{};}catch(_){return window.ST||{};}}
+  function allKpis(){try{if(typeof window.allK==='function')return window.allK()||[];}catch(_){}try{if(Array.isArray(window.KPIS))return window.KPIS;}catch(_){}var st=state();return Array.isArray(st.kpis)?st.kpis:[];}
+  function code(k){return String(k&&(k.id||k.code||k.kpiCode||k.kpi_id)||'').trim();}
+  function kname(k){return String(k&&(k.nameEn||k.name||k.nameAr||k.kpiName)||'').trim();}
+  function kdept(k){return deptAlias(k&&(k.dept||k.department||k.departmentId||k.section||k.sectionName));}
+  function year(k){return String(k&&(k.year||k.yr||k.fy)||'').trim()||'current';}
+  function ownedBy(obj){if(!obj)return false;var me=email(),nm=uname();var vals=[obj.email,obj.userEmail,obj.ownerEmail,obj.assignedEmail,obj.responsibleEmail,obj.kpiOwnerEmail,obj.gapOwnerEmail,obj.owner,obj.kpiOwner,obj.gapOwner,obj.responsible,obj.responsiblePerson,obj.assignee,obj.user,obj.name].map(norm).filter(Boolean);return vals.some(function(v){return(me&&v.indexOf(me)>-1)||(nm&&v.indexOf(nm)>-1);});}
+  function canSee(k,extra){if(isAdmin())return true;var d=dept(),a=assigned(),r=role(),kc=normKey(code(k)),kn=normKey(kname(k)),kd=kdept(k);if(a.length){if(kc&&a.indexOf(kc)>-1)return true;if(kn&&a.indexOf(kn)>-1)return true;if(extra&&ownedBy(extra))return true;return false;}if(r==='kpi_owner'||r==='gap_owner'){if(extra&&ownedBy(extra))return true;if(k&&ownedBy(k))return true;if(d&&kd&&d===kd)return true;return false;}return !!(d&&kd&&d===kd);}
+  function num(v){if(v===null||v===undefined||v==='')return null;var s=String(v).trim().replace(/[٪%]/g,'').replace(/,/g,'').replace(/\s+/g,'');s=s.replace(/[٠-٩]/g,function(c){return '٠١٢٣٤٥٦٧٨٩'.indexOf(c);}).replace(/[۰-۹]/g,function(c){return '۰۱۲۳۴۵۶۷۸۹'.indexOf(c);});var n=Number(s);return isFinite(n)?n:null;}
+  function qvals(k){var out=[];['q1','q2','q3','q4'].forEach(function(q){var v=k&&k[q];if(v===undefined)v=k&&k[String(q).toUpperCase()];var n=num(v);if(n!==null)out.push({q:q,v:n});});return out;}
+  function met(k,v){try{if(typeof window.metStatus==='function')return !!window.metStatus(k,v);}catch(_){}var n=num(v),t=num(k&&(k.target||k.tg||k.targetValue));if(n===null)return true;if(t===null)t=100;var op=String(k&&(k.op||k.operator||k.comparison)||'>=').toLowerCase();if(op.indexOf('<=')>-1||op.indexOf('less')>-1||op.indexOf('at most')>-1)return n<=t;if(op==='='||op.indexOf('equal')>-1)return Math.abs(n-t)<=0.05;return n>=t;}
+  function baseGapCode(key){return String(key||'').replace(/_(q[1-4])$/i,'').replace(/-(q[1-4])$/i,'');}
+  function gapQuarter(key){var m=String(key||'').match(/(?:_|-)(q[1-4])$/i);return m?m[1].toUpperCase():'';}
+  function findKpi(ks,c){var nk=normKey(c);return(ks||[]).find(function(k){return normKey(code(k))===nk;})||null;}
+  function title(k,fallback){return k?((code(k)||'KPI')+(kname(k)?' — '+kname(k):'')):(fallback||'KPI');}
+  function activeRows(){
+    if(!scopeReady())return null;
+    var ks=allKpis(),out=[];
+    (ks||[]).forEach(function(k){
+      if(!canSee(k))return;
+      var bad=qvals(k).filter(function(x){return !met(k,x.v);});
+      if(!bad.length)return;
+      var qs=bad.map(function(x){return String(x.q).toUpperCase();}).join(', ');
+      out.push({id:'miss:'+normKey(code(k))+':'+year(k),level:'red',title:title(k),meta:isAr()?('لم يحقق الهدف في '+qs):('Missed target in '+qs),body:isAr()?'المؤشر ضمن صلاحيتك ولم يحقق الهدف ويحتاج متابعة.':'This KPI is within your permission scope and is below target.',dept:kdept(k),kpiCode:code(k),kpiName:kname(k),ts:Date.now()});
+    });
+    var st=state(),gaps=st.gaps||st.gapAnalysis||st.gap_analysis||{};
+    if(Array.isArray(gaps)){var tmp={};gaps.forEach(function(g,i){tmp[g.kpiId||g.kpiCode||g.id||i]=g;});gaps=tmp;}
+    Object.keys(gaps||{}).forEach(function(key){
+      var g=gaps[key]||{},base=baseGapCode(key),k=findKpi(ks,base);
+      if(!canSee(k,g))return;
+      var txt=String(g.gapEn||g.gapAr||g.rootCause||g.reason||g.actEn||g.actAr||g.correctiveAction||g.actionPlan||g.impactEn||g.impactAr||'').trim();
+      var status=norm(g.status||g.actionStatus||g.state||''),pri=norm(g.priority||g.risk||g.severity||'');
+      var open=!status||['open','pending','in progress','inprogress','active','overdue'].some(function(x){return status.indexOf(x)>-1;});
+      if(!(open||txt||pri.indexOf('high')>-1||pri.indexOf('critical')>-1))return;
+      var q=gapQuarter(key)||'ALL';
+      out.push({id:'gap:'+normKey(base)+':'+q,level:(pri.indexOf('critical')>-1||pri.indexOf('high')>-1)?'red':'orange',title:k?title(k):(base||'Gap action'),meta:isAr()?('إجراء فجوة يحتاج متابعة'+(q!=='ALL'?' - '+q:'')):('Gap action requires follow-up'+(q!=='ALL'?' - '+q:'')),body:(g.actAr||g.actEn||g.correctiveAction||g.actionPlan||g.gapAr||g.gapEn||g.rootCause||g.reason||g.impactAr||g.impactEn||''),dept:k?kdept(k):deptAlias(g.dept||g.department),kpiCode:k?code(k):base,kpiName:k?kname(k):'',ts:Date.now()});
+    });
+    var by={};out.forEach(function(n){if(n&&n.id)by[n.id]=Object.assign({},by[n.id]||{},n);});
+    return Object.keys(by).map(function(id){return by[id];});
+  }
+  function positionDrop(panel,anchor,w){if(!panel||!anchor)return;try{if(panel.parentElement!==document.body)document.body.appendChild(panel);}catch(_){}var r=anchor.getBoundingClientRect(),width=w||360;panel.style.position='fixed';panel.style.width=width+'px';panel.style.top=(r.bottom+10)+'px';panel.style.left=Math.max(12,Math.min(window.innerWidth-width-12,r.right-width))+'px';panel.style.right='auto';panel.style.zIndex='2147483646';panel.style.maxHeight='min(72vh,560px)';panel.style.overflow='auto';}
+  function render(){
+    if(rendering)return [];
+    rendering=true;
+    try{
+      var rows=activeRows(), count=$('userAlertCount'), list=$('userAlertList'), drop=$('userAlertDrop'), seen=readSeen();
+      if(rows===null){if(count){count.style.display='none';count.style.visibility='hidden';}return[];}
+      var unread=rows.filter(function(n){return seen.indexOf(n.id)<0;});
+      if(count){count.textContent=String(unread.length);count.style.display=unread.length?'flex':'none';count.style.visibility=unread.length?'visible':'hidden';count.style.opacity=unread.length?'1':'0';}
+      if(drop){var h=drop.firstElementChild;if(h){h.innerHTML='<span>'+(isAr()?'الإشعارات':'Notifications')+'</span><button type="button" class="qumc-clear-notifs" id="qumcClearNotifs">'+(isAr()?'تحديد الكل كمقروء':'Mark all read')+'</button>';h.style.display='flex';h.style.justifyContent='space-between';h.style.alignItems='center';}}
+      if(list){
+        if(!rows.length){list.innerHTML='<div class="qumc-n-empty-final">'+(isAr()?'لا توجد إشعارات مهمة ضمن صلاحيتك حالياً.':'No important notifications for your permission scope.')+'</div>';}
+        else{
+          rows.sort(function(a,b){var ar=seen.indexOf(a.id)<0,br=seen.indexOf(b.id)<0;return (br?1:0)-(ar?1:0)||String(a.id).localeCompare(String(b.id));});
+          window._notifMap={}; rows.forEach(function(n){window._notifMap[n.id]=n;});
+          list.innerHTML=rows.map(function(n){var read=seen.indexOf(n.id)>=0;var col=read?'#94A3B8':(n.level==='red'?'#C42B2B':(n.level==='orange'?'#D97706':'#0195af'));return '<div class="qumc-nrow-final" data-nid="'+esc(n.id)+'" style="opacity:'+(read?'.62':'1')+'"><span class="qumc-n-dot-final" style="background:'+col+'"></span><div><div class="qumc-n-title-final">'+esc(n.title)+' '+(read?'<span style="font-size:9px;color:#94A3B8">'+(isAr()?'(مقروء)':'(read)')+'</span>':'')+'</div><div class="qumc-n-meta-final">'+esc(n.meta||'')+'</div></div></div>';}).join('');
+          Array.prototype.forEach.call(list.querySelectorAll('.qumc-nrow-final'),function(row){row.onclick=function(ev){ev.preventDefault();ev.stopPropagation();var id=row.getAttribute('data-nid');var s=readSeen();if(s.indexOf(id)<0){s.push(id);writeSeen(s);} if(window._showNotifModal)window._showNotifModal((window._notifMap||{})[id]); setTimeout(render,60);};});
+        }
+      }
+      var clear=$('qumcClearNotifs');if(clear)clear.onclick=function(ev){ev.preventDefault();ev.stopPropagation();writeSeen(readSeen().concat(rows.map(function(n){return n.id;})));render();};
+      var sig=rows.map(function(n){return n.id+(seen.indexOf(n.id)<0?'U':'R');}).join('|')+'#'+unread.length; lastSig=sig;
+      return rows;
+    }finally{rendering=false;}
+  }
+  window.__QUMC_NOTIF_V10_RENDER__=render;
+  window.renderNotifications=render; window.updateAlertUI=render; window.buildUserAlerts=function(){return activeRows()||[];}; window.collectNotifications=function(){return activeRows()||[];};
+  window.toggleUserAlerts=function(ev){if(ev){ev.preventDefault();ev.stopPropagation();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}var d=$('userAlertDrop'),p=$('userProfileDrop'),b=$('userAlertBtn');if(!d)return false;if(p){p.style.display='none';p.classList.remove('qumc-profile-open','qumc-final-open');}var open=d.style.display!=='block';if(open){positionDrop(d,b,360);d.style.display='block';d.classList.add('qumc-final-open','qumc-stay-open');render();}else{d.style.display='none';d.classList.remove('qumc-final-open','qumc-stay-open');}return false;};
+  function bind(){var ab=$('userAlertBtn');if(ab&&ab.dataset.qumcNotifV10!=='1'){ab.dataset.qumcNotifV10='1';ab.onclick=null;ab.addEventListener('click',window.toggleUserAlerts,true);}render();}
+  function guard(){var c=$('userAlertCount'),l=$('userAlertList');[c,l].forEach(function(el){if(!el||el.dataset.v10Obs==='1')return;el.dataset.v10Obs='1';try{new MutationObserver(function(){if(rendering)return;setTimeout(function(){try{render();}catch(_){ }},30);}).observe(el,{childList:true,subtree:true,characterData:true,attributes:true});}catch(_){}});}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){bind();guard();});else{bind();guard();}
+  setTimeout(function(){bind();guard();},300);setTimeout(function(){bind();guard();},1200);setTimeout(function(){bind();guard();},3000);setInterval(function(){try{render();}catch(_e){}},10000);
+})();
