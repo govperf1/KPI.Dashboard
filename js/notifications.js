@@ -15,6 +15,17 @@
      firebase.js  (window._doLogout, window._fbUser)
    =========================================================== */
 
+
+/* QUMC Notification Engine Guard V8
+   Prevents legacy notification renderers in this file from writing a temporary,
+   unscoped badge before Firebase role/department data is ready. The final V8
+   engine below replaces this stub after the file finishes loading. */
+window.__QUMC_NOTIF_ENGINE_V8_LOADING__ = true;
+window.renderNotifications = window.renderNotifications || function(){ return []; };
+window.updateAlertUI = window.updateAlertUI || function(){};
+window.buildUserAlerts = window.buildUserAlerts || function(){ return []; };
+window.collectNotifications = window.collectNotifications || function(){ return []; };
+
 /* -- AI Assistant widget (local KPI intelligence, no external API) -- */
 
 function aiIsDashboardVisible(){
@@ -271,39 +282,10 @@ function updateExecTrend(yr){
   });
 }
 
-/* -- Notification centre: alert badge, bell dropdown -- */
+/* -- Profile topbar helper only (legacy notification writes disabled) -- */
 (function(){
   function roleLabel(role){
-    return ({super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',viewer:'Viewer'})[role]||role||'—';
-  }
-  function getUserAlerts(){
-    try{
-      var user=(window._fbEmail||'').toLowerCase();
-      var role=window._fbRole||'';
-      var assigned=Array.isArray(window._fbAssignedKpis)?window._fbAssignedKpis:[];
-      var ks=(typeof allK==='function'?allK():[]);
-      var gaps=(window.ST&&ST.gaps)||{};
-      var actions=(window.ST&&ST.actions)||{};
-      var list=[];
-      ks.forEach(function(k){
-        if(role==='kpi_owner' && assigned.length && assigned.indexOf(k.id)===-1) return;
-        var missed=(typeof ok==='function')?ok(k)===false:false;
-        var g=gaps[k.id]||{}, a=actions[k.id]||{};
-        var st=(g.status||a.status||'').toString().toLowerCase();
-        var pri=(g.priority||a.priority||'').toString().toLowerCase();
-        var owner=(g.owner||g.responsible||g.responsiblePerson||a.owner||a.responsible||'').toString().toLowerCase();
-        var due=g.due||g.dueDate||g.date||a.due||a.dueDate||'';
-        var relevant=!user || !owner || owner.indexOf(user.split('@')[0])>-1 || owner.indexOf(user)>-1 || role!=='kpi_owner';
-        if((missed||st==='in-progress'||pri==='critical'||pri==='high') && relevant){
-          list.push({
-            title:(k.id||'KPI')+' — '+(k.nameEn||k.name||'KPI'),
-            meta:(missed?'Missed target':'Needs follow-up')+(pri?' · '+pri.toUpperCase():'')+(due?' · Due: '+due:''),
-            status:st||'pending'
-          });
-        }
-      });
-      return list.slice(0,20);
-    }catch(e){return [];}
+    return ({super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',gap_owner:'Gap Owner',viewer:'Viewer'})[role]||role||'—';
   }
   window.refreshUserTopbar=function(){
     try{
@@ -312,33 +294,8 @@ function updateExecTrend(yr){
       if(n)n.textContent=name;
       if(r)r.textContent=roleLabel(role);
       if(a)a.textContent=(name||'U').charAt(0).toUpperCase();
-      var alerts=getUserAlerts(), c=document.getElementById('userAlertCount'), list=document.getElementById('userAlertList');
-      if(c){c.textContent=alerts.length; c.style.display=alerts.length?'flex':'none';}
-      if(list){
-        list.innerHTML=alerts.length?alerts.map(function(x){
-          return '<div style="padding:9px 10px;border-bottom:1px solid #EEF2F7">'+
-            '<div style="font-size:11px;font-weight:800;color:#152538;margin-bottom:3px">'+String(x.title).replace(/[&<>]/g,function(s){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[s]})+'</div>'+
-            '<div style="font-size:9.5px;color:#64748B;line-height:1.45">'+String(x.meta).replace(/[&<>]/g,function(s){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[s]})+'</div>'+
-          '</div>';
-        }).join(''):'<div style="padding:18px;text-align:center;color:#94A3B8;font-size:11px">No important alerts for this user.</div>';
-      }
+      /* Do not touch #userAlertCount or #userAlertList here. Notifications are owned by the V8 scoped engine only. */
     }catch(e){}
-  };
-  window.toggleUserAlerts=function(ev){
-    if(ev)ev.stopPropagation();
-    refreshUserTopbar();
-    var d=document.getElementById('userAlertDrop');
-    if(d)d.style.display=d.style.display==='block'?'none':'block';
-  };
-  document.addEventListener('click',function(e){
-    var d=document.getElementById('userAlertDrop');
-    if(d && !e.target.closest('#userNotifyWidget')) d.style.display='none';
-  });
-  var oldBadge=window.updateUserBadge;
-  window.updateUserBadge=function(name,role,perms){
-    try{ if(typeof oldBadge==='function') oldBadge(name,role,perms); }catch(_){}
-    window._fbName=name||window._fbName||'User'; window._fbRole=role||window._fbRole||'';
-    setTimeout(refreshUserTopbar,50);
   };
   function replacePerformanceIcon(){
     try{
@@ -357,20 +314,9 @@ function updateExecTrend(yr){
     }catch(e){}
   }
   function applyPortalBackground(){
-    try{
-      var bg=document.querySelector('#_bgLayer > div:first-child');
-      if(bg){
-        bg.style.backgroundSize='cover';
-        bg.style.backgroundPosition='center center';
-      }
-    }catch(e){}
+    try{var bg=document.querySelector('#_bgLayer > div:first-child'); if(bg){bg.style.backgroundSize='cover';bg.style.backgroundPosition='center center';}}catch(e){}
   }
-  document.addEventListener('DOMContentLoaded',function(){
-    replacePerformanceIcon();
-    applyPortalBackground();
-    refreshUserTopbar();
-    setInterval(refreshUserTopbar,30000); /* [FIXED] 5s→30s */
-  });
+  document.addEventListener('DOMContentLoaded',function(){replacePerformanceIcon();applyPortalBackground();refreshUserTopbar();setInterval(refreshUserTopbar,30000);});
   setTimeout(function(){replacePerformanceIcon();applyPortalBackground();refreshUserTopbar();},600);
 })();
 
@@ -1040,29 +986,33 @@ function updateExecTrend(yr){
    ───────────────────────────────────────────────────────────── */
 
 /* ==========================================================
-   FINAL QUMC FIX — role-scoped notifications only
-   Purpose:
-   - Super Admin/Admin/Executive: all important notifications.
-   - Department Manager/Viewer: only their department notifications.
-   - KPI Owner/Gap Owner: only assigned KPIs, or owned/department KPIs when assignments are absent.
-   - History and badge are scoped by email + role + department + assigned KPIs.
+   FINAL QUMC FIX V8 — single scoped notification engine
+   Fixes:
+   - One canonical renderer only.
+   - No badge/list render before user role + scope are loaded.
+   - Badge = unread CURRENT important notifications within user scope.
+   - History = accumulated scoped notifications, never shown outside scope.
+   - Stable notification IDs; status/priority updates do not create duplicates.
    ========================================================== */
 (function(){
   'use strict';
+  window.__QUMC_NOTIF_ENGINE_V8_LOADING__ = false;
+  window.__QUMC_NOTIF_ENGINE_VERSION__ = 'v8-scoped-single-engine';
+
   function $(id){return document.getElementById(id);} 
   function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
-  function readJson(k){try{var a=JSON.parse(localStorage.getItem(k)||'[]');return Array.isArray(a)?a:[];}catch(_){return[];}}
-  function writeJson(k,a){try{localStorage.setItem(k,JSON.stringify((a||[]).slice(0,200)));}catch(_){}}
+  function readJson(k,fallback){try{var a=JSON.parse(localStorage.getItem(k)||JSON.stringify(fallback||[]));return Array.isArray(a)?a:(fallback||[]);}catch(_){return fallback||[];}}
+  function writeJson(k,a){try{localStorage.setItem(k,JSON.stringify((a||[]).slice(0,260)));}catch(_){} }
   function langIsAr(){return (typeof window.lang!=='undefined' && window.lang==='ar') || document.documentElement.lang==='ar' || document.body.classList.contains('rtl');}
   function norm(s){return String(s||'').toLowerCase().trim().replace(/[\u200e\u200f]/g,'').replace(/[_\s\-]+/g,' ');}
   function normKey(s){return norm(s).replace(/[^a-z0-9\u0600-\u06ff]+/g,'');}
-  function role(){return norm(window._fbRole||window.currentUserRole||'viewer').replace(/\s+/g,'_');}
+  function role(){return norm(window._fbRole||window.currentUserRole||'').replace(/\s+/g,'_');}
   function emailKey(){
     var e=String(window._fbUser||window._fbEmail||window.currentUserEmail||'').toLowerCase().trim();
     try{if(!e)e=String(sessionStorage.getItem('qumc_user_email')||localStorage.getItem('qumc_user_email')||'').toLowerCase().trim();}catch(_){ }
-    return e||'guest';
+    return e||'';
   }
-  function userName(){return String(window._fbName||window.currentUserName||emailKey().split('@')[0]||'user').toLowerCase().trim();}
+  function userName(){return String(window._fbName||window.currentUserName||(emailKey()?emailKey().split('@')[0]:'user')).toLowerCase().trim();}
   function deptRaw(){return String(window._fbDept||window._lockedDept||window.currentUserDept||'').trim();}
   function deptAlias(v){
     var x=normKey(v);
@@ -1077,31 +1027,33 @@ function updateExecTrend(yr){
   function dept(){return deptAlias(deptRaw());}
   function isAdminRole(){var r=role();return r==='super_admin'||r==='superadmin'||r==='admin'||r==='executive';}
   function assignedList(){
-    var a=window._fbAssignedKpis||window.assignedKpis||[];
+    var a=window._fbAssignedKpis;
+    if(a===undefined||a===null)a=window.assignedKpis;
     if(typeof a==='string')a=a.split(/[;,|]/);
     if(!Array.isArray(a))return [];
     return a.map(function(x){return normKey(x);}).filter(Boolean);
   }
-  function scopeKey(){return [emailKey(),role(),dept()||'nodept',assignedList().sort().join('-')||'noassigned'].join('|');}
-  function hKey(){return 'qumc_notifications_history_scoped_v7_'+scopeKey();}
-  function sKey(){return 'qumc_notifications_seen_scoped_v7_'+scopeKey();}
-  function readSeen(){return readJson(sKey());}
+  function assignedLoaded(){return window._fbAssignedKpis!==undefined || window.assignedKpis!==undefined;}
+  function scopeReady(){
+    var e=emailKey(), r=role();
+    if(!e || !r)return false;
+    if(isAdminRole())return true;
+    var d=dept();
+    if(r==='department_manager'||r==='dept_manager'||r==='viewer')return !!d;
+    if(r==='kpi_owner'||r==='gap_owner')return assignedLoaded() || !!d;
+    return !!d;
+  }
+  function scopeKey(){return [emailKey()||'guest',role()||'norole',dept()||'nodept',assignedList().sort().join('-')||'noassigned'].join('|');}
+  function hKey(){return 'qumc_notifications_history_v8_'+scopeKey();}
+  function sKey(){return 'qumc_notifications_seen_v8_'+scopeKey();}
+  function readSeen(){return readJson(sKey(),[]);}
   function writeSeen(a){writeJson(sKey(),Array.from(new Set(a||[])));}
-  function readHistory(){
-    var by={};
-    readJson(hKey()).forEach(function(n){if(n&&n.id&&notificationAllowed(n))by[n.id]=n;});
-    return Object.keys(by).map(function(id){return by[id];}).sort(function(a,b){return (b.ts||0)-(a.ts||0);});
-  }
-  function writeHistory(a){
-    var by={};
-    (a||[]).forEach(function(n){if(n&&n.id&&notificationAllowed(n))by[n.id]=Object.assign({},by[n.id]||{},n,{ts:n.ts||Date.now()});});
-    writeJson(hKey(),Object.keys(by).map(function(id){return by[id];}).sort(function(a,b){return (b.ts||0)-(a.ts||0);}));
-  }
   function getState(){try{return window.ST||JSON.parse(localStorage.getItem('kpi_v3')||'{}')||{};}catch(_){return window.ST||{};}}
   function allKpis(){try{if(typeof window.allK==='function')return window.allK()||[];}catch(_){ }try{if(Array.isArray(window.KPIS))return window.KPIS;}catch(_){ }var st=getState();return Array.isArray(st.kpis)?st.kpis:[];}
   function kCode(k){return String(k&&(k.id||k.code||k.kpiCode||k.kpi_id)||'').trim();}
   function kName(k){return String(k&&(k.nameEn||k.name||k.nameAr||k.kpiName)||'').trim();}
   function kDept(k){return deptAlias(k&&(k.dept||k.department||k.departmentId||k.section||k.sectionName));}
+  function yearOf(k){return String(k&&(k.year||k.yr||k.fy)||'').trim();}
   function ownedBy(obj){
     if(!obj)return false;
     var me=emailKey(), nm=userName();
@@ -1127,36 +1079,31 @@ function updateExecTrend(yr){
       if(d && kd && d===kd)return true;
       return false;
     }
-    if(r==='department_manager'||r==='dept_manager'||r==='viewer'){
-      return !!(d && kd && d===kd);
-    }
+    if(r==='department_manager'||r==='dept_manager'||r==='viewer')return !!(d && kd && d===kd);
     return !!(d && kd && d===kd);
   }
   function notificationAllowed(n){
     if(!n)return false;
     if(isAdminRole())return true;
-    var d=dept();
-    var nd=deptAlias(n.dept||n.department||'');
-    if(n.kpiCode){
-      var code=normKey(n.kpiCode), name=normKey(n.kpiName||n.title||''), asg=assignedList();
-      if(asg.length)return (code&&asg.indexOf(code)>-1)||(name&&asg.indexOf(name)>-1);
+    var d=dept(), nd=deptAlias(n.dept||n.department||'');
+    var asg=assignedList();
+    if(asg.length){
+      var code=normKey(n.kpiCode||''), name=normKey(n.kpiName||n.title||'');
+      return (code&&asg.indexOf(code)>-1)||(name&&asg.indexOf(name)>-1);
     }
     if(d && nd)return d===nd;
     return false;
   }
   function num(v){
     if(v===null||v===undefined||v==='')return null;
-    var n=Number(String(v).replace(/,/g,'').replace(/[٠-٩]/g,function(c){return '٠١٢٣٤٥٦٧٨٩'.indexOf(c);}).replace(/[۰-۹]/g,function(c){return '۰۱۲۳۴۵۶۷۸۹'.indexOf(c);}));
-    return isFinite(n)?n:null;
+    var s=String(v).trim().replace(/%/g,'').replace(/,/g,'').replace(/[٠-٩]/g,function(c){return '٠١٢٣٤٥٦٧٨٩'.indexOf(c);}).replace(/[۰-۹]/g,function(c){return '۰۱۲۳۴۵۶۷۸۹'.indexOf(c);});
+    var n=Number(s); return isFinite(n)?n:null;
   }
   function qValues(k){
     var out=[];
-    ['q1','q2','q3','q4'].forEach(function(q){
-      var v=k&&k[q]; if(v===undefined)v=k&&k[q.toUpperCase()];
-      if(v!==undefined&&v!==null&&v!=='')out.push({q:q,v:v});
-    });
+    ['q1','q2','q3','q4'].forEach(function(q){var v=k&&k[q]; if(v===undefined)v=k&&k[q.toUpperCase()]; if(v!==undefined&&v!==null&&v!=='')out.push({q:q,v:v});});
     if(k&&k.quarters&&typeof k.quarters==='object')Object.keys(k.quarters).forEach(function(q){var v=k.quarters[q];if(v!==undefined&&v!==null&&v!=='')out.push({q:String(q).toLowerCase(),v:v});});
-    return out;
+    var by={};out.forEach(function(x){by[x.q]=x;});return Object.keys(by).sort().map(function(q){return by[q];});
   }
   function isMet(k,v){
     try{if(typeof window.metStatus==='function')return !!window.metStatus(k,v);}catch(_){ }
@@ -1171,7 +1118,8 @@ function updateExecTrend(yr){
   function gapQuarter(key){var m=String(key||'').match(/(?:_|-)(q[1-4])$/i);return m?m[1].toUpperCase():'';}
   function findKpi(ks, code){var c=normKey(code);return (ks||[]).find(function(k){return normKey(kCode(k))===c;})||null;}
   function kTitle(k){return (kCode(k)||'KPI')+(kName(k)?' — '+kName(k):'');}
-  function fresh(){
+  function freshActive(){
+    if(!scopeReady())return [];
     var ks=allKpis(), out=[];
     (ks||[]).forEach(function(k){
       if(!canSeeKpi(k))return;
@@ -1179,12 +1127,12 @@ function updateExecTrend(yr){
       if(!bad.length)return;
       var qs=bad.map(function(x){return String(x.q).toUpperCase();}).join(', ');
       out.push({
-        id:'miss_'+normKey(kCode(k))+'_'+String(k.year||k.yr||'')+'_'+qs,
+        id:'miss:'+normKey(kCode(k))+':'+(yearOf(k)||'current'),
         type:'kpi_miss',level:'red',kpiCode:kCode(k),kpiName:kName(k),dept:kDept(k),
         title:kTitle(k),
         meta:langIsAr()?('لم يحقق الهدف في '+qs):('Missed target in '+qs),
         body:langIsAr()?'هذا الإشعار يظهر لك لأن المؤشر ضمن صلاحيتك ولم يحقق الهدف ويحتاج متابعة.':'This notification is shown because this KPI is within your permission scope and is below target.',
-        ts:Date.now()
+        active:true,ts:Date.now()
       });
     });
     var st=getState(), gaps=st.gaps||st.gapAnalysis||st.gap_analysis||{};
@@ -1194,55 +1142,98 @@ function updateExecTrend(yr){
       if(!canSeeKpi(k,g))return;
       var status=norm(g.status||g.actionStatus||g.state||'');
       var pri=norm(g.priority||g.risk||g.severity||'');
-      var hasText=String(g.gapEn||g.gapAr||g.rootCause||g.rootCauseEn||g.reason||g.actEn||g.actAr||g.correctiveAction||g.actionPlan||'').trim();
+      var hasText=String(g.gapEn||g.gapAr||g.rootCause||g.rootCauseEn||g.reason||g.actEn||g.actAr||g.correctiveAction||g.actionPlan||g.impactEn||g.impactAr||'').trim();
       var open=!status || ['open','pending','in progress','inprogress','active','overdue'].some(function(x){return status.indexOf(x)>-1;});
       var important=open||pri.indexOf('high')>-1||pri.indexOf('critical')>-1||hasText;
       if(!important)return;
-      var q=gapQuarter(key);
+      var q=gapQuarter(key)||'ALL';
       out.push({
-        id:'gap_'+normKey(base)+'_'+(q||'all')+'_'+normKey(status||'open')+'_'+normKey(pri||''),
-        type:'gap_action',level:(pri.indexOf('critical')>-1||pri.indexOf('high')>-1)?'red':'orange',kpiCode:k?kCode(k):base,kpiName:k?kName(k):'',dept:k?kDept(k):deptAlias(g.dept||g.department),
+        id:'gap:'+normKey(base)+':'+q,
+        type:'gap_action',level:(pri.indexOf('critical')>-1||pri.indexOf('high')>-1)?'red':'orange',
+        kpiCode:k?kCode(k):base,kpiName:k?kName(k):'',dept:k?kDept(k):deptAlias(g.dept||g.department),
         title:k?kTitle(k):(base||'Gap action'),
-        meta:langIsAr()?('إجراء فجوة يحتاج متابعة'+(q?' - '+q:'')):('Gap action requires follow-up'+(q?' - '+q:'')),
-        body:(g.actAr||g.actEn||g.correctiveAction||g.actionPlan||g.gapAr||g.gapEn||g.rootCause||g.reason||''),
-        ts:Date.now()
+        meta:langIsAr()?('إجراء فجوة يحتاج متابعة'+(q!=='ALL'?' - '+q:'')):('Gap action requires follow-up'+(q!=='ALL'?' - '+q:'')),
+        body:(g.actAr||g.actEn||g.correctiveAction||g.actionPlan||g.gapAr||g.gapEn||g.rootCause||g.reason||g.impactAr||g.impactEn||''),
+        active:true,ts:Date.now()
       });
     });
-    var by={}; out.forEach(function(n){if(n&&n.id&&notificationAllowed(n))by[n.id]=n;});
+    var by={};
+    out.forEach(function(n){if(n&&n.id&&notificationAllowed(n))by[n.id]=n;});
     return Object.keys(by).map(function(id){return by[id];}).sort(function(a,b){return (b.ts||0)-(a.ts||0);});
   }
-  function allRows(){
-    var f=fresh();
-    var h=readHistory();
+  function readHistory(){
     var by={};
-    h.forEach(function(n){if(n&&n.id&&notificationAllowed(n))by[n.id]=n;});
-    f.forEach(function(n){if(n&&n.id&&notificationAllowed(n))by[n.id]=Object.assign({},by[n.id]||{},n,{ts:n.ts||Date.now()});});
-    var rows=Object.keys(by).map(function(id){return by[id];}).sort(function(a,b){return (b.ts||0)-(a.ts||0);});
+    readJson(hKey(),[]).forEach(function(n){if(n&&n.id&&notificationAllowed(n))by[n.id]=n;});
+    return Object.keys(by).map(function(id){return by[id];}).sort(function(a,b){return (b.ts||0)-(a.ts||0);});
+  }
+  function writeHistory(rows){
+    var by={};
+    (rows||[]).forEach(function(n){if(n&&n.id&&notificationAllowed(n))by[n.id]=Object.assign({},by[n.id]||{},n,{ts:n.ts||Date.now()});});
+    writeJson(hKey(),Object.keys(by).map(function(id){return by[id];}).sort(function(a,b){return (b.ts||0)-(a.ts||0);}));
+  }
+  function rowsForList(){
+    if(!scopeReady())return readHistory();
+    var fresh=freshActive(), hist=readHistory(), by={}, freshIds={};
+    fresh.forEach(function(n){freshIds[n.id]=true;by[n.id]=Object.assign({},by[n.id]||{},n,{active:true,ts:n.ts||Date.now()});});
+    hist.forEach(function(n){if(!by[n.id])by[n.id]=Object.assign({},n,{active:!!freshIds[n.id]});});
+    var rows=Object.keys(by).map(function(id){return by[id];}).filter(notificationAllowed);
     writeHistory(rows);
-    return rows;
+    return rows.sort(function(a,b){return (b.active?1:0)-(a.active?1:0) || (b.ts||0)-(a.ts||0);});
+  }
+  function badgeRows(){
+    if(!scopeReady())return [];
+    var seen=readSeen();
+    return freshActive().filter(function(n){return seen.indexOf(n.id)<0;});
+  }
+  function ensureHeader(){
+    var drop=$('userAlertDrop'); if(!drop)return;
+    var h=drop.firstElementChild;
+    if(h){h.innerHTML='<span>'+(langIsAr()?'الإشعارات':'Notifications')+'</span><button type="button" class="qumc-clear-notifs" id="qumcClearNotifs">'+(langIsAr()?'تحديد الكل كمقروء':'Mark all read')+'</button>';h.style.display='flex';h.style.justifyContent='space-between';h.style.alignItems='center';}
   }
   function render(){
     var list=$('userAlertList'), count=$('userAlertCount'), seen=readSeen();
-    var rows=allRows();
-    var unread=rows.filter(function(n){return seen.indexOf(n.id)<0;});
-    if(count){count.textContent=String(unread.length);count.style.display=unread.length?'flex':'none';count.style.visibility=unread.length?'visible':'hidden';count.style.opacity=unread.length?'1':'0';}
-    if(!list)return;
-    if(!rows.length){list.innerHTML='<div class="qumc-n-empty-final">'+(langIsAr()?'لا توجد إشعارات مهمة ضمن صلاحيتك حالياً.':'No important notifications for your permission scope.')+'</div>';window.__qumcNotifLastHtml='';return;}
-    var ordered=unread.concat(rows.filter(function(n){return seen.indexOf(n.id)>=0;}));
+    if(!scopeReady()){
+      if(count){count.textContent='';count.style.display='none';count.style.visibility='hidden';count.style.opacity='0';}
+      if(list && !list.innerHTML.trim()) list.innerHTML='<div class="qumc-n-empty-final">'+(langIsAr()?'جاري تحميل الإشعارات…':'Loading notifications…')+'</div>';
+      return [];
+    }
+    ensureHeader();
+    var badge=badgeRows(), rows=rowsForList();
+    if(count){count.textContent=String(badge.length);count.style.display=badge.length?'flex':'none';count.style.visibility=badge.length?'visible':'hidden';count.style.opacity=badge.length?'1':'0';}
+    if(!list)return rows;
+    if(!rows.length){list.innerHTML='<div class="qumc-n-empty-final">'+(langIsAr()?'لا توجد إشعارات مهمة ضمن صلاحيتك حالياً.':'No important notifications for your permission scope.')+'</div>';return rows;}
+    var activeIds={}; freshActive().forEach(function(n){activeIds[n.id]=true;});
+    var ordered=rows.slice().sort(function(a,b){
+      var au=seen.indexOf(a.id)<0 && activeIds[a.id], bu=seen.indexOf(b.id)<0 && activeIds[b.id];
+      return (bu?1:0)-(au?1:0) || (activeIds[b.id]?1:0)-(activeIds[a.id]?1:0) || (b.ts||0)-(a.ts||0);
+    });
     window._notifMap={}; ordered.forEach(function(n){window._notifMap[n.id]=n;});
-    var html=ordered.map(function(n){
-      var r=seen.indexOf(n.id)>=0;
-      var col=r?'#94A3B8':(n.level==='red'?'#C42B2B':n.level==='orange'?'#D97706':'#0195af');
-      return '<div class="qumc-nrow-final" data-nid="'+esc(n.id)+'" style="opacity:'+(r?'.64':'1')+'"><span class="qumc-n-dot-final" style="background:'+col+'"></span><div><div class="qumc-n-title-final">'+esc(n.title)+(r?' <span style="font-size:9px;color:#94A3B8">'+(langIsAr()?'(مقروء)':'(read)')+'</span>':'')+'</div><div class="qumc-n-meta-final">'+esc(n.meta||'')+'</div></div></div>';
+    list.innerHTML=ordered.map(function(n){
+      var read=seen.indexOf(n.id)>=0, active=!!activeIds[n.id];
+      var col=read?'#94A3B8':(n.level==='red'?'#C42B2B':n.level==='orange'?'#D97706':'#0195af');
+      var tag=!active?('<span style="font-size:9px;color:#94A3B8">'+(langIsAr()?'(سابق)':'(old)')+'</span>'):(read?('<span style="font-size:9px;color:#94A3B8">'+(langIsAr()?'(مقروء)':'(read)')+'</span>'):'');
+      return '<div class="qumc-nrow-final" data-nid="'+esc(n.id)+'" style="opacity:'+(read||!active?'.68':'1')+'"><span class="qumc-n-dot-final" style="background:'+col+'"></span><div><div class="qumc-n-title-final">'+esc(n.title)+' '+tag+'</div><div class="qumc-n-meta-final">'+esc(n.meta||'')+'</div></div></div>';
     }).join('');
-    window.__qumcNotifLastHtml=html; list.innerHTML=html;
     Array.prototype.forEach.call(list.querySelectorAll('.qumc-nrow-final'),function(row){row.onclick=function(ev){ev.preventDefault();ev.stopPropagation();var id=row.getAttribute('data-nid');var s=readSeen();if(s.indexOf(id)<0){s.push(id);writeSeen(s);} if(window._showNotifModal)window._showNotifModal((window._notifMap||{})[id]); setTimeout(render,80);};});
-    var clear=$('qumcClearNotifs'); if(clear)clear.onclick=function(ev){ev.preventDefault();ev.stopPropagation();writeSeen(readSeen().concat(ordered.map(function(n){return n.id;})));render();};
+    var clear=$('qumcClearNotifs'); if(clear)clear.onclick=function(ev){ev.preventDefault();ev.stopPropagation();writeSeen(readSeen().concat(rows.map(function(n){return n.id;})).concat(freshActive().map(function(n){return n.id;})));render();};
+    return rows;
+  }
+  function positionDrop(panel,anchor,w){
+    if(!panel||!anchor)return;var r=anchor.getBoundingClientRect();var width=w||340;
+    panel.style.position='fixed';panel.style.width=width+'px';panel.style.top=(r.bottom+10)+'px';panel.style.left=Math.max(12,Math.min(window.innerWidth-width-12,r.right-width))+'px';panel.style.right='auto';panel.style.zIndex='2147483000';
   }
   window.renderNotifications=render;
   window.updateAlertUI=render;
-  window.buildUserAlerts=function(){return allRows();};
-  window.collectNotifications=function(){return allRows();};
+  window.buildUserAlerts=function(){return rowsForList();};
+  window.collectNotifications=function(){return rowsForList();};
+  window.toggleUserAlerts=function(ev){
+    if(ev){ev.preventDefault();ev.stopPropagation();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}
+    var d=$('userAlertDrop'), p=$('userProfileDrop'), b=$('userAlertBtn'); if(!d)return false;
+    if(p){p.style.display='none';p.classList.remove('qumc-profile-open','qumc-final-open');}
+    var open=d.style.display!=='block';
+    if(open){positionDrop(d,b,340);d.style.display='block';d.classList.add('qumc-final-open','qumc-stay-open');render();} else {d.style.display='none';d.classList.remove('qumc-final-open','qumc-stay-open');}
+    return false;
+  };
   window._showNotifModal=function(n){
     if(!n)return; var old=$('_notifModal'); if(old)old.remove(); var isAr=langIsAr();
     var c=n.level==='red'?'#C42B2B':n.level==='orange'?'#D97706':'#0195af';
@@ -1252,7 +1243,20 @@ function updateExecTrend(yr){
     ov.appendChild(box); ov.onclick=function(e){if(e.target===ov)ov.remove();}; document.body.appendChild(ov);
   };
   window._closeNotifModal=function(){var m=$('_notifModal');if(m)m.remove();};
-  setInterval(function(){try{render();}catch(_e){}},2500);
-  setTimeout(function(){try{render();}catch(_e){}},300);
-  setTimeout(function(){try{render();}catch(_e){}},1500);
+
+  function bindBell(){
+    try{
+      var ab=$('userAlertBtn');
+      if(ab&&ab.dataset.qumcNotifV8!=='1'){
+        ab.dataset.qumcNotifV8='1'; ab.onclick=null;
+        ab.addEventListener('click',window.toggleUserAlerts,true);
+      }
+      render();
+    }catch(_){ }
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindBell);else bindBell();
+  setTimeout(bindBell,300);
+  setTimeout(bindBell,1200);
+  setTimeout(bindBell,3000);
+  setInterval(function(){try{render();}catch(_e){}},15000);
 })();
