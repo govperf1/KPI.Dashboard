@@ -685,7 +685,7 @@ function updateExecTrend(yr){
   window.collectNotifications=function(){return getNotifications(false);};
   window.toggleUserAlerts=function(ev){
     if(ev){ev.preventDefault();ev.stopPropagation();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}
-    var d=$('userAlertDrop'), p=$('userProfileDrop'), b=$('userAlertBtn'); if(!d)return false;
+    var d=detachToBody($('userAlertDrop')), p=$('userProfileDrop'), b=$('userAlertBtn'); if(!d)return false;
     if(p){p.style.display='none';p.classList.remove('qumc-profile-open','qumc-final-open');}
     var open=d.style.display!=='block';
     if(open){positionDrop(d,b,320);d.style.display='block';d.classList.add('qumc-final-open','qumc-stay-open');renderNotifications(false);} else {d.style.display='none';d.classList.remove('qumc-final-open','qumc-stay-open');}
@@ -1218,6 +1218,11 @@ function updateExecTrend(yr){
     var clear=$('qumcClearNotifs'); if(clear)clear.onclick=function(ev){ev.preventDefault();ev.stopPropagation();writeSeen(readSeen().concat(rows.map(function(n){return n.id;})).concat(freshActive().map(function(n){return n.id;})));render();};
     return rows;
   }
+
+  function detachToBody(el){
+    try{ if(el && el.parentElement!==document.body) document.body.appendChild(el); }catch(_e){}
+    return el;
+  }
   function positionDrop(panel,anchor,w){
     if(!panel||!anchor)return;var r=anchor.getBoundingClientRect();var width=w||340;
     panel.style.position='fixed';panel.style.width=width+'px';panel.style.top=(r.bottom+10)+'px';panel.style.left=Math.max(12,Math.min(window.innerWidth-width-12,r.right-width))+'px';panel.style.right='auto';panel.style.zIndex='2147483000';
@@ -1231,7 +1236,7 @@ function updateExecTrend(yr){
     var d=$('userAlertDrop'), p=$('userProfileDrop'), b=$('userAlertBtn'); if(!d)return false;
     if(p){p.style.display='none';p.classList.remove('qumc-profile-open','qumc-final-open');}
     var open=d.style.display!=='block';
-    if(open){positionDrop(d,b,340);d.style.display='block';d.classList.add('qumc-final-open','qumc-stay-open');render();} else {d.style.display='none';d.classList.remove('qumc-final-open','qumc-stay-open');}
+    if(open){positionDrop(d,b,340);d.style.zIndex='2147483646';d.style.display='block';d.classList.add('qumc-final-open','qumc-stay-open');render();} else {d.style.display='none';d.classList.remove('qumc-final-open','qumc-stay-open');}
     return false;
   };
   window._showNotifModal=function(n){
