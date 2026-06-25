@@ -799,8 +799,7 @@ var BUILTIN_MASTER_KPIS = {
     matchKeywords: ['laundry turnaround', 'laundry turnaround time'],
     fieldConfig: [
       { nameEn:'Daily Number of Order',            nameAr:'عدد الطلبات اليومي',               type:'number', inputMode:'manual' },
-      { nameEn:'Total Washing Time for all Order', nameAr:'إجمالي وقت الغسيل لجميع الطلبات', type:'number', inputMode:'manual' },
-      { nameEn:'Result',                           nameAr:'Result',                         type:'computed', inputMode:'virtual', hidden:true, virtual:true, baseFormula:'(100/((B/A)*60))*100' }
+      { nameEn:'Total Washing Time for all Order', nameAr:'إجمالي وقت الغسيل لجميع الطلبات', type:'number', inputMode:'manual' }
     ],
     resultFormula: '(100/((B/A)*60))*100'
   },
@@ -821,8 +820,7 @@ var BUILTIN_MASTER_KPIS = {
     matchKeywords: ['emergency request response', 'emergency response time'],
     fieldConfig: [
       { nameEn:'Total Response Time for All Emergency Requests (Min)', nameAr:'إجمالي وقت الاستجابة لجميع طلبات الطوارئ (دقيقة)', type:'number', inputMode:'manual' },
-      { nameEn:'Total Emergency Requests',                             nameAr:'إجمالي طلبات الطوارئ',                          type:'number', inputMode:'manual' },
-      { nameEn:'Result',                                                nameAr:'Result',                                      type:'computed', inputMode:'virtual', hidden:true, virtual:true, baseFormula:'(10 / (A / B)) * 100' }
+      { nameEn:'Total Emergency Requests',                             nameAr:'إجمالي طلبات الطوارئ',                          type:'number', inputMode:'manual' }
     ],
     resultFormula: '(10 / (A / B)) * 100'
   },
@@ -872,11 +870,9 @@ window._mergeMasterKpiConfig = _mergeMasterKpiConfig;
    vals: { A: 80, B: 90, C: 85 } → returns 85 */
 function _evalFormula(formula, vals){
   if(!formula || !formula.trim()) return null;
-  vals = vals || {};
   try{
-    var expr = String(formula).replace(/\b([A-Z])\b/gi, function(m, letter){
-      var L = String(letter||'').toUpperCase();
-      return (vals[L] !== undefined && vals[L] !== null && vals[L] !== '') ? vals[L] : 'null';
+    var expr = formula.replace(/\b([A-Z])\b/g, function(m, letter){
+      return (vals[letter] !== undefined && vals[letter] !== null) ? vals[letter] : 'null';
     });
     var result = new Function('return ('+expr+')')();
     return (result===null||isNaN(result)||!isFinite(result)) ? null : Math.round(result*1000)/1000;
@@ -1561,109 +1557,5 @@ window.addEventListener('storage', function(e){
     });
     var byDept={};Object.keys(buckets).forEach(function(d){byDept[d]=avg(buckets[d]);});
     return {exec:avg(items.map(function(x){return x.forecast;})),byDept:byDept,currentYear:selectedYear,kpis:items};
-  };
-})();
-
-
-/* ==========================================================
-   QUMC FINAL FORECAST/CURRENT FIX — 2026 filter exact logic
-   - Forecast groups KPI history by KPI name + department, not code.
-   - Year filter selects the forecast/current year, but historical average still
-     includes all available prior years up to that selected year.
-   - Quarter filter affects Current Performance only; Forecast YE uses all
-     actual quarters entered in the selected/current year.
-   - Robust number parsing for commas, % signs, and Arabic digits.
-   ========================================================== */
-(function(){
-  function _n(v){
-    if(v===null||v===undefined||v==='') return null;
-    var s=String(v).trim();
-    if(!s||s==='—'||s==='-') return null;
-    s=s.replace(/[٪%]/g,'').replace(/,/g,'').replace(/\s+/g,'');
-    s=s.replace(/[٠-٩]/g,function(c){return '٠١٢٣٤٥٦٧٨٩'.indexOf(c);});
-    s=s.replace(/[۰-۹]/g,function(c){return '۰۱۲۳۴۵۶۷۸۹'.indexOf(c);});
-    var x=Number(s); return isFinite(x)?x:null;
-  }
-  function _avg(a){var v=(a||[]).filter(function(x){return x!==null&&x!==undefined&&isFinite(x);});return v.length?v.reduce(function(s,x){return s+x;},0)/v.length:null;}
-  function _qs(){return ['q1','q2','q3','q4'];}
-  function _qv(k,q){var v=k&&k[q]; if(v===undefined) v=k&&k[String(q).toUpperCase()]; return _n(v);}
-  function _dept(k){return String((k&&k.dept)||'');}
-  function _name(k){return String((k&&(k.nameEn||k.nameAr||k.name||k.title||k.id))||'').trim().toLowerCase().replace(/\s+/g,' ');}
-  function _key(k){return _name(k)+'__'+_dept(k);} /* KPI continuity by same KPI name + department */
-  function _hasActual(k){return _qs().some(function(q){return _qv(k,q)!==null;});}
-  function _statusOk(k,status){
-    if(!status||status==='all')return true;
-    if(typeof ok==='function'){
-      var o=ok(k);
-      if(status==='achieved'||status==='met')return o===true;
-      if(status==='missed'||status==='notmet')return o===false;
-    }
-    return true;
-  }
-  function _scope(all,opts,includeYearFilter){
-    opts=opts||{};
-    var FF=(typeof F!=='undefined'&&F&&typeof F==='object')?F:{};
-    var dept=opts.dept || (opts.respectFilters&&FF.dept&&FF.dept!=='all'?FF.dept:null) || (opts.respectFilters&&window._lockedDept?window._lockedDept:null);
-    var status=opts.status || (opts.respectFilters&&FF.status&&FF.status!=='all'?FF.status:null);
-    var year=includeYearFilter ? (opts.year || (opts.respectFilters&&FF.year&&FF.year!=='all'?Number(FF.year):null)) : null;
-    return (all||[]).filter(function(k){
-      if(!k||typeof k!=='object'||!_hasActual(k))return false;
-      if(dept&&_dept(k)!==String(dept))return false;
-      if(year&&String(k.yr)!==String(year))return false;
-      if(!_statusOk(k,status))return false;
-      return true;
-    });
-  }
-  window.calcForecastYE=function(opts){
-    opts=opts||{};
-    var all=(typeof allK==='function')?allK():[];
-    var scoped=_scope(all,opts,false);
-    if(!scoped.length)return {exec:null,byDept:{},currentYear:null,kpis:[]};
-    var FF=(typeof F!=='undefined'&&F&&typeof F==='object')?F:{};
-    var selectedYear=opts.year || (opts.respectFilters&&FF.year&&FF.year!=='all'?Number(FF.year):null);
-    if(!selectedYear){selectedYear=scoped.reduce(function(m,k){var y=Number(k.yr)||0;return y>m?y:m;},0);}
-    if(!selectedYear)return {exec:null,byDept:{},currentYear:null,kpis:[]};
-    var groups={};
-    scoped.forEach(function(k){
-      var y=Number(k.yr)||0; if(!y||y>selectedYear)return;
-      var key=_key(k);
-      if(!groups[key])groups[key]={key:key,nameEn:k.nameEn||k.name||k.id||'',nameAr:k.nameAr||'',dept:_dept(k),hist:[],cur:[],curQs:{},codes:{}};
-      if(k.id)groups[key].codes[String(k.id)]=true;
-      _qs().forEach(function(q){
-        var v=_qv(k,q); if(v===null)return;
-        groups[key].hist.push(v);
-        if(y===Number(selectedYear)){groups[key].cur.push(v);groups[key].curQs[q]=true;}
-      });
-    });
-    var items=[],buckets={};
-    Object.keys(groups).forEach(function(key){
-      var g=groups[key],h=_avg(g.hist),c=_avg(g.cur),entered=Object.keys(g.curQs||{}).length;
-      if(h===null||c===null||entered<1)return;
-      if(entered>4)entered=4;
-      var cw=entered/4, hw=1-cw;
-      var f=entered>=4?c:(hw*h)+(cw*c);
-      var item={key:g.key,nameEn:g.nameEn,nameAr:g.nameAr,dept:g.dept,currentYear:Number(selectedYear),enteredQuarters:entered,historicalAverage:h,currentYearAverage:c,forecast:f,codes:Object.keys(g.codes)};
-      items.push(item); if(!buckets[g.dept])buckets[g.dept]=[]; buckets[g.dept].push(f);
-    });
-    var byDept={};Object.keys(buckets).forEach(function(d){byDept[d]=_avg(buckets[d]);});
-    return {exec:_avg(items.map(function(x){return x.forecast;})),byDept:byDept,currentYear:Number(selectedYear),kpis:items};
-  };
-  window.calcCurrentPerformanceBreakdown=function(opts){
-    opts=opts||{};
-    var all=(typeof allK==='function')?allK():[];
-    var FF=(typeof F!=='undefined'&&F&&typeof F==='object')?F:{};
-    var year=opts.year || (opts.respectFilters!==false&&FF.year&&FF.year!=='all'?Number(FF.year):null);
-    var scoped=_scope(all,Object.assign({respectFilters:true},opts,{year:year||opts.year}),true);
-    if(!year){
-      year=scoped.reduce(function(m,k){var y=Number(k.yr)||0;return y>m?y:m;},0);
-      if(year)scoped=scoped.filter(function(k){return Number(k.yr)===Number(year);});
-    }
-    var qtrs=(Array.isArray(FF.qtr)&&FF.qtr.length&&!FF.qtr.includes('all'))?FF.qtr:_qs();
-    function kv(k){var vals=qtrs.map(function(q){return _qv(k,q);}).filter(function(v){return v!==null;});return _avg(vals);}
-    var vals=scoped.map(kv).filter(function(v){return v!==null;});
-    var byDept={};['maintenance','safety','housekeeping','projects'].forEach(function(d){
-      byDept[d]=_avg(scoped.filter(function(k){return _dept(k)===d;}).map(kv).filter(function(v){return v!==null;}));
-    });
-    return {exec:_avg(vals),byDept:byDept,kpis:scoped,currentYear:year||null};
   };
 })();
