@@ -877,11 +877,24 @@ window._doResetPassword=async function(){
     var cs=window.getComputedStyle?getComputedStyle(ov):ov.style;
     return !!(cs && cs.display && cs.display!=='none' && cs.visibility!=='hidden' && cs.opacity!=='0');
   }
+  function isAuthVisible(){
+    var ids=['_authOverlay','_forgotOverlay'];
+    for(var i=0;i<ids.length;i++){
+      var el=document.getElementById(ids[i]);
+      if(!el) continue;
+      var cs=window.getComputedStyle?getComputedStyle(el):el.style;
+      if(cs && cs.display && cs.display!=='none' && cs.visibility!=='hidden' && cs.opacity!=='0') return true;
+    }
+    return false;
+  }
   function syncPortalChrome(){
-    var visible=isPortalVisible();
+    var portalVisible=isPortalVisible();
+    var authVisible=isAuthVisible();
+    var dashboardVisible=(!portalVisible && !authVisible);
     if(document.body){
-      document.body.classList.toggle('portal-mode', visible);
-      document.body.classList.toggle('dashboard-mode', !visible);
+      document.body.classList.toggle('portal-mode', portalVisible);
+      document.body.classList.toggle('auth-mode', authVisible);
+      document.body.classList.toggle('dashboard-mode', dashboardVisible);
     }
   }
   function boot(){
