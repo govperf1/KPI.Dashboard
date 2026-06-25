@@ -2407,48 +2407,61 @@ html[dir="rtl"] .footer-back-glass{
 }
 
 
-/* QUMC Restore Header — single rectangle nav/export + logo-matched topbar color */
+/* QUMC Header color alignment — match logo/navy identity without changing text */
 .topbar{
-  background:linear-gradient(135deg,#105090 0%,#155B93 52%,#0E6F8A 100%)!important;
-  border-bottom:1px solid rgba(34,211,238,.42)!important;
+  background:#152538!important;
+  border-bottom-color:#0195af!important;
 }
 .topbar::after{
-  background:linear-gradient(90deg,transparent,rgba(34,211,238,.58),transparent)!important;
+  background:linear-gradient(90deg,transparent,rgba(1,149,175,.70),transparent)!important;
 }
-.tabnav.nav-export-combined{
-  display:flex!important;
-  flex-direction:row!important;
-  align-items:center!important;
-  justify-content:space-between!important;
-  flex-wrap:nowrap!important;
-  gap:22px!important;
-  overflow:visible!important;
+
+/* ─────────────────────────────────────────────────────────────
+   QUMC FINAL HEADER + PORTAL VISIBILITY PATCH
+   - Header navy aligned with logo background.
+   - Hide any duplicate topbar export buttons; export stays only in nav rectangle.
+   - Hide dashboard nav/filter/content while portal selection is open.
+   - Enlarge footer logo slightly.
+   ───────────────────────────────────────────────────────────── */
+:root{--qumc-logo-navy:#071725;--qumc-logo-navy-2:#0A1B2B;}
+.topbar{
+  background:#071725!important;
+  background-image:linear-gradient(90deg,#071725 0%,#081827 48%,#071725 100%)!important;
+  border-bottom-color:#0195af!important;
 }
-.nav-export-combined .nav-tab-group{
-  flex:1 1 auto!important;
-  display:flex!important;
-  flex-direction:row!important;
-  align-items:center!important;
-  justify-content:flex-start!important;
-  gap:6px!important;
-  min-width:0!important;
+.topbar::after{
+  background:linear-gradient(90deg,transparent,rgba(1,149,175,.62),transparent)!important;
+  box-shadow:0 0 12px rgba(1,149,175,.22)!important;
 }
-.nav-export-combined .nav-export-group{
-  flex:0 0 auto!important;
-  display:flex!important;
-  flex-direction:row!important;
-  align-items:center!important;
-  justify-content:flex-end!important;
-  gap:6px!important;
-  margin-left:auto!important;
-  white-space:nowrap!important;
+/* remove duplicated Export/Excel/Report actions from the account/topbar area only */
+.topbar button[onclick*="exportExcel"],
+.topbar button[onclick*="renderReport"],
+.topbar button[onclick*="toggleExportMenu"],
+.topbar .nav-export-group,
+.topbar .nav-export-menu-wrap,
+.topbar .export-menu,
+.topbar #exportMenuDrop{
+  display:none!important;
 }
-.nav-export-combined .tab,
-.nav-export-combined .nav-export-btn{
-  border-radius:10px!important;
+/* while portal selection is open, dashboard chrome must not appear over it */
+body.portal-mode .filter-strip,
+body.portal-mode .tabnav,
+body.portal-mode .dashwrap,
+body.portal-mode .footbar,
+body.portal-mode #aiFloatBtn,
+body.portal-mode #aiWin{
+  display:none!important;
 }
-@media(max-width:900px){
-  .tabnav.nav-export-combined{overflow-x:auto!important;overflow-y:visible!important;}
-  .nav-export-combined .nav-tab-group{flex:1 0 auto!important;}
-  .nav-export-combined .nav-export-group{flex:0 0 auto!important;}
+body.portal-mode .tabnav.nav-export-combined,
+body.portal-mode .nav-export-combined{
+  display:none!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+}
+.footbar-logo{height:34px!important;min-width:auto!important;}
+.footbar-logo img{height:34px!important;width:auto!important;opacity:1!important;filter:brightness(1.15)!important;}
+.footbar{min-height:52px!important;}
+@media(max-width:760px){
+  .footbar-logo{height:30px!important;}
+  .footbar-logo img{height:30px!important;}
 }
