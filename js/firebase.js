@@ -74,7 +74,29 @@ window._selectPortal=async portal=>{
         if(typeof window._startReadListener==='function') setTimeout(window._startReadListener, 800);
         console.log('[Auth] ✓ Performance portal entered');
       }else{
-        const cs=document.createElement('div');cs.style.cssText='position:fixed;inset:0;z-index:10000;background:linear-gradient(135deg,#0a1628,#0f2444);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;font-family:inherit';cs.innerHTML='<div style="font-size:28px;font-weight:900;color:#fff">Governance</div><div style="font-size:13px;color:rgba(255,255,255,.45)">Under development</div><div style="padding:8px 24px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.25);border-radius:20px;font-size:11px;color:#0195af;font-weight:700">COMING SOON</div><button onclick="this.parentElement.remove()" style="background:transparent;color:rgba(255,255,255,.4);border:1px solid rgba(255,255,255,.15);border-radius:9px;padding:9px 24px;font-size:11px;cursor:pointer;font-family:inherit;margin-top:8px">← Back</button>';document.body.appendChild(cs);
+        /* GRC is not active yet. Show a clean portal-level modal ABOVE the portal overlay.
+           Previous z-index was lower than #_portalOverlay, so the portal cards appeared on top of
+           the coming-soon screen and the Back button overlapped the cards. */
+        const old=document.getElementById('_grcComingSoon');
+        if(old) old.remove();
+        const cs=document.createElement('div');
+        cs.id='_grcComingSoon';
+        cs.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(5,15,35,.68);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:24px;font-family:inherit;pointer-events:all';
+        cs.innerHTML='\
+          <div style="width:min(420px,88vw);background:rgba(15,35,65,.92);border:1px solid rgba(255,255,255,.20);border-radius:24px;box-shadow:0 30px 90px rgba(0,0,0,.45);padding:30px 28px;text-align:center;color:#fff">\
+            <div style="width:64px;height:64px;border-radius:20px;background:rgba(1,149,175,.18);border:1px solid rgba(1,149,175,.28);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">\
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="18" width="18" height="3" rx="1"></rect><rect x="3" y="3" width="18" height="3" rx="1"></rect><rect x="5" y="6" width="2" height="12"></rect><rect x="11" y="6" width="2" height="12"></rect><rect x="17" y="6" width="2" height="12"></rect></svg>\
+            </div>\
+            <div style="font-size:24px;font-weight:900;margin-bottom:6px">GRC</div>\
+            <div style="font-size:13px;color:rgba(255,255,255,.62);font-weight:700;margin-bottom:10px">Governance · Risk Management & Compliance</div>\
+            <div style="display:inline-flex;align-items:center;justify-content:center;padding:7px 18px;background:rgba(1,149,175,.15);border:1px solid rgba(1,149,175,.32);border-radius:999px;font-size:11px;color:#21bfd9;font-weight:900;letter-spacing:.04em;margin-bottom:18px">COMING SOON</div>\
+            <div style="font-size:11px;color:rgba(255,255,255,.45);line-height:1.7;margin-bottom:20px">This module is currently under development and will be enabled when ready.</div>\
+            <button id="_grcBackBtn" type="button" style="background:rgba(255,255,255,.08);color:rgba(255,255,255,.82);border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:10px 24px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">← Back</button>\
+          </div>';
+        document.body.appendChild(cs);
+        cs.addEventListener('click',e=>{if(e.target===cs)cs.remove();});
+        const bb=document.getElementById('_grcBackBtn');
+        if(bb)bb.onclick=()=>cs.remove();
       }
     };
 
@@ -357,7 +379,6 @@ window._selectPortal=async portal=>{
           const savedPage = window.curPage || 'exec';
           try{ if(typeof renderYearFilter==='function') renderYearFilter(); }catch(_){}
           try{ if(typeof renderCurrent==='function') renderCurrent(); }catch(_){}
-          try{ if(typeof window._applyDashboardTextEditsSoon==='function') window._applyDashboardTextEditsSoon(); }catch(_){}
           window.curPage = savedPage;
           /* Restore tab highlight */
           document.querySelectorAll('.tabnav .tab').forEach(function(t){
@@ -438,7 +459,6 @@ window._selectPortal=async portal=>{
         try{localStorage.setItem('kpi_v3',JSON.stringify(ST));}catch(_){}
         if(typeof renderYearFilter==='function') renderYearFilter(); /* update year filters with loaded data */
         if(typeof renderCurrent==='function') renderCurrent();
-        try{ if(typeof window._applyDashboardTextEditsSoon==='function') window._applyDashboardTextEditsSoon(); }catch(_){}
         if(typeof updateBadge==='function') updateBadge();
         /* Update notification badge for all roles after Firestore data loads */
         if(typeof window.updateAlertUI==='function') window.updateAlertUI();
