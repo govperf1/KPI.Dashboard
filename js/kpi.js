@@ -1559,3 +1559,112 @@ window.addEventListener('storage', function(e){
     return {exec:avg(items.map(function(x){return x.forecast;})),byDept:byDept,currentYear:selectedYear,kpis:items};
   };
 })();
+
+/* ==========================================================
+   QUMC FINAL FORECAST FIX — name+department historical grouping
+   - Current year can come from selected Year filter, but history is NOT limited to that year.
+   - Per-KPI forecast groups same KPI name within same department across different codes/years.
+   - Quarter filter does not limit Forecast YE; it remains a year-end estimate.
+   ========================================================== */
+(function(){
+  function _fNum(v){
+    if(v===null||v===undefined||v==='') return null;
+    var s=String(v).trim();
+    if(!s||s==='—'||s==='-'||/^n\/?a$/i.test(s)) return null;
+    s=s.replace(/[٪%]/g,'').replace(/,/g,'').replace(/\s+/g,'');
+    s=s.replace(/[٠-٩]/g,function(c){return '٠١٢٣٤٥٦٧٨٩'.indexOf(c);});
+    s=s.replace(/[۰-۹]/g,function(c){return '۰۱۲۳۴۵۶۷۸۹'.indexOf(c);});
+    var n=Number(s);
+    return isFinite(n)?n:null;
+  }
+  function _fAvg(arr){var v=(arr||[]).filter(function(x){return x!==null&&x!==undefined&&isFinite(x);});return v.length?v.reduce(function(a,b){return a+b;},0)/v.length:null;}
+  function _fDept(k){return String((k&&k.dept)||'').trim();}
+  function _fQtrs(){return ['q1','q2','q3','q4'];}
+  function _fQVal(k,q){
+    if(!k) return null;
+    var v=k[q];
+    if(v===undefined) v=k[q.toUpperCase()];
+    if((v===undefined||v===null||v==='') && k._custom && k._result!==undefined) v=k._result;
+    return _fNum(v);
+  }
+  function _fHasAny(k){return _fQtrs().some(function(q){return _fQVal(k,q)!==null;});}
+  function _fName(k){return String((k&&(k.nameEn||k.name||k.title||k.nameAr||k.id||k.code||k.kpiCode))||'').trim();}
+  function _fNormName(s){
+    return String(s||'').toLowerCase().trim()
+      .replace(/[\u200e\u200f]/g,'')
+      .replace(/\b(rate|compliance|kpi|indicator)\b/g,function(m){return m;})
+      .replace(/[^a-z0-9\u0600-\u06ff]+/g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+  }
+  function _fGroupKey(k){
+    var nm=_fNormName(_fName(k));
+    if(!nm) nm=String((k&&(k.id||k.code||k.kpiCode))||'').toLowerCase();
+    return nm+'__'+_fDept(k);
+  }
+  function _fCode(k){return String((k&&(k.id||k.code||k.kpiCode))||'').trim();}
+  function _fYear(k){return Number(k&&(k.yr||k.year||k.fy))||0;}
+  function _fStatusOk(k,status){
+    if(!status||status==='all') return true;
+    try{
+      if(typeof ok==='function'){
+        var o=ok(k);
+        if(status==='achieved') return o===true;
+        if(status==='missed') return o===false;
+      }
+    }catch(_){ }
+    return true;
+  }
+  function _fScope(all,opts){
+    opts=opts||{};
+    var FF=(typeof F!=='undefined'&&F&&typeof F==='object')?F:{};
+    var dept=opts.dept || (opts.respectFilters&&FF.dept&&FF.dept!=='all'?FF.dept:null) || (opts.respectFilters&&window._lockedDept?window._lockedDept:null);
+    var status=opts.status || (opts.respectFilters&&FF.status&&FF.status!=='all'?FF.status:null);
+    return (all||[]).filter(function(k){
+      if(!k||typeof k!=='object'||!_fHasAny(k)) return false;
+      if(dept && _fDept(k)!==String(dept)) return false;
+      if(status && !_fStatusOk(k,status)) return false;
+      return true;
+    });
+  }
+  window.calcForecastYE=function(opts){
+    opts=opts||{};
+    var FF=(typeof F!=='undefined'&&F&&typeof F==='object')?F:{};
+    var all=(typeof allK==='function'?allK():[]);
+    var base=_fScope(all,opts);
+    if(!base.length) return {exec:null,byDept:{},currentYear:null,kpis:[]};
+    var selectedYear=opts.year || (opts.respectFilters&&FF.year&&FF.year!=='all'?Number(FF.year):null);
+    if(!selectedYear) selectedYear=base.reduce(function(m,k){var y=_fYear(k);return y>m?y:m;},0);
+    if(!selectedYear) return {exec:null,byDept:{},currentYear:null,kpis:[]};
+
+    var groups={};
+    base.forEach(function(k){
+      var y=_fYear(k);
+      if(!y || y>selectedYear) return;
+      var key=_fGroupKey(k);
+      if(!groups[key]) groups[key]={key:key,nameEn:(k.nameEn||k.name||k.id||''),nameAr:(k.nameAr||''),dept:_fDept(k),hist:[],cur:[],curQs:{},codes:{}};
+      var c=_fCode(k); if(c) groups[key].codes[c]=true;
+      _fQtrs().forEach(function(q){
+        var v=_fQVal(k,q);
+        if(v===null) return;
+        groups[key].hist.push(v);
+        if(y===selectedYear){groups[key].cur.push(v);groups[key].curQs[q]=true;}
+      });
+    });
+    var items=[],deptBuckets={};
+    Object.keys(groups).forEach(function(key){
+      var g=groups[key];
+      var h=_fAvg(g.hist), c=_fAvg(g.cur), entered=Object.keys(g.curQs||{}).length;
+      if(h===null||c===null||entered<1) return;
+      if(entered>4) entered=4;
+      var hw=(4-entered)/4, cw=entered/4;
+      var forecast=(entered>=4)?c:(hw*h)+(cw*c);
+      var item={key:g.key,nameEn:g.nameEn,nameAr:g.nameAr,dept:g.dept,currentYear:selectedYear,enteredQuarters:entered,historicalAverage:h,currentYearAverage:c,forecast:forecast,codes:Object.keys(g.codes)};
+      items.push(item);
+      if(!deptBuckets[g.dept]) deptBuckets[g.dept]=[];
+      deptBuckets[g.dept].push(forecast);
+    });
+    var byDept={};Object.keys(deptBuckets).forEach(function(d){byDept[d]=_fAvg(deptBuckets[d]);});
+    return {exec:_fAvg(items.map(function(x){return x.forecast;})),byDept:byDept,currentYear:selectedYear,kpis:items};
+  };
+})();

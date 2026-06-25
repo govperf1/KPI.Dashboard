@@ -2846,3 +2846,133 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
     return {pciData:pciData,masterId:masterId,cfg:cfg};
   };
 })();
+
+
+/* ==========================================================
+   QUMC FINAL FORMULA REFERENCE FIX
+   Adds hidden reference C = Result for Laundry Turnaround Time Compliance
+   and Emergency Request Response Time only. C is not rendered as an input
+   table column, but it can be used in Result Formula.
+   ========================================================== */
+(function(){
+  function _h(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  function _isAr(){return (typeof lang!=='undefined'&&lang==='ar')||document.documentElement.dir==='rtl'||document.documentElement.lang==='ar';}
+  function _norm(s){return String(s||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');}
+  function _isAliasMaster(masterId,cfg){
+    var id=_norm(masterId);
+    var nm=_norm((cfg&&cfg.nameEn)||'');
+    return id==='laundry_turnaround_time_compliance' || id==='emergency_response_time' ||
+           nm==='laundry_turnaround_time' || nm==='laundry_turnaround_time_compliance' || nm==='emergency_request_response_time';
+  }
+  function _aliasC(masterId,vals,cfg){
+    if(!_isAliasMaster(masterId,cfg)) return null;
+    var A=Number(vals&&vals.A), B=Number(vals&&vals.B);
+    if(!isFinite(A)||!isFinite(B)||A===0||B===0) return null;
+    var id=_norm(masterId), nm=_norm((cfg&&cfg.nameEn)||'');
+    var r=null;
+    try{
+      if(id==='laundry_turnaround_time_compliance' || nm==='laundry_turnaround_time' || nm==='laundry_turnaround_time_compliance'){
+        r=(100/((B/A)*60))*100;
+      }else if(id==='emergency_response_time' || nm==='emergency_request_response_time'){
+        r=(10/(A/B))*100;
+      }
+    }catch(_){r=null;}
+    return (r===null||!isFinite(r))?null:Math.round(r*1000)/1000;
+  }
+  function _sectionForPrefix(prefix){return String(prefix||'').indexOf('e')===0?document.getElementById('editQtrSection'):document.getElementById('addQtrSection');}
+  function _cfgForSection(section,kpiId){
+    var masterId=section?section.getAttribute('data-master'):'';
+    if(!masterId) return null;
+    if(section&&section.id==='editQtrSection'&&typeof _adminMergeKpiSpecificConfig==='function') return _adminMergeKpiSpecificConfig(masterId,kpiId||_adminGetEditKpiId(section),_adminGetEditKpiNameEn(section));
+    return (typeof _adminMergedMasterConfig==='function')?_adminMergedMasterConfig(masterId):null;
+  }
+
+  var _oldFormulaRef=window._formulaReferenceHtml;
+  window._formulaReferenceHtml=_formulaReferenceHtml=function(cfg,masterId,mode,editable){
+    var html=(typeof _oldFormulaRef==='function')?_oldFormulaRef(cfg,masterId,mode,editable):'';
+    if(!_isAliasMaster(masterId,cfg)) return html;
+    var ar=_isAr();
+    var row= editable
+      ? '<label class="formula-ref-row formula-ref-result-alias" style="display:flex;align-items:center;gap:6px;margin:4px 0;font-size:9.5px;color:#64748B"><b style="color:#0195af;width:16px;font-family:var(--mono)">C</b><span>=</span><input value="'+(ar?'النتيجة':'Result')+'" readonly disabled style="flex:1;min-width:120px;padding:4px 7px;background:rgba(241,245,249,.75);border:1px dashed rgba(1,149,175,.35);border-radius:6px;color:#475569;font-size:10px;font-family:inherit"></label>'
+      : '<span class="formula-ref-result-alias" style="font-size:9.5px;color:#64748B;margin-right:12px"><b style="color:#0195af">C</b> = '+(ar?'النتيجة':'Result')+'</span>';
+    /* Insert C before the Save reference button when editable, otherwise append. */
+    if(editable && html.indexOf('<button')>-1) return html.replace('<button', row+'<button');
+    return html+row;
+  };
+
+  window._calcCustomResult=_calcCustomResult=function(q,prefix,formula,letters){
+    var Q=String(q||'').toUpperCase();
+    var vals={}, valid=true;
+    (letters||[]).forEach(function(letter){
+      var el=document.getElementById(prefix+Q+'_'+letter);
+      if(!el || String(el.value||'').trim()===''){valid=false;return;}
+      var v=(typeof _adminParseNumber==='function')?_adminParseNumber(el.value):Number(el.value);
+      if(v===null||!isFinite(v)){valid=false;return;}
+      vals[letter]=v;
+    });
+    var resEl=document.getElementById(prefix+Q+'_res');
+    if(!resEl) return;
+    if(!valid || !Object.keys(vals).length){resEl.textContent='—';return;}
+    var section=_sectionForPrefix(prefix), masterId=section?section.getAttribute('data-master'):'', cfg=_cfgForSection(section);
+    var c=_aliasC(masterId,vals,cfg); if(c!==null && vals.C===undefined) vals.C=c;
+    var result=(typeof window._evalFormula==='function')?window._evalFormula(formula,vals):null;
+    if(result===null){resEl.textContent='⚠ err';resEl.style.color='#F87171';}
+    else{resEl.textContent=Math.round(result*10)/10+'%';resEl.style.color=result>=0?'#67E8F9':'#F87171';}
+  };
+
+  window._readQtrValuesFromForm=_readQtrValuesFromForm=function(kpiId,prefix,sectionId){
+    var section=document.getElementById(sectionId||'addQtrSection');
+    var masterId=section?section.getAttribute('data-master'):'';
+    var cfg=_cfgForSection(section,kpiId);
+    var pciData={};
+    function hasText(id){var el=document.getElementById(id);return !!(el&&String(el.value||'').trim()!=='');}
+    function pf(id){var el=document.getElementById(id);if(!el||String(el.value||'').trim()==='')return null;var n=(typeof _adminParseNumber==='function')?_adminParseNumber(el.value):parseFloat(el.value);return(n!==null&&isFinite(n))?n:null;}
+    if(cfg&&cfg.fieldConfig&&cfg.fieldConfig.length>0){
+      var letters=cfg.fieldConfig.map(function(_,i){return String.fromCharCode(65+i);});
+      ['Q1','Q2','Q3','Q4'].forEach(function(Q){
+        var ql=Q.toLowerCase(), vals={}, any=false;
+        letters.forEach(function(letter){var v=pf(prefix+Q+'_'+letter);if(v!==null)any=true;vals[letter]=v===null?null:v;});
+        if(!any){pciData[ql]={_custom:true,_masterId:masterId,_formula:cfg.resultFormula,_result:null};return;}
+        var evalVals={};letters.forEach(function(letter){evalVals[letter]=vals[letter]===null?0:vals[letter];});
+        var c=_aliasC(masterId,evalVals,cfg); if(c!==null) evalVals.C=c;
+        var result=(typeof _evalFormula==='function')?_evalFormula(cfg.resultFormula||'',evalVals):null;
+        pciData[ql]=Object.assign({_custom:true,_masterId:masterId,_formula:cfg.resultFormula},vals);
+        pciData[ql]._result=(result===null||result===undefined||!isFinite(result))?null:result;
+      });
+    }else{
+      ['Q1','Q2','Q3','Q4'].forEach(function(Q){
+        var ql=Q.toLowerCase();
+        var has=hasText(prefix+Q+'_pl')||hasText(prefix+Q+'_co')||hasText(prefix+Q+'_ic');
+        if(!has){pciData[ql]={planned:null,complete:null,incomplete:null};return;}
+        var pl=pf(prefix+Q+'_pl'),co=pf(prefix+Q+'_co');
+        var ic=(pl!==null&&co!==null)?Math.max(0,pl-co):pf(prefix+Q+'_ic');
+        pciData[ql]={planned:pl,complete:co,incomplete:ic};
+      });
+    }
+    return {pciData:pciData,masterId:masterId,cfg:cfg};
+  };
+
+  window._fillQtrFormFromPci=_fillQtrFormFromPci=function(kpiId,prefix,sectionId){
+    var pciData=(ST.pci||{})[kpiId]||{};
+    var section=document.getElementById(sectionId||'editQtrSection');
+    var masterId=section?section.getAttribute('data-master'):'';
+    var cfg=_cfgForSection(section,kpiId);
+    ['Q1','Q2','Q3','Q4'].forEach(function(Q){
+      var ql=Q.toLowerCase(), qd=pciData[ql]||{};
+      if(cfg&&cfg.fieldConfig&&cfg.fieldConfig.length>0){
+        var letters=cfg.fieldConfig.map(function(_,i){return String.fromCharCode(65+i);});
+        letters.forEach(function(letter){var el=document.getElementById(prefix+Q+'_'+letter);if(el)el.value=qd[letter]||'';});
+        var vals={};letters.forEach(function(letter){var v=(typeof _adminParseNumber==='function')?_adminParseNumber(qd[letter]):Number(qd[letter]);vals[letter]=(v===null||!isFinite(v))?0:v;});
+        var c=_aliasC(masterId,vals,cfg);if(c!==null)vals.C=c;
+        var resEl=document.getElementById(prefix+Q+'_res');
+        if(resEl){var result=(typeof _evalFormula==='function')?_evalFormula(cfg.resultFormula||'',vals):null;resEl.textContent=result!==null?Math.round(result*10)/10+'%':'—';}
+      }else{
+        var plEl=document.getElementById(prefix+Q+'_pl'),coEl=document.getElementById(prefix+Q+'_co'),icEl=document.getElementById(prefix+Q+'_ic');
+        if(plEl)plEl.value=(qd.planned!=null&&qd.planned!==undefined)?qd.planned:'';
+        if(coEl)coEl.value=(qd.complete!=null&&qd.complete!==undefined)?qd.complete:'';
+        if(icEl)icEl.value=(qd.incomplete!=null&&qd.incomplete!==undefined)?qd.incomplete:'';
+        if(qd.planned) calcAdminPCI(Q.toLowerCase(),prefix);
+      }
+    });
+  };
+})();
