@@ -2976,3 +2976,177 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
     });
   };
 })();
+
+/* ==========================================================
+   QUMC FINAL C RESULT INPUT FIX — 2026-06-25
+   For Laundry Turnaround Time Compliance and Emergency Request
+   Response Time only:
+   - Show C "Result" = numeric input under Formula Reference.
+   - Do NOT add C as a table column.
+   - Allow formulas to use C/c as an entered numeric value.
+   ========================================================== */
+(function(){
+  function _esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+  function _isAr(){return (typeof lang!=='undefined'&&lang==='ar') || document.documentElement.lang==='ar' || document.documentElement.dir==='rtl';}
+  function _norm(s){return String(s||'').toLowerCase().trim().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');}
+  function _isCEnabled(masterId,cfg){
+    var id=_norm(masterId);
+    var nm=_norm((cfg&&cfg.nameEn)||'');
+    return id==='laundry_turnaround_time_compliance' ||
+           id==='emergency_response_time' ||
+           id==='emergency_request_response_time' ||
+           nm==='laundry_turnaround_time' ||
+           nm==='laundry_turnaround_time_compliance' ||
+           nm==='emergency_request_response_time';
+  }
+  function _parseNum(v){
+    if(v===null||v===undefined) return null;
+    var s=String(v).trim();
+    if(!s) return null;
+    s=s.replace(/[٪%]/g,'').replace(/,/g,'').replace(/\s+/g,'');
+    s=s.replace(/[٠-٩]/g,function(c){return '٠١٢٣٤٥٦٧٨٩'.indexOf(c);});
+    s=s.replace(/[۰-۹]/g,function(c){return '۰۱۲۳۴۵۶۷۸۹'.indexOf(c);});
+    var n=Number(s);
+    return isFinite(n)?n:null;
+  }
+  function _section(mode){return document.getElementById(mode==='edit'?'editQtrSection':'addQtrSection');}
+  function _modeFromPrefix(prefix){return String(prefix||'').indexOf('e')===0?'edit':'add';}
+  function _cInput(mode){return document.getElementById(mode==='edit'?'_editFormulaCInput':'_addFormulaCInput');}
+  function _getC(mode){var el=_cInput(mode); return el?_parseNum(el.value):null;}
+  function _cleanOldAlias(html){
+    return String(html||'')
+      .replace(/<label\b[^>]*formula-ref-result-alias[\s\S]*?<\/label>/g,'')
+      .replace(/<span\b[^>]*formula-ref-result-alias[\s\S]*?<\/span>/g,'');
+  }
+  function _cRow(mode, editable){
+    var ar=_isAr();
+    var id=mode==='edit'?'_editFormulaCInput':'_addFormulaCInput';
+    if(editable){
+      return '<label class="formula-ref-row formula-ref-c-value" style="display:flex;align-items:center;gap:6px;margin:5px 0;font-size:9.5px;color:#64748B">'
+        +'<b style="color:#0195af;width:16px;font-family:var(--mono)">C</b>'
+        +'<span>"'+(ar?'النتيجة':'Result')+'" =</span>'
+        +'<input id="'+id+'" class="formula-c-value-input" type="text" inputmode="decimal" autocomplete="off" placeholder="0" oninput="_onFormulaCValueInput(\''+mode+'\')" '
+        +'style="width:120px;max-width:140px;padding:4px 7px;background:#fff;border:1px solid rgba(1,149,175,.35);border-radius:6px;color:#152538;font-size:10px;font-family:var(--mono)">'
+        +'</label>';
+    }
+    return '<span class="formula-ref-c-value" style="font-size:9.5px;color:#64748B;margin-right:12px"><b style="color:#0195af">C</b> "'+(ar?'النتيجة':'Result')+'" = <span id="'+id+'View">—</span></span>';
+  }
+
+  var _prevFormulaReferenceHtml=window._formulaReferenceHtml;
+  window._formulaReferenceHtml=_formulaReferenceHtml=function(cfg,masterId,mode,editable){
+    var html=(typeof _prevFormulaReferenceHtml==='function')?_prevFormulaReferenceHtml(cfg,masterId,mode,editable):'';
+    html=_cleanOldAlias(html);
+    if(!_isCEnabled(masterId,cfg)) return html;
+    var row=_cRow(mode||'add',editable);
+    if(editable && html.indexOf('<button')>-1) return html.replace('<button', row+'<button');
+    return html+row;
+  };
+
+  window._onFormulaCValueInput=function(mode){
+    var sec=_section(mode);
+    var prefix=mode==='edit'?'eAd':'aAd';
+    if(!sec) return;
+    ['Q1','Q2','Q3','Q4'].forEach(function(Q){
+      var any=document.getElementById(prefix+Q+'_A')||document.getElementById(prefix+Q+'_B');
+      if(any){
+        var inp=any;
+        var formula=inp.getAttribute('data-formula')||'';
+        var letters=(inp.getAttribute('data-letters')||'').split(',').filter(Boolean);
+        if(typeof _calcCustomResult==='function') _calcCustomResult(Q.toLowerCase(),prefix,formula,letters);
+      }
+    });
+  };
+
+  var _prevCalcCustomResult=window._calcCustomResult;
+  window._calcCustomResult=_calcCustomResult=function(q,prefix,formula,letters){
+    var Q=String(q||'').toUpperCase();
+    var vals={}, valid=true;
+    (letters||[]).forEach(function(letter){
+      var el=document.getElementById(prefix+Q+'_'+letter);
+      if(!el || String(el.value||'').trim()===''){valid=false;return;}
+      var v=(typeof _adminParseNumber==='function')?_adminParseNumber(el.value):_parseNum(el.value);
+      if(v===null||!isFinite(v)){valid=false;return;}
+      vals[letter]=v;
+    });
+    var mode=_modeFromPrefix(prefix);
+    var sec=_section(mode);
+    var masterId=sec?sec.getAttribute('data-master'):'';
+    var cfg=null;
+    try{
+      if(sec&&sec.id==='editQtrSection'&&typeof _adminMergeKpiSpecificConfig==='function') cfg=_adminMergeKpiSpecificConfig(masterId,_adminGetEditKpiId(sec),_adminGetEditKpiNameEn(sec));
+      else if(typeof _adminMergedMasterConfig==='function') cfg=_adminMergedMasterConfig(masterId);
+    }catch(_){ }
+    var c=_getC(mode);
+    if(_isCEnabled(masterId,cfg) && c!==null) vals.C=c;
+    var needsC=/\bC\b/i.test(String(formula||''));
+    var resEl=document.getElementById(prefix+Q+'_res');
+    if(!resEl) return;
+    if(!valid || !Object.keys(vals).length || (needsC && vals.C===undefined)){resEl.textContent='—';return;}
+    var result=(typeof window._evalFormula==='function')?window._evalFormula(formula,vals):null;
+    if(result===null||result===undefined||!isFinite(result)){resEl.textContent='⚠ err';resEl.style.color='#F87171';}
+    else{resEl.textContent=Math.round(result*10)/10+'%';resEl.style.color=result>=0?'#67E8F9':'#F87171';}
+  };
+
+  var _prevReadQtr=window._readQtrValuesFromForm;
+  window._readQtrValuesFromForm=function(kpiId,prefix,sectionId){
+    var out;
+    try{ out=(typeof _prevReadQtr==='function')?_prevReadQtr(kpiId,prefix,sectionId):null; }catch(_){ out=null; }
+    if(!out||!out.pciData) return out;
+    var mode=(sectionId==='editQtrSection'||String(prefix||'').indexOf('e')===0)?'edit':'add';
+    var sec=document.getElementById(sectionId||(mode==='edit'?'editQtrSection':'addQtrSection'));
+    var masterId=sec?sec.getAttribute('data-master'):'';
+    var cfg=null;
+    try{ cfg=(mode==='edit'&&typeof _adminMergeKpiSpecificConfig==='function')?_adminMergeKpiSpecificConfig(masterId,kpiId||_adminGetEditKpiId(sec),_adminGetEditKpiNameEn(sec)):(typeof _adminMergedMasterConfig==='function'?_adminMergedMasterConfig(masterId):null); }catch(_){ }
+    if(!_isCEnabled(masterId,cfg)) return out;
+    var c=_getC(mode);
+    Object.keys(out.pciData).forEach(function(q){
+      if(c!==null) out.pciData[q].C=c;
+      if(out.pciData[q]&&out.pciData[q]._custom){
+        var vals={};
+        var fields=(cfg&&cfg.fieldConfig)||[];
+        fields.forEach(function(_,i){var L=String.fromCharCode(65+i);var v=out.pciData[q][L];vals[L]=(v===null||v===undefined||v==='')?0:v;});
+        if(c!==null) vals.C=c;
+        if(/\bC\b/i.test(String((cfg&&cfg.resultFormula)||'')) && c===null){out.pciData[q]._result=null;return;}
+        var r=(typeof _evalFormula==='function')?_evalFormula((cfg&&cfg.resultFormula)||'',vals):null;
+        out.pciData[q]._result=(r===null||r===undefined||!isFinite(r))?null:r;
+      }
+    });
+    return out;
+  };
+
+  var _prevFillQtr=window._fillQtrFormFromPci;
+  window._fillQtrFormFromPci=function(kpiId,prefix,sectionId){
+    if(typeof _prevFillQtr==='function') _prevFillQtr(kpiId,prefix,sectionId);
+    var mode=(sectionId==='editQtrSection'||String(prefix||'').indexOf('e')===0)?'edit':'add';
+    var sec=document.getElementById(sectionId||(mode==='edit'?'editQtrSection':'addQtrSection'));
+    var masterId=sec?sec.getAttribute('data-master'):'';
+    var cfg=null;
+    try{ cfg=(mode==='edit'&&typeof _adminMergeKpiSpecificConfig==='function')?_adminMergeKpiSpecificConfig(masterId,kpiId||_adminGetEditKpiId(sec),_adminGetEditKpiNameEn(sec)):(typeof _adminMergedMasterConfig==='function'?_adminMergedMasterConfig(masterId):null); }catch(_){ }
+    if(!_isCEnabled(masterId,cfg)) return;
+    var data=(typeof ST!=='undefined'&&ST&&ST.pci&&ST.pci[kpiId])?ST.pci[kpiId]:{};
+    var c=null;
+    ['q1','q2','q3','q4'].some(function(q){ if(data[q]&&data[q].C!==undefined&&data[q].C!==null&&data[q].C!==''){c=data[q].C;return true;} return false; });
+    var inp=_cInput(mode); if(inp&&c!==null) inp.value=c;
+    if(typeof window._onFormulaCValueInput==='function') window._onFormulaCValueInput(mode);
+  };
+})();
+
+/* Forecast debug helper: use in browser console as debugForecastYE(true) */
+(function(){
+  window.debugForecastYE=function(respectFilters){
+    var r=(typeof calcForecastYE==='function')?calcForecastYE({respectFilters:respectFilters!==false}):null;
+    if(!r){console.warn('No calcForecastYE() result');return null;}
+    var rows=(r.kpis||[]).map(function(x){return {
+      KPI:x.nameEn||x.nameAr||x.key,
+      Dept:x.dept,
+      Codes:(x.codes||[]).join(', '),
+      Historical_Avg:x.historicalAverage!=null?Number(x.historicalAverage.toFixed(4)):null,
+      Current_Year_Avg:x.currentYearAverage!=null?Number(x.currentYearAverage.toFixed(4)):null,
+      Entered_Qtrs:x.enteredQuarters,
+      Forecast:x.forecast!=null?Number(x.forecast.toFixed(4)):null
+    };});
+    console.table(rows);
+    console.log('Executive Forecast YE =', r.exec!=null?Number(r.exec.toFixed(4)):null, 'Current year =', r.currentYear);
+    return r;
+  };
+})();
