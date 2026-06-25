@@ -2499,3 +2499,65 @@ body.dashboard-mode .tabnav.nav-export-combined{display:flex!important;visibilit
 .topbar{z-index:2147483300!important;}
 .tabnav.nav-export-combined{z-index:1000!important;}
 #exportMenuDrop{z-index:2147483000!important;}
+
+
+/* QUMC FIX — dashboard chrome visibility + modal/header polish 2026-06-25
+   Header/nav/filter/footer are visible only inside the dashboard. Modal overlays sit above nav.
+*/
+body.auth-mode .topbar,
+body.portal-mode .topbar,
+body:not(.dashboard-mode) .topbar,
+body.auth-mode .filter-strip,
+body.portal-mode .filter-strip,
+body:not(.dashboard-mode) .filter-strip,
+body.auth-mode .tabnav,
+body.portal-mode .tabnav,
+body:not(.dashboard-mode) .tabnav,
+body.auth-mode .dashwrap,
+body.portal-mode .dashwrap,
+body:not(.dashboard-mode) .dashwrap,
+body.auth-mode .footbar,
+body.portal-mode .footbar,
+body:not(.dashboard-mode) .footbar{
+  display:none!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+}
+body.dashboard-mode:not(.auth-mode):not(.portal-mode) .topbar{display:flex!important;visibility:visible!important;pointer-events:auto!important;}
+body.dashboard-mode:not(.auth-mode):not(.portal-mode) .filter-strip{display:flex!important;visibility:visible!important;pointer-events:auto!important;}
+body.dashboard-mode:not(.auth-mode):not(.portal-mode) .tabnav.nav-export-combined{display:flex!important;visibility:visible!important;pointer-events:auto!important;}
+body.dashboard-mode:not(.auth-mode):not(.portal-mode) .dashwrap{display:block!important;visibility:visible!important;pointer-events:auto!important;}
+body.dashboard-mode:not(.auth-mode):not(.portal-mode) .footbar{display:flex!important;visibility:visible!important;pointer-events:auto!important;}
+
+/* While a full modal/Gap Analysis overlay is open, keep nav/filter behind the modal. */
+body.modal-mode .tabnav.nav-export-combined,
+body.modal-mode .filter-strip{
+  z-index:1!important;
+}
+.overlay,
+#gapOv,
+#adminOv,
+#pciModal,
+#exportModal,
+#_kpoStatusOv,
+#rptOv{
+  z-index:2147483200!important;
+}
+#_authOverlay{z-index:2147483500!important;}
+#_forgotOverlay{z-index:2147483600!important;}
+#_portalOverlay{z-index:2147483400!important;}
+#userAlertDrop{z-index:2147483646!important;}
+#_notifModal{z-index:2147483647!important;}
+
+/* Enlarge only the main navigation tabs. Keep Excel/Report/Export unchanged. */
+.nav-export-combined .nav-tab-group .tab{
+  min-height:38px!important;
+  min-width:128px!important;
+  padding:0 18px!important;
+  font-size:11px!important;
+  border-radius:12px!important;
+}
+.nav-export-combined .nav-tab-group{gap:9px!important;}
+@media(max-width:900px){
+  .nav-export-combined .nav-tab-group .tab{min-width:112px!important;padding:0 14px!important;font-size:10.5px!important;}
+}
