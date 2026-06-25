@@ -887,13 +887,29 @@ window._doResetPassword=async function(){
     }
     return false;
   }
+  function isAnyModalVisible(){
+    var selectors=['.overlay','#gapOv','#adminOv','#pciModal','#exportModal','#_kpoStatusOv','#rptOv'];
+    for(var si=0;si<selectors.length;si++){
+      var nodes=document.querySelectorAll(selectors[si]);
+      for(var i=0;i<nodes.length;i++){
+        var el=nodes[i];
+        if(!el)continue;
+        var cs=window.getComputedStyle?getComputedStyle(el):el.style;
+        if(cs && cs.display && cs.display!=='none' && cs.visibility!=='hidden' && cs.opacity!=='0') return true;
+      }
+    }
+    return false;
+  }
   function syncPortalChrome(){
     var portalVisible=isPortalVisible();
     var authVisible=isAuthVisible();
-    var dashboardVisible=(!portalVisible && !authVisible);
+    var modalVisible=isAnyModalVisible();
+    var hasUser=!!(window._fbUser||window._fbEmail||window.currentUserEmail);
+    var dashboardVisible=!!(hasUser && !portalVisible && !authVisible);
     if(document.body){
       document.body.classList.toggle('portal-mode', portalVisible);
       document.body.classList.toggle('auth-mode', authVisible);
+      document.body.classList.toggle('modal-mode', modalVisible);
       document.body.classList.toggle('dashboard-mode', dashboardVisible);
     }
   }
@@ -904,6 +920,14 @@ window._doResetPassword=async function(){
       ov.__qumcPortalObserver=true;
       try{new MutationObserver(syncPortalChrome).observe(ov,{attributes:true,attributeFilter:['style','class']});}catch(e){}
     }
+    try{
+      document.querySelectorAll('.overlay,#_authOverlay,#_forgotOverlay,#gapOv,#adminOv,#pciModal,#exportModal,#_kpoStatusOv,#rptOv').forEach(function(el){
+        if(el && !el.__qumcChromeObserver){
+          el.__qumcChromeObserver=true;
+          new MutationObserver(syncPortalChrome).observe(el,{attributes:true,attributeFilter:['style','class']});
+        }
+      });
+    }catch(e){}
     ['_selectPortal','_backToPortal','showPortal','showPortalSelection'].forEach(function(fn){
       if(typeof window[fn]==='function' && !window[fn].__qumcWrapped){
         var old=window[fn];
