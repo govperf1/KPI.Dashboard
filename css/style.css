@@ -2465,3 +2465,37 @@ body.portal-mode .nav-export-combined{
   .footbar-logo{height:30px!important;}
   .footbar-logo img{height:30px!important;}
 }
+
+
+/* QUMC visibility hard-lock: dashboard chrome appears only inside dashboard, never on login/portal */
+body:not(.dashboard-mode) .filter-strip,
+body:not(.dashboard-mode) .tabnav,
+body:not(.dashboard-mode) .dashwrap,
+body:not(.dashboard-mode) .footbar,
+body.auth-mode .filter-strip,
+body.auth-mode .tabnav,
+body.auth-mode .dashwrap,
+body.auth-mode .footbar,
+body.portal-mode .filter-strip,
+body.portal-mode .tabnav,
+body.portal-mode .dashwrap,
+body.portal-mode .footbar{
+  display:none!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+}
+body.dashboard-mode .tabnav.nav-export-combined{display:flex!important;visibility:visible!important;pointer-events:auto!important;}
+
+/* Notification dropdown must float above nav/export rectangle and page content */
+#userAlertDrop.qumc-final-open,
+#userAlertDrop.qumc-stay-open,
+#userAlertDrop{
+  z-index:2147483646!important;
+  position:fixed!important;
+  overflow:hidden!important;
+  transform:none!important;
+}
+#userAlertDrop .qumc-alert-hd{position:sticky!important;top:0!important;z-index:2!important;}
+.topbar{z-index:2147483300!important;}
+.tabnav.nav-export-combined{z-index:1000!important;}
+#exportMenuDrop{z-index:2147483000!important;}
