@@ -1360,6 +1360,13 @@ function confirmDelKpi(){
    Opens the Admin Panel immediately and selects the SA overview tab.
    ══════════════════════════════════════════════════════════════ */
 function _showSuperAdminHub(){
+  /* Close any Super Admin sub-panel first.
+     User Requests / KPI Management are z-index 9100; the hub is 9000.
+     If they remain mounted, the hub opens behind them and Back looks broken. */
+  ['saReqOv','kpiMgmtOv'].forEach(function(id){
+    var el=document.getElementById(id);
+    if(el) el.remove();
+  });
   var prev=document.getElementById('saHubOv'); if(prev)prev.remove();
   var isAr=(typeof lang!=='undefined'&&lang==='ar');
   var ov=document.createElement('div');
