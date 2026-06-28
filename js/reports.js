@@ -2186,29 +2186,105 @@ async function importSnapshot(){
 })();
 
 /* ==========================================================
-   QUMC FINAL REPORT PRINT FIX
-   When the Report tab print button is used, print only the generated report
-   document (not the whole dashboard page). Dashboard export print remains intact.
+   QUMC FINAL REPORT PRINT FIX V2
+   Print only the formal report document, remove dashboard chrome,
+   add clean page borders, and force report colors/backgrounds.
+   Dashboard export print remains intact.
    ========================================================== */
 (function(){
-  if(window.__qumcReportPrintFixApplied) return;
-  window.__qumcReportPrintFixApplied=true;
-  var css=document.createElement('style');
-  css.id='qumc-report-print-only-css';
-  css.textContent='@media print{body.qumc-print-report-only *{visibility:hidden!important}body.qumc-print-report-only #page-report,body.qumc-print-report-only #page-report *{visibility:visible!important}body.qumc-print-report-only .rpt-topbar,body.qumc-print-report-only .rpt-edit-btn,body.qumc-print-report-only .topbar,body.qumc-print-report-only .filter-strip,body.qumc-print-report-only .tabnav,body.qumc-print-report-only .footbar,body.qumc-print-report-only .export-menu{display:none!important}body.qumc-print-report-only #page-report{display:block!important;position:absolute!important;left:0!important;top:0!important;width:100%!important;background:#fff!important;padding:0!important;margin:0!important}body.qumc-print-report-only #reportDoc,body.qumc-print-report-only #rptDocument{display:block!important;position:static!important;width:100%!important;max-width:none!important;margin:0!important;border:0!important;box-shadow:none!important;background:#fff!important}body.qumc-print-report-only .page{display:none!important}body.qumc-print-report-only #page-report{display:block!important}@page{size:A4;margin:12mm}}';
-  document.head.appendChild(css);
-  var nativePrint=window.print.bind(window);
-  window.print=function(){
+  if(window.__qumcReportPrintFixV2Applied) return;
+  window.__qumcReportPrintFixV2Applied=true;
+
+  function addPrintCSS(){
+    var old=document.getElementById('qumc-report-print-only-css');
+    if(old) old.remove();
+    var css=document.createElement('style');
+    css.id='qumc-report-print-only-css';
+    css.textContent = [
+      '@media print{',
+      '@page{size:A4;margin:0!important}',
+      'html,body{margin:0!important;padding:0!important;background:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}',
+      'body.qumc-print-report-only{background:#fff!important;overflow:visible!important}',
+      'body.qumc-print-report-only > :not(#qumcPrintReportPage){display:none!important}',
+      '#qumcPrintReportPage{display:block!important;position:static!important;width:210mm!important;min-height:297mm!important;box-sizing:border-box!important;background:#fff!important;padding:10mm 9mm!important;margin:0!important}',
+      '#qumcPrintReportPage .qumc-print-report-sheet{display:block!important;width:100%!important;max-width:none!important;margin:0!important;background:#fff!important;border:1.4px solid #94A3B8!important;border-radius:8px!important;box-shadow:none!important;overflow:hidden!important;box-sizing:border-box!important}',
+      '#qumcPrintReportPage #rptDocument,#qumcPrintReportPage #reportDoc{display:block!important;width:100%!important;max-width:none!important;margin:0!important;background:#fff!important;border:0!important;border-radius:8px!important;box-shadow:none!important;overflow:hidden!important}',
+      '#qumcPrintReportPage .rpt-topbar,#qumcPrintReportPage .rpt-edit-btn,#qumcPrintReportPage button,#qumcPrintReportPage select,#qumcPrintReportPage input{display:none!important}',
+      '#qumcPrintReportPage img{max-width:100%!important;print-color-adjust:exact!important;-webkit-print-color-adjust:exact!important}',
+      '#qumcPrintReportPage table{page-break-inside:auto!important}',
+      '#qumcPrintReportPage tr,#qumcPrintReportPage .chartbox,#qumcPrintReportPage .rpt-section{break-inside:avoid!important;page-break-inside:avoid!important}',
+      '#qumcPrintReportPage h1{color:#fff!important;font-size:20px!important;line-height:1.25!important;font-weight:900!important}',
+      '#qumcPrintReportPage h2{color:rgba(255,255,255,.78)!important}',
+      '#qumcPrintReportPage p{orphans:3!important;widows:3!important}',
+      '#qumcPrintReportPage [style*="background:#152538"],#qumcPrintReportPage [style*="background: #152538"],#qumcPrintReportPage [style*="background:#0B1C33"]{background:#0B1C33!important}',
+      '#qumcPrintReportPage [style*="color:#0195af"],#qumcPrintReportPage [style*="color: #0195af"]{color:#00AFCB!important}',
+      '}',
+      '@media screen{#qumcPrintReportPage{display:none!important}}'
+    ].join('');
+    document.head.appendChild(css);
+  }
+
+  function reportIsActive(){
     var exportOverride=document.getElementById('kpi-print-override');
     var reportPage=document.getElementById('page-report');
-    var isReportActive=reportPage && (reportPage.classList.contains('on') || reportPage.offsetParent!==null) && !exportOverride;
-    if(isReportActive){
-      document.body.classList.add('qumc-print-report-only');
-      setTimeout(function(){
-        try{nativePrint();}finally{setTimeout(function(){document.body.classList.remove('qumc-print-report-only');},800);}
-      },80);
-      return;
+    return !!(reportPage && !exportOverride && (reportPage.classList.contains('on') || reportPage.offsetParent!==null));
+  }
+
+  function getReportDocument(){
+    return document.getElementById('rptDocument') || document.getElementById('reportDoc');
+  }
+
+  function cleanupPrintClone(){
+    try{document.body.classList.remove('qumc-print-report-only');}catch(e){}
+    try{document.documentElement.classList.remove('qumc-print-report-only');}catch(e){}
+    var holder=document.getElementById('qumcPrintReportPage');
+    if(holder) holder.remove();
+  }
+
+  function prepareReportPrint(){
+    cleanupPrintClone();
+    addPrintCSS();
+    var doc=getReportDocument();
+    if(!doc) return false;
+    var holder=document.createElement('div');
+    holder.id='qumcPrintReportPage';
+    var sheet=document.createElement('div');
+    sheet.className='qumc-print-report-sheet';
+    var clone=doc.cloneNode(true);
+    clone.removeAttribute('style');
+    clone.style.display='block';
+    clone.style.width='100%';
+    clone.style.maxWidth='none';
+    clone.style.margin='0';
+    clone.style.background='#fff';
+    clone.style.boxShadow='none';
+    clone.style.border='0';
+    clone.style.borderRadius='8px';
+    clone.style.overflow='hidden';
+    sheet.appendChild(clone);
+    holder.appendChild(sheet);
+    document.body.appendChild(holder);
+    document.documentElement.classList.add('qumc-print-report-only');
+    document.body.classList.add('qumc-print-report-only');
+    return true;
+  }
+
+  var nativePrint=window.__qumcNativePrint || window.print.bind(window);
+  window.__qumcNativePrint=nativePrint;
+  window.print=function(){
+    if(reportIsActive()){
+      if(prepareReportPrint()){
+        setTimeout(function(){
+          try{ nativePrint(); }
+          finally{ setTimeout(cleanupPrintClone, 1200); }
+        },120);
+        return;
+      }
     }
     return nativePrint();
   };
+
+  window.addEventListener('afterprint', function(){
+    if(document.body.classList.contains('qumc-print-report-only')) cleanupPrintClone();
+  });
 })();
