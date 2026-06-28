@@ -2514,3 +2514,234 @@ async function importSnapshot(){
     if(document.body.classList.contains('qumc-print-report-only')) cleanupPrintClone();
   });
 })();
+
+/* ==========================================================
+   QUMC REPORT PRINT FIX V5
+   - Supersedes older report print wrappers
+   - Keeps report content continuous without blank cover pages
+   - Makes charts visible by converting canvases to stable images
+   - Keeps printed by / printed at at the very end of the report
+   ========================================================== */
+(function(){
+  if(window.__qumcReportPrintFixV5Applied) return;
+  window.__qumcReportPrintFixV5Applied=true;
+
+  function esc(s){
+    return String(s==null?'':s).replace(/[&<>\'\"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c];});
+  }
+  function isArabic(){
+    try{return (typeof lang!=='undefined' && lang==='ar') || document.documentElement.dir==='rtl' || document.body.dir==='rtl';}catch(e){return false;}
+  }
+  function getReportDocument(){
+    return document.getElementById('rptDocument') || document.getElementById('reportDoc');
+  }
+  function reportIsActive(){
+    var exportOverride=document.getElementById('kpi-print-override');
+    var reportPage=document.getElementById('page-report');
+    var doc=getReportDocument();
+    return !!(doc && reportPage && !exportOverride && (reportPage.classList.contains('on') || reportPage.offsetParent!==null));
+  }
+  function getUserInfoForPrint(){
+    var name='', email='', role='';
+    try{name=String(window._fbName||window.currentUserName||'').trim();}catch(e){}
+    try{email=String(window._fbUser||window._fbEmail||window.currentUserEmail||sessionStorage.getItem('qumc_user_email')||localStorage.getItem('qumc_user_email')||'').trim();}catch(e){}
+    try{role=String(window._fbRole||window.currentUserRole||'').trim();}catch(e){}
+    if(!name && email) name=email.split('@')[0];
+    if(!name) name='Governance and Performance Department';
+    return {name:name,email:email,role:role};
+  }
+  function getPeriodText(doc){
+    var txt='';
+    try{
+      var top=document.querySelector('#page-report .rpt-topbar span');
+      if(top) txt=(top.textContent||'').trim();
+    }catch(e){}
+    if(!txt && doc){
+      try{
+        var spans=Array.prototype.slice.call(doc.querySelectorAll('span'));
+        var found=spans.map(function(s){return (s.textContent||'').trim();}).filter(function(t){return /Q[1-4]|20\d{2}|All|الربع|السنة/.test(t) && !/^Target/i.test(t);});
+        txt=found.slice(0,3).join(' · ');
+      }catch(e){}
+    }
+    if(!txt){
+      try{
+        var year=(window.F&&F.year&&F.year!=='all')?F.year:'';
+        var q=(window.F&&Array.isArray(F.qtr)&&!F.qtr.includes('all'))?F.qtr.map(function(x){return String(x).toUpperCase();}).join(', '):'';
+        txt=[year,q].filter(Boolean).join(' · ');
+      }catch(e){}
+    }
+    return txt;
+  }
+  function makeMeta(doc){
+    var ar=isArabic();
+    var u=getUserInfoForPrint();
+    var d;
+    try{d=(new Date()).toLocaleString(ar?'ar-SA':'en-GB',{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){d=(new Date()).toLocaleString();}
+    var title=ar?'معلومات الطباعة':'Print Information';
+    var by=ar?'طبع بواسطة':'Printed by';
+    var at=ar?'وقت الطباعة':'Printed at';
+    var periodLabel=ar?'الفترة':'Period';
+    var period=getPeriodText(doc);
+    var html=[];
+    html.push('<div class="qumc-print-meta-title">'+esc(title)+'</div>');
+    html.push('<div><b>'+esc(by)+':</b> '+esc(u.name)+(u.email?' <span>'+esc(u.email)+'</span>':'')+(u.role?' <span>'+esc(u.role)+'</span>':'')+'</div>');
+    html.push('<div><b>'+esc(at)+':</b> '+esc(d)+'</div>');
+    if(period) html.push('<div class="qumc-print-meta-period"><b>'+esc(periodLabel)+':</b> '+esc(period)+'</div>');
+    var meta=document.createElement('div');
+    meta.className='qumc-print-meta';
+    meta.dir=ar?'rtl':'ltr';
+    meta.innerHTML=html.join('');
+    return meta;
+  }
+  function addPrintCSS(){
+    ['qumc-report-print-only-css','qumc-report-print-v4-css','qumc-report-print-v5-css'].forEach(function(id){var o=document.getElementById(id); if(o) o.remove();});
+    var css=document.createElement('style');
+    css.id='qumc-report-print-v5-css';
+    css.textContent=[
+      '@media print{',
+      '@page{size:A4;margin:10mm 10mm!important}',
+      'html,body{margin:0!important;padding:0!important;background:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}',
+      'body.qumc-print-report-only{background:#fff!important;overflow:visible!important}',
+      'body.qumc-print-report-only > :not(#qumcPrintReportPage){display:none!important}',
+      '#qumcPrintReportPage{display:block!important;position:static!important;width:auto!important;min-height:auto!important;margin:0!important;padding:0!important;background:#fff!important;color:#152538!important;font-family:Arial,Calibri,sans-serif!important}',
+      '#qumcPrintReportPage:before{content:"";position:fixed!important;top:4mm!important;right:4mm!important;bottom:4mm!important;left:4mm!important;border:1px solid #94A3B8!important;border-radius:3mm!important;pointer-events:none!important;z-index:999999!important}',
+      '#qumcPrintReportPage .qumc-print-report-sheet{display:block!important;width:100%!important;margin:0!important;padding:0!important;background:#fff!important;border:0!important;border-radius:0!important;box-shadow:none!important;overflow:visible!important}',
+      '#qumcPrintReportPage #rptDocument,#qumcPrintReportPage #reportDoc{display:block!important;width:100%!important;max-width:none!important;margin:0!important;padding:0!important;background:#fff!important;border:0!important;border-radius:0!important;box-shadow:none!important;overflow:visible!important}',
+      '#qumcPrintReportPage .rpt-topbar,#qumcPrintReportPage .rpt-edit-btn,#qumcPrintReportPage button,#qumcPrintReportPage select,#qumcPrintReportPage input{display:none!important}',
+      '#qumcPrintReportPage *{box-shadow:none!important}',
+      '#qumcPrintReportPage img{max-width:100%!important;print-color-adjust:exact!important;-webkit-print-color-adjust:exact!important}',
+      '#qumcPrintReportPage img[alt="QUMC"],#qumcPrintReportPage .qumc-report-header img{height:16mm!important;width:auto!important;max-width:40mm!important;object-fit:contain!important;display:block!important}',
+      '#qumcPrintReportPage .qumc-report-header{display:flex!important;align-items:flex-start!important;gap:14px!important;padding:16mm 9mm 8mm!important;background:#0B1C33!important;border-radius:0!important;break-inside:avoid!important;page-break-inside:avoid!important}',
+      '#qumcPrintReportPage .qumc-report-header *{visibility:visible!important;opacity:1!important}',
+      '#qumcPrintReportPage .qumc-report-header h1{color:#fff!important;font-size:18px!important;line-height:1.25!important;font-weight:900!important;margin:0 0 4px!important}',
+      '#qumcPrintReportPage .qumc-report-header h2{color:rgba(255,255,255,.82)!important;font-size:11px!important;margin:0 0 8px!important}',
+      '#qumcPrintReportPage .qumc-report-header p{color:#00AFCB!important;visibility:visible!important;opacity:1!important}',
+      '#qumcPrintReportPage .qumc-report-header span{color:#00AFCB!important;visibility:visible!important;opacity:1!important}',
+      '#qumcPrintReportPage .qumc-report-header-line{height:2px!important;background:#00AFCB!important;margin:0 0 6mm!important;break-after:avoid!important}',
+      '#qumcPrintReportPage .qumc-print-body{padding:0 5mm 0!important;background:#fff!important}',
+      '#qumcPrintReportPage table{width:100%!important;border-collapse:collapse!important;page-break-inside:auto!important}',
+      '#qumcPrintReportPage thead{display:table-header-group!important}',
+      '#qumcPrintReportPage tr{break-inside:avoid!important;page-break-inside:avoid!important}',
+      '#qumcPrintReportPage td,#qumcPrintReportPage th{font-size:9px!important}',
+      '#qumcPrintReportPage h1,#qumcPrintReportPage h2,#qumcPrintReportPage h3{visibility:visible!important;opacity:1!important}',
+      '#qumcPrintReportPage h3,#qumcPrintReportPage .qumc-print-section-title{break-after:avoid!important;page-break-after:avoid!important;color:#152538!important;margin-top:5mm!important;margin-bottom:2.5mm!important}',
+      '#qumcPrintReportPage p{orphans:3!important;widows:3!important}',
+      '#qumcPrintReportPage .qumc-print-chart-img{display:block!important;width:100%!important;height:54mm!important;max-height:54mm!important;object-fit:contain!important;margin:0 auto!important}',
+      '#qumcPrintReportPage .qumc-print-chart-block{break-inside:avoid!important;page-break-inside:avoid!important;min-height:62mm!important}',
+      '#qumcPrintReportPage .qumc-print-table-block{break-inside:avoid!important;page-break-inside:avoid!important}',
+      '#qumcPrintReportPage .qumc-print-small-avoid{break-inside:avoid!important;page-break-inside:avoid!important}',
+      '#qumcPrintReportPage canvas{display:none!important}',
+      '#qumcPrintReportPage [style*="height:260px"],#qumcPrintReportPage [style*="height:220px"],#qumcPrintReportPage [style*="height:210px"],#qumcPrintReportPage [style*="height:200px"],#qumcPrintReportPage [style*="height:176px"]{height:auto!important;min-height:0!important}',
+      '#qumcPrintReportPage [style*="min-height:260px"],#qumcPrintReportPage [style*="min-height:240px"],#qumcPrintReportPage [style*="min-height:220px"],#qumcPrintReportPage [style*="min-height:200px"]{min-height:0!important}',
+      '#qumcPrintReportPage [style*="background:#152538"],#qumcPrintReportPage [style*="background: #152538"],#qumcPrintReportPage [style*="background:#0B1C33"],#qumcPrintReportPage [style*="background:var(--top)"]{background:#0B1C33!important}',
+      '#qumcPrintReportPage [style*="color:#0195af"],#qumcPrintReportPage [style*="color: #0195af"]{color:#00AFCB!important}',
+      '#qumcPrintReportPage .qumc-print-meta{display:grid!important;grid-template-columns:1fr 1fr!important;gap:3px 16px!important;margin:8mm 5mm 0!important;padding:4mm 5mm!important;border:1px solid #CBD5E1!important;border-radius:4mm!important;background:#F8FAFC!important;color:#152538!important;font:700 9.5px Arial,Calibri,sans-serif!important;line-height:1.55!important;break-inside:avoid!important;page-break-inside:avoid!important}',
+      '#qumcPrintReportPage .qumc-print-meta-title{grid-column:1/-1!important;font-size:12px!important;font-weight:900!important;color:#0B1C33!important;border-bottom:1px solid #E2E8F0!important;padding-bottom:2mm!important;margin-bottom:1mm!important}',
+      '#qumcPrintReportPage .qumc-print-meta span{font-weight:600!important;color:#64748B!important;margin-inline-start:6px!important}',
+      '#qumcPrintReportPage .qumc-print-meta-period{grid-column:1/-1!important}',
+      '}',
+      '@media screen{#qumcPrintReportPage{display:none!important}}'
+    ].join('');
+    document.head.appendChild(css);
+  }
+  function cleanup(){
+    try{document.body.classList.remove('qumc-print-report-only');}catch(e){}
+    try{document.documentElement.classList.remove('qumc-print-report-only');}catch(e){}
+    var holder=document.getElementById('qumcPrintReportPage');
+    if(holder) holder.remove();
+  }
+  function convertCanvasesToImages(original, clone){
+    var origCanvases=Array.prototype.slice.call(original.querySelectorAll('canvas'));
+    var cloneCanvases=Array.prototype.slice.call(clone.querySelectorAll('canvas'));
+    origCanvases.forEach(function(oc,i){
+      var cc=cloneCanvases[i];
+      if(!oc || !cc) return;
+      try{
+        if(window.CH && oc.id && CH[oc.id] && typeof CH[oc.id].update==='function'){
+          CH[oc.id].resize();
+          CH[oc.id].update('none');
+        }
+      }catch(e){}
+      try{
+        var data=oc.toDataURL('image/png',1);
+        if(!data || data==='data:,') return;
+        var img=document.createElement('img');
+        img.className='qumc-print-chart-img';
+        img.src=data;
+        img.alt=cc.id || 'Report chart';
+        cc.parentNode && cc.parentNode.replaceChild(img,cc);
+      }catch(e){ }
+    });
+  }
+  function normalizeClone(clone){
+    try{
+      var first=clone.firstElementChild;
+      if(first){
+        first.classList.add('qumc-report-header');
+        var next=first.nextElementSibling;
+        if(next && (next.textContent||'').trim()==='') next.classList.add('qumc-report-header-line');
+      }
+      var bodyCandidate=first;
+      while(bodyCandidate && bodyCandidate.nextElementSibling) bodyCandidate=bodyCandidate.nextElementSibling;
+      // Put a class on the main body section if the template has a body wrapper after the header line.
+      var kids=Array.prototype.slice.call(clone.children);
+      kids.forEach(function(k,idx){ if(idx>=2) k.classList.add('qumc-print-body'); });
+      clone.querySelectorAll('table').forEach(function(t){(t.parentElement||t).classList.add('qumc-print-table-block');});
+      clone.querySelectorAll('.qumc-print-chart-img,canvas').forEach(function(c){(c.parentElement||c).classList.add('qumc-print-chart-block');});
+      clone.querySelectorAll('h3').forEach(function(h){h.classList.add('qumc-print-section-title');});
+      clone.querySelectorAll('img[alt="QUMC"]').forEach(function(img){img.style.height='16mm';img.style.width='auto';img.style.maxWidth='40mm';img.style.objectFit='contain';});
+      Array.prototype.slice.call(clone.querySelectorAll('div')).forEach(function(d){
+        var st=(d.getAttribute('style')||'').toLowerCase();
+        var txt=(d.textContent||'').trim();
+        if(txt.length<420 && (st.indexOf('border:1px solid #e2e8f0')>-1 || st.indexOf('border:1px solid #cbd5e1')>-1)) d.classList.add('qumc-print-small-avoid');
+      });
+    }catch(e){}
+  }
+  function prepare(){
+    cleanup();
+    addPrintCSS();
+    var doc=getReportDocument();
+    if(!doc) return false;
+    var holder=document.createElement('div');
+    holder.id='qumcPrintReportPage';
+    var sheet=document.createElement('div');
+    sheet.className='qumc-print-report-sheet';
+    var clone=doc.cloneNode(true);
+    clone.removeAttribute('style');
+    clone.style.display='block';
+    clone.style.width='100%';
+    clone.style.maxWidth='none';
+    clone.style.margin='0';
+    clone.style.background='#fff';
+    clone.style.overflow='visible';
+    convertCanvasesToImages(doc,clone);
+    normalizeClone(clone);
+    sheet.appendChild(clone);
+    sheet.appendChild(makeMeta(doc));
+    holder.appendChild(sheet);
+    document.body.appendChild(holder);
+    document.documentElement.classList.add('qumc-print-report-only');
+    document.body.classList.add('qumc-print-report-only');
+    return true;
+  }
+  var nativePrint=window.__qumcNativePrint || (window.print && window.print.bind(window));
+  if(!nativePrint) nativePrint=function(){};
+  window.__qumcNativePrint=nativePrint;
+  window.print=function(){
+    if(reportIsActive()){
+      try{
+        if(prepare()){
+          setTimeout(function(){
+            try{nativePrint();}
+            finally{setTimeout(cleanup,1600);}
+          },260);
+          return;
+        }
+      }catch(e){try{console.warn('QUMC report print failed',e);}catch(_e){}}
+    }
+    return nativePrint();
+  };
+  window.addEventListener('afterprint',function(){
+    if(document.body.classList.contains('qumc-print-report-only')) cleanup();
+  });
+})();
