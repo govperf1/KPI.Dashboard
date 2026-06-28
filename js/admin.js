@@ -3371,3 +3371,92 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   }
   window.addEventListener('load',function(){setTimeout(injectApprovalButton,1200);setInterval(injectApprovalButton,2500);});
 })();
+
+
+/* ==========================================================
+   QUMC GAP APPROVAL V2 — Approve/Reject only + Required Gap Items
+   - Removes Return from approval workflow UI.
+   - Adds missing gap data list to the same approval inbox for KPI Owner,
+     Department Manager, and Super Admin.
+   - Rejected requests remain visible/auditable.
+   ========================================================== */
+(function(){
+  'use strict';
+  if(window.__QUMC_GAP_APPROVAL_V2_NO_RETURN__) return;
+  window.__QUMC_GAP_APPROVAL_V2_NO_RETURN__ = true;
+
+  function $(id){return document.getElementById(id);} 
+  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function isAr(){return (typeof window.lang!=='undefined'&&window.lang==='ar')||document.documentElement.dir==='rtl'||document.documentElement.lang==='ar';}
+  function norm(v){return String(v||'').toLowerCase().trim().replace(/[\s-]+/g,'_');}
+  function nkey(v){return String(v||'').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,'');}
+  function role(){return norm(window._fbRole||window.currentUserRole||'');}
+  function email(){return String(window._fbUser||window._fbEmail||window.currentUserEmail||'').toLowerCase().trim();}
+  function userName(){return String(window._fbName||window.currentUserName||(email()?email().split('@')[0]:'User'));}
+  function deptAlias(v){var x=String(v||'').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,'');if(!x)return'';if(x.indexOf('maintenance')>-1||x.indexOf('صيانة')>-1)return'maintenance';if(x.indexOf('safety')>-1||x.indexOf('سلامة')>-1)return'safety';if(x.indexOf('housekeeping')>-1||x.indexOf('cleaning')>-1||x.indexOf('hospitality')>-1||x.indexOf('نظافة')>-1||x.indexOf('فندقة')>-1)return'housekeeping';if(x.indexOf('project')>-1||x.indexOf('مشاريع')>-1||x.indexOf('المشاريع')>-1)return'projects';if(x.indexOf('governance')>-1||x.indexOf('حوكمة')>-1)return'governance';return x;}
+  function dept(){return deptAlias(window._fbDept||window._lockedDept||window.currentUserDept||'');}
+  function isOwner(){var r=role();return r==='kpi_owner'||r==='gap_owner';}
+  function isManager(){var r=role();return r==='department_manager'||r==='dept_manager';}
+  function isSuper(){var r=role();return r==='super_admin'||r==='superadmin'||r==='admin';}
+  function allKpis(){try{if(typeof window.allK==='function')return window.allK()||[];}catch(_){} return Array.isArray(window.KPIS)?window.KPIS:[];}
+  function approvals(){if(!window.ST)window.ST={};if(!Array.isArray(ST.gapApprovals))ST.gapApprovals=[];return ST.gapApprovals;}
+  function num(v){if(v===null||v===undefined||v==='')return null;var s=String(v).trim().replace(/[٪%]/g,'').replace(/,/g,'').replace(/\s+/g,'');s=s.replace(/[٠-٩]/g,function(c){return '٠١٢٣٤٥٦٧٨٩'.indexOf(c);});s=s.replace(/[۰-۹]/g,function(c){return '۰۱۲۳۴۵۶۷۸۹'.indexOf(c);});var n=Number(s);return isFinite(n)?n:null;}
+  function kName(k){return isAr()?(k.nameAr||k.nameEn||k.name||k.id):(k.nameEn||k.name||k.nameAr||k.id);}
+  function qLabel(q){return String(q||'').toUpperCase();}
+  function met(k,v){try{if(typeof window.metStatus==='function')return window.metStatus(k,v);}catch(_){} var t=num(k&&k.target); if(v===null)return null; if(t===null)t=100; var op=String(k&&k.op||'>='); if(op==='<=')return v<=t; if(op==='=')return Math.abs(v-t)<=0.05; return v>=t;}
+  function qVal(k,q){var v=k&&k[q]; if(v===undefined)v=k&&k[String(q).toUpperCase()]; return num(v);}
+  function gapTexts(obj){obj=obj||{};return{root:String(obj.gapEn||obj.gapAr||obj.rootCause||obj.rootCauseEn||obj.root||obj.reason||obj.gapReasons||'').trim(),action:String(obj.actEn||obj.actAr||obj.correctiveAction||obj.correctiveActions||obj.actionPlan||obj.action||obj.actions||'').trim()};}
+  function gapComplete(k,q){var st=window.ST||{},g=st.gaps||{},a=st.actions||{},id=String(k.id||k.kpiCode||'');var keys=[id+'_'+String(q).toLowerCase(),id+'_'+String(q).toUpperCase(),id];for(var i=0;i<keys.length;i++){var gt=gapTexts(g[keys[i]]||{}),at=gapTexts(a[keys[i]]||{});if((gt.root||at.root)&&(gt.action||at.action))return true;}return false;}
+  function liveApproval(k,q){var id=String(k.id||k.kpiCode||''),qq=String(q||'').toLowerCase();return approvals().find(function(r){return r&&String(r.kpiId||r.kpiCode||'')===id&&String(r.quarter||'').toLowerCase()===qq&&/^(pending_manager|pending_super_admin|approved)$/.test(String(r.status||''));});}
+  function canAccessKpi(k){
+    if(isSuper())return true;
+    var kd=deptAlias(k.dept||k.department||'');
+    if(isManager())return kd&&kd===dept();
+    if(isOwner()){
+      var a=window._fbAssignedKpis;
+      if(Array.isArray(a)&&a.length){var vals=a.map(nkey), code=nkey(k.id||k.kpiCode), name=nkey(k.nameEn||k.name||k.nameAr);return vals.indexOf(code)>-1||vals.indexOf(name)>-1;}
+      return kd&&kd===dept();
+    }
+    return false;
+  }
+  function missingGapItems(){
+    var rows=[];
+    allKpis().forEach(function(k){if(!canAccessKpi(k))return;['q1','q2','q3','q4'].forEach(function(q){var v=qVal(k,q);if(v===null)return;if(met(k,v)!==false)return;if(gapComplete(k,q))return;if(liveApproval(k,q))return;rows.push({k:k,q:q,value:v,target:num(k.target),year:k.yr||k.year||'',dept:k.dept||k.department||''});});});
+    rows.sort(function(a,b){return String(a.dept).localeCompare(String(b.dept))||String(a.k.id).localeCompare(String(b.k.id))||a.q.localeCompare(b.q);});
+    return rows;
+  }
+  function statusText(st){var ar=isAr();return ({pending_manager:ar?'بانتظار مدير القسم':'Pending Department Manager',pending_super_admin:ar?'بانتظار السوبر أدمن':'Pending Super Admin',approved:ar?'معتمد ومنعكس على الداشبورد':'Approved and posted to dashboard',rejected_manager:ar?'مرفوض من مدير القسم':'Rejected by Department Manager',rejected_super_admin:ar?'مرفوض من السوبر أدمن':'Rejected by Super Admin',superseded:ar?'تم استبداله بإرسال أحدث':'Superseded by newer submission'})[st]||st||'—';}
+  function statusColor(st){if(st==='approved')return '#047857';if(String(st||'').indexOf('rejected')===0)return '#B91C1C';return '#0369A1';}
+  function requestTitle(r){return (r.kpiCode||r.kpiId||'KPI')+' — '+(r.kpiNameEn||r.kpiNameAr||'Gap Analysis')+' · '+qLabel(r.quarter);}
+  function canSeeReq(r){
+    if(!r)return false;var st=String(r.status||''), rd=deptAlias(r.dept||'');
+    if(isSuper())return /^(pending_super_admin|approved|rejected_super_admin|rejected_manager)$/.test(st);
+    if(isManager())return rd===dept() && /^(pending_manager|pending_super_admin|approved|rejected_manager|rejected_super_admin)$/.test(st);
+    if(isOwner())return String(r.submittedByEmail||'').toLowerCase()===email();
+    return false;
+  }
+  function visibleReqs(){return approvals().filter(canSeeReq).sort(function(a,b){return String(b.updatedAt||b.submittedAt||'').localeCompare(String(a.updatedAt||a.submittedAt||''));});}
+  var oldAct=window._gapApprovalAct;
+  window._gapApprovalAct=function(reqId,action){
+    if(String(action||'').indexOf('return')>-1){try{toast(isAr()?'تم حذف خيار الإرجاع؛ استخدمي الموافقة أو الرفض فقط.':'Return has been removed; use Approve or Reject only.');}catch(_){} return;}
+    if(typeof oldAct==='function')return oldAct.apply(this,arguments);
+  };
+  function actionBtns(r){
+    if(isManager()&&r.status==='pending_manager'&&deptAlias(r.dept)===dept())return '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button onclick="_gapApprovalAct(\''+esc(r.id)+'\',\'manager_approve\')" class="gap-apr-btn ok">Approve</button><button onclick="_gapApprovalAct(\''+esc(r.id)+'\',\'manager_reject\')" class="gap-apr-btn bad">Reject</button></div>';
+    if(isSuper()&&r.status==='pending_super_admin')return '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button onclick="_gapApprovalAct(\''+esc(r.id)+'\',\'super_approve\')" class="gap-apr-btn ok">Final Approve</button><button onclick="_gapApprovalAct(\''+esc(r.id)+'\',\'super_reject\')" class="gap-apr-btn bad">Reject</button></div>';
+    return '';
+  }
+  function reqCard(r){var p=r.payload||{},c=statusColor(r.status);return '<div class="gap-apr-card" id="gap_apr_'+esc(r.id)+'" style="border:1px solid rgba(148,163,184,.25);border-radius:14px;padding:14px;background:rgba(255,255,255,.78);box-shadow:0 14px 34px rgba(15,23,42,.08);margin-bottom:12px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div style="font-size:13px;font-weight:900;color:#0f172a">'+esc(requestTitle(r))+'</div><div style="font-size:10px;color:#64748b;margin-top:3px">'+esc(r.dept||'')+' · '+esc(r.year||'')+' · '+esc(r.submittedByName||'')+'</div></div><span style="font-size:10px;font-weight:900;padding:5px 10px;border-radius:999px;color:'+c+';background:'+c+'18;white-space:nowrap">'+esc(statusText(r.status))+'</span></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px"><div><b style="font-size:10px;color:#B91C1C">Root Cause</b><div style="font-size:11px;color:#334155;line-height:1.55;margin-top:4px">'+esc(p.gapEn||'—')+'</div></div><div><b style="font-size:10px;color:#047857">Corrective Action</b><div style="font-size:11px;color:#334155;line-height:1.55;margin-top:4px">'+esc(p.actEn||'—')+'</div></div><div><b style="font-size:10px;color:#0369A1">Impact</b><div style="font-size:11px;color:#334155;line-height:1.55;margin-top:4px">'+esc(p.impactEn||'—')+'</div></div><div><b style="font-size:10px;color:#64748b">Accountability</b><div style="font-size:11px;color:#334155;line-height:1.55;margin-top:4px">'+esc(p.owner||'—')+' · '+esc(p.dueDate||'—')+' · '+esc(p.priority||'—')+' · '+esc(p.status||'—')+'</div></div></div>'+((r.managerNote||r.superAdminNote)?'<div style="font-size:10.5px;color:#92400e;background:rgba(245,158,11,.10);border:1px solid rgba(245,158,11,.22);border-radius:9px;padding:9px;margin-top:10px"><b>Reject reason:</b> '+esc(r.superAdminNote||r.managerNote)+'</div>':'')+actionBtns(r)+'</div>';}
+  function missingCard(x){return '<div class="gap-missing-card" style="border:1px solid rgba(217,119,6,.18);border-radius:13px;padding:12px;background:rgba(255,251,235,.72);margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><div style="font-size:12px;font-weight:900;color:#78350f">'+esc(x.k.id)+' — '+esc(kName(x.k))+'</div><div style="font-size:10px;color:#64748b;margin-top:4px">'+esc(x.dept||'')+' · '+esc(x.year||'')+' · '+qLabel(x.q)+' · Result '+esc(x.value)+'% / Target '+esc(x.target)+'%</div></div><button onclick="window.openGapQuarter&&window.openGapQuarter(\''+esc(x.k.id)+'\',\''+esc(x.q)+'\')" class="gap-apr-btn warn">'+(isAr()?'إدخال البيانات':'Enter Gap Data')+'</button></div></div>';}
+  window._showGapApprovals=function(focusId){
+    var old=$('_gapApprovalsOv'); if(old)old.remove();
+    var reqs=visibleReqs(), miss=missingGapItems(), ar=isAr();
+    var ov=document.createElement('div');ov.id='_gapApprovalsOv';ov.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.45);backdrop-filter:blur(7px);display:flex;align-items:center;justify-content:center;padding:22px;direction:'+(ar?'rtl':'ltr');
+    ov.innerHTML='<div style="width:min(930px,96vw);max-height:86vh;overflow:auto;background:linear-gradient(135deg,rgba(255,255,255,.94),rgba(248,250,252,.86));border:1px solid rgba(255,255,255,.72);border-radius:22px;box-shadow:0 28px 80px rgba(15,23,42,.28);padding:22px"><style>.gap-apr-btn{border:none;border-radius:10px;padding:8px 14px;font-size:11px;font-weight:900;cursor:pointer}.gap-apr-btn.ok{background:#047857;color:#fff}.gap-apr-btn.warn{background:#D97706;color:#fff}.gap-apr-btn.bad{background:#B91C1C;color:#fff}</style><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px"><div><div style="font-size:16px;font-weight:900;color:#0f172a">'+(ar?'موافقات وتحليل الفجوات':'Gap Analysis Approval & Required Data')+'</div><div style="font-size:11px;color:#64748b;margin-top:4px">'+(ar?'يعرض الطلبات التي تحتاج موافقة والبيانات غير المكتملة ضمن صلاحيتك بدون الاعتماد على فلاتر الصفحة':'Shows approval requests and missing gap data within your scope, independent of dashboard filters')+'</div></div><button onclick="document.getElementById(\'_gapApprovalsOv\').remove()" style="width:34px;height:34px;border:1px solid rgba(148,163,184,.25);background:rgba(255,255,255,.75);border-radius:10px;cursor:pointer;color:#334155;font-size:16px">×</button></div><div style="display:grid;grid-template-columns:1fr;gap:16px"><section><div style="font-size:12px;font-weight:900;color:#0f172a;margin-bottom:10px">'+(ar?'طلبات الموافقة':'Approval Requests')+' <span style="color:#64748b">('+reqs.length+')</span></div>'+(reqs.length?reqs.map(reqCard).join(''):'<div style="padding:22px;text-align:center;color:#64748b;font-size:12px;border:1px dashed rgba(148,163,184,.35);border-radius:14px">'+(ar?'لا توجد طلبات موافقة حالياً.':'No approval requests at this time.')+'</div>')+'</section><section><div style="font-size:12px;font-weight:900;color:#92400e;margin-bottom:10px">'+(ar?'بيانات تحليل فجوات تحتاج إدخال':'Gap data required')+' <span style="color:#64748b">('+miss.length+')</span></div>'+(miss.length?miss.map(missingCard).join(''):'<div style="padding:22px;text-align:center;color:#047857;font-size:12px;border:1px dashed rgba(22,163,74,.30);border-radius:14px;background:rgba(22,163,74,.06)">'+(ar?'لا توجد بيانات فجوات ناقصة ضمن صلاحيتك.':'No missing gap data within your scope.')+'</div>')+'</section></div></div>';
+    document.body.appendChild(ov);ov.onclick=function(e){if(e.target===ov)ov.remove();};
+    if(focusId){setTimeout(function(){var el=$('gap_apr_'+focusId);if(el){el.scrollIntoView({block:'center'});el.style.outline='3px solid rgba(1,149,175,.35)';}},100);}
+  };
+  window._showGapApprovalDetails=function(id){window._showGapApprovals(id);};
+  function patchProfileButton(){var btn=$('profileGapApprovalsBtn'); if(btn)btn.innerHTML='✅ '+(isAr()?'موافقات وبيانات الفجوات':'Gap Approval & Required Data');}
+  setTimeout(patchProfileButton,400);setInterval(patchProfileButton,2500);
+})();

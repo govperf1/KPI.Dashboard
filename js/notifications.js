@@ -1330,10 +1330,14 @@ function updateExecTrend(yr){
           show=true; level='orange'; meta=isAr()?'طلب تحليل فجوة بانتظار موافقتك':'Gap Analysis request pending your approval';
         }else if(isAdmin() && stt==='pending_super_admin'){
           show=true; level='orange'; meta=isAr()?'اعتماد نهائي مطلوب من السوبر أدمن':'Final Super Admin approval required';
-        }else if((rr==='kpi_owner'||rr==='gap_owner') && String(rq.submittedByEmail||'').toLowerCase()===email() && /^(returned|rejected|approved)/.test(stt)){
+        }else if((rr==='department_manager'||rr==='dept_manager') && rd===dept() && stt.indexOf('rejected')===0){
+          show=true; level='red'; meta=isAr()?'تم رفض طلب تحليل فجوة ضمن قسمك':'A Gap Analysis request in your department was rejected';
+        }else if(isAdmin() && stt.indexOf('rejected')===0){
+          show=true; level='red'; meta=isAr()?'تم رفض طلب تحليل فجوة':'A Gap Analysis request was rejected';
+        }else if((rr==='kpi_owner'||rr==='gap_owner') && String(rq.submittedByEmail||'').toLowerCase()===email() && /^(rejected|approved)/.test(stt)){
           show=true;
-          level=stt==='approved'?'blue':(stt.indexOf('rejected')===0?'red':'orange');
-          meta=stt==='approved'?(isAr()?'تم اعتماد تحليل الفجوة وانعكس على الداشبورد':'Gap Analysis approved and posted to dashboard'):(stt.indexOf('returned')===0?(isAr()?'تم إرجاع الطلب للتعديل':'Request returned for revision'):(isAr()?'تم رفض الطلب':'Request rejected'));
+          level=stt==='approved'?'blue':'red';
+          meta=stt==='approved'?(isAr()?'تم اعتماد تحليل الفجوة وانعكس على الداشبورد':'Gap Analysis approved and posted to dashboard'):(isAr()?'تم رفض الطلب؛ أدخلي بيانات تحليل الفجوة من جديد':'Request rejected; please re-enter the Gap Analysis data');
         }
         if(!show)return;
         out.push({
@@ -1345,6 +1349,30 @@ function updateExecTrend(yr){
         });
       });
     }catch(_approvalNotifErr){}
+
+    try{
+      /* Missing Gap Analysis data notifications — independent of dashboard filters. */
+      var st2=state(), gaps2=st2.gaps||{}, actions2=st2.actions||{}, approvals2=Array.isArray(st2.gapApprovals)?st2.gapApprovals:[];
+      function _gtext(o){o=o||{};return {root:String(o.gapEn||o.gapAr||o.rootCause||o.rootCauseEn||o.root||o.reason||o.gapReasons||'').trim(),action:String(o.actEn||o.actAr||o.correctiveAction||o.correctiveActions||o.actionPlan||o.action||o.actions||'').trim()};}
+      function _gapDone(k,q){var c=code(k),keys=[c+'_'+q,c+'_'+String(q).toUpperCase(),c];for(var gi=0;gi<keys.length;gi++){var gt=_gtext(gaps2[keys[gi]]||{}),at=_gtext(actions2[keys[gi]]||{});if((gt.root||at.root)&&(gt.action||at.action))return true;}return false;}
+      function _liveApproval(k,q){var c=code(k),qq=String(q||'').toLowerCase();return approvals2.some(function(r){return r&&String(r.kpiId||r.kpiCode||'')===c&&String(r.quarter||'').toLowerCase()===qq&&/^(pending_manager|pending_super_admin|approved)$/.test(String(r.status||''));});}
+      (ks||[]).forEach(function(k){
+        if(!canSee(k))return;
+        ['q1','q2','q3','q4'].forEach(function(q){
+          var raw=k&&k[q]; if(raw===undefined)raw=k&&k[String(q).toUpperCase()];
+          var v=num(raw); if(v===null)return;
+          if(met(k,v)!==false)return;
+          if(_gapDone(k,q)||_liveApproval(k,q))return;
+          out.push({
+            id:'gapmissing:'+normKey(code(k))+':'+year(k)+':'+q,
+            type:'gap_required',level:'orange',dept:kdept(k),kpiCode:code(k),kpiName:kname(k),quarter:q,
+            title:title(k),
+            meta:isAr()?('بيانات تحليل الفجوة مطلوبة - '+String(q).toUpperCase()):('Gap Analysis data required - '+String(q).toUpperCase()),
+            body:isAr()?'هذا الربع لم يحقق الهدف ولا يوجد له سبب جذري وإجراء تصحيحي مكتمل.':'This quarter missed the target and does not have complete Root Cause and Corrective Action data.'
+          });
+        });
+      });
+    }catch(_missingGapNotifErr){}
     var by={};out.forEach(function(n){if(n&&n.id)by[n.id]=n;});return Object.keys(by).map(function(id){return by[id];}).sort(function(a,b){return a.id.localeCompare(b.id);});
   }
   function positionDrop(panel,anchor,w){if(!panel||!anchor)return;try{if(panel.parentElement!==document.body)document.body.appendChild(panel);}catch(_){}var r=anchor.getBoundingClientRect(),width=w||360;panel.style.position='fixed';panel.style.width=width+'px';panel.style.top=(r.bottom+10)+'px';panel.style.left=Math.max(12,Math.min(window.innerWidth-width-12,r.right-width))+'px';panel.style.right='auto';panel.style.zIndex='2147483646';}
@@ -1563,4 +1591,17 @@ function updateExecTrend(yr){
   }
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind); else bind();
   setTimeout(bind, 300); setTimeout(bind, 1200); setInterval(render, 30000);
+})();
+
+/* Route missing Gap Analysis data notifications to the quarter entry form. */
+(function(){
+  'use strict';
+  var oldShow=window._showNotifModal;
+  window._showNotifModal=function(n){
+    if(n&&n.type==='gap_required'&&typeof window.openGapQuarter==='function'){
+      window.openGapQuarter(n.kpiCode, String(n.quarter||'q1').toLowerCase());
+      return;
+    }
+    if(typeof oldShow==='function')return oldShow(n);
+  };
 })();
