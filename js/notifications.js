@@ -1318,6 +1318,33 @@ function updateExecTrend(yr){
     (ks||[]).forEach(function(k){if(!canSee(k))return;var bad=qvals(k).filter(function(x){return !met(k,x.v);});if(!bad.length)return;var qs=bad.map(function(x){return String(x.q).toUpperCase();}).join(', ');out.push({id:'miss:'+normKey(code(k))+':'+year(k),level:'red',title:title(k),meta:isAr()?('لم يحقق الهدف في '+qs):('Missed target in '+qs),body:isAr()?'المؤشر ضمن صلاحيتك ولم يحقق الهدف ويحتاج متابعة.':'This KPI is within your permission scope and is below target.',dept:kdept(k),kpiCode:code(k),kpiName:kname(k)});});
     var st=state(),gaps=st.gaps||st.gapAnalysis||st.gap_analysis||{};if(Array.isArray(gaps)){var tmp={};gaps.forEach(function(g,i){tmp[g.kpiId||g.kpiCode||g.id||i]=g;});gaps=tmp;}
     Object.keys(gaps||{}).forEach(function(key){var g=gaps[key]||{},base=baseGapCode(key),k=findKpi(ks,base);if(!canSee(k,g))return;var txt=String(g.gapEn||g.gapAr||g.rootCause||g.reason||g.actEn||g.actAr||g.correctiveAction||g.actionPlan||g.impactEn||g.impactAr||'').trim();var status=norm(g.status||g.actionStatus||g.state||'');var pri=norm(g.priority||g.risk||g.severity||'');var open=!status||['open','pending','in progress','inprogress','active','overdue'].some(function(x){return status.indexOf(x)>-1;});if(!(open||txt||pri.indexOf('high')>-1||pri.indexOf('critical')>-1))return;var q=gapQuarter(key)||'ALL';out.push({id:'gap:'+normKey(base)+':'+q,level:(pri.indexOf('critical')>-1||pri.indexOf('high')>-1)?'red':'orange',title:k?title(k):(base||'Gap action'),meta:isAr()?('إجراء فجوة يحتاج متابعة'+(q!=='ALL'?' - '+q:'')):('Gap action requires follow-up'+(q!=='ALL'?' - '+q:'')),body:(g.actAr||g.actEn||g.correctiveAction||g.actionPlan||g.gapAr||g.gapEn||g.rootCause||g.reason||g.impactAr||g.impactEn||''),dept:k?kdept(k):deptAlias(g.dept||g.department),kpiCode:k?code(k):base,kpiName:k?kname(k):''});});
+    try{
+      var approvals=Array.isArray(st.gapApprovals)?st.gapApprovals:[];
+      approvals.forEach(function(rq){
+        if(!rq||!rq.id)return;
+        var stt=String(rq.status||'');
+        var rd=deptAlias(rq.dept||'');
+        var rr=role();
+        var show=false, meta='', level='blue';
+        if((rr==='department_manager'||rr==='dept_manager') && stt==='pending_manager' && rd===dept()){
+          show=true; level='orange'; meta=isAr()?'طلب تحليل فجوة بانتظار موافقتك':'Gap Analysis request pending your approval';
+        }else if(isAdmin() && stt==='pending_super_admin'){
+          show=true; level='orange'; meta=isAr()?'اعتماد نهائي مطلوب من السوبر أدمن':'Final Super Admin approval required';
+        }else if((rr==='kpi_owner'||rr==='gap_owner') && String(rq.submittedByEmail||'').toLowerCase()===email() && /^(returned|rejected|approved)/.test(stt)){
+          show=true;
+          level=stt==='approved'?'blue':(stt.indexOf('rejected')===0?'red':'orange');
+          meta=stt==='approved'?(isAr()?'تم اعتماد تحليل الفجوة وانعكس على الداشبورد':'Gap Analysis approved and posted to dashboard'):(stt.indexOf('returned')===0?(isAr()?'تم إرجاع الطلب للتعديل':'Request returned for revision'):(isAr()?'تم رفض الطلب':'Request rejected'));
+        }
+        if(!show)return;
+        out.push({
+          id:'gapapproval:'+rq.id+':'+stt,
+          type:'gap_approval',approvalId:rq.id,level:level,dept:rd,kpiCode:rq.kpiCode||rq.kpiId,kpiName:rq.kpiNameEn||rq.kpiNameAr||'',
+          title:(rq.kpiCode||rq.kpiId||'KPI')+' — '+(rq.kpiNameEn||rq.kpiNameAr||'Gap Analysis')+' · '+String(rq.quarter||'').toUpperCase(),
+          meta:meta,
+          body:(rq.payload&&((rq.payload.gapEn||'')+' '+(rq.payload.actEn||'')))||'',
+        });
+      });
+    }catch(_approvalNotifErr){}
     var by={};out.forEach(function(n){if(n&&n.id)by[n.id]=n;});return Object.keys(by).map(function(id){return by[id];}).sort(function(a,b){return a.id.localeCompare(b.id);});
   }
   function positionDrop(panel,anchor,w){if(!panel||!anchor)return;try{if(panel.parentElement!==document.body)document.body.appendChild(panel);}catch(_){}var r=anchor.getBoundingClientRect(),width=w||360;panel.style.position='fixed';panel.style.width=width+'px';panel.style.top=(r.bottom+10)+'px';panel.style.left=Math.max(12,Math.min(window.innerWidth-width-12,r.right-width))+'px';panel.style.right='auto';panel.style.zIndex='2147483646';}
@@ -1348,4 +1375,18 @@ function updateExecTrend(yr){
   function bind(){var ab=$('userAlertBtn');if(ab&&ab.dataset.qumcNotifV10!=='1'){ab.dataset.qumcNotifV10='1';ab.onclick=null;ab.addEventListener('click',window.toggleUserAlerts,true);}render();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bind);else bind();
   setTimeout(bind,300);setTimeout(bind,1200);setTimeout(bind,3000);setInterval(render,30000);
+})();
+
+
+/* Route Gap Approval notifications to the Approval Inbox/details. */
+(function(){
+  'use strict';
+  var oldShow=window._showNotifModal;
+  window._showNotifModal=function(n){
+    if(n&&n.type==='gap_approval'&&typeof window._showGapApprovalDetails==='function'){
+      window._showGapApprovalDetails(n.approvalId);
+      return;
+    }
+    if(typeof oldShow==='function')return oldShow(n);
+  };
 })();
