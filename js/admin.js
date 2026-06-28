@@ -2978,12 +2978,12 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
 })();
 
 /* ==========================================================
-   QUMC FINAL C RESULT INPUT FIX — 2026-06-25
+   QUMC FINAL C TARGET INPUT FIX — 2026-06-25
    For Laundry Turnaround Time Compliance and Emergency Request
    Response Time only:
-   - Show C "Result" = numeric input under Formula Reference.
+   - Show C "Target" = numeric input under Formula Reference.
    - Do NOT add C as a table column.
-   - Allow formulas to use C/c as an entered numeric value.
+   - Allow formulas to use C/c as an entered numeric target value.
    ========================================================== */
 (function(){
   function _esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
@@ -3024,12 +3024,12 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
     if(editable){
       return '<label class="formula-ref-row formula-ref-c-value" style="display:flex;align-items:center;gap:6px;margin:5px 0;font-size:9.5px;color:#64748B">'
         +'<b style="color:#0195af;width:16px;font-family:var(--mono)">C</b>'
-        +'<span>"'+(ar?'النتيجة':'Result')+'" =</span>'
+        +'<span>"'+(ar?'الهدف':'Target')+'" =</span>'
         +'<input id="'+id+'" class="formula-c-value-input" type="text" inputmode="decimal" autocomplete="off" placeholder="0" oninput="_onFormulaCValueInput(\''+mode+'\')" '
         +'style="width:120px;max-width:140px;padding:4px 7px;background:#fff;border:1px solid rgba(1,149,175,.35);border-radius:6px;color:#152538;font-size:10px;font-family:var(--mono)">'
         +'</label>';
     }
-    return '<span class="formula-ref-c-value" style="font-size:9.5px;color:#64748B;margin-right:12px"><b style="color:#0195af">C</b> "'+(ar?'النتيجة':'Result')+'" = <span id="'+id+'View">—</span></span>';
+    return '<span class="formula-ref-c-value" style="font-size:9.5px;color:#64748B;margin-right:12px"><b style="color:#0195af">C</b> "'+(ar?'الهدف':'Target')+'" = <span id="'+id+'View">—</span></span>';
   }
 
   var _prevFormulaReferenceHtml=window._formulaReferenceHtml;
