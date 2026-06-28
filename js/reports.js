@@ -2264,6 +2264,7 @@ async function importSnapshot(){
     sheet.appendChild(clone);
     holder.appendChild(sheet);
     document.body.appendChild(holder);
+    fixSoftTextPageBreaks(holder);
     document.documentElement.classList.add('qumc-print-report-only');
     document.body.classList.add('qumc-print-report-only');
     return true;
@@ -2490,6 +2491,7 @@ async function importSnapshot(){
     sheet.appendChild(meta.firstElementChild);
     holder.appendChild(sheet);
     document.body.appendChild(holder);
+    fixSoftTextPageBreaks(holder);
     document.documentElement.classList.add('qumc-print-report-only');
     document.body.classList.add('qumc-print-report-only');
     return true;
@@ -2626,6 +2628,10 @@ async function importSnapshot(){
       '#qumcPrintReportPage h1,#qumcPrintReportPage h2,#qumcPrintReportPage h3{visibility:visible!important;opacity:1!important}',
       '#qumcPrintReportPage h3,#qumcPrintReportPage .qumc-print-section-title{break-after:avoid!important;page-break-after:avoid!important;color:#152538!important;margin-top:5mm!important;margin-bottom:2.5mm!important}',
       '#qumcPrintReportPage p{orphans:3!important;widows:3!important}',
+      '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{break-inside:avoid!important;page-break-inside:avoid!important;overflow:visible!important}',
+      '#qumcPrintReportPage .qumc-print-section-title{break-inside:avoid!important;page-break-inside:avoid!important}',
+      '#qumcPrintReportPage .qumc-print-section-title + *{break-before:avoid!important;page-break-before:auto!important}',
+      '#qumcPrintReportPage .qumc-print-force-next-page{break-before:page!important;page-break-before:always!important}',
       '#qumcPrintReportPage .qumc-print-chart-img{display:block!important;width:100%!important;height:54mm!important;max-height:54mm!important;object-fit:contain!important;margin:0 auto!important}',
       '#qumcPrintReportPage .qumc-print-chart-block{break-inside:avoid!important;page-break-inside:avoid!important;min-height:62mm!important}',
       '#qumcPrintReportPage .qumc-print-table-block{break-inside:avoid!important;page-break-inside:avoid!important}',
@@ -2690,13 +2696,48 @@ async function importSnapshot(){
       clone.querySelectorAll('.qumc-print-chart-img,canvas').forEach(function(c){(c.parentElement||c).classList.add('qumc-print-chart-block');});
       clone.querySelectorAll('h3').forEach(function(h){h.classList.add('qumc-print-section-title');});
       clone.querySelectorAll('img[alt="QUMC"]').forEach(function(img){img.style.height='16mm';img.style.width='auto';img.style.maxWidth='40mm';img.style.objectFit='contain';});
-      Array.prototype.slice.call(clone.querySelectorAll('div')).forEach(function(d){
-        var st=(d.getAttribute('style')||'').toLowerCase();
-        var txt=(d.textContent||'').trim();
-        if(txt.length<420 && (st.indexOf('border:1px solid #e2e8f0')>-1 || st.indexOf('border:1px solid #cbd5e1')>-1)) d.classList.add('qumc-print-small-avoid');
+      Array.prototype.slice.call(clone.querySelectorAll('div,p,section,article')).forEach(function(d){
+        var st=(d.getAttribute('style')||'').toLowerCase().replace(/\s+/g,'');
+        var txt=(d.textContent||'').replace(/\s+/g,' ').trim();
+        var looksLikeBox=(st.indexOf('border:1pxsolid#e2e8f0')>-1 || st.indexOf('border:1pxsolid#cbd5e1')>-1 || st.indexOf('border:1pxsolid#bfdbfe')>-1 || st.indexOf('background:#f0fbff')>-1 || st.indexOf('background:#f8fafc')>-1 || st.indexOf('background:#f0fdfa')>-1);
+        var isNarrative=/^(analysis|interpretation|key insights|executive summary|recommendation|conclusion|التحليل|التفسير|الملخص|التوصيات|الخلاصة)\b/i.test(txt) || /performance\s+(remained|was|is|achieved|below|above)/i.test(txt);
+        if(txt.length && txt.length<950 && (looksLikeBox || isNarrative)){
+          d.classList.add('qumc-print-small-avoid');
+          d.classList.add('qumc-print-text-keep');
+        }
       });
     }catch(e){}
   }
+  function fixSoftTextPageBreaks(holder){
+    /* Keep short narrative boxes and section titles from being split between two PDF pages.
+       This is intentionally limited to text/status blocks only, so the approved chart/table
+       layout stays the same. */
+    try{
+      if(!holder) return;
+      var pagePx=297*(96/25.4);
+      var bottomReserve=18*(96/25.4);
+      var holderTop=holder.getBoundingClientRect().top;
+      var items=Array.prototype.slice.call(holder.querySelectorAll('.qumc-print-section-title,.qumc-print-text-keep,.qumc-print-small-avoid'));
+      items.forEach(function(el){
+        try{
+          if(!el || !el.getBoundingClientRect) return;
+          var r=el.getBoundingClientRect();
+          var top=r.top-holderTop;
+          var h=r.height||0;
+          if(top<0 || h<=0) return;
+          var pos=top%pagePx;
+          var isTitle=el.classList.contains('qumc-print-section-title');
+          var maxKeep=pagePx*0.55;
+          if(isTitle && pos>(pagePx-bottomReserve)){
+            el.classList.add('qumc-print-force-next-page');
+          }else if(!isTitle && h<maxKeep && (pos+h)>(pagePx-bottomReserve)){
+            el.classList.add('qumc-print-force-next-page');
+          }
+        }catch(_e){}
+      });
+    }catch(e){}
+  }
+
   function prepare(){
     cleanup();
     addPrintCSS();
@@ -2720,6 +2761,7 @@ async function importSnapshot(){
     sheet.appendChild(makeMeta(doc));
     holder.appendChild(sheet);
     document.body.appendChild(holder);
+    fixSoftTextPageBreaks(holder);
     document.documentElement.classList.add('qumc-print-report-only');
     document.body.classList.add('qumc-print-report-only');
     return true;
@@ -2853,6 +2895,10 @@ async function importSnapshot(){
       '#qumcPrintReportPage h1,#qumcPrintReportPage h2,#qumcPrintReportPage h3{visibility:visible!important;opacity:1!important}',
       '#qumcPrintReportPage h3,#qumcPrintReportPage .qumc-print-section-title{break-after:avoid!important;page-break-after:avoid!important;color:#152538!important;margin-top:5mm!important;margin-bottom:2.5mm!important}',
       '#qumcPrintReportPage p{orphans:3!important;widows:3!important}',
+      '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{break-inside:avoid!important;page-break-inside:avoid!important;overflow:visible!important}',
+      '#qumcPrintReportPage .qumc-print-section-title{break-inside:avoid!important;page-break-inside:avoid!important}',
+      '#qumcPrintReportPage .qumc-print-section-title + *{break-before:avoid!important;page-break-before:auto!important}',
+      '#qumcPrintReportPage .qumc-print-force-next-page{break-before:page!important;page-break-before:always!important}',
       '#qumcPrintReportPage .qumc-print-chart-img{display:block!important;width:100%!important;height:54mm!important;max-height:54mm!important;object-fit:contain!important;margin:0 auto!important}',
       '#qumcPrintReportPage .qumc-print-chart-block{break-inside:avoid!important;page-break-inside:avoid!important;min-height:62mm!important}',
       '#qumcPrintReportPage .qumc-print-table-block{break-inside:avoid!important;page-break-inside:avoid!important}',
@@ -2906,13 +2952,48 @@ async function importSnapshot(){
       clone.querySelectorAll('.qumc-print-chart-img,canvas').forEach(function(c){(c.parentElement||c).classList.add('qumc-print-chart-block');});
       clone.querySelectorAll('h3').forEach(function(h){h.classList.add('qumc-print-section-title');});
       clone.querySelectorAll('img[alt="QUMC"]').forEach(function(img){img.style.height='16mm';img.style.width='auto';img.style.maxWidth='40mm';img.style.objectFit='contain';});
-      Array.prototype.slice.call(clone.querySelectorAll('div')).forEach(function(d){
-        var st=(d.getAttribute('style')||'').toLowerCase();
-        var txt=(d.textContent||'').trim();
-        if(txt.length<420 && (st.indexOf('border:1px solid #e2e8f0')>-1 || st.indexOf('border:1px solid #cbd5e1')>-1)) d.classList.add('qumc-print-small-avoid');
+      Array.prototype.slice.call(clone.querySelectorAll('div,p,section,article')).forEach(function(d){
+        var st=(d.getAttribute('style')||'').toLowerCase().replace(/\s+/g,'');
+        var txt=(d.textContent||'').replace(/\s+/g,' ').trim();
+        var looksLikeBox=(st.indexOf('border:1pxsolid#e2e8f0')>-1 || st.indexOf('border:1pxsolid#cbd5e1')>-1 || st.indexOf('border:1pxsolid#bfdbfe')>-1 || st.indexOf('background:#f0fbff')>-1 || st.indexOf('background:#f8fafc')>-1 || st.indexOf('background:#f0fdfa')>-1);
+        var isNarrative=/^(analysis|interpretation|key insights|executive summary|recommendation|conclusion|التحليل|التفسير|الملخص|التوصيات|الخلاصة)\b/i.test(txt) || /performance\s+(remained|was|is|achieved|below|above)/i.test(txt);
+        if(txt.length && txt.length<950 && (looksLikeBox || isNarrative)){
+          d.classList.add('qumc-print-small-avoid');
+          d.classList.add('qumc-print-text-keep');
+        }
       });
     }catch(e){}
   }
+  function fixSoftTextPageBreaks(holder){
+    /* Keep short narrative boxes and section titles from being split between two PDF pages.
+       This is intentionally limited to text/status blocks only, so the approved chart/table
+       layout stays the same. */
+    try{
+      if(!holder) return;
+      var pagePx=297*(96/25.4);
+      var bottomReserve=18*(96/25.4);
+      var holderTop=holder.getBoundingClientRect().top;
+      var items=Array.prototype.slice.call(holder.querySelectorAll('.qumc-print-section-title,.qumc-print-text-keep,.qumc-print-small-avoid'));
+      items.forEach(function(el){
+        try{
+          if(!el || !el.getBoundingClientRect) return;
+          var r=el.getBoundingClientRect();
+          var top=r.top-holderTop;
+          var h=r.height||0;
+          if(top<0 || h<=0) return;
+          var pos=top%pagePx;
+          var isTitle=el.classList.contains('qumc-print-section-title');
+          var maxKeep=pagePx*0.55;
+          if(isTitle && pos>(pagePx-bottomReserve)){
+            el.classList.add('qumc-print-force-next-page');
+          }else if(!isTitle && h<maxKeep && (pos+h)>(pagePx-bottomReserve)){
+            el.classList.add('qumc-print-force-next-page');
+          }
+        }catch(_e){}
+      });
+    }catch(e){}
+  }
+
   function prepare(){
     cleanup();
     addPrintCSS();
@@ -2936,6 +3017,7 @@ async function importSnapshot(){
     sheet.appendChild(makeMeta(doc));
     holder.appendChild(sheet);
     document.body.appendChild(holder);
+    fixSoftTextPageBreaks(holder);
     document.documentElement.classList.add('qumc-print-report-only');
     document.body.classList.add('qumc-print-report-only');
     try{window.__qumcReportPrintOriginalTitle=document.title; window.__qumcReportPrintTitleWasSet=true; document.title='';}catch(e){}
