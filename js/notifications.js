@@ -1353,9 +1353,10 @@ function updateExecTrend(yr){
     try{
       /* Missing Gap Analysis data notifications — independent of dashboard filters. */
       var st2=state(), gaps2=st2.gaps||{}, actions2=st2.actions||{}, approvals2=Array.isArray(st2.gapApprovals)?st2.gapApprovals:[];
-      function _gtext(o){o=o||{};return {root:String(o.gapEn||o.gapAr||o.rootCause||o.rootCauseEn||o.root||o.reason||o.gapReasons||'').trim(),action:String(o.actEn||o.actAr||o.correctiveAction||o.correctiveActions||o.actionPlan||o.action||o.actions||'').trim()};}
-      function _gapDone(k,q){var c=code(k),keys=[c+'_'+q,c+'_'+String(q).toUpperCase(),c];for(var gi=0;gi<keys.length;gi++){var gt=_gtext(gaps2[keys[gi]]||{}),at=_gtext(actions2[keys[gi]]||{});if((gt.root||at.root)&&(gt.action||at.action))return true;}return false;}
+      function _gtext(o){o=o||{};return {root:String(o.gapEn||o.gapAr||o.rootCause||o.rootCauseEn||o.root||o.reason||o.gapReasons||'').trim(),action:String(o.actEn||o.actAr||o.correctiveAction||o.correctiveActions||o.actionPlan||o.action||o.actions||'').trim(),impact:String(o.impactEn||o.impactAr||o.impact||o.impactOfGap||'').trim()};}
+      function _gapDone(k,q){var c=code(k),keys=[c+'_'+q,c+'_'+String(q).toUpperCase(),c];for(var gi=0;gi<keys.length;gi++){var gt=_gtext(gaps2[keys[gi]]||{}),at=_gtext(actions2[keys[gi]]||{});if((gt.root||at.root)&&(gt.action||at.action)&&(gt.impact||at.impact))return true;}return false;}
       function _liveApproval(k,q){var c=code(k),qq=String(q||'').toLowerCase();return approvals2.some(function(r){return r&&String(r.kpiId||r.kpiCode||'')===c&&String(r.quarter||'').toLowerCase()===qq&&/^(pending_manager|pending_super_admin|approved)$/.test(String(r.status||''));});}
+      if(role()==='kpi_owner'||role()==='gap_owner'){
       (ks||[]).forEach(function(k){
         if(!canSee(k))return;
         ['q1','q2','q3','q4'].forEach(function(q){
@@ -1372,6 +1373,7 @@ function updateExecTrend(yr){
           });
         });
       });
+      }
     }catch(_missingGapNotifErr){}
     var by={};out.forEach(function(n){if(n&&n.id)by[n.id]=n;});return Object.keys(by).map(function(id){return by[id];}).sort(function(a,b){return a.id.localeCompare(b.id);});
   }

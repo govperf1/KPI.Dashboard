@@ -2118,7 +2118,7 @@ function drilldept(d){
   function _gapComplete(k){
     var q=_latestActualQuarter(k,true) || _latestActualQuarter(k,false);
     var b=_gapBundle(k,q);
-    return !!(b.root && b.action);
+    return !!(b.root && b.action && b.impact);
   }
   function _atRiskRows(){
     var ks=(typeof filt==='function'?filt():[]);
@@ -2222,8 +2222,8 @@ function drilldept(d){
     var keys=[String(k.id||k.kpiCode||'')+'_'+String(q||'').toLowerCase(),String(k.id||k.kpiCode||'')+'_'+String(q||'').toUpperCase(),String(k.id||k.kpiCode||'')];
     for(var i=0;i<keys.length;i++){
       var gt=gapTexts(g[keys[i]]||{}), at=gapTexts(a[keys[i]]||{});
-      var root=gt.root||at.root, action=gt.action||at.action;
-      if(root&&action)return true;
+      var root=gt.root||at.root, action=gt.action||at.action, impact=gt.impact||at.impact;
+      if(root&&action&&impact)return true;
     }
     return false;
   }
