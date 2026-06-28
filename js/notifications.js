@@ -1390,3 +1390,177 @@ function updateExecTrend(yr){
     if(typeof oldShow==='function')return oldShow(n);
   };
 })();
+
+/* ==========================================================
+   QUMC NOTIFICATIONS V11 — stable read state lock
+   Fixes intermittent read/unread flips caused by scope keys changing
+   while Firebase role/department/assigned KPIs load. The list still
+   respects current permission scope, but read state is saved by user.
+   ========================================================== */
+(function(){
+  'use strict';
+  if(window.__QUMC_NOTIF_V11_ACTIVE__) return;
+  window.__QUMC_NOTIF_V11_ACTIVE__ = true;
+  window.__QUMC_NOTIF_ENGINE_VERSION__ = 'v11-stable-read-state';
+
+  var previousCollect = (typeof window.collectNotifications === 'function') ? window.collectNotifications : null;
+  var previousBuild = (typeof window.buildUserAlerts === 'function') ? window.buildUserAlerts : null;
+
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+  function isAr(){ return (typeof window.lang !== 'undefined' && window.lang === 'ar') || document.documentElement.lang === 'ar' || document.body.classList.contains('rtl'); }
+  function email(){
+    var e = String(window._fbUser || window._fbEmail || window.currentUserEmail || '').toLowerCase().trim();
+    try{ if(!e) e = String(sessionStorage.getItem('qumc_user_email') || localStorage.getItem('qumc_user_email') || '').toLowerCase().trim(); }catch(_){ }
+    return e || 'guest';
+  }
+  function safeKeyPart(s){ return String(s || 'guest').toLowerCase().trim().replace(/[^a-z0-9@._-]+/g,'_'); }
+  function seenKey(){ return 'qumc_notifications_seen_stable_v11_' + safeKeyPart(email()); }
+  function readArray(key){
+    try{
+      var raw = localStorage.getItem(key);
+      if(!raw) return [];
+      var a = JSON.parse(raw);
+      return Array.isArray(a) ? a.filter(Boolean).map(String) : [];
+    }catch(_){ return []; }
+  }
+  function writeArray(key, arr){
+    try{ localStorage.setItem(key, JSON.stringify(Array.from(new Set(arr || [])).slice(-600))); }catch(_){ }
+  }
+  function allLegacySeenKeys(){
+    var keys = [seenKey()];
+    try{
+      for(var i=0;i<localStorage.length;i++){
+        var k = localStorage.key(i);
+        if(!k) continue;
+        if(k.indexOf('qumc_notifications_seen_') === 0 || k.indexOf('qumc_seen_notifs_') === 0){
+          if(keys.indexOf(k) < 0) keys.push(k);
+        }
+      }
+    }catch(_){ }
+    return keys;
+  }
+  function readSeen(){
+    var merged = [];
+    allLegacySeenKeys().forEach(function(k){ merged = merged.concat(readArray(k)); });
+    var unique = Array.from(new Set(merged.filter(Boolean).map(String)));
+    if(unique.length) writeArray(seenKey(), unique);
+    return unique;
+  }
+  function writeSeen(arr){
+    var unique = Array.from(new Set((arr || []).filter(Boolean).map(String)));
+    writeArray(seenKey(), unique);
+  }
+  function collectRows(){
+    var rows = [];
+    try{
+      if(previousCollect) rows = previousCollect() || [];
+      else if(previousBuild) rows = previousBuild() || [];
+    }catch(_){ rows = []; }
+    if(!Array.isArray(rows)) rows = [];
+    var by = {};
+    rows.forEach(function(n){ if(n && n.id) by[String(n.id)] = n; });
+    return Object.keys(by).map(function(id){ return by[id]; });
+  }
+  function positionDrop(panel, anchor, w){
+    if(!panel || !anchor) return;
+    try{ if(panel.parentElement !== document.body) document.body.appendChild(panel); }catch(_){ }
+    var r = anchor.getBoundingClientRect(), width = w || 360;
+    panel.style.position = 'fixed';
+    panel.style.width = width + 'px';
+    panel.style.top = (r.bottom + 10) + 'px';
+    panel.style.left = Math.max(12, Math.min(window.innerWidth - width - 12, r.right - width)) + 'px';
+    panel.style.right = 'auto';
+    panel.style.zIndex = '2147483646';
+  }
+  function render(){
+    var rows = collectRows();
+    var seen = readSeen();
+    var count = $('userAlertCount'), list = $('userAlertList'), drop = $('userAlertDrop');
+    var unread = rows.filter(function(n){ return seen.indexOf(String(n.id)) < 0; });
+
+    if(count){
+      count.textContent = String(unread.length);
+      count.style.display = unread.length ? 'flex' : 'none';
+      count.style.visibility = unread.length ? 'visible' : 'hidden';
+      count.style.opacity = unread.length ? '1' : '0';
+    }
+    if(drop){
+      var h = drop.firstElementChild;
+      if(h){
+        h.innerHTML = '<span>'+(isAr()?'الإشعارات':'Notifications')+'</span><button type="button" class="qumc-clear-notifs" id="qumcClearNotifs">'+(isAr()?'تحديد الكل كمقروء':'Mark all read')+'</button>';
+        h.style.display = 'flex';
+        h.style.justifyContent = 'space-between';
+        h.style.alignItems = 'center';
+      }
+    }
+    if(list){
+      if(!rows.length){
+        list.innerHTML = '<div class="qumc-n-empty-final">'+(isAr()?'لا توجد إشعارات مهمة ضمن صلاحيتك حالياً.':'No important notifications for your permission scope.')+'</div>';
+      }else{
+        var ordered = rows.slice().sort(function(a,b){
+          var au = seen.indexOf(String(a.id)) < 0, bu = seen.indexOf(String(b.id)) < 0;
+          return (bu?1:0) - (au?1:0) || String(a.id).localeCompare(String(b.id));
+        });
+        window._notifMap = {};
+        ordered.forEach(function(n){ window._notifMap[String(n.id)] = n; });
+        list.innerHTML = ordered.map(function(n){
+          var id = String(n.id), read = seen.indexOf(id) >= 0;
+          var col = read ? '#64748B' : (n.level === 'red' ? '#C42B2B' : (n.level === 'orange' ? '#D97706' : '#0195af'));
+          var tag = read ? ('<span class="qumc-read-tag">'+(isAr()?'مقروء':'read')+'</span>') : '';
+          return '<div class="qumc-nrow-final '+(read?'is-read':'is-unread')+'" data-nid="'+esc(id)+'" style="opacity:'+(read?'.62':'1')+'">'
+            + '<span class="qumc-n-dot-final" style="background:'+col+'"></span>'
+            + '<div><div class="qumc-n-title-final">'+esc(n.title)+' '+tag+'</div><div class="qumc-n-meta-final">'+esc(n.meta||'')+'</div></div></div>';
+        }).join('');
+        Array.prototype.forEach.call(list.querySelectorAll('.qumc-nrow-final'), function(row){
+          row.onclick = function(ev){
+            ev.preventDefault(); ev.stopPropagation();
+            var id = String(row.getAttribute('data-nid') || '');
+            var s = readSeen();
+            if(id && s.indexOf(id) < 0){ s.push(id); writeSeen(s); }
+            var n = (window._notifMap || {})[id];
+            if(window._showNotifModal) window._showNotifModal(n);
+            render();
+            return false;
+          };
+        });
+      }
+    }
+    var clr = $('qumcClearNotifs');
+    if(clr){
+      clr.onclick = function(ev){
+        ev.preventDefault(); ev.stopPropagation();
+        writeSeen(readSeen().concat(rows.map(function(n){ return String(n.id); })));
+        render();
+        return false;
+      };
+    }
+    return rows;
+  }
+
+  window.renderNotifications = render;
+  window.updateAlertUI = render;
+  window.buildUserAlerts = collectRows;
+  window.collectNotifications = collectRows;
+  window.toggleUserAlerts = function(ev){
+    if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
+    var d = $('userAlertDrop'), p = $('userProfileDrop'), b = $('userAlertBtn');
+    if(!d) return false;
+    if(p){ p.style.display = 'none'; p.classList.remove('qumc-profile-open','qumc-final-open'); }
+    var open = d.style.display !== 'block';
+    if(open){ positionDrop(d,b,360); d.style.display = 'block'; d.classList.add('qumc-final-open','qumc-stay-open'); render(); }
+    else{ d.style.display = 'none'; d.classList.remove('qumc-final-open','qumc-stay-open'); }
+    return false;
+  };
+  function bind(){
+    var ab = $('userAlertBtn');
+    if(ab && ab.dataset.qumcNotifV11 !== '1'){
+      ab.dataset.qumcNotifV11 = '1';
+      ab.onclick = null;
+      ab.addEventListener('click', window.toggleUserAlerts, true);
+    }
+    render();
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind); else bind();
+  setTimeout(bind, 300); setTimeout(bind, 1200); setInterval(render, 30000);
+})();
