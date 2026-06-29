@@ -2219,7 +2219,7 @@ async function importSnapshot(){
       '#qumcPrintReportPage [style*="background:#152538"],#qumcPrintReportPage [style*="background: #152538"],#qumcPrintReportPage [style*="background:#0B1C33"]{background:#0B1C33!important}',
       '#qumcPrintReportPage [style*="color:#0195af"],#qumcPrintReportPage [style*="color: #0195af"]{color:#00AFCB!important}',
       '}',
-      '@media screen{#qumcPrintReportPage{display:none!important}}'
+      '@media screen{#qumcPrintReportPage{display:block!important;position:absolute!important;left:-100000px!important;top:0!important;width:210mm!important;visibility:hidden!important;pointer-events:none!important;z-index:-1!important}}'
     ].join('');
     document.head.appendChild(css);
   }
@@ -2387,7 +2387,7 @@ async function importSnapshot(){
       '#qumcPrintReportPage [style*="background:#152538"],#qumcPrintReportPage [style*="background: #152538"],#qumcPrintReportPage [style*="background:#0B1C33"],#qumcPrintReportPage [style*="background:var(--top)"]{background:#0B1C33!important}',
       '#qumcPrintReportPage [style*="color:#0195af"],#qumcPrintReportPage [style*="color: #0195af"]{color:#00AFCB!important}',
       '} ',
-      '@media screen{#qumcPrintReportPage{display:none!important}}'
+      '@media screen{#qumcPrintReportPage{display:block!important;position:absolute!important;left:-100000px!important;top:0!important;width:210mm!important;visibility:hidden!important;pointer-events:none!important;z-index:-1!important}}'
     ].join('');
     document.head.appendChild(css);
   }
@@ -2631,6 +2631,8 @@ async function importSnapshot(){
       '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{break-inside:avoid!important;page-break-inside:avoid!important;overflow:visible!important}',
       '#qumcPrintReportPage .qumc-print-section-title{break-inside:avoid!important;page-break-inside:avoid!important}',
       '#qumcPrintReportPage .qumc-print-section-title + *{break-before:avoid!important;page-break-before:auto!important}',
+      '#qumcPrintReportPage .qumc-print-section-title + .qumc-print-body,#qumcPrintReportPage .qumc-print-section-title + div{break-before:avoid!important;page-break-before:auto!important}',
+      '#qumcPrintReportPage .qumc-print-text-keep p,#qumcPrintReportPage .qumc-print-small-avoid p{break-inside:avoid!important;page-break-inside:avoid!important}',
       '#qumcPrintReportPage .qumc-print-force-next-page{break-before:page!important;page-break-before:always!important}',
       '#qumcPrintReportPage .qumc-print-chart-img{display:block!important;width:100%!important;height:54mm!important;max-height:54mm!important;object-fit:contain!important;margin:0 auto!important}',
       '#qumcPrintReportPage .qumc-print-chart-block{break-inside:avoid!important;page-break-inside:avoid!important;min-height:62mm!important}',
@@ -2646,7 +2648,7 @@ async function importSnapshot(){
       '#qumcPrintReportPage .qumc-print-meta span{font-weight:600!important;color:#64748B!important;margin-inline-start:6px!important}',
       '#qumcPrintReportPage .qumc-print-meta-period{grid-column:1/-1!important}',
       '}',
-      '@media screen{#qumcPrintReportPage{display:none!important}}'
+      '@media screen{#qumcPrintReportPage{display:block!important;position:absolute!important;left:-100000px!important;top:0!important;width:210mm!important;visibility:hidden!important;pointer-events:none!important;z-index:-1!important}}'
     ].join('');
     document.head.appendChild(css);
   }
@@ -2694,14 +2696,14 @@ async function importSnapshot(){
       kids.forEach(function(k,idx){ if(idx>=2) k.classList.add('qumc-print-body'); });
       clone.querySelectorAll('table').forEach(function(t){(t.parentElement||t).classList.add('qumc-print-table-block');});
       clone.querySelectorAll('.qumc-print-chart-img,canvas').forEach(function(c){(c.parentElement||c).classList.add('qumc-print-chart-block');});
-      clone.querySelectorAll('h3').forEach(function(h){h.classList.add('qumc-print-section-title');});
+      clone.querySelectorAll('h2,h3').forEach(function(h){h.classList.add('qumc-print-section-title');});
       clone.querySelectorAll('img[alt="QUMC"]').forEach(function(img){img.style.height='16mm';img.style.width='auto';img.style.maxWidth='40mm';img.style.objectFit='contain';});
       Array.prototype.slice.call(clone.querySelectorAll('div,p,section,article')).forEach(function(d){
         var st=(d.getAttribute('style')||'').toLowerCase().replace(/\s+/g,'');
         var txt=(d.textContent||'').replace(/\s+/g,' ').trim();
         var looksLikeBox=(st.indexOf('border:1pxsolid#e2e8f0')>-1 || st.indexOf('border:1pxsolid#cbd5e1')>-1 || st.indexOf('border:1pxsolid#bfdbfe')>-1 || st.indexOf('background:#f0fbff')>-1 || st.indexOf('background:#f8fafc')>-1 || st.indexOf('background:#f0fdfa')>-1);
         var isNarrative=/^(analysis|interpretation|key insights|executive summary|recommendation|conclusion|التحليل|التفسير|الملخص|التوصيات|الخلاصة)\b/i.test(txt) || /performance\s+(remained|was|is|achieved|below|above)/i.test(txt);
-        if(txt.length && txt.length<950 && (looksLikeBox || isNarrative)){
+        if(txt.length && txt.length<1500 && (looksLikeBox || isNarrative)){
           d.classList.add('qumc-print-small-avoid');
           d.classList.add('qumc-print-text-keep');
         }
@@ -2898,6 +2900,8 @@ async function importSnapshot(){
       '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{break-inside:avoid!important;page-break-inside:avoid!important;overflow:visible!important}',
       '#qumcPrintReportPage .qumc-print-section-title{break-inside:avoid!important;page-break-inside:avoid!important}',
       '#qumcPrintReportPage .qumc-print-section-title + *{break-before:avoid!important;page-break-before:auto!important}',
+      '#qumcPrintReportPage .qumc-print-section-title + .qumc-print-body,#qumcPrintReportPage .qumc-print-section-title + div{break-before:avoid!important;page-break-before:auto!important}',
+      '#qumcPrintReportPage .qumc-print-text-keep p,#qumcPrintReportPage .qumc-print-small-avoid p{break-inside:avoid!important;page-break-inside:avoid!important}',
       '#qumcPrintReportPage .qumc-print-force-next-page{break-before:page!important;page-break-before:always!important}',
       '#qumcPrintReportPage .qumc-print-chart-img{display:block!important;width:100%!important;height:54mm!important;max-height:54mm!important;object-fit:contain!important;margin:0 auto!important}',
       '#qumcPrintReportPage .qumc-print-chart-block{break-inside:avoid!important;page-break-inside:avoid!important;min-height:62mm!important}',
@@ -2913,7 +2917,7 @@ async function importSnapshot(){
       '#qumcPrintReportPage .qumc-print-meta span{font-weight:600!important;color:#64748B!important;margin-inline-start:6px!important}',
       '#qumcPrintReportPage .qumc-print-meta-period{grid-column:1/-1!important}',
       '}',
-      '@media screen{#qumcPrintReportPage{display:none!important}}'
+      '@media screen{#qumcPrintReportPage{display:block!important;position:absolute!important;left:-100000px!important;top:0!important;width:210mm!important;visibility:hidden!important;pointer-events:none!important;z-index:-1!important}}'
     ].join('');
     document.head.appendChild(css);
   }
@@ -2950,14 +2954,14 @@ async function importSnapshot(){
       kids.forEach(function(k,idx){ if(idx>=2) k.classList.add('qumc-print-body'); });
       clone.querySelectorAll('table').forEach(function(t){(t.parentElement||t).classList.add('qumc-print-table-block');});
       clone.querySelectorAll('.qumc-print-chart-img,canvas').forEach(function(c){(c.parentElement||c).classList.add('qumc-print-chart-block');});
-      clone.querySelectorAll('h3').forEach(function(h){h.classList.add('qumc-print-section-title');});
+      clone.querySelectorAll('h2,h3').forEach(function(h){h.classList.add('qumc-print-section-title');});
       clone.querySelectorAll('img[alt="QUMC"]').forEach(function(img){img.style.height='16mm';img.style.width='auto';img.style.maxWidth='40mm';img.style.objectFit='contain';});
       Array.prototype.slice.call(clone.querySelectorAll('div,p,section,article')).forEach(function(d){
         var st=(d.getAttribute('style')||'').toLowerCase().replace(/\s+/g,'');
         var txt=(d.textContent||'').replace(/\s+/g,' ').trim();
         var looksLikeBox=(st.indexOf('border:1pxsolid#e2e8f0')>-1 || st.indexOf('border:1pxsolid#cbd5e1')>-1 || st.indexOf('border:1pxsolid#bfdbfe')>-1 || st.indexOf('background:#f0fbff')>-1 || st.indexOf('background:#f8fafc')>-1 || st.indexOf('background:#f0fdfa')>-1);
         var isNarrative=/^(analysis|interpretation|key insights|executive summary|recommendation|conclusion|التحليل|التفسير|الملخص|التوصيات|الخلاصة)\b/i.test(txt) || /performance\s+(remained|was|is|achieved|below|above)/i.test(txt);
-        if(txt.length && txt.length<950 && (looksLikeBox || isNarrative)){
+        if(txt.length && txt.length<1500 && (looksLikeBox || isNarrative)){
           d.classList.add('qumc-print-small-avoid');
           d.classList.add('qumc-print-text-keep');
         }
