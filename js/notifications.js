@@ -322,7 +322,7 @@ function updateExecTrend(yr){
   'use strict';
   if(window.__QUMC_NOTIF_SINGLE_ENGINE_V12__) return;
   window.__QUMC_NOTIF_SINGLE_ENGINE_V12__ = true;
-  window.__QUMC_NOTIF_ENGINE_VERSION__ = 'v12-single-canonical-stable-read';
+  window.__QUMC_NOTIF_ENGINE_VERSION__ = 'v12.1-single-canonical-role-scoped';
 
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -331,9 +331,23 @@ function updateExecTrend(yr){
   function isAr(){ return (typeof window.lang !== 'undefined' && window.lang === 'ar') || document.documentElement.dir === 'rtl' || document.documentElement.lang === 'ar'; }
   function role(){ return norm(window._fbRole || window.currentUserRole || '').replace(/\s+/g,'_'); }
   function rawEmail(){
-    var e = String(window._fbUser || window._fbEmail || window.currentUserEmail || '').toLowerCase().trim();
-    try{ if(!e) e = String(sessionStorage.getItem('qumc_user_email') || localStorage.getItem('qumc_user_email') || '').toLowerCase().trim(); }catch(_){ }
-    return e;
+    var candidates = [];
+    try{
+      if(window._fbEmail) candidates.push(window._fbEmail);
+      if(window.currentUserEmail) candidates.push(window.currentUserEmail);
+      if(window._fbUser){
+        if(typeof window._fbUser === 'string') candidates.push(window._fbUser);
+        else if(window._fbUser.email) candidates.push(window._fbUser.email);
+      }
+      if(window.currentUser && window.currentUser.email) candidates.push(window.currentUser.email);
+      candidates.push(sessionStorage.getItem('qumc_user_email'));
+      candidates.push(localStorage.getItem('qumc_user_email'));
+    }catch(_){ }
+    for(var i=0;i<candidates.length;i++){
+      var e = String(candidates[i] || '').toLowerCase().trim();
+      if(e && e.indexOf('@') > 0 && e.indexOf('[object object]') < 0) return e;
+    }
+    return '';
   }
   function email(){ return rawEmail() || 'guest'; }
   function uname(){ return String(window._fbName || window.currentUserName || (rawEmail() ? rawEmail().split('@')[0] : 'User')).trim(); }
@@ -385,12 +399,24 @@ function updateExecTrend(yr){
   }
   function dept(){ return deptAlias(window._fbDept || window._lockedDept || window.currentUserDept || ''); }
   function isSuper(){ var r=role(); return r === 'super_admin' || r === 'superadmin' || r === 'admin'; }
-  function isGlobalViewer(){ var r=role(); return isSuper() || r === 'executive' || r === 'viewer'; }
+  function isExecutive(){ var r=role(); return r === 'executive'; }
+  /* Global notification scope is intentionally limited to leadership/admin roles.
+     Viewer is NOT global here; it follows the user's assigned department/KPIs. */
+  function isGlobalViewer(){ return isSuper() || isExecutive(); }
+  function isDeptScoped(){ var r=role(); return r === 'department_manager' || r === 'dept_manager' || r === 'viewer'; }
   function assigned(){
     var a = window._fbAssignedKpis; if(a === undefined || a === null) a = window.assignedKpis;
     if(typeof a === 'string') a = a.split(/[;,|]/);
     if(!Array.isArray(a)) return [];
-    return a.map(normKey).filter(Boolean);
+    var out=[];
+    a.forEach(function(x){
+      if(x && typeof x === 'object'){
+        [x.id,x.code,x.kpiCode,x.kpiId,x.name,x.nameEn,x.nameAr,x.title].forEach(function(v){ var n=normKey(v); if(n) out.push(n); });
+      }else{
+        var n=normKey(x); if(n) out.push(n);
+      }
+    });
+    return Array.from(new Set(out));
   }
   function scopeReady(){
     var r = role();
@@ -434,9 +460,18 @@ function updateExecTrend(yr){
   function canSee(k, extra){
     if(isGlobalViewer()) return true;
     var r = role(), d = dept(), a = assigned(), kc = normKey(code(k)), kn = normKey(kname(k)), kd = kdept(k);
-    if(a.length){ if(kc && a.indexOf(kc)>-1) return true; if(kn && a.indexOf(kn)>-1) return true; if(extra && ownedBy(extra)) return true; return false; }
-    if(r === 'kpi_owner' || r === 'gap_owner'){ if(extra && ownedBy(extra)) return true; if(k && ownedBy(k)) return true; if(d && kd && d === kd) return true; return false; }
-    return !!(d && kd && d === kd);
+    /* KPI / Gap owners: exact assigned KPI first; if no assignment was configured, fall back to ownership/email then department. */
+    if(r === 'kpi_owner' || r === 'gap_owner'){
+      if(a.length){ if(kc && a.indexOf(kc)>-1) return true; if(kn && a.indexOf(kn)>-1) return true; if(extra && ownedBy(extra)) return true; return false; }
+      if(extra && ownedBy(extra)) return true;
+      if(k && ownedBy(k)) return true;
+      return !!(d && kd && d === kd);
+    }
+    /* Department managers and viewers are department-scoped for notifications. */
+    if(isDeptScoped()) return !!(d && kd && d === kd);
+    /* Any other non-admin role: show only explicitly assigned KPIs, otherwise nothing. */
+    if(a.length){ if(kc && a.indexOf(kc)>-1) return true; if(kn && a.indexOf(kn)>-1) return true; if(extra && ownedBy(extra)) return true; }
+    return false;
   }
   function baseGapCode(key){ return String(key || '').replace(/_(q[1-4])$/i,'').replace(/-(q[1-4])$/i,''); }
   function gapQuarter(key){ var m = String(key || '').match(/(?:_|-)(q[1-4])$/i); return m ? m[1].toLowerCase() : ''; }
@@ -571,8 +606,14 @@ function updateExecTrend(yr){
     if(isGlobalViewer()) return true;
     var d=dept(), nd=deptAlias(n.dept || n.department || '');
     var a=assigned();
-    if(a.length){ var c=normKey(n.kpiCode || ''), name=normKey(n.kpiName || n.title || ''); return (c && a.indexOf(c)>-1) || (name && a.indexOf(name)>-1) || n.type === 'gap_approval'; }
-    if(d && nd) return d === nd;
+    var c=normKey(n.kpiCode || ''), name=normKey(n.kpiName || n.title || '');
+    var rr=role();
+    if(rr === 'kpi_owner' || rr === 'gap_owner'){
+      if(a.length) return (c && a.indexOf(c)>-1) || (name && a.indexOf(name)>-1) || ownedBy(n);
+      return ownedBy(n) || !!(d && nd && d === nd);
+    }
+    if(isDeptScoped()) return !!(d && nd && d === nd);
+    if(a.length) return (c && a.indexOf(c)>-1) || (name && a.indexOf(name)>-1) || ownedBy(n);
     return false;
   }
   function rowsForList(){
@@ -729,6 +770,9 @@ function updateExecTrend(yr){
   window.updateAlertUI = renderNotifications;
   window.buildUserAlerts = rowsForList;
   window.collectNotifications = rowsForList;
+  window.debugNotificationScope = function(){
+    return {version:window.__QUMC_NOTIF_ENGINE_VERSION__, email:rawEmail(), role:role(), dept:dept(), assigned:assigned(), unread:unreadActiveRows().length, rows:rowsForList().map(function(n){return {id:n.id,type:n.type,dept:n.dept,kpiCode:n.kpiCode,kpiName:n.kpiName,meta:n.meta};})};
+  };
   window.toggleUserAlerts = toggleUserAlerts;
   window.toggleUserProfile = toggleUserProfile;
   window._showNotifModal = handleNotificationOpen;
