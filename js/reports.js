@@ -2236,7 +2236,7 @@ async function importSnapshot(){
       '#qumcPrintReportPage p{orphans:3!important;widows:3!important}',
       '#qumcPrintReportPage .rpt-ep{break-inside:avoid!important;page-break-inside:avoid!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
       '#qumcPrintReportPage .rpt-ep p{line-height:1.55!important;margin:0!important;min-height:0!important}',
-      '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
+      '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;margin-bottom:4mm!important}',
       '#qumcPrintReportPage [style*="background:#152538"],#qumcPrintReportPage [style*="background: #152538"],#qumcPrintReportPage [style*="background:#0B1C33"]{background:#0B1C33!important}',
       '#qumcPrintReportPage [style*="color:#0195af"],#qumcPrintReportPage [style*="color: #0195af"]{color:#00AFCB!important}',
       '}',
@@ -2402,9 +2402,9 @@ async function importSnapshot(){
       '#qumcPrintReportPage p{orphans:3!important;widows:3!important}',
       '#qumcPrintReportPage .rpt-ep{break-inside:avoid!important;page-break-inside:avoid!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
       '#qumcPrintReportPage .rpt-ep p{line-height:1.55!important;margin:0!important;min-height:0!important}',
-      '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
+      '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;margin-bottom:4mm!important}',
       '#qumcPrintReportPage .qumc-print-chart-block,#qumcPrintReportPage .qumc-print-table-block{break-inside:avoid!important;page-break-inside:avoid!important}',
-      '#qumcPrintReportPage .qumc-print-small-avoid{break-inside:avoid!important;page-break-inside:avoid!important}',
+      '#qumcPrintReportPage .qumc-print-small-avoid{break-inside:avoid!important;page-break-inside:avoid!important;margin-bottom:4mm!important}',
       '#qumcPrintReportPage .qumc-print-section-title{margin-top:7mm!important;margin-bottom:3mm!important}',
       '#qumcPrintReportPage [style*="height:260px"],#qumcPrintReportPage [style*="height:220px"],#qumcPrintReportPage [style*="height:210px"],#qumcPrintReportPage [style*="height:200px"],#qumcPrintReportPage [style*="height:176px"]{height:auto!important;min-height:0!important}',
       '#qumcPrintReportPage [style*="min-height:260px"],#qumcPrintReportPage [style*="min-height:240px"],#qumcPrintReportPage [style*="min-height:220px"],#qumcPrintReportPage [style*="min-height:200px"]{min-height:0!important}',
@@ -2650,11 +2650,11 @@ async function importSnapshot(){
       '#qumcPrintReportPage tr{break-inside:avoid!important;page-break-inside:avoid!important}',
       '#qumcPrintReportPage td,#qumcPrintReportPage th{font-size:9px!important}',
       '#qumcPrintReportPage h1,#qumcPrintReportPage h2,#qumcPrintReportPage h3{visibility:visible!important;opacity:1!important}',
-      '#qumcPrintReportPage h3,#qumcPrintReportPage .qumc-print-section-title{break-after:avoid!important;page-break-after:avoid!important;color:#152538!important;margin-top:5mm!important;margin-bottom:2.5mm!important}',
+      '#qumcPrintReportPage h3,#qumcPrintReportPage .qumc-print-section-title{break-after:avoid!important;page-break-after:avoid!important;color:#152538!important;margin-top:6mm!important;margin-bottom:2.8mm!important}',
       '#qumcPrintReportPage p{orphans:3!important;widows:3!important}',
       '#qumcPrintReportPage .rpt-ep{break-inside:avoid!important;page-break-inside:avoid!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
       '#qumcPrintReportPage .rpt-ep p{line-height:1.55!important;margin:0!important;min-height:0!important}',
-      '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
+      '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;margin-bottom:4mm!important}',
       '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{break-inside:avoid!important;page-break-inside:avoid!important;overflow:visible!important}',
       '#qumcPrintReportPage .qumc-print-section-title{break-inside:avoid!important;page-break-inside:avoid!important}',
       '#qumcPrintReportPage .qumc-print-section-title + *{break-before:avoid!important;page-break-before:auto!important}',
@@ -2664,7 +2664,7 @@ async function importSnapshot(){
       '#qumcPrintReportPage .qumc-print-chart-img{display:block!important;width:100%!important;height:54mm!important;max-height:54mm!important;object-fit:contain!important;margin:0 auto!important}',
       '#qumcPrintReportPage .qumc-print-chart-block{break-inside:avoid!important;page-break-inside:avoid!important;min-height:62mm!important}',
       '#qumcPrintReportPage .qumc-print-table-block{break-inside:avoid!important;page-break-inside:avoid!important}',
-      '#qumcPrintReportPage .qumc-print-small-avoid{break-inside:avoid!important;page-break-inside:avoid!important}',
+      '#qumcPrintReportPage .qumc-print-small-avoid{break-inside:avoid!important;page-break-inside:avoid!important;margin-bottom:4mm!important}',
       '#qumcPrintReportPage .qumc-print-section-heading-wrap{break-after:avoid!important;page-break-after:avoid!important}',
       '#qumcPrintReportPage .qumc-print-section-pack{break-inside:avoid!important;page-break-inside:avoid!important;margin:0!important;padding:0!important}',
       '#qumcPrintReportPage .qumc-print-keep-box{break-inside:avoid!important;page-break-inside:avoid!important}',
@@ -2944,11 +2944,11 @@ async function importSnapshot(){
       '#qumcPrintReportPage tr{break-inside:avoid!important;page-break-inside:avoid!important}',
       '#qumcPrintReportPage td,#qumcPrintReportPage th{font-size:9px!important}',
       '#qumcPrintReportPage h1,#qumcPrintReportPage h2,#qumcPrintReportPage h3{visibility:visible!important;opacity:1!important}',
-      '#qumcPrintReportPage h3,#qumcPrintReportPage .qumc-print-section-title{break-after:avoid!important;page-break-after:avoid!important;color:#152538!important;margin-top:5mm!important;margin-bottom:2.5mm!important}',
+      '#qumcPrintReportPage h3,#qumcPrintReportPage .qumc-print-section-title{break-after:avoid!important;page-break-after:avoid!important;color:#152538!important;margin-top:6mm!important;margin-bottom:2.8mm!important}',
       '#qumcPrintReportPage p{orphans:3!important;widows:3!important}',
       '#qumcPrintReportPage .rpt-ep{break-inside:avoid!important;page-break-inside:avoid!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
       '#qumcPrintReportPage .rpt-ep p{line-height:1.55!important;margin:0!important;min-height:0!important}',
-      '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
+      '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;margin-bottom:4mm!important}',
       '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{break-inside:avoid!important;page-break-inside:avoid!important;overflow:visible!important}',
       '#qumcPrintReportPage .qumc-print-section-title{break-inside:avoid!important;page-break-inside:avoid!important}',
       '#qumcPrintReportPage .qumc-print-section-title + *{break-before:avoid!important;page-break-before:auto!important}',
@@ -2958,7 +2958,7 @@ async function importSnapshot(){
       '#qumcPrintReportPage .qumc-print-chart-img{display:block!important;width:100%!important;height:54mm!important;max-height:54mm!important;object-fit:contain!important;margin:0 auto!important}',
       '#qumcPrintReportPage .qumc-print-chart-block{break-inside:avoid!important;page-break-inside:avoid!important;min-height:62mm!important}',
       '#qumcPrintReportPage .qumc-print-table-block{break-inside:avoid!important;page-break-inside:avoid!important}',
-      '#qumcPrintReportPage .qumc-print-small-avoid{break-inside:avoid!important;page-break-inside:avoid!important}',
+      '#qumcPrintReportPage .qumc-print-small-avoid{break-inside:avoid!important;page-break-inside:avoid!important;margin-bottom:4mm!important}',
       '#qumcPrintReportPage .qumc-print-section-heading-wrap{break-after:avoid!important;page-break-after:avoid!important}',
       '#qumcPrintReportPage .qumc-print-section-pack{break-inside:avoid!important;page-break-inside:avoid!important;margin:0!important;padding:0!important}',
       '#qumcPrintReportPage .qumc-print-keep-box{break-inside:avoid!important;page-break-inside:avoid!important}',
@@ -3069,10 +3069,16 @@ async function importSnapshot(){
       Array.prototype.slice.call(holder.querySelectorAll('.qumc-print-section-title')).forEach(function(el){
         try{
           var r=el.getBoundingClientRect(); if(!r||!r.height) return;
-          var pos=(r.top-holderTop)%pagePx;
+          var absTop=r.top-holderTop;
+          var pos=absTop%pagePx;
+          var topReserve=18*(96/25.4);
           if(pos>(pagePx-bottomReserve)){
             /* Small margin is enough; avoid hard page-break to prevent blank pages. */
             el.style.marginTop='8mm';
+          }else if(absTop>80 && pos<topReserve){
+            /* If a heading starts immediately at the top of a printed page, push it down a bit.
+               This fixes the tight section title placement shown in the PDF preview only. */
+            el.style.marginTop='10mm';
           }
         }catch(_e){}
       });
