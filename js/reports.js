@@ -226,8 +226,26 @@ function _qumcFlushOpenGapFormToLiveState(){
   });
 }
 
+
+function _qumcAuditFileAction(action, detail, oldVal, newVal){
+  try{
+    var name=window._fbName||window.currentUserName||'Unknown user';
+    var email=window._fbUser||window._fbEmail||window.currentUserEmail||'—';
+    var role=window._fbRole||window.currentUserRole||'—';
+    var msg=String(detail||'')+' · User: '+name+' · Email: '+email+' · Role: '+role;
+    if(typeof addAudit==='function') addAudit(action,msg,oldVal||null,newVal||null);
+    else if(window.ST){
+      if(!Array.isArray(ST.audit)) ST.audit=[];
+      ST.audit.unshift({ts:new Date().toISOString(),user:name,email:email,role:role,action:action,detail:msg,oldVal:oldVal||null,newVal:newVal||null});
+      ST.audit=ST.audit.slice(0,2000);
+      try{localStorage.setItem('kpi_v3',JSON.stringify(Object.assign({},ST,{_v:3})));}catch(_e){}
+    }
+    try{ if(typeof loadAuditLog==='function') setTimeout(loadAuditLog,0); }catch(_e){}
+  }catch(_e){}
+}
+
 function exportExcel(){
-  addAudit('EXPORT_EXCEL','Excel export downloaded','Filters: dept='+F.dept+' year='+F.year,'Excel file');
+  _qumcAuditFileAction('EXPORT_EXCEL','Excel export downloaded','Filters: dept='+((window.F&&F.dept)||'')+' year='+((window.F&&F.year)||''),'Dashboard filters','Excel file');
   toast(lang==='ar'?'جاري تحضير ملف Excel...':'Building Excel report...');
   setTimeout(()=>_buildExcelFull(),80);
 }
@@ -2216,6 +2234,9 @@ async function importSnapshot(){
       '#qumcPrintReportPage h1{color:#fff!important;font-size:20px!important;line-height:1.25!important;font-weight:900!important}',
       '#qumcPrintReportPage h2{color:rgba(255,255,255,.78)!important}',
       '#qumcPrintReportPage p{orphans:3!important;widows:3!important}',
+      '#qumcPrintReportPage .rpt-ep{break-inside:avoid!important;page-break-inside:avoid!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
+      '#qumcPrintReportPage .rpt-ep p{line-height:1.55!important;margin:0!important;min-height:0!important}',
+      '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
       '#qumcPrintReportPage [style*="background:#152538"],#qumcPrintReportPage [style*="background: #152538"],#qumcPrintReportPage [style*="background:#0B1C33"]{background:#0B1C33!important}',
       '#qumcPrintReportPage [style*="color:#0195af"],#qumcPrintReportPage [style*="color: #0195af"]{color:#00AFCB!important}',
       '}',
@@ -2379,6 +2400,9 @@ async function importSnapshot(){
       '#qumcPrintReportPage h2{color:rgba(255,255,255,.82)!important;visibility:visible!important;opacity:1!important}',
       '#qumcPrintReportPage h3,#qumcPrintReportPage .qumc-print-section-title{break-after:avoid!important;page-break-after:avoid!important;color:#152538!important;visibility:visible!important;opacity:1!important}',
       '#qumcPrintReportPage p{orphans:3!important;widows:3!important}',
+      '#qumcPrintReportPage .rpt-ep{break-inside:avoid!important;page-break-inside:avoid!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
+      '#qumcPrintReportPage .rpt-ep p{line-height:1.55!important;margin:0!important;min-height:0!important}',
+      '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
       '#qumcPrintReportPage .qumc-print-chart-block,#qumcPrintReportPage .qumc-print-table-block{break-inside:avoid!important;page-break-inside:avoid!important}',
       '#qumcPrintReportPage .qumc-print-small-avoid{break-inside:avoid!important;page-break-inside:avoid!important}',
       '#qumcPrintReportPage .qumc-print-section-title{margin-top:7mm!important;margin-bottom:3mm!important}',
@@ -2628,12 +2652,15 @@ async function importSnapshot(){
       '#qumcPrintReportPage h1,#qumcPrintReportPage h2,#qumcPrintReportPage h3{visibility:visible!important;opacity:1!important}',
       '#qumcPrintReportPage h3,#qumcPrintReportPage .qumc-print-section-title{break-after:avoid!important;page-break-after:avoid!important;color:#152538!important;margin-top:5mm!important;margin-bottom:2.5mm!important}',
       '#qumcPrintReportPage p{orphans:3!important;widows:3!important}',
+      '#qumcPrintReportPage .rpt-ep{break-inside:avoid!important;page-break-inside:avoid!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
+      '#qumcPrintReportPage .rpt-ep p{line-height:1.55!important;margin:0!important;min-height:0!important}',
+      '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
       '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{break-inside:avoid!important;page-break-inside:avoid!important;overflow:visible!important}',
       '#qumcPrintReportPage .qumc-print-section-title{break-inside:avoid!important;page-break-inside:avoid!important}',
       '#qumcPrintReportPage .qumc-print-section-title + *{break-before:avoid!important;page-break-before:auto!important}',
       '#qumcPrintReportPage .qumc-print-section-title + .qumc-print-body,#qumcPrintReportPage .qumc-print-section-title + div{break-before:avoid!important;page-break-before:auto!important}',
       '#qumcPrintReportPage .qumc-print-text-keep p,#qumcPrintReportPage .qumc-print-small-avoid p{break-inside:avoid!important;page-break-inside:avoid!important}',
-      '#qumcPrintReportPage .qumc-print-force-next-page{break-before:page!important;page-break-before:always!important}',
+      '#qumcPrintReportPage .qumc-print-force-next-page{break-before:auto!important;page-break-before:auto!important}',
       '#qumcPrintReportPage .qumc-print-chart-img{display:block!important;width:100%!important;height:54mm!important;max-height:54mm!important;object-fit:contain!important;margin:0 auto!important}',
       '#qumcPrintReportPage .qumc-print-chart-block{break-inside:avoid!important;page-break-inside:avoid!important;min-height:62mm!important}',
       '#qumcPrintReportPage .qumc-print-table-block{break-inside:avoid!important;page-break-inside:avoid!important}',
@@ -2897,12 +2924,15 @@ async function importSnapshot(){
       '#qumcPrintReportPage h1,#qumcPrintReportPage h2,#qumcPrintReportPage h3{visibility:visible!important;opacity:1!important}',
       '#qumcPrintReportPage h3,#qumcPrintReportPage .qumc-print-section-title{break-after:avoid!important;page-break-after:avoid!important;color:#152538!important;margin-top:5mm!important;margin-bottom:2.5mm!important}',
       '#qumcPrintReportPage p{orphans:3!important;widows:3!important}',
+      '#qumcPrintReportPage .rpt-ep{break-inside:avoid!important;page-break-inside:avoid!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
+      '#qumcPrintReportPage .rpt-ep p{line-height:1.55!important;margin:0!important;min-height:0!important}',
+      '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
       '#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-analysis-keep{break-inside:avoid!important;page-break-inside:avoid!important;overflow:visible!important}',
       '#qumcPrintReportPage .qumc-print-section-title{break-inside:avoid!important;page-break-inside:avoid!important}',
       '#qumcPrintReportPage .qumc-print-section-title + *{break-before:avoid!important;page-break-before:auto!important}',
       '#qumcPrintReportPage .qumc-print-section-title + .qumc-print-body,#qumcPrintReportPage .qumc-print-section-title + div{break-before:avoid!important;page-break-before:auto!important}',
       '#qumcPrintReportPage .qumc-print-text-keep p,#qumcPrintReportPage .qumc-print-small-avoid p{break-inside:avoid!important;page-break-inside:avoid!important}',
-      '#qumcPrintReportPage .qumc-print-force-next-page{break-before:page!important;page-break-before:always!important}',
+      '#qumcPrintReportPage .qumc-print-force-next-page{break-before:auto!important;page-break-before:auto!important}',
       '#qumcPrintReportPage .qumc-print-chart-img{display:block!important;width:100%!important;height:54mm!important;max-height:54mm!important;object-fit:contain!important;margin:0 auto!important}',
       '#qumcPrintReportPage .qumc-print-chart-block{break-inside:avoid!important;page-break-inside:avoid!important;min-height:62mm!important}',
       '#qumcPrintReportPage .qumc-print-table-block{break-inside:avoid!important;page-break-inside:avoid!important}',
@@ -2969,29 +2999,36 @@ async function importSnapshot(){
     }catch(e){}
   }
   function fixSoftTextPageBreaks(holder){
-    /* Keep short narrative boxes and section titles from being split between two PDF pages.
-       This is intentionally limited to text/status blocks only, so the approved chart/table
-       layout stays the same. */
+    /* Keep only short narrative boxes together. Do not force large blocks to a new page,
+       because that creates long blank spaces in Chrome PDF preview. */
     try{
       if(!holder) return;
       var pagePx=297*(96/25.4);
-      var bottomReserve=18*(96/25.4);
+      var bottomReserve=16*(96/25.4);
       var holderTop=holder.getBoundingClientRect().top;
-      var items=Array.prototype.slice.call(holder.querySelectorAll('.qumc-print-section-title,.qumc-print-text-keep,.qumc-print-small-avoid'));
-      items.forEach(function(el){
+      var keep=Array.prototype.slice.call(holder.querySelectorAll('.qumc-print-text-keep,.qumc-print-small-avoid,.qumc-print-analysis-keep,.rpt-ep'));
+      keep.forEach(function(el){
         try{
-          if(!el || !el.getBoundingClientRect) return;
           var r=el.getBoundingClientRect();
-          var top=r.top-holderTop;
-          var h=r.height||0;
-          if(top<0 || h<=0) return;
-          var pos=top%pagePx;
-          var isTitle=el.classList.contains('qumc-print-section-title');
-          var maxKeep=pagePx*0.55;
-          if(isTitle && pos>(pagePx-bottomReserve)){
-            el.classList.add('qumc-print-force-next-page');
-          }else if(!isTitle && h<maxKeep && (pos+h)>(pagePx-bottomReserve)){
-            el.classList.add('qumc-print-force-next-page');
+          if(!r || !r.height) return;
+          /* Large sections should flow normally, otherwise Chrome leaves large blank areas. */
+          if(r.height>pagePx*0.38){
+            el.classList.remove('qumc-print-text-keep','qumc-print-small-avoid','qumc-print-analysis-keep','qumc-print-force-next-page');
+            el.style.breakInside='auto';
+            el.style.pageBreakInside='auto';
+            return;
+          }
+          el.style.breakInside='avoid';
+          el.style.pageBreakInside='avoid';
+        }catch(_e){}
+      });
+      Array.prototype.slice.call(holder.querySelectorAll('.qumc-print-section-title')).forEach(function(el){
+        try{
+          var r=el.getBoundingClientRect(); if(!r||!r.height) return;
+          var pos=(r.top-holderTop)%pagePx;
+          if(pos>(pagePx-bottomReserve)){
+            /* Small margin is enough; avoid hard page-break to prevent blank pages. */
+            el.style.marginTop='8mm';
           }
         }catch(_e){}
       });
@@ -3035,7 +3072,7 @@ async function importSnapshot(){
       try{
         if(prepare()){
           setTimeout(function(){
-            try{nativePrint();}
+            try{_qumcAuditFileAction('PRINT_REPORT','Report printed / PDF generated','Report page','Print or PDF'); nativePrint();}
             finally{setTimeout(cleanup,1800);}
           },260);
           return;
@@ -3047,4 +3084,22 @@ async function importSnapshot(){
   window.addEventListener('afterprint',function(){
     if(document.body.classList.contains('qumc-print-report-only')) cleanup();
   });
+})();
+
+
+/* QUMC audit hardening for file actions — added without changing UI */
+(function(){
+  try{
+    function wrapOnce(name, action, label){
+      var fn=window[name];
+      if(typeof fn!=='function' || fn.__qumcAuditWrapped) return;
+      var w=function(){try{if(typeof _qumcAuditFileAction==='function')_qumcAuditFileAction(action,label,'Report filters','Download');}catch(_e){} return fn.apply(this,arguments);};
+      w.__qumcAuditWrapped=true;
+      window[name]=w;
+    }
+    wrapOnce('exportWordDoc','EXPORT_WORD','Word report downloaded');
+    wrapOnce('generateWordDoc','EXPORT_WORD','Word report generated/downloaded');
+    wrapOnce('doExportPDF','EXPORT_PDF','Dashboard PDF export requested');
+    wrapOnce('doExportPage','EXPORT_PDF','Dashboard page PDF export requested');
+  }catch(e){}
 })();

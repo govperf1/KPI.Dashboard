@@ -3684,12 +3684,10 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
     var host=$('page-exec')||document.querySelector('.dashwrap')||document.body;
     if(!host)return;
     var old=$('qumcApprovalStatusBanner'); if(old)old.remove();
+    /* Super Admin / Department Manager should see the approval modal only, not the inline View banner. */
+    if(isSuper()||isManager()) return;
     var ar=isAr(), count=0, label='', ok='', color='#047857';
-    if(isSuper()||isManager()){
-      count=approvalPendingItems().length; label=ar?'طلبات اعتماد تحليل الفجوات':'Gap Analysis Approval Requests'; ok=ar?'لا توجد طلبات اعتماد معلقة':'No pending approval requests'; color=count?'#B91C1C':'#047857';
-    }else{
-      count=ownerMissingItems().length; label=ar?'حالة تحليل الفجوات الخاصة بك':'Your Gap Analysis Status'; ok=ar?'كل بيانات الفجوات مكتملة':'All gap analysis data is up to date'; color=count?'#D97706':'#047857';
-    }
+    count=ownerMissingItems().length; label=ar?'حالة تحليل الفجوات الخاصة بك':'Your Gap Analysis Status'; ok=ar?'كل بيانات الفجوات مكتملة':'All gap analysis data is up to date'; color=count?'#D97706':'#047857';
     var card=document.createElement('div'); card.id='qumcApprovalStatusBanner';
     card.style.cssText='margin:0 0 14px;padding:12px 14px;border:1px solid '+(count?'rgba(217,119,6,.24)':'rgba(22,163,74,.22)')+';border-radius:14px;background:'+(count?'rgba(255,251,235,.80)':'rgba(240,253,244,.78)')+';display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 12px 28px rgba(15,23,42,.06);cursor:pointer';
     card.onclick=function(){window.showKpoGapStatusPopup&&window.showKpoGapStatusPopup();};
@@ -3711,8 +3709,20 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   var tries=0;var timer=setInterval(function(){tries++;autoShowOnce();if(tries>10)clearInterval(timer);},1200);
   var oldRender=window.renderCurrent;
   if(typeof oldRender==='function'){
-    window.renderCurrent=function(){var r=oldRender.apply(this,arguments);setTimeout(renderDashboardBanner,150);return r;};
+    window.renderCurrent=function(){
+      var r=oldRender.apply(this,arguments);
+      setTimeout(function(){try{renderDashboardBanner();}catch(_){} try{autoShowOnce();}catch(_e){}},150);
+      return r;
+    };
   }
+  document.addEventListener('click',function(ev){
+    try{
+      var t=ev.target;
+      if(t && (String(t.textContent||'').toLowerCase().indexOf('performance')>-1 || (t.closest&&t.closest('[onclick*=Performance],[data-portal=performance]')))){
+        setTimeout(function(){try{autoShowOnce();}catch(_e){}},900);
+      }
+    }catch(_e){}
+  },true);
 
   function injectGapModalSizing(){
     var old=$('qumc-gap-modal-size-fix-style'); if(old)return;
