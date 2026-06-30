@@ -3232,7 +3232,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   function canSeeRequest(r){
     var st=r&&r.status, me=email(), d=dept();
     if(!r)return false;
-    if(isSuper())return st==='pending_super_admin'||st==='approved'||st==='rejected_super_admin'||st==='returned_super_admin';
+    if(isSuper())return st==='pending_manager'||st==='pending_super_admin'||st==='approved'||st==='rejected_super_admin'||st==='rejected_manager'||st==='returned_super_admin'||st==='returned_manager';
     if(isManager())return deptAlias(r.dept)===d && (st==='pending_manager'||st==='pending_super_admin'||st==='approved'||st==='rejected_manager'||st==='returned_manager');
     if(isKpiOwner())return String(r.submittedByEmail||'').toLowerCase()===me;
     return false;
@@ -3430,7 +3430,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   function requestTitle(r){return (r.kpiCode||r.kpiId||'KPI')+' — '+(r.kpiNameEn||r.kpiNameAr||'Gap Analysis')+' · '+qLabel(r.quarter);}
   function canSeeReq(r){
     if(!r)return false;var st=String(r.status||''), rd=deptAlias(r.dept||'');
-    if(isSuper())return /^(pending_super_admin|approved|rejected_super_admin|rejected_manager)$/.test(st);
+    if(isSuper())return /^(pending_manager|pending_super_admin|approved|rejected_super_admin|rejected_manager)$/.test(st);
     if(isManager())return rd===dept() && /^(pending_manager|pending_super_admin|approved|rejected_manager|rejected_super_admin)$/.test(st);
     if(isOwner())return String(r.submittedByEmail||'').toLowerCase()===email();
     return false;
@@ -3524,13 +3524,13 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
     var d=dept();
     return approvals().filter(function(r){
       if(!r)return false;var st=String(r.status||''),rd=deptAlias(r.dept||'');
-      if(isSuper())return /^(pending_super_admin|approved|rejected_super_admin|rejected_manager)$/.test(st);
+      if(isSuper())return /^(pending_manager|pending_super_admin|approved|rejected_super_admin|rejected_manager)$/.test(st);
       if(isManager())return rd===d && /^(pending_manager|pending_super_admin|approved|rejected_manager|rejected_super_admin)$/.test(st);
       if(isOwner())return String(r.submittedByEmail||'').toLowerCase()===email();
       return false;
     }).sort(function(a,b){return String(b.updatedAt||b.submittedAt||'').localeCompare(String(a.updatedAt||a.submittedAt||''));});
   }
-  function pendingForApproval(){return visibleReqs().filter(function(r){if(isSuper())return r.status==='pending_super_admin';if(isManager())return r.status==='pending_manager';return /^(pending_manager|pending_super_admin)$/.test(String(r.status||''));});}
+  function pendingForApproval(){return visibleReqs().filter(function(r){if(isSuper())return r.status==='pending_manager'||r.status==='pending_super_admin';if(isManager())return r.status==='pending_manager';return /^(pending_manager|pending_super_admin)$/.test(String(r.status||''));});}
   function missingOwnerItems(){
     var rows=[];
     allKpis().forEach(function(k){if(!canAccessKpi(k))return;['q1','q2','q3','q4'].forEach(function(q){var v=qVal(k,q);if(v===null)return;if(met(k,v)!==false)return;if(gapComplete(k,q))return;var req=ownLatest(k,q);if(liveApproval(k,q))return;rows.push({k:k,q:q,value:v,target:num(k.target),year:k.yr||k.year||'',dept:k.dept||k.department||'',req:req,rejected:req&&String(req.status||'').indexOf('rejected')===0});});});
@@ -3544,10 +3544,10 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   window._showGapApprovals=function(focusId){
     var old=$('_gapApprovalsOv'); if(old)old.remove();
     var reqs=visibleReqs(), pending=pendingForApproval(), miss=isOwner()?missingOwnerItems():[], ar=isAr();
-    var title=isOwner()?(ar?'حالة تحليل الفجوات الخاصة بك':'Your Gap Analysis Status'):(ar?'موافقات تحليل الفجوات':'Gap Analysis Approvals Status');
+    var title=isOwner()?(ar?'حالة تحليل الفجوات':'Gap Analysis Status'):(ar?'موافقات تحليل الفجوات':'Gap Analysis Approvals Status');
     var sub=isOwner()?(ar?'يعرض كل بيانات الفجوات المطلوبة أو المرفوضة ضمن صلاحيتك بدون الاعتماد على فلاتر الصفحة':'Shows all required or rejected gap data in your scope, independent of dashboard filters'):(ar?'يعرض طلبات تحليل الفجوات التي تحتاج موافقتك فقط':'Shows Gap Analysis requests that need your approval only');
     var approvalSummary=statusSummaryHtml(pending.length,ar?'طلبات تحتاج موافقة':'Approval requests status',ar?'لا توجد طلبات موافقة معلقة':'No pending approval requests');
-    var ownerSummary=isOwner()?statusSummaryHtml(miss.length,ar?'حالة إدخال بيانات الفجوات':'Your gap analysis status',ar?'جميع بيانات الفجوات مكتملة':'All gap analysis data is up to date'):'';
+    var ownerSummary=isOwner()?statusSummaryHtml(miss.length,ar?'حالة إدخال بيانات الفجوات':'Gap analysis status',ar?'جميع بيانات الفجوات مكتملة':'All gap analysis data is up to date'):'';
     var reqSection='<section><div style="font-size:12px;font-weight:900;color:#0f172a;margin-bottom:10px">'+(ar?'طلبات الموافقة':'Approval Requests')+' <span style="color:#64748b">('+reqs.length+')</span></div>'+(reqs.length?reqs.map(reqCard).join(''):'<div style="padding:22px;text-align:center;color:#64748b;font-size:12px;border:1px dashed rgba(148,163,184,.35);border-radius:14px">'+(ar?'لا توجد طلبات موافقة حالياً.':'No approval requests at this time.')+'</div>')+'</section>';
     var missSection=isOwner()?'<section><div style="font-size:12px;font-weight:900;color:#92400e;margin-bottom:10px">'+(ar?'بيانات فجوات تحتاج إدخال أو إعادة إرسال':'Gap data requiring entry / resubmission')+' <span style="color:#64748b">('+miss.length+')</span></div>'+(miss.length?miss.map(missingCard).join(''):'<div style="padding:22px;text-align:center;color:#047857;font-size:12px;border:1px dashed rgba(22,163,74,.30);border-radius:14px;background:rgba(22,163,74,.06)">'+(ar?'لا توجد بيانات فجوات ناقصة ضمن صلاحيتك.':'No missing gap data within your scope.')+'</div>')+'</section>':'';
     var ov=document.createElement('div');ov.id='_gapApprovalsOv';ov.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.45);backdrop-filter:blur(7px);display:flex;align-items:center;justify-content:center;padding:22px;direction:'+(ar?'rtl':'ltr');
@@ -3579,7 +3579,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
     if(!impactOk(kpiId,qtr))return;
     return (typeof _prevSave==='function')?_prevSave.apply(this,arguments):undefined;
   };
-  function patchProfileButton(){var btn=$('profileGapApprovalsBtn');if(!btn)return;btn.innerHTML='✅ '+(isOwner()?(isAr()?'حالة تحليل الفجوات':'Your Gap Analysis Status'):(isAr()?'موافقات تحليل الفجوات':'Gap Approvals Status'));}
+  function patchProfileButton(){var btn=$('profileGapApprovalsBtn');if(!btn)return;btn.innerHTML='✅ '+(isOwner()?(isAr()?'حالة تحليل الفجوات':'Gap Analysis Status'):(isAr()?'موافقات تحليل الفجوات':'Gap Approvals Status'));}
   setTimeout(patchProfileButton,300);setInterval(patchProfileButton,600);
 })();
 
@@ -3671,8 +3671,8 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
     }
     if(isOwner()){
       var miss=ownerMissingItems();
-      if(title){title.textContent=ar?'حالة تحليل الفجوات الخاصة بك':'Your Gap Analysis Status';title.setAttribute('data-en','Your Gap Analysis Status');title.setAttribute('data-ar','حالة تحليل الفجوات الخاصة بك');}
-      html+=statusBodyCard(miss.length,ar?'حالة إدخال بيانات الفجوات':'Your gap analysis status',ar?'جميع بيانات الفجوات مكتملة':'All gap analysis data is up to date');
+      if(title){title.textContent=ar?'حالة تحليل الفجوات':'Gap Analysis Status';title.setAttribute('data-en','Gap Analysis Status');title.setAttribute('data-ar','حالة تحليل الفجوات');}
+      html+=statusBodyCard(miss.length,ar?'حالة إدخال بيانات الفجوات':'Gap analysis status',ar?'جميع بيانات الفجوات مكتملة':'All gap analysis data is up to date');
       html+=miss.length?miss.map(ownerCard).join(''):'<div style="padding:22px;text-align:center;color:#047857;font-size:12px;border:1px dashed rgba(22,163,74,.30);border-radius:14px;background:rgba(22,163,74,.06)">'+(ar?'لا توجد بيانات فجوات ناقصة ضمن صلاحيتك.':'No missing gap data within your scope.')+'</div>';
       body.innerHTML=html;
       ov.classList.add('open');
@@ -3689,7 +3689,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
     /* Super Admin / Department Manager should see the approval modal only, not the inline View banner. */
     if(isSuper()||isManager()) return;
     var ar=isAr(), count=0, label='', ok='', color='#047857';
-    count=ownerMissingItems().length; label=ar?'حالة تحليل الفجوات الخاصة بك':'Your Gap Analysis Status'; ok=ar?'كل بيانات الفجوات مكتملة':'All gap analysis data is up to date'; color=count?'#D97706':'#047857';
+    count=ownerMissingItems().length; label=ar?'حالة تحليل الفجوات':'Gap Analysis Status'; ok=ar?'كل بيانات الفجوات مكتملة':'All gap analysis data is up to date'; color=count?'#D97706':'#047857';
     var card=document.createElement('div'); card.id='qumcApprovalStatusBanner';
     card.style.cssText='margin:0 0 14px;padding:12px 14px;border:1px solid '+(count?'rgba(217,119,6,.24)':'rgba(22,163,74,.22)')+';border-radius:14px;background:'+(count?'rgba(255,251,235,.80)':'rgba(240,253,244,.78)')+';display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 12px 28px rgba(15,23,42,.06);cursor:pointer';
     card.onclick=function(){window.showKpoGapStatusPopup&&window.showKpoGapStatusPopup();};
@@ -3915,7 +3915,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   function latestOwnRejected(k,q){var r=latestOwnRequest(k,q);return r&&String(r.status||'').indexOf('rejected')===0?r:null;}
   function canAccessOwner(k){if(!isOwner())return false;var assigned=window._fbAssignedKpis||window.currentUserAssignedKpis||null;if(Array.isArray(assigned)&&assigned.length){var id=code(k).toLowerCase(),nm=String(k.nameEn||k.name||k.nameAr||'').toLowerCase();return assigned.map(function(x){return String(x).toLowerCase();}).some(function(x){return x===id||x===nm;});}var d=dept();return !d||kDept(k)===d;}
   function ownerMissingItems(){var rows=[];allKpis().forEach(function(k){if(!canAccessOwner(k))return;['q1','q2','q3','q4'].forEach(function(q){var v=qVal(k,q);if(v===null)return;if(met(k,v)!==false)return;var own=latestOwnRequest(k,q);var rejected=own&&String(own.status||'').indexOf('rejected')===0?own:null;if(rejected){rows.push({k:k,q:q,value:v,target:num(k.target),year:k.yr||k.year||'',dept:k.dept||k.department||'',req:rejected,rejected:true});return;}if(gapComplete(k,q))return;if(liveApproval(k,q))return;rows.push({k:k,q:q,value:v,target:num(k.target),year:k.yr||k.year||'',dept:k.dept||k.department||'',req:null,rejected:false});});});rows.sort(function(a,b){return (b.rejected-a.rejected)||String(a.dept).localeCompare(String(b.dept))||code(a.k).localeCompare(code(b.k))||String(a.year).localeCompare(String(b.year))||String(a.q).localeCompare(String(b.q));});return rows;}
-  function approvalPendingItems(){return approvals().filter(function(r){if(!r)return false;var st=String(r.status||''),rd=deptAlias(r.dept||'');if(isSuper())return st==='pending_super_admin';if(isManager())return st==='pending_manager'&&rd===dept();return false;}).sort(function(a,b){return String(b.updatedAt||b.submittedAt||'').localeCompare(String(a.updatedAt||a.submittedAt||''));});}
+  function approvalPendingItems(){return approvals().filter(function(r){if(!r)return false;var st=String(r.status||''),rd=deptAlias(r.dept||'');if(isSuper())return st==='pending_manager'||st==='pending_super_admin';if(isManager())return st==='pending_manager'&&rd===dept();return false;}).sort(function(a,b){return String(b.updatedAt||b.submittedAt||'').localeCompare(String(a.updatedAt||a.submittedAt||''));});}
   function statusText(st){var ar=isAr();return ({pending_manager:ar?'بانتظار مدير القسم':'Pending Department Manager',pending_super_admin:ar?'بانتظار السوبر أدمن':'Pending Super Admin',approved:ar?'معتمد':'Approved',rejected_manager:ar?'مرفوض من مدير القسم':'Rejected by Department Manager',rejected_super_admin:ar?'مرفوض من السوبر أدمن':'Rejected by Super Admin'})[st]||st||'—';}
   function qLabel(q){return String(q||'').toUpperCase();}
   function findReq(id){return approvals().find(function(r){return r&&String(r.id)===String(id);});}
@@ -3977,8 +3977,8 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
       body.innerHTML=html; ov.classList.add('open'); return;
     }
     if(isOwner()){
-      var miss=ownerMissingItems(); if(title){title.textContent=a?'حالة تحليل الفجوات الخاصة بك':'Your Gap Analysis Status';title.setAttribute('data-en','Your Gap Analysis Status');title.setAttribute('data-ar','حالة تحليل الفجوات الخاصة بك');}
-      html+=statusBodyCard(miss.length,a?'حالة إدخال بيانات الفجوات':'Your gap analysis status',a?'جميع بيانات الفجوات مكتملة':'All gap analysis data is up to date');
+      var miss=ownerMissingItems(); if(title){title.textContent=a?'حالة تحليل الفجوات':'Gap Analysis Status';title.setAttribute('data-en','Gap Analysis Status');title.setAttribute('data-ar','حالة تحليل الفجوات');}
+      html+=statusBodyCard(miss.length,a?'حالة إدخال بيانات الفجوات':'Gap analysis status',a?'جميع بيانات الفجوات مكتملة':'All gap analysis data is up to date');
       html+=miss.length?miss.map(ownerCard).join(''):'<div style="padding:22px;text-align:center;color:#047857;font-size:12px;border:1px dashed rgba(22,163,74,.30);border-radius:14px;background:rgba(22,163,74,.06)">'+(a?'لا توجد بيانات فجوات ناقصة ضمن صلاحيتك.':'No missing gap data within your scope.')+'</div>';
       body.innerHTML=html; ov.classList.add('open'); return;
     }
@@ -4015,7 +4015,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
     return approvals().filter(function(r){
       if(!r)return false;
       var st=String(r.status||''), rd=deptAlias(r.dept||'');
-      if(isSuper())return st==='pending_super_admin';
+      if(isSuper())return st==='pending_manager'||st==='pending_super_admin';
       if(isManager())return st==='pending_manager'&&rd===d;
       return false;
     }).sort(function(a,b){return String(b.updatedAt||b.submittedAt||'').localeCompare(String(a.updatedAt||a.submittedAt||''));});
@@ -4026,7 +4026,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
       if(!all.length)return;
       all.slice(1).forEach(function(x){try{x.remove();}catch(_){}});
       var btn=all[0];
-      var label=isOwner()?(isAr()?'حالة تحليل الفجوات':'Your Gap Analysis Status'):(isAr()?'حالة موافقات الفجوات':'Gap Approvals Status');
+      var label=isOwner()?(isAr()?'حالة تحليل الفجوات':'Gap Analysis Status'):(isAr()?'حالة موافقات الفجوات':'Gap Approvals Status');
       btn.textContent='✅ '+label;
       btn.setAttribute('aria-label',label);
       btn.title=label;

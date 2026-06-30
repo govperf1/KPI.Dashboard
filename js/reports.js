@@ -2220,7 +2220,7 @@ async function importSnapshot(){
     css.id='qumc-report-print-only-css';
     css.textContent = [
       '@media print{',
-      '@page{size:A4;margin:6mm 7mm!important}',
+      '@page{size:A4;margin:3.5mm 4mm!important}',
       'html,body{margin:0!important;padding:0!important;background:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}',
       'body.qumc-print-report-only{background:#fff!important;overflow:visible!important}',
       'body.qumc-print-report-only > :not(#qumcPrintReportPage){display:none!important}',
@@ -2920,12 +2920,12 @@ async function importSnapshot(){
     css.id='qumc-report-print-v6-css';
     css.textContent=[
       '@media print{',
-      '@page{size:A4;margin:6mm 7mm!important}',
+      '@page{size:A4;margin:3.5mm 4mm!important}',
       'html,body{margin:0!important;padding:0!important;background:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}',
       'body.qumc-print-report-only{background:#fff!important;overflow:visible!important}',
       'body.qumc-print-report-only > :not(#qumcPrintReportPage){display:none!important}',
-      '#qumcPrintReportPage{display:block!important;position:static!important;width:100%!important;min-height:auto!important;margin:0!important;padding:4mm 5mm!important;box-sizing:border-box!important;background:#fff!important;color:#152538!important;font-family:Arial,Calibri,sans-serif!important}',
-      '#qumcPrintReportPage:before{content:"";position:fixed!important;top:4mm!important;right:4mm!important;bottom:4mm!important;left:4mm!important;border:1.15px solid #64748B!important;border-radius:3mm!important;pointer-events:none!important;z-index:999999!important}',
+      '#qumcPrintReportPage{display:block!important;position:static!important;width:100%!important;min-height:auto!important;margin:0!important;padding:1.5mm 2mm!important;box-sizing:border-box!important;background:#fff!important;color:#152538!important;font-family:Arial,Calibri,sans-serif!important}',
+      '#qumcPrintReportPage:before{content:"";position:fixed!important;top:2mm!important;right:2mm!important;bottom:2mm!important;left:2mm!important;border:1.15px solid #64748B!important;border-radius:2.2mm!important;pointer-events:none!important;z-index:999999!important}',
       '#qumcPrintReportPage .qumc-print-report-sheet{display:block!important;width:100%!important;margin:0!important;padding:0!important;background:#fff!important;border:0!important;border-radius:0!important;box-shadow:none!important;overflow:visible!important}',
       '#qumcPrintReportPage #rptDocument,#qumcPrintReportPage #reportDoc{display:block!important;width:100%!important;max-width:none!important;margin:0!important;padding:0!important;background:#fff!important;border:0!important;border-radius:0!important;box-shadow:none!important;overflow:visible!important}',
       '#qumcPrintReportPage .rpt-topbar,#qumcPrintReportPage .rpt-edit-btn,#qumcPrintReportPage button,#qumcPrintReportPage select,#qumcPrintReportPage input{display:none!important}',
@@ -2938,7 +2938,7 @@ async function importSnapshot(){
       '#qumcPrintReportPage .qumc-report-header h2{color:rgba(255,255,255,.82)!important;font-size:11px!important;margin:0 0 8px!important}',
       '#qumcPrintReportPage .qumc-report-header p,#qumcPrintReportPage .qumc-report-header span{color:#00AFCB!important;visibility:visible!important;opacity:1!important}',
       '#qumcPrintReportPage .qumc-report-header-line{height:2px!important;background:#00AFCB!important;margin:0 0 3mm!important;break-after:avoid!important}',
-      '#qumcPrintReportPage .qumc-print-body{padding:0 1.5mm!important;background:#fff!important}',
+      '#qumcPrintReportPage .qumc-print-body{padding:0 .5mm!important;background:#fff!important}',
       '#qumcPrintReportPage table{width:100%!important;border-collapse:collapse!important;page-break-inside:auto!important}',
       '#qumcPrintReportPage thead{display:table-header-group!important}',
       '#qumcPrintReportPage tr{break-inside:avoid!important;page-break-inside:avoid!important}',
@@ -2968,7 +2968,7 @@ async function importSnapshot(){
       '#qumcPrintReportPage [style*="min-height:260px"],#qumcPrintReportPage [style*="min-height:240px"],#qumcPrintReportPage [style*="min-height:220px"],#qumcPrintReportPage [style*="min-height:200px"]{min-height:0!important}',
       '#qumcPrintReportPage [style*="background:#152538"],#qumcPrintReportPage [style*="background: #152538"],#qumcPrintReportPage [style*="background:#0B1C33"],#qumcPrintReportPage [style*="background:var(--top)"]{background:#0B1C33!important}',
       '#qumcPrintReportPage [style*="color:#0195af"],#qumcPrintReportPage [style*="color: #0195af"]{color:#00AFCB!important}',
-      '#qumcPrintReportPage .qumc-print-meta{display:grid!important;grid-template-columns:1fr 1fr!important;gap:2px 12px!important;margin:4mm 2mm 0!important;padding:3mm 4mm!important;border:1px solid #CBD5E1!important;border-radius:3mm!important;background:#F8FAFC!important;color:#152538!important;font:700 9px Arial,Calibri,sans-serif!important;line-height:1.4!important;break-inside:avoid!important;page-break-inside:avoid!important}',
+      '#qumcPrintReportPage .qumc-print-meta{display:grid!important;grid-template-columns:1fr 1fr!important;gap:2px 12px!important;margin:3mm 1mm 0!important;padding:3mm 4mm!important;border:1px solid #CBD5E1!important;border-radius:3mm!important;background:#F8FAFC!important;color:#152538!important;font:700 9px Arial,Calibri,sans-serif!important;line-height:1.4!important;break-inside:avoid!important;page-break-inside:avoid!important}',
       '#qumcPrintReportPage .qumc-print-meta-title{grid-column:1/-1!important;font-size:12px!important;font-weight:900!important;color:#0B1C33!important;border-bottom:1px solid #E2E8F0!important;padding-bottom:2mm!important;margin-bottom:1mm!important}',
       '#qumcPrintReportPage .qumc-print-meta span{font-weight:600!important;color:#64748B!important;margin-inline-start:6px!important}',
       '#qumcPrintReportPage .qumc-print-meta-period{grid-column:1/-1!important}',
