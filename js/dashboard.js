@@ -2324,3 +2324,122 @@ function drilldept(d){
   document.addEventListener('click',function(e){var t=e.target;if(!t)return;if(t.id==='eis_crit'){e.preventDefault();window._showCriticalEscalationKpis();} if(t.id==='eis_actions'){e.preventDefault();window._showMissingGapKpisDrilldown();} if(t.id==='eis_atrisk'){e.preventDefault();window._showAtRiskKpisDrilldown();}},true);
   setTimeout(apply,900);
 })();
+
+/* ==========================================================
+   QUMC EXEC INTELLIGENCE V13 — Dept-scoped Gap Open + current-cycle At-Risk
+   - Gap Analysis Open ignores filters except Department.
+   - At-Risk uses latest/current year only and requires a next quarter.
+   - Trend is displayed with arrow, not + / - sign.
+   ========================================================== */
+(function(){
+  'use strict';
+  if(window.__QUMC_EXEC_INTELLIGENCE_V13__) return;
+  window.__QUMC_EXEC_INTELLIGENCE_V13__ = true;
+
+  function $(id){return document.getElementById(id);} 
+  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function isAr(){return (typeof window.lang!=='undefined'&&window.lang==='ar')||document.documentElement.dir==='rtl'||document.documentElement.lang==='ar';}
+  function num(v){if(v===null||v===undefined||v==='')return null;var s=String(v).trim().replace(/[٪%]/g,'').replace(/,/g,'').replace(/\s+/g,'');s=s.replace(/[٠-٩]/g,function(c){return '٠١٢٣٤٥٦٧٨٩'.indexOf(c);}).replace(/[۰-۹]/g,function(c){return '۰۱۲۳۴۵۶۷۸۹'.indexOf(c);});var n=Number(s);return isFinite(n)?n:null;}
+  function deptAlias(v){var x=String(v||'').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,'');if(!x)return'';if(x.indexOf('maintenance')>-1||x.indexOf('صيانة')>-1)return'maintenance';if(x.indexOf('safety')>-1||x.indexOf('سلامة')>-1)return'safety';if(x.indexOf('housekeeping')>-1||x.indexOf('cleaning')>-1||x.indexOf('hospitality')>-1||x.indexOf('نظافة')>-1||x.indexOf('فندقة')>-1)return'housekeeping';if(x.indexOf('project')>-1||x.indexOf('مشاريع')>-1||x.indexOf('المشاريع')>-1)return'projects';if(x.indexOf('governance')>-1||x.indexOf('حوكمة')>-1)return'governance';return x;}
+  function selectedDept(){try{if(window.F&&F.dept&&F.dept!=='all')return deptAlias(F.dept);}catch(_){}try{if(window._lockedDept)return deptAlias(window._lockedDept);}catch(_){}return '';}
+  function allKpis(){try{return typeof window.allK==='function'?window.allK():(Array.isArray(window.BASE)?window.BASE:[]);}catch(_){return [];} }
+  function fKpis(){try{return typeof window.filt==='function'?window.filt():allKpis();}catch(_){return allKpis();}}
+  function kDept(k){return deptAlias(k&&(k.dept||k.department||''));}
+  function deptName(d){var kd=deptAlias(d);try{if(window.DM&&DM[kd])return isAr()?(DM[kd].ar||DM[kd].en):(DM[kd].en||DM[kd].ar);}catch(_){}return d||kd||'—';}
+  function yearOf(k){return Number(k&&(k.yr||k.year||k.fy))||0;}
+  function code(k){return String(k&&(k.id||k.kpiCode||k.code)||'');}
+  function kName(k){return isAr()?(k.nameAr||k.nameEn||k.name||code(k)):(k.nameEn||k.name||k.nameAr||code(k));}
+  function groupKey(k){return (kDept(k)||'')+'|'+String(k&&(k.nameEn||k.name||k.nameAr||code(k))).toLowerCase().replace(/\s+/g,' ').trim();}
+  function qName(q){return String(q||'').toUpperCase();}
+  function qVal(k,q){var v=k&&k[q];if(v===undefined)v=k&&k[String(q).toUpperCase()];return num(v);}
+  function met(k,v){try{if(typeof window.metStatus==='function')return window.metStatus(k,v);}catch(_){}var t=num(k&&k.target);if(v===null)return null;if(t===null)t=100;var op=String(k&&k.op||'>=').toLowerCase();if(op.indexOf('<=')>-1||op.indexOf('less')>-1)return v<=t;if(op==='='||op.indexOf('equal')>-1)return Math.abs(v-t)<=0.05;return v>=t;}
+  function isMissQ(k,q){var v=qVal(k,q);return v!==null&&met(k,v)===false;}
+  function gapTexts(o){o=o||{};return{root:String(o.gapEn||o.gapAr||o.rootCause||o.rootCauseEn||o.root||o.reason||o.gapReasons||'').trim(),action:String(o.actEn||o.actAr||o.correctiveAction||o.correctiveActions||o.actionPlan||o.action||o.actions||'').trim(),impact:String(o.impactEn||o.impactAr||o.impact||o.impactOfGap||'').trim()};}
+  function gapComplete(k,q){
+    var st=window.ST||{},g=st.gaps||{},a=st.actions||{},id=code(k);
+    var keys=[id+'_'+String(q||'').toLowerCase(),id+'_'+String(q||'').toUpperCase(),id];
+    for(var i=0;i<keys.length;i++){var gt=gapTexts(g[keys[i]]||{}),at=gapTexts(a[keys[i]]||{});if((gt.root||at.root)&&(gt.action||at.action)&&(gt.impact||at.impact))return true;}
+    return false;
+  }
+  function hasLiveApproval(k,q){
+    var arr=(window.ST&&Array.isArray(ST.gapApprovals))?ST.gapApprovals:[], id=code(k), qq=String(q||'').toLowerCase();
+    return arr.some(function(r){return r&&String(r.kpiId||r.kpiCode||'')===id&&String(r.quarter||'').toLowerCase()===qq&&/^(pending_manager|pending_super_admin|approved)$/.test(String(r.status||''));});
+  }
+  function missingGapRows(){
+    var d=selectedDept(), out=[];
+    allKpis().forEach(function(k){
+      if(d&&kDept(k)!==d)return;
+      ['q1','q2','q3','q4'].forEach(function(q){
+        var v=qVal(k,q); if(v===null||!isMissQ(k,q))return;
+        if(gapComplete(k,q)||hasLiveApproval(k,q))return;
+        out.push({k:k,q:q,value:v,target:num(k.target),year:k.yr||k.year||'',dept:k.dept||k.department||''});
+      });
+    });
+    out.sort(function(a,b){return String(a.dept).localeCompare(String(b.dept))||String(a.k.id).localeCompare(String(b.k.id))||String(a.year).localeCompare(String(b.year))||a.q.localeCompare(b.q);});
+    return out;
+  }
+  function currentYear(){
+    try{if(window.F&&F.year&&F.year!=='all')return Number(F.year)||0;}catch(_){}
+    var yrs=allKpis().map(yearOf).filter(Boolean);return yrs.length?Math.max.apply(null,yrs):0;
+  }
+  function historyForGroup(gk, yr){
+    var rows=[];
+    allKpis().forEach(function(k){if(groupKey(k)!==gk)return;if(yr&&yearOf(k)!==yr)return;['q1','q2','q3','q4'].forEach(function(q,idx){var v=qVal(k,q);if(v!==null)rows.push({k:k,q:q,qi:idx+1,v:v,year:yearOf(k)});});});
+    rows.sort(function(a,b){return (a.year-b.year)||(a.qi-b.qi);});return rows;
+  }
+  function previousActual(gk, latest){
+    var rows=[];
+    allKpis().forEach(function(k){if(groupKey(k)!==gk)return;['q1','q2','q3','q4'].forEach(function(q,idx){var v=qVal(k,q);if(v!==null)rows.push({k:k,q:q,qi:idx+1,v:v,year:yearOf(k)});});});
+    rows.sort(function(a,b){return (a.year-b.year)||(a.qi-b.qi);});
+    var ix=rows.findIndex(function(x){return x.k===latest.k&&x.q===latest.q&&x.year===latest.year;});return ix>0?rows[ix-1]:null;
+  }
+  function atRiskRows(){
+    var yr=currentYear(), used={}, rows=[];
+    fKpis().forEach(function(k){
+      if(yr&&yearOf(k)!==yr)return;
+      var gk=groupKey(k); if(used[gk])return; used[gk]=1;
+      var hist=historyForGroup(gk,yr); if(!hist.length)return;
+      var latest=hist[hist.length-1]; if(!latest||latest.q==='q4')return; /* no next quarter once Q4 is entered */
+      var prev=previousActual(gk,latest);
+      var target=num(k.target); if(target===null)target=100;
+      var trend=prev?(latest.v-prev.v):0, predicted=latest.v+trend, reason='';
+      if(met(k,latest.v)===false)reason=isAr()?'آخر نتيجة أقل من الهدف':'Latest result is below target';
+      else if(prev&&met(k,predicted)===false)reason=isAr()?'الاتجاه الحالي قد يؤدي لعدم تحقيق الهدف في الربع القادم':'Current trend may miss target next quarter';
+      else if(prev&&trend<0&&Math.abs(latest.v-target)<=5)reason=isAr()?'قريب من الهدف مع اتجاه منخفض':'Close to target with declining trend';
+      if(reason)rows.push({k:k,latest:latest,prev:prev,target:target,trend:trend,predicted:predicted,reason:reason,nextQ:'q'+(latest.qi+1)});
+    });
+    rows.sort(function(a,b){return (a.predicted-a.target)-(b.predicted-b.target);});return rows;
+  }
+  function criticalRows(){
+    var rows=[]; fKpis().forEach(function(k){if(Number(k.tier||3)!==1)return;var missed=['q1','q2','q3','q4'].filter(function(q){return isMissQ(k,q);});if(missed.length)rows.push({k:k,qs:missed});}); return rows;
+  }
+  function modal(id,title,sub,bodyHtml){
+    var old=$(id); if(old)old.remove(); var isA=isAr(); var ov=document.createElement('div'); ov.id=id;
+    ov.style.cssText='position:fixed;inset:0;z-index:2147483646;background:rgba(15,23,42,.38);backdrop-filter:blur(14px) saturate(150%);display:flex;align-items:center;justify-content:center;padding:20px;direction:'+(isA?'rtl':'ltr');
+    ov.innerHTML='<div style="width:min(680px,94vw);max-height:86vh;overflow:auto;background:linear-gradient(145deg,rgba(248,252,255,.96),rgba(226,248,255,.86));border:1px solid rgba(255,255,255,.72);border-radius:26px;box-shadow:0 28px 90px rgba(15,23,42,.28);padding:22px;color:#0F172A"><div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:16px"><div><div style="font-size:16px;font-weight:900">'+esc(title)+'</div><div style="font-size:10px;color:#64748b;margin-top:4px">'+esc(sub||'')+'</div></div><button onclick="document.getElementById(\''+id+'\').remove()" style="border:0;background:rgba(15,23,42,.08);width:30px;height:30px;border-radius:10px;cursor:pointer">×</button></div>'+bodyHtml+'</div>';
+    ov.onclick=function(e){if(e.target===ov)ov.remove();};document.body.appendChild(ov);
+  }
+  window._showMissingGapKpisDrilldown=function(){
+    var isA=isAr(), rows=missingGapRows(), d=selectedDept();
+    modal('_missingGapDrilldown',isA?'تحليل الفجوات غير المكتمل':'Gap Analysis Open — Missing Quarters',d?(isA?'يعتمد على فلتر القسم فقط':'Department filter only: '+deptName(d)):(isA?'لا يعتمد على فلاتر الصفحة ما عدا القسم':'Ignores page filters except Department.'),
+      rows.length?rows.map(function(r){return '<div style="border:1px solid rgba(217,119,6,.20);background:rgba(255,251,235,.78);border-radius:16px;padding:12px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><b style="font-size:12px;color:#78350f">'+esc(code(r.k))+' — '+esc(kName(r.k))+'</b><span style="font-family:var(--mono);font-weight:900;color:#92400e">'+esc(qName(r.q))+'</span></div><div style="font-size:10px;color:#475569;margin-top:7px;display:flex;gap:12px;flex-wrap:wrap"><span>'+esc(deptName(r.dept))+'</span><span>'+esc(isA?'السنة':'Year')+': <b>'+esc(r.year||'—')+'</b></span><span>'+esc(isA?'النتيجة':'Result')+': <b>'+esc(r.value)+'%</b></span><span>'+esc(isA?'الهدف':'Target')+': <b>'+esc(r.target)+'%</b></span></div></div>';}).join(''):'<div style="padding:18px;border-radius:16px;background:rgba(22,163,74,.10);color:#166534;font-weight:800;text-align:center">'+(isA?'كل الفجوات مكتملة ضمن القسم المحدد.':'All gap analyses are documented for the selected department.')+'</div>');
+  };
+  window._showAtRiskKpisDrilldown=function(){
+    var isA=isAr(), rows=atRiskRows();
+    modal('_atRiskDrilldown',isA?'المؤشرات المعرضة للخطر في الربع القادم':'At-Risk KPIs — Next Quarter',isA?'حسب آخر سنة/ربع مدخل فقط، ولا تظهر السنوات المغلقة أو Q4':'Uses the latest active year/quarter only; completed prior years and Q4 are excluded.',
+      rows.length?rows.map(function(r){var arrow=r.trend>0?'↑':(r.trend<0?'↓':'→'), col=r.trend>0?'#047857':(r.trend<0?'#B91C1C':'#64748B'), mag=Math.abs(r.trend).toFixed(2);return '<div style="border:1px solid rgba(217,119,6,.18);background:rgba(255,251,235,.78);border-radius:16px;padding:12px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><b style="font-size:12px;color:#152538">'+esc(code(r.k))+' — '+esc(kName(r.k))+'</b><div style="font-size:10px;color:#64748b;margin-top:3px">'+esc(r.reason)+'</div></div><b style="font-family:var(--mono);color:#92400E;white-space:nowrap">'+(isFinite(r.predicted)?r.predicted.toFixed(2)+'%':'—')+'</b></div><div style="font-size:10px;color:#475569;margin-top:8px;display:flex;gap:12px;flex-wrap:wrap"><span>'+esc(isA?'آخر نتيجة':'Latest')+': <b>'+r.latest.v.toFixed(2)+'%</b> '+esc(qName(r.latest.q))+' '+esc(r.latest.year||'')+'</span><span>'+esc(isA?'الربع القادم':'Next Qtr')+': <b>'+esc(qName(r.nextQ))+'</b></span><span>'+esc(isA?'الهدف':'Target')+': <b>'+r.target+'%</b></span><span>'+esc(isA?'الاتجاه':'Trend')+': <b style="color:'+col+'">'+arrow+' '+mag+'%</b></span></div></div>';}).join(''):'<div style="padding:18px;border-radius:16px;background:rgba(22,163,74,.10);color:#166534;font-weight:800;text-align:center">'+(isA?'لا توجد مؤشرات معرضة للخطر ضمن البيانات الحالية.':'No at-risk KPIs in the current active data.')+'</div>');
+  };
+  function apply(){
+    try{
+      var m=missingGapRows(), a=atRiskRows(), c=criticalRows();
+      var ce=$('eis_crit'); if(ce){ce.textContent=c.length;ce.style.cursor='pointer';ce.onclick=window._showCriticalEscalationKpis;}
+      var ae=$('eis_actions'); if(ae){ae.textContent=m.length;ae.style.cursor='pointer';ae.onclick=window._showMissingGapKpisDrilldown;ae.style.color=m.length?'#D97706':'#15803D';}
+      var ab=$('eis_actions_badge'); if(ab){ab.textContent=m.length===0?(isAr()?'مكتمل':'All documented'):(m.length===1?('1 '+(isAr()?'معلق':'pending')):(m.length+' '+(isAr()?'معلقة':'pending')));ab.style.color=m.length?'#D97706':'#15803D';ab.style.background=m.length?'rgba(217,119,6,.18)':'rgba(22,163,74,.14)';}
+      var arEl=$('eis_atrisk'); if(arEl){arEl.textContent=a.length;arEl.style.cursor='pointer';arEl.onclick=window._showAtRiskKpisDrilldown;}
+    }catch(e){console.warn('[exec intelligence v13]',e);}
+  }
+  var prev=window.renderExec;
+  if(typeof prev==='function'){window.renderExec=renderExec=function(){var r=prev.apply(this,arguments);setTimeout(apply,180);setTimeout(apply,650);return r;};}
+  document.addEventListener('click',function(e){var t=e.target;if(!t)return;if(t.id==='eis_actions'){e.preventDefault();window._showMissingGapKpisDrilldown();}if(t.id==='eis_atrisk'){e.preventDefault();window._showAtRiskKpisDrilldown();}},true);
+  setTimeout(apply,900);
+})();

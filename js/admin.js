@@ -3736,3 +3736,139 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
     window.openGapQuarter=function(){var r=oldOpenGap.apply(this,arguments);setTimeout(injectGapModalSizing,10);return r;};
   }
 })();
+
+/* ==========================================================
+   QUMC GAP APPROVAL V4 — Inline reject comment, rejected edit preload,
+   and one-time launch cleanup for test approval/user-request data.
+   ========================================================== */
+(function(){
+  'use strict';
+  if(window.__QUMC_GAP_APPROVAL_V4_REJECT_INLINE__) return;
+  window.__QUMC_GAP_APPROVAL_V4_REJECT_INLINE__ = true;
+
+  function $(id){return document.getElementById(id);} 
+  function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function ar(){return (typeof window.lang!=='undefined'&&window.lang==='ar')||document.documentElement.dir==='rtl'||document.documentElement.lang==='ar';}
+  function norm(v){return String(v||'').toLowerCase().trim().replace(/[\s-]+/g,'_');}
+  function role(){return norm(window._fbRole||window.currentUserRole||'');}
+  function email(){return String(window._fbUser||window._fbEmail||window.currentUserEmail||'').toLowerCase().trim();}
+  function uname(){return String(window._fbName||window.currentUserName||(email()?email().split('@')[0]:'User'));}
+  function deptAlias(v){var x=String(v||'').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,'');if(!x)return'';if(x.indexOf('maintenance')>-1||x.indexOf('صيانة')>-1)return'maintenance';if(x.indexOf('safety')>-1||x.indexOf('سلامة')>-1)return'safety';if(x.indexOf('housekeeping')>-1||x.indexOf('cleaning')>-1||x.indexOf('hospitality')>-1||x.indexOf('نظافة')>-1||x.indexOf('فندقة')>-1)return'housekeeping';if(x.indexOf('project')>-1||x.indexOf('مشاريع')>-1||x.indexOf('المشاريع')>-1)return'projects';if(x.indexOf('governance')>-1||x.indexOf('حوكمة')>-1)return'governance';return x;}
+  function dept(){return deptAlias(window._fbDept||window._lockedDept||window.currentUserDept||'');}
+  function isManager(){var r=role();return r==='department_manager'||r==='dept_manager';}
+  function isSuper(){var r=role();return r==='super_admin'||r==='superadmin'||r==='admin';}
+  function approvals(){if(!window.ST)window.ST={};if(!Array.isArray(ST.gapApprovals))ST.gapApprovals=[];return ST.gapApprovals;}
+  function nowIso(){return new Date().toISOString();}
+  function save(tag,msg){
+    try{if(typeof window.sLS==='function')window.sLS(ST);else localStorage.setItem('kpi_v3',JSON.stringify(ST));}catch(_e){}
+    try{if(typeof window._saveToFS==='function')window._saveToFS(ST);}catch(_e){}
+    try{if(typeof window.addAudit==='function')window.addAudit(tag||'GAP_APPROVAL',msg||tag||'Gap approval update');}catch(_e){}
+    try{if(typeof window.renderNotifications==='function')setTimeout(window.renderNotifications,120);}catch(_e){}
+  }
+  function findReq(id){return approvals().find(function(r){return r&&String(r.id)===String(id);});}
+  function findCard(reqId){
+    var el=$('gap_apr_'+reqId); if(el)return el;
+    var cards=[].slice.call(document.querySelectorAll('.gap-apr-card'));
+    return cards.find(function(c){return String(c.innerHTML||'').indexOf(String(reqId))>-1;})||null;
+  }
+  function showRejectBox(reqId,action){
+    var card=findCard(reqId), isA=ar();
+    if(!card){
+      var old=$('_gapRejectInlineFallback'); if(old)old.remove();
+      var ov=document.createElement('div'); ov.id='_gapRejectInlineFallback';
+      ov.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.40);display:flex;align-items:center;justify-content:center;padding:18px;direction:'+(isA?'rtl':'ltr');
+      ov.innerHTML='<div class="qumc-reject-inline" style="width:min(520px,94vw);background:#fff7ed;border:1px solid rgba(217,119,6,.38);border-radius:18px;box-shadow:0 26px 70px rgba(15,23,42,.25);padding:16px"><div style="font-size:13px;font-weight:900;color:#92400e;margin-bottom:8px">'+(isA?'سبب الرفض مطلوب':'Reject comment is required')+'</div><textarea id="gapRejectComment_'+esc(reqId)+'" style="width:100%;min-height:90px;border:1px solid rgba(217,119,6,.35);border-radius:12px;padding:10px;font-family:inherit;font-size:12px;resize:vertical;background:#fff" placeholder="'+(isA?'اكتب سبب الرفض هنا...':'Write the rejection reason here...')+'"></textarea><div id="gapRejectWarn_'+esc(reqId)+'" style="display:none;margin-top:7px;color:#b45309;font-size:11px;font-weight:800">'+(isA?'لازم كتابة سبب الرفض قبل الإرسال.':'A rejection comment is required before submitting.')+'</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button onclick="document.getElementById(\'_gapRejectInlineFallback\').remove()" class="gap-apr-btn" style="background:#e2e8f0;color:#334155">'+(isA?'إلغاء':'Cancel')+'</button><button onclick="window._gapApprovalAct(\''+esc(reqId)+'\',\''+esc(action)+'\',document.getElementById(\'gapRejectComment_'+esc(reqId)+'\').value)" class="gap-apr-btn bad">'+(isA?'تأكيد الرفض':'Confirm Reject')+'</button></div></div>';
+      document.body.appendChild(ov); return;
+    }
+    var old=card.querySelector('.qumc-reject-inline'); if(old){old.scrollIntoView({block:'nearest'});var ta=old.querySelector('textarea');if(ta)ta.focus();return;}
+    var box=document.createElement('div'); box.className='qumc-reject-inline';
+    box.style.cssText='margin-top:12px;background:#fff7ed;border:1px solid rgba(217,119,6,.38);border-radius:13px;padding:12px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.45)';
+    box.innerHTML='<div style="font-size:11px;font-weight:900;color:#92400e;margin-bottom:7px">'+(isA?'سبب الرفض مطلوب':'Reject comment is required')+'</div><textarea id="gapRejectComment_'+esc(reqId)+'" style="width:100%;min-height:76px;border:1px solid rgba(217,119,6,.35);border-radius:10px;padding:9px;font-family:inherit;font-size:11.5px;resize:vertical;background:#fff" placeholder="'+(isA?'اكتب سبب الرفض هنا...':'Write the rejection reason here...')+'"></textarea><div id="gapRejectWarn_'+esc(reqId)+'" style="display:none;margin-top:7px;color:#b45309;font-size:10.5px;font-weight:800">'+(isA?'لازم كتابة سبب الرفض قبل الإرسال.':'A rejection comment is required before submitting.')+'</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:9px"><button type="button" onclick="this.closest(\'.qumc-reject-inline\').remove()" class="gap-apr-btn" style="background:#e2e8f0;color:#334155">'+(isA?'إلغاء':'Cancel')+'</button><button type="button" onclick="window._gapApprovalAct(\''+esc(reqId)+'\',\''+esc(action)+'\',document.getElementById(\'gapRejectComment_'+esc(reqId)+'\').value)" class="gap-apr-btn bad">'+(isA?'تأكيد الرفض':'Confirm Reject')+'</button></div>';
+    card.appendChild(box); box.scrollIntoView({block:'nearest'}); var ta=box.querySelector('textarea'); if(ta)ta.focus();
+  }
+
+  var oldAct=window._gapApprovalAct;
+  window._gapApprovalAct=function(reqId,action,comment){
+    action=String(action||'');
+    if(action.indexOf('reject')===-1){
+      if(typeof oldAct==='function')return oldAct.apply(this,arguments);
+      return;
+    }
+    var note=String(comment||'').trim();
+    if(!note){
+      showRejectBox(reqId,action);
+      var warn=$('gapRejectWarn_'+reqId); if(warn)warn.style.display='block';
+      return false;
+    }
+    var r=findReq(reqId); if(!r)return false;
+    if(action==='manager_reject'){
+      if(!isManager()||deptAlias(r.dept)!==dept()){try{toast('Access denied');}catch(_){} return false;}
+      r.status='rejected_manager'; r.managerBy=uname(); r.managerEmail=email(); r.managerAt=nowIso(); r.managerNote=note; r.updatedAt=nowIso();
+      (r.history||(r.history=[])).push({at:nowIso(),by:uname(),role:role(),action:'manager_rejected',note:note});
+      save('GAP_APPROVAL_MANAGER_REJECT','Department Manager rejected Gap Analysis: '+(r.kpiCode||r.kpiId||'KPI'));
+    }else if(action==='super_reject'){
+      if(!isSuper()){try{toast('Access denied');}catch(_){} return false;}
+      r.status='rejected_super_admin'; r.superAdminBy=uname(); r.superAdminEmail=email(); r.superAdminAt=nowIso(); r.superAdminNote=note; r.updatedAt=nowIso();
+      (r.history||(r.history=[])).push({at:nowIso(),by:uname(),role:role(),action:'super_admin_rejected',note:note});
+      save('GAP_APPROVAL_SUPER_REJECT','Super Admin rejected Gap Analysis: '+(r.kpiCode||r.kpiId||'KPI'));
+    }
+    try{toast(ar()?'تم رفض الطلب وإرسال سبب الرفض':'Request rejected with comment');}catch(_){}
+    try{var fb=$('_gapRejectInlineFallback'); if(fb)fb.remove();}catch(_){}
+    setTimeout(function(){try{if(typeof window.showKpoGapStatusPopup==='function')window.showKpoGapStatusPopup();}catch(_){} try{if(typeof window._showGapApprovals==='function')window._showGapApprovals(reqId);}catch(_e){}},180);
+    return false;
+  };
+
+  function latestRejected(kpiId,qtr){
+    var me=email(), qq=String(qtr||'').toLowerCase();
+    var arr=approvals().filter(function(r){return r&&String(r.kpiId||r.kpiCode||'')===String(kpiId)&&String(r.quarter||'').toLowerCase()===qq&&String(r.submittedByEmail||'').toLowerCase()===me&&String(r.status||'').indexOf('rejected')===0;});
+    arr.sort(function(a,b){return String(b.updatedAt||b.submittedAt||'').localeCompare(String(a.updatedAt||a.submittedAt||''));});
+    return arr[0]||null;
+  }
+  function prefillRejected(kpiId,qtr){
+    var r=latestRejected(kpiId,qtr); if(!r||!r.payload)return;
+    var p=r.payload, sfx='_'+kpiId+'_'+qtr;
+    [['kpo_gE',p.gapEn],['kpo_aE',p.actEn],['kpo_impactE',p.impactEn],['kpo_gOwner',p.owner],['kpo_gDue',p.dueDate],['kpo_actPri',p.priority],['kpo_actStatus',p.status]].forEach(function(pair){var el=$(pair[0]+sfx);if(el)el.value=pair[1]||'';});
+    var cb=$('kpo_atRisk'+sfx); if(cb)cb.checked=!!p.atRisk;
+    var fb=$('kpo_fb_'+kpiId+'_'+qtr);
+    if(fb){fb.innerHTML='<div style="padding:8px 10px;border-radius:10px;background:rgba(254,242,242,.85);border:1px solid rgba(220,38,38,.20);color:#991B1B;font-weight:800">'+(ar()?'تم رفض الطلب السابق. عدل البيانات ثم أرسلها من جديد.':'Previous request was rejected. Edit the data and submit again.')+'<br><span style="font-weight:700;color:#92400e">'+esc(r.superAdminNote||r.managerNote||'')+'</span></div>';fb.style.display='block';}
+  }
+  var oldOpen=window.openGapQuarter;
+  if(typeof oldOpen==='function'){
+    window.openGapQuarter=function(kpiId,qtr){var ret=oldOpen.apply(this,arguments);setTimeout(function(){prefillRejected(kpiId,qtr);},80);setTimeout(function(){prefillRejected(kpiId,qtr);},350);return ret;};
+  }
+
+  var oldPopup=window.showKpoGapStatusPopup;
+  if(typeof oldPopup==='function'){
+    window.showKpoGapStatusPopup=function(){
+      var r=oldPopup.apply(this,arguments);
+      setTimeout(function(){
+        try{
+          [].slice.call(document.querySelectorAll('.gap-missing-card')).forEach(function(card){
+            var txt=String(card.textContent||'').toLowerCase();
+            if(txt.indexOf('rejected')>-1||txt.indexOf('رفض')>-1||txt.indexOf('مرفوض')>-1){
+              var b=card.querySelector('button.gap-apr-btn,button'); if(b)b.textContent=ar()?'تعديل وإعادة الإرسال':'Edit & Resubmit';
+            }
+          });
+        }catch(_e){}
+      },80);
+      return r;
+    };
+  }
+
+  function runLaunchCleanup(){
+    try{
+      if(!window.ST)window.ST={};
+      if(ST._launchCleanupGapApprovalsRequestsV1)return;
+      var r=role(); if(r!=='super_admin'&&r!=='admin')return;
+      if(Array.isArray(ST.gapApprovals))ST.gapApprovals=[];
+      if(Array.isArray(ST.requests))ST.requests=[];
+      ST._launchCleanupGapApprovalsRequestsV1=true;
+      save('PRE_LAUNCH_TEST_DATA_CLEANUP','Cleared pre-launch Gap Analysis Approval Status and local User Requests test data');
+      if(typeof window._kpiRequestsClearAllForLaunch==='function'){
+        window._kpiRequestsClearAllForLaunch().then(function(n){try{if(typeof window.addAudit==='function')window.addAudit('PRE_LAUNCH_USER_REQUESTS_CLEANUP','Cleared '+n+' pre-launch User Requests from Firestore');}catch(_){}}).catch(function(e){console.warn('[Launch cleanup requests]',e&&e.message);});
+      }
+    }catch(e){console.warn('[Launch cleanup]',e);}
+  }
+  setTimeout(runLaunchCleanup,1800);
+  setTimeout(runLaunchCleanup,4200);
+})();

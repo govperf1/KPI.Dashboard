@@ -570,7 +570,7 @@ function updateExecTrend(yr){
         kpiCode:rq.kpiCode || rq.kpiId, kpiName:rq.kpiNameEn || rq.kpiNameAr || '', quarter:String(rq.quarter || '').toLowerCase(),
         title:(rq.kpiCode || rq.kpiId || 'KPI')+' — '+(rq.kpiNameEn || rq.kpiNameAr || 'Gap Analysis')+(rq.quarter ? ' · '+String(rq.quarter).toUpperCase() : ''),
         meta:meta + (stt ? ' · '+statusText(stt) : ''),
-        body:(rq.payload && ((rq.payload.gapEn || rq.payload.gapAr || '')+' '+(rq.payload.actEn || rq.payload.actAr || '')+' '+(rq.payload.impactEn || rq.payload.impactAr || ''))) || '',
+        body:(String(stt).indexOf('rejected')===0 && (rq.superAdminNote || rq.managerNote)) ? ((isAr()?'سبب الرفض: ':'Reject reason: ')+(rq.superAdminNote || rq.managerNote)) : ((rq.payload && ((rq.payload.gapEn || rq.payload.gapAr || '')+' '+(rq.payload.actEn || rq.payload.actAr || '')+' '+(rq.payload.impactEn || rq.payload.impactAr || ''))) || ''),
         active:true, ts:Date.parse(rq.updatedAt || rq.submittedAt || '') || Date.now()
       });
     });
