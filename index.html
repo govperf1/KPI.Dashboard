@@ -33,9 +33,11 @@ window.addEventListener('error',function(e){
 window.curPage = window.curPage || 'exec';
 window.updateUserBadge = window.updateUserBadge || function(name, role){
   try{
+    const cleanName=function(v){v=String(v||'').trim();return (!v||['user','username','account','admin','null','undefined','-','—'].includes(v.toLowerCase()))?'':v;};
+    const realName=cleanName(name)||cleanName(window._fbName)||cleanName(window.currentUserName)||cleanName((window._fbUser||window._fbEmail||'').split('@')[0])||'';
     const b=document.getElementById('_userBadge'); if(b) b.style.display='flex';
-    const av=document.getElementById('_userAvatar'); if(av) av.textContent=(name||'U')[0].toUpperCase();
-    const nm=document.getElementById('_userName'); if(nm) nm.textContent=name||'User';
+    const av=document.getElementById('_userAvatar'); if(av) av.textContent=(realName||'U')[0].toUpperCase();
+    const nm=document.getElementById('_userName'); if(nm) nm.textContent=realName;
     const rl=document.getElementById('_userRole'); if(rl) rl.textContent=role||'—';
   }catch(_){}
 };
