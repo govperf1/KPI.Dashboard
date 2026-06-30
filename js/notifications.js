@@ -279,7 +279,7 @@ function updateExecTrend(yr){
   }
   window.refreshUserTopbar=function(){
     try{
-      var name=window._fbName||'User', role=window._fbRole||'—';
+      var name=window._fbName||window.currentUserName||((window._fbUser||window._fbEmail||'').split('@')[0])||'', role=window._fbRole||'—';
       var n=document.getElementById('topUserName'), r=document.getElementById('topUserRole'), a=document.getElementById('topUserAvatar');
       if(n)n.textContent=name;
       if(r)r.textContent=roleLabel(role);
@@ -350,7 +350,7 @@ function updateExecTrend(yr){
     return '';
   }
   function email(){ return rawEmail() || 'guest'; }
-  function uname(){ return String(window._fbName || window.currentUserName || (rawEmail() ? rawEmail().split('@')[0] : 'User')).trim(); }
+  function uname(){ return String(window._fbName || window.currentUserName || (rawEmail() ? rawEmail().split('@')[0] : '')).trim(); }
   function safeKey(s){ return String(s || 'guest').toLowerCase().trim().replace(/[^a-z0-9@._-]+/g,'_'); }
   function userSeenKey(){ return 'qumc_notifications_seen_single_v12_' + safeKey(email()); }
   function userHistoryKey(){ return 'qumc_notifications_history_single_v12_' + safeKey(email()); }
@@ -692,7 +692,7 @@ function updateExecTrend(yr){
   function closePanel(id){ var el=$(id); if(el){ el.style.display='none'; el.classList.remove('qumc-final-open','qumc-stay-open','qumc-profile-open'); } }
   function roleLabel(r){ return ({super_admin:'Super Admin',superadmin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',dept_manager:'Dept Manager',kpi_owner:'KPI Owner',gap_owner:'Gap Owner',viewer:'Viewer'})[r] || r || '—'; }
   function refreshProfile(){
-    var name=uname() || 'User', mail=rawEmail() || '—', r=roleLabel(role()), d=dept() || window._fbDept || '—';
+    var name=uname(), mail=rawEmail() || '—', r=roleLabel(role()), d=dept() || window._fbDept || '—';
     var ids={topUserName:name, topUserRole:r, profileName:name, profileEmail:mail, profileNameRow:name, profileRoleRow:r, profileDeptRow:d, profileLastLoginRow:'Current session'};
     Object.keys(ids).forEach(function(id){ var el=$(id); if(el) el.textContent=ids[id]; });
     ['topUserAvatar','profileAvatar'].forEach(function(id){ var el=$(id); if(el) el.textContent=(name||'U').charAt(0).toUpperCase(); });
