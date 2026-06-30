@@ -2650,12 +2650,7 @@ async function importSnapshot(){
       '#qumcPrintReportPage tr{break-inside:avoid!important;page-break-inside:avoid!important}',
       '#qumcPrintReportPage td,#qumcPrintReportPage th{font-size:9px!important}',
       '#qumcPrintReportPage h1,#qumcPrintReportPage h2,#qumcPrintReportPage h3{visibility:visible!important;opacity:1!important}',
-      '#qumcPrintReportPage h3,#qumcPrintReportPage .qumc-print-section-title{break-after:avoid!important;page-break-after:avoid!important;color:#152538!important;margin-top:7mm!important;margin-bottom:3mm!important;padding-top:1.5mm!important}',
-      '#qumcPrintReportPage .qumc-print-section-heading-wrap{break-inside:avoid!important;page-break-inside:avoid!important}',
-      '#qumcPrintReportPage .qumc-print-section-pack{break-inside:auto!important;page-break-inside:auto!important}',
-      '#qumcPrintReportPage .qumc-print-section-pack .qumc-print-section-title{break-after:avoid!important;page-break-after:avoid!important}',
-      '#qumcPrintReportPage .qumc-print-analysis-card{display:block!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;break-inside:avoid!important;page-break-inside:avoid!important;margin-top:2mm!important;margin-bottom:5mm!important}',
-      '#qumcPrintReportPage .qumc-print-analysis-card .rpt-ep{break-inside:avoid!important;page-break-inside:avoid!important}',
+      '#qumcPrintReportPage h3,#qumcPrintReportPage .qumc-print-section-title{break-after:avoid!important;page-break-after:avoid!important;color:#152538!important;margin-top:6mm!important;margin-bottom:2.8mm!important}',
       '#qumcPrintReportPage p{orphans:3!important;widows:3!important}',
       '#qumcPrintReportPage .rpt-ep{break-inside:avoid!important;page-break-inside:avoid!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
       '#qumcPrintReportPage .rpt-ep p{line-height:1.55!important;margin:0!important;min-height:0!important}',
@@ -2673,7 +2668,7 @@ async function importSnapshot(){
       '#qumcPrintReportPage .qumc-print-section-heading-wrap{break-after:avoid!important;page-break-after:avoid!important}',
       '#qumcPrintReportPage .qumc-print-section-pack{break-inside:avoid!important;page-break-inside:avoid!important;margin:0!important;padding:0!important}',
       '#qumcPrintReportPage .qumc-print-keep-box{break-inside:avoid!important;page-break-inside:avoid!important}',
-      '#qumcPrintReportPage .rpt-ep{break-inside:avoid!important;page-break-inside:avoid!important;display:flex!important;height:auto!important;min-height:0!important;overflow:visible!important}',
+      '#qumcPrintReportPage .rpt-ep{break-inside:auto!important;page-break-inside:auto!important}',
       '#qumcPrintReportPage canvas{display:none!important}',
       '#qumcPrintReportPage [style*="height:260px"],#qumcPrintReportPage [style*="height:220px"],#qumcPrintReportPage [style*="height:210px"],#qumcPrintReportPage [style*="height:200px"],#qumcPrintReportPage [style*="height:176px"]{height:auto!important;min-height:0!important}',
       '#qumcPrintReportPage [style*="min-height:260px"],#qumcPrintReportPage [style*="min-height:240px"],#qumcPrintReportPage [style*="min-height:220px"],#qumcPrintReportPage [style*="min-height:200px"]{min-height:0!important}',
@@ -2683,6 +2678,13 @@ async function importSnapshot(){
       '#qumcPrintReportPage .qumc-print-meta-title{grid-column:1/-1!important;font-size:12px!important;font-weight:900!important;color:#0B1C33!important;border-bottom:1px solid #E2E8F0!important;padding-bottom:2mm!important;margin-bottom:1mm!important}',
       '#qumcPrintReportPage .qumc-print-meta span{font-weight:600!important;color:#64748B!important;margin-inline-start:6px!important}',
       '#qumcPrintReportPage .qumc-print-meta-period{grid-column:1/-1!important}',
+      '#qumcPrintReportPage .qumc-print-section-pack{break-inside:avoid!important;page-break-inside:avoid!important;margin:0 0 3mm!important;padding:0!important}',
+      '#qumcPrintReportPage .qumc-print-section-heading-wrap{margin-top:7mm!important;margin-bottom:2.8mm!important}',
+      '#qumcPrintReportPage .qumc-print-body + .qumc-print-body{margin-top:4mm!important}',
+      '#qumcPrintReportPage .qumc-print-small-avoid,#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-keep-box{margin-top:3mm!important;margin-bottom:4mm!important}',
+      '#qumcPrintReportPage .qumc-print-chart-block{break-inside:avoid!important;page-break-inside:avoid!important;min-height:0!important;margin-top:4mm!important}',
+      '#qumcPrintReportPage .qumc-print-table-block{break-inside:auto!important;page-break-inside:auto!important;margin-bottom:3mm!important}',
+      '#qumcPrintReportPage .rpt-ep{break-inside:auto!important;page-break-inside:auto!important}',
       '}',
       '@media screen{#qumcPrintReportPage{display:block!important;position:absolute!important;left:-100000px!important;top:0!important;width:210mm!important;visibility:hidden!important;pointer-events:none!important;z-index:-1!important}}'
     ].join('');
@@ -2742,6 +2744,11 @@ async function importSnapshot(){
         try{
           var next=head.nextElementSibling;
           if(!next || next.classList.contains('qumc-report-header-line')) return;
+          var txt=(next.textContent||'').replace(/\s+/g,' ').trim();
+          var hasBig=next.querySelector && next.querySelector('table,canvas,img,.qumc-print-chart-img');
+          /* Only group the heading with short narrative text. Do not group tables/charts/large
+             sections because Chrome leaves long blank spaces in PDF preview. */
+          if(hasBig || txt.length>520) return;
           var pack=document.createElement('div');
           pack.className='qumc-print-section-pack';
           head.parentNode.insertBefore(pack,head);
@@ -2761,22 +2768,6 @@ async function importSnapshot(){
           d.classList.add('qumc-print-text-keep');
           if(looksLikeBox) d.classList.add('qumc-print-keep-box');
         }
-      });
-      /* Micro-fix for print only: keep narrative boxes (Analysis / Interpretation / Key Findings) together. */
-      Array.prototype.slice.call(clone.querySelectorAll('div')).forEach(function(box){
-        try{
-          var firstText='';
-          var p=box.querySelector('p');
-          if(p) firstText=(p.textContent||'').replace(/\s+/g,' ').trim();
-          var full=(box.textContent||'').replace(/\s+/g,' ').trim();
-          var isNarrBox=/^(Analysis|Interpretation|Key Findings|Executive Summary|Recommendations|Conclusion|التحليل|التفسير|الملخص|التوصيات|الخلاصة)\s*:?/i.test(firstText) || /^(Analysis|Interpretation|Key Findings)\s*:/i.test(full);
-          if(!isNarrBox) return;
-          if(full.length>1800) return;
-          box.classList.add('qumc-print-analysis-card','qumc-print-small-avoid','qumc-print-text-keep','qumc-print-keep-box');
-          if(box.parentElement && box.parentElement.tagName==='DIV' && (box.parentElement.textContent||'').replace(/\s+/g,' ').trim().length<2000){
-            box.parentElement.classList.add('qumc-print-analysis-card');
-          }
-        }catch(_e){}
       });
     }catch(e){}
   }
@@ -2993,6 +2984,13 @@ async function importSnapshot(){
       '#qumcPrintReportPage .qumc-print-meta-title{grid-column:1/-1!important;font-size:12px!important;font-weight:900!important;color:#0B1C33!important;border-bottom:1px solid #E2E8F0!important;padding-bottom:2mm!important;margin-bottom:1mm!important}',
       '#qumcPrintReportPage .qumc-print-meta span{font-weight:600!important;color:#64748B!important;margin-inline-start:6px!important}',
       '#qumcPrintReportPage .qumc-print-meta-period{grid-column:1/-1!important}',
+      '#qumcPrintReportPage .qumc-print-section-pack{break-inside:avoid!important;page-break-inside:avoid!important;margin:0 0 3mm!important;padding:0!important}',
+      '#qumcPrintReportPage .qumc-print-section-heading-wrap{margin-top:7mm!important;margin-bottom:2.8mm!important}',
+      '#qumcPrintReportPage .qumc-print-body + .qumc-print-body{margin-top:4mm!important}',
+      '#qumcPrintReportPage .qumc-print-small-avoid,#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-keep-box{margin-top:3mm!important;margin-bottom:4mm!important}',
+      '#qumcPrintReportPage .qumc-print-chart-block{break-inside:avoid!important;page-break-inside:avoid!important;min-height:0!important;margin-top:4mm!important}',
+      '#qumcPrintReportPage .qumc-print-table-block{break-inside:auto!important;page-break-inside:auto!important;margin-bottom:3mm!important}',
+      '#qumcPrintReportPage .rpt-ep{break-inside:auto!important;page-break-inside:auto!important}',
       '}',
       '@media screen{#qumcPrintReportPage{display:block!important;position:absolute!important;left:-100000px!important;top:0!important;width:210mm!important;visibility:hidden!important;pointer-events:none!important;z-index:-1!important}}'
     ].join('');
@@ -3041,6 +3039,11 @@ async function importSnapshot(){
         try{
           var next=head.nextElementSibling;
           if(!next || next.classList.contains('qumc-report-header-line')) return;
+          var txt=(next.textContent||'').replace(/\s+/g,' ').trim();
+          var hasBig=next.querySelector && next.querySelector('table,canvas,img,.qumc-print-chart-img');
+          /* Only group the heading with short narrative text. Do not group tables/charts/large
+             sections because Chrome leaves long blank spaces in PDF preview. */
+          if(hasBig || txt.length>520) return;
           var pack=document.createElement('div');
           pack.className='qumc-print-section-pack';
           head.parentNode.insertBefore(pack,head);
@@ -3061,22 +3064,6 @@ async function importSnapshot(){
           if(looksLikeBox) d.classList.add('qumc-print-keep-box');
         }
       });
-      /* Micro-fix for print only: keep narrative boxes (Analysis / Interpretation / Key Findings) together. */
-      Array.prototype.slice.call(clone.querySelectorAll('div')).forEach(function(box){
-        try{
-          var firstText='';
-          var p=box.querySelector('p');
-          if(p) firstText=(p.textContent||'').replace(/\s+/g,' ').trim();
-          var full=(box.textContent||'').replace(/\s+/g,' ').trim();
-          var isNarrBox=/^(Analysis|Interpretation|Key Findings|Executive Summary|Recommendations|Conclusion|التحليل|التفسير|الملخص|التوصيات|الخلاصة)\s*:?/i.test(firstText) || /^(Analysis|Interpretation|Key Findings)\s*:/i.test(full);
-          if(!isNarrBox) return;
-          if(full.length>1800) return;
-          box.classList.add('qumc-print-analysis-card','qumc-print-small-avoid','qumc-print-text-keep','qumc-print-keep-box');
-          if(box.parentElement && box.parentElement.tagName==='DIV' && (box.parentElement.textContent||'').replace(/\s+/g,' ').trim().length<2000){
-            box.parentElement.classList.add('qumc-print-analysis-card');
-          }
-        }catch(_e){}
-      });
     }catch(e){}
   }
   function fixSoftTextPageBreaks(holder){
@@ -3093,7 +3080,7 @@ async function importSnapshot(){
           var r=el.getBoundingClientRect();
           if(!r || !r.height) return;
           /* Large sections should flow normally, otherwise Chrome leaves large blank areas. */
-          if(r.height>pagePx*0.38){
+          if(r.height>pagePx*0.28){
             el.classList.remove('qumc-print-text-keep','qumc-print-small-avoid','qumc-print-analysis-keep','qumc-print-force-next-page');
             el.style.breakInside='auto';
             el.style.pageBreakInside='auto';
@@ -3115,7 +3102,7 @@ async function importSnapshot(){
           }else if(absTop>80 && pos<topReserve){
             /* If a heading starts immediately at the top of a printed page, push it down a bit.
                This fixes the tight section title placement shown in the PDF preview only. */
-            el.style.marginTop='10mm';
+            el.style.marginTop='12mm';
           }
         }catch(_e){}
       });

@@ -14,7 +14,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
 
     const ge=id=>{const e=document.getElementById(id);if(!e)console.warn('[Auth] Missing element:',id);return e;};
     const showLogin=()=>{console.log('[Auth] showLogin');/* Show overlay (already visible, but ensure it is) */const ao=ge('_authOverlay');if(ao){ao.style.display='flex';ao.style.alignItems='flex-end';ao.style.background='rgba(245,247,252,0)'}/* Hide loading spinner, show login form */const ld=ge('_authLoading');if(ld)ld.style.display='none';const lp=ge('_loginPanel');if(lp)lp.style.display='block';const po=ge('_portalOverlay');if(po)po.style.display='none';const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
-    const showPortal=(name,role)=>{console.log('[Auth] showPortal:',name,role);const po=ge('_portalOverlay'),lo=ge('_authOverlay');if(lo)lo.style.display='none';if(po){po.style.display='flex';console.log('[Auth] _portalOverlay is now flex');}else{console.error('[Auth] PORTAL OVERLAY NOT FOUND');return;}const nm=ge('_portalUserName'),rl=ge('_portalUserRole');if(nm)nm.textContent=name||'User';if(rl){const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',viewer:'Viewer'};rl.textContent=L[role]||role;}console.log('[Auth] Portal ready');};
+    const showPortal=(name,role)=>{console.log('[Auth] showPortal:',name,role);const po=ge('_portalOverlay'),lo=ge('_authOverlay');if(lo)lo.style.display='none';if(po){po.style.display='flex';console.log('[Auth] _portalOverlay is now flex');}else{console.error('[Auth] PORTAL OVERLAY NOT FOUND');return;}const nm=ge('_portalUserName'),rl=ge('_portalUserRole');const displayName=String(name||window._fbName||window.currentUserName||((window._fbUser||window._fbEmail||'').split('@')[0])||'').trim();if(nm)nm.textContent=displayName||'—';if(rl){const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',viewer:'Viewer'};rl.textContent=L[role]||role;}console.log('[Auth] Portal ready');};
     const setErr=msg=>{console.warn('[Auth] Error:',msg);const e=ge('_fbErr');if(e)e.textContent=msg;const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
 
     window._doLogin=async()=>{
@@ -44,10 +44,13 @@ window._selectPortal=async portal=>{
         if(typeof window.applyRolePermissions==='function')window.applyRolePermissions(window._fbRole,window._fbDept,window._fbPerms);
         if(typeof window.updateUserBadge==='function')window.updateUserBadge(window._fbName,window._fbRole,window._fbPerms);
         /* Load shared Firestore state BEFORE first render so edits persist across all accounts */
+        window.__QUMC_ENTERING_PERFORMANCE__=true;
         if(typeof window._onFSLoaded==='function'){
           try{ await window._onFSLoaded(); }
           catch(e){ console.warn('[FS] initial load skipped:',e); }
         }
+        window.__QUMC_ENTERING_PERFORMANCE__=false;
+        window.__QUMC_FS_READY__=true;
         /* Role-specific rendering:
            - super_admin → show SA hub landing page immediately, do NOT render dashboard first
            - all others  → render dashboard, then role-specific popup                        */
@@ -61,9 +64,9 @@ window._selectPortal=async portal=>{
         }else{
           /* Normal Admin / KPI Owner / Viewer: render dashboard */
           if(typeof window.renderCurrent==='function'){
-            try{ window.renderCurrent(); }
+            try{ window.__QUMC_PERFORMANCE_RENDERING__=true; window.renderCurrent(); window.__QUMC_PERFORMANCE_RENDERED__=true; }
             catch(e){ console.error('[Auth] Initial render error:',e); }
-            setTimeout(()=>{try{window.renderCurrent();}catch(_){}},250);
+            finally{ window.__QUMC_PERFORMANCE_RENDERING__=false; }
           }
           /* KPI Owner: gap status popup */
           if(window._fbRole==='kpi_owner' && typeof window.showKpoGapStatusPopup==='function'){
@@ -141,7 +144,9 @@ window._selectPortal=async portal=>{
         const rs = await getDoc(doc(db,'config_roles',role));perms=rs.exists()?(rs.data().permissions||[]):(DPERMS[role]||[]);}catch(_){perms=DPERMS[role]||[];}
         if(d.extraPermissions)perms=[...new Set([...perms,...d.extraPermissions])];
         if(d.revokedPermissions)perms=perms.filter(p=>!d.revokedPermissions.includes(p));
-        window._fbUser=email;window._fbRole=role;window._fbDept=d.dept||null;window._fbPerms=perms;window._fbName=d.displayName||email.split('@')[0];window._fbAssignedKpis=d.assignedKpis||null;
+        window._fbUser=email;window._fbEmail=email;window._fbRole=role;window._fbDept=d.dept||null;window._fbPerms=perms;window._fbName=d.displayName||email.split('@')[0];window.currentUserName=window._fbName;window.currentUserEmail=email;window.currentUserRole=role;window._fbAssignedKpis=d.assignedKpis||null;window.__QUMC_USER_READY__=true;
+        try{ sessionStorage.setItem('qumc_user_email',email); sessionStorage.setItem('qumc_user_name',window._fbName); }catch(_se){}
+        try{ if(typeof window.updateUserBadge==='function') window.updateUserBadge(window._fbName,role,perms); }catch(_ub){}
         /* [REMOVED] lastLogin write — was costing 1 Firestore write per login */
         /* [REMOVED] activity_log write — was 1 Firestore write per login */
         console.log('[Auth] All checks passed — showing portal');
@@ -425,6 +430,7 @@ window._selectPortal=async portal=>{
     window._onFSLoaded = async () => {
       try{
         const fsData = await window._loadFromFS();
+        window.__QUMC_FS_READY__=true;
         if(!fsData||Object.keys(fsData).length===0) return;
         console.log('[FS] Loaded state from Firestore, keys:',Object.keys(fsData));
         if(typeof ST==='undefined') return;
@@ -470,8 +476,10 @@ window._selectPortal=async portal=>{
         }
         try{localStorage.setItem('kpi_v3',JSON.stringify(ST));}catch(_){}
         if(typeof renderYearFilter==='function') renderYearFilter(); /* update year filters with loaded data */
-        if(typeof renderCurrent==='function') renderCurrent();
-        if(typeof updateBadge==='function') updateBadge();
+        if(!window.__QUMC_ENTERING_PERFORMANCE__){
+          if(typeof renderCurrent==='function') renderCurrent();
+          if(typeof updateBadge==='function') updateBadge();
+        }
         /* Update notification badge for all roles after Firestore data loads */
         if(typeof window.updateAlertUI==='function') window.updateAlertUI();
         else if(typeof window.renderNotifications==='function') window.renderNotifications(false);
