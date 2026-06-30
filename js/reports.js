@@ -2650,7 +2650,12 @@ async function importSnapshot(){
       '#qumcPrintReportPage tr{break-inside:avoid!important;page-break-inside:avoid!important}',
       '#qumcPrintReportPage td,#qumcPrintReportPage th{font-size:9px!important}',
       '#qumcPrintReportPage h1,#qumcPrintReportPage h2,#qumcPrintReportPage h3{visibility:visible!important;opacity:1!important}',
-      '#qumcPrintReportPage h3,#qumcPrintReportPage .qumc-print-section-title{break-after:avoid!important;page-break-after:avoid!important;color:#152538!important;margin-top:6mm!important;margin-bottom:2.8mm!important}',
+      '#qumcPrintReportPage h3,#qumcPrintReportPage .qumc-print-section-title{break-after:avoid!important;page-break-after:avoid!important;color:#152538!important;margin-top:7mm!important;margin-bottom:3mm!important;padding-top:1.5mm!important}',
+      '#qumcPrintReportPage .qumc-print-section-heading-wrap{break-inside:avoid!important;page-break-inside:avoid!important}',
+      '#qumcPrintReportPage .qumc-print-section-pack{break-inside:auto!important;page-break-inside:auto!important}',
+      '#qumcPrintReportPage .qumc-print-section-pack .qumc-print-section-title{break-after:avoid!important;page-break-after:avoid!important}',
+      '#qumcPrintReportPage .qumc-print-analysis-card{display:block!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;break-inside:avoid!important;page-break-inside:avoid!important;margin-top:2mm!important;margin-bottom:5mm!important}',
+      '#qumcPrintReportPage .qumc-print-analysis-card .rpt-ep{break-inside:avoid!important;page-break-inside:avoid!important}',
       '#qumcPrintReportPage p{orphans:3!important;widows:3!important}',
       '#qumcPrintReportPage .rpt-ep{break-inside:avoid!important;page-break-inside:avoid!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}',
       '#qumcPrintReportPage .rpt-ep p{line-height:1.55!important;margin:0!important;min-height:0!important}',
@@ -2668,7 +2673,7 @@ async function importSnapshot(){
       '#qumcPrintReportPage .qumc-print-section-heading-wrap{break-after:avoid!important;page-break-after:avoid!important}',
       '#qumcPrintReportPage .qumc-print-section-pack{break-inside:avoid!important;page-break-inside:avoid!important;margin:0!important;padding:0!important}',
       '#qumcPrintReportPage .qumc-print-keep-box{break-inside:avoid!important;page-break-inside:avoid!important}',
-      '#qumcPrintReportPage .rpt-ep{break-inside:auto!important;page-break-inside:auto!important}',
+      '#qumcPrintReportPage .rpt-ep{break-inside:avoid!important;page-break-inside:avoid!important;display:flex!important;height:auto!important;min-height:0!important;overflow:visible!important}',
       '#qumcPrintReportPage canvas{display:none!important}',
       '#qumcPrintReportPage [style*="height:260px"],#qumcPrintReportPage [style*="height:220px"],#qumcPrintReportPage [style*="height:210px"],#qumcPrintReportPage [style*="height:200px"],#qumcPrintReportPage [style*="height:176px"]{height:auto!important;min-height:0!important}',
       '#qumcPrintReportPage [style*="min-height:260px"],#qumcPrintReportPage [style*="min-height:240px"],#qumcPrintReportPage [style*="min-height:220px"],#qumcPrintReportPage [style*="min-height:200px"]{min-height:0!important}',
@@ -2756,6 +2761,22 @@ async function importSnapshot(){
           d.classList.add('qumc-print-text-keep');
           if(looksLikeBox) d.classList.add('qumc-print-keep-box');
         }
+      });
+      /* Micro-fix for print only: keep narrative boxes (Analysis / Interpretation / Key Findings) together. */
+      Array.prototype.slice.call(clone.querySelectorAll('div')).forEach(function(box){
+        try{
+          var firstText='';
+          var p=box.querySelector('p');
+          if(p) firstText=(p.textContent||'').replace(/\s+/g,' ').trim();
+          var full=(box.textContent||'').replace(/\s+/g,' ').trim();
+          var isNarrBox=/^(Analysis|Interpretation|Key Findings|Executive Summary|Recommendations|Conclusion|التحليل|التفسير|الملخص|التوصيات|الخلاصة)\s*:?/i.test(firstText) || /^(Analysis|Interpretation|Key Findings)\s*:/i.test(full);
+          if(!isNarrBox) return;
+          if(full.length>1800) return;
+          box.classList.add('qumc-print-analysis-card','qumc-print-small-avoid','qumc-print-text-keep','qumc-print-keep-box');
+          if(box.parentElement && box.parentElement.tagName==='DIV' && (box.parentElement.textContent||'').replace(/\s+/g,' ').trim().length<2000){
+            box.parentElement.classList.add('qumc-print-analysis-card');
+          }
+        }catch(_e){}
       });
     }catch(e){}
   }
@@ -3039,6 +3060,22 @@ async function importSnapshot(){
           d.classList.add('qumc-print-text-keep');
           if(looksLikeBox) d.classList.add('qumc-print-keep-box');
         }
+      });
+      /* Micro-fix for print only: keep narrative boxes (Analysis / Interpretation / Key Findings) together. */
+      Array.prototype.slice.call(clone.querySelectorAll('div')).forEach(function(box){
+        try{
+          var firstText='';
+          var p=box.querySelector('p');
+          if(p) firstText=(p.textContent||'').replace(/\s+/g,' ').trim();
+          var full=(box.textContent||'').replace(/\s+/g,' ').trim();
+          var isNarrBox=/^(Analysis|Interpretation|Key Findings|Executive Summary|Recommendations|Conclusion|التحليل|التفسير|الملخص|التوصيات|الخلاصة)\s*:?/i.test(firstText) || /^(Analysis|Interpretation|Key Findings)\s*:/i.test(full);
+          if(!isNarrBox) return;
+          if(full.length>1800) return;
+          box.classList.add('qumc-print-analysis-card','qumc-print-small-avoid','qumc-print-text-keep','qumc-print-keep-box');
+          if(box.parentElement && box.parentElement.tagName==='DIV' && (box.parentElement.textContent||'').replace(/\s+/g,' ').trim().length<2000){
+            box.parentElement.classList.add('qumc-print-analysis-card');
+          }
+        }catch(_e){}
       });
     }catch(e){}
   }
