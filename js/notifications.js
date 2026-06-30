@@ -581,10 +581,11 @@ function updateExecTrend(yr){
         ['q1','q2','q3','q4'].forEach(function(q){
           var v = k && k[q]; if(v === undefined) v = k && k[q.toUpperCase()]; var n = num(v); if(n === null) return;
           if(met(k, n) !== false) return;
-          if(gapDone(gaps, actions, k, q)) return;
-          var live = latestApprovalFor(approvals, k, q, function(r){ return /^(pending_manager|pending_super_admin|approved)$/.test(String(r.status || '')); });
+          var ownLatest = latestApprovalFor(approvals, k, q, function(r){ return String(r.submittedByEmail || '').toLowerCase() === rawEmail(); });
+          var rejected = ownLatest && String(ownLatest.status || '').indexOf('rejected') === 0 ? ownLatest : null;
+          if(!rejected && gapDone(gaps, actions, k, q)) return;
+          var live = latestApprovalFor(approvals, k, q, function(r){ return String(r.submittedByEmail || '').toLowerCase() === rawEmail() && /^(pending_manager|pending_super_admin|approved)$/.test(String(r.status || '')); });
           if(live) return;
-          var rejected = latestApprovalFor(approvals, k, q, function(r){ return String(r.status || '').indexOf('rejected') === 0; });
           out.push({
             id:'gapmissing:'+normKey(code(k))+':'+year(k)+':'+q+(rejected?':rejected:'+String(rejected.id):''), type:'gap_required', level:rejected?'red':'orange',
             dept:kdept(k), kpiCode:code(k), kpiName:kname(k), quarter:q,
