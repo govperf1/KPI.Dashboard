@@ -2220,7 +2220,7 @@ async function importSnapshot(){
     css.id='qumc-report-print-only-css';
     css.textContent = [
       '@media print{',
-      '@page{size:A4;margin:3.5mm 4mm!important}',
+      '@page{size:A4;margin:0!important}',
       'html,body{margin:0!important;padding:0!important;background:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}',
       'body.qumc-print-report-only{background:#fff!important;overflow:visible!important}',
       'body.qumc-print-report-only > :not(#qumcPrintReportPage){display:none!important}',
@@ -2920,12 +2920,12 @@ async function importSnapshot(){
     css.id='qumc-report-print-v6-css';
     css.textContent=[
       '@media print{',
-      '@page{size:A4;margin:3.5mm 4mm!important}',
+      '@page{size:A4;margin:0!important}',
       'html,body{margin:0!important;padding:0!important;background:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}',
       'body.qumc-print-report-only{background:#fff!important;overflow:visible!important}',
       'body.qumc-print-report-only > :not(#qumcPrintReportPage){display:none!important}',
-      '#qumcPrintReportPage{display:block!important;position:static!important;width:100%!important;min-height:auto!important;margin:0!important;padding:1.5mm 2mm!important;box-sizing:border-box!important;background:#fff!important;color:#152538!important;font-family:Arial,Calibri,sans-serif!important}',
-      '#qumcPrintReportPage:before{content:"";position:fixed!important;top:2mm!important;right:2mm!important;bottom:2mm!important;left:2mm!important;border:1.15px solid #64748B!important;border-radius:2.2mm!important;pointer-events:none!important;z-index:999999!important}',
+      '#qumcPrintReportPage{display:block!important;position:static!important;width:100%!important;min-height:auto!important;margin:0!important;padding:5mm 6mm!important;box-sizing:border-box!important;background:#fff!important;color:#152538!important;font-family:Arial,Calibri,sans-serif!important}',
+      '#qumcPrintReportPage:before{content:"";position:fixed!important;top:1mm!important;right:1mm!important;bottom:1mm!important;left:1mm!important;border:1.15px solid #64748B!important;border-radius:1.6mm!important;pointer-events:none!important;z-index:999999!important}',
       '#qumcPrintReportPage .qumc-print-report-sheet{display:block!important;width:100%!important;margin:0!important;padding:0!important;background:#fff!important;border:0!important;border-radius:0!important;box-shadow:none!important;overflow:visible!important}',
       '#qumcPrintReportPage #rptDocument,#qumcPrintReportPage #reportDoc{display:block!important;width:100%!important;max-width:none!important;margin:0!important;padding:0!important;background:#fff!important;border:0!important;border-radius:0!important;box-shadow:none!important;overflow:visible!important}',
       '#qumcPrintReportPage .rpt-topbar,#qumcPrintReportPage .rpt-edit-btn,#qumcPrintReportPage button,#qumcPrintReportPage select,#qumcPrintReportPage input{display:none!important}',

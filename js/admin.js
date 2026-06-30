@@ -4050,3 +4050,59 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   setTimeout(managerApprovalPopupWatch,1200);
   setInterval(managerApprovalPopupWatch,2200);
 })();
+
+
+/* ==========================================================
+   QUMC GAP APPROVAL V7 — unified KPI Owner box label
+   - Uses one clear label: Gap Approval.
+   - Prevents mixed Gap Approval / Gap Analysis labels in the account box and popup title.
+   ========================================================== */
+(function(){
+  'use strict';
+  if(window.__QUMC_GAP_APPROVAL_V7_UNIFIED_LABEL__) return;
+  window.__QUMC_GAP_APPROVAL_V7_UNIFIED_LABEL__ = true;
+  function $(id){return document.getElementById(id);}
+  function isAr(){return (typeof window.lang!=='undefined'&&window.lang==='ar')||document.documentElement.dir==='rtl'||document.documentElement.lang==='ar';}
+  function label(){return isAr()?'موافقة الفجوة':'Gap Approval';}
+  function patchLabels(){
+    try{
+      var text='✅ '+label();
+      var btns=[].slice.call(document.querySelectorAll('#profileGapApprovalsBtn'));
+      btns.slice(1).forEach(function(b){try{b.remove();}catch(_){}});
+      if(btns[0]){btns[0].textContent=text;btns[0].setAttribute('aria-label',label());btns[0].title=label();}
+    }catch(_e){}
+    try{
+      var ov=$('_kpoStatusOv');
+      var title=ov&&ov.querySelector('.mhd-t');
+      if(title){title.textContent=label();title.setAttribute('data-en','Gap Approval');title.setAttribute('data-ar','موافقة الفجوة');}
+    }catch(_e){}
+    try{
+      var ap=$('_gapApprovalsOv');
+      if(ap){
+        var heads=[].slice.call(ap.querySelectorAll('div'));
+        heads.some(function(h){
+          var tx=(h.textContent||'').trim();
+          if(tx==='Gap Approvals Status'||tx==='Gap Analysis Approval Inbox'||tx==='Gap Approval Inbox'||tx==='موافقات تحليل الفجوات'||tx==='صندوق موافقات تحليل الفجوات'){
+            h.textContent=label();
+            return true;
+          }
+          return false;
+        });
+      }
+    }catch(_e){}
+  }
+  var oldShow=window.showKpoGapStatusPopup;
+  if(typeof oldShow==='function'&&!oldShow.__qumcGapV7LabelWrapped){
+    var wrapped=function(){var r=oldShow.apply(this,arguments);setTimeout(patchLabels,0);setTimeout(patchLabels,120);return r;};
+    wrapped.__qumcGapV7LabelWrapped=true;
+    window.showKpoGapStatusPopup=wrapped;
+  }
+  var oldInbox=window._showGapApprovals;
+  if(typeof oldInbox==='function'&&!oldInbox.__qumcGapV7LabelWrapped){
+    var wrappedInbox=function(){var r=oldInbox.apply(this,arguments);setTimeout(patchLabels,0);setTimeout(patchLabels,120);return r;};
+    wrappedInbox.__qumcGapV7LabelWrapped=true;
+    window._showGapApprovals=wrappedInbox;
+  }
+  setTimeout(patchLabels,150);
+  setInterval(patchLabels,220);
+})();
