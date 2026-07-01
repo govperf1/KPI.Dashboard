@@ -268,7 +268,7 @@ function _buildExcelXLSX(){
 
   /* ── Sheet 1: KPI Report ── */
   const sh1=[];
-  sh1.push(['KPI Performance Report — Facility Management & Safety — Qassim University Medical City']);
+  sh1.push(['KPI Performance Report — Facility Management & Safety Division — Qassim University Medical City']);
   sh1.push(['Period: '+(F.year==='all'?'All Years':F.year)+' '+qLbl+' | Generated: '+new Date().toLocaleDateString('en-GB')+' | Total: '+ks.length+' | Met: '+ks.filter(k=>ok(k)===true).length+' | Missed: '+ks.filter(k=>ok(k)===false).length]);
   sh1.push([]);
   sh1.push(['Code','KPI Name','Dept','Target','Q1 2025','Q2 2025','Q3 2025','Q4 2025','Q1 2026','Avg','YoY Q1','Annual YoY','Risk Tier','Status']);
@@ -299,7 +299,7 @@ function _buildExcelXLSX(){
   /* ── Sheet 2: Gap Analysis ── */
   const sh2=[];
   sh2.push(['Gap Analysis — Missed KPIs Corrective Action Register']);
-  sh2.push(['Qassim University Medical City — Facility Management & Safety']);
+  sh2.push(['Qassim University Medical City — Facility Management & Safety Division']);
   sh2.push([]);
   sh2.push(['Code','KPI Name','Dept','Result','Gap','Priority','Action Status','Root Cause / Gap Reasons (EN)','Corrective Actions (EN)','Impact of the Gap (EN)']);
 
@@ -402,7 +402,7 @@ function _buildExcelFull(){
   /* Title */
   ws1.mergeCells('A1:M1');
   const t1=ws1.getCell('A1');
-  t1.value='Qassim University Medical City — Facility Management & Safety — KPI Report';
+  t1.value='Qassim University Medical City — Facility Management & Safety Division — KPI Report';
   t1.fill=fl('#152538');t1.font=ft('#FFFFFF',16,true);t1.alignment=al('center');
 
   /* Subtitle */
@@ -487,7 +487,7 @@ function _buildExcelFull(){
   /* Subtitle */
   ws2.mergeCells('A2:M2');
   const s2=ws2.getCell('A2');
-  s2.value='Qassim University Medical City · Facility Management & Safety · '+today+' | Period: '+period;
+  s2.value='Qassim University Medical City · Facility Management & Safety Division · '+today+' | Period: '+period;
   s2.fill=fl('#991B1B');s2.font=ft('#FFFFFF',10,false);s2.alignment=al('center');
 
   ws2.addRow([]);
@@ -576,7 +576,7 @@ function _buildExcelSimple(){
 
   /* Title */
   t1+=`<tr><td colspan="13" bgcolor="#152538" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:16pt;font-weight:bold;padding:14px 18px;border:none;text-align:center">
-    Qassim University Medical City — Facilities &amp; Safety Division
+    Qassim University Medical City — Facility Management &amp; Safety Division
   </td></tr>`;
   t1+=`<tr><td colspan="13" bgcolor="#1E3356" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:10pt;font-weight:bold;padding:7px 18px;border:none">
     KPI Performance Report · Governance &amp; Performance Department
@@ -670,7 +670,7 @@ function _buildExcelSimple(){
      Gap Analysis — Missed KPIs Corrective Action Register
   </td></tr>`;
   t2+=`<tr><td colspan="13" bgcolor="#991B1B" style="color:#FFFFFF;font-family:Calibri,Arial;font-size:9.5pt;font-weight:bold;padding:7px 18px;border:none;text-align:center">
-    Qassim University Medical City · Facilities &amp; Safety Division · ${today} · Period: ${period}
+    Qassim University Medical City · Facility Management &amp; Safety Division · ${today} · Period: ${period}
   </td></tr>`;
   t2+=`<tr><td colspan="13" style="padding:5px;border:none"></td></tr>`;
 
@@ -802,7 +802,7 @@ async function _buildExcel(){
   ws.getRow(1).height=28;ws.getRow(2).height=18;ws.getRow(3).height=16;
   ws.mergeCells('C1:N1');
   const t1=ws.getCell('C1');
-  t1.value='KPI Performance Report — Facility Management & Safety';
+  t1.value='KPI Performance Report — Facility Management & Safety Division';
   t1.font=mkFont(14,true,TEAL);t1.alignment={vertical:'middle',horizontal:'center'};
 
   ws.mergeCells('C2:N2');
@@ -887,7 +887,7 @@ async function _buildExcel(){
     ws2.mergeCells('A2:M2');
     const subRow=ws2.getRow(2);
     const subPeriod=(typeof F!=='undefined'&&F.year!=='all'?F.year:'2026')+(typeof F!=='undefined'&&!F.qtr.includes('all')?' ('+F.qtr.map(q=>q.toUpperCase()).join(', ')+')':'(Q1)');
-    subRow.getCell(1).value='Qassim University Medical City  Facility Management & Safety  '+new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})+'  Period: '+subPeriod;
+    subRow.getCell(1).value='Qassim University Medical City  Facility Management & Safety Division  '+new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'})+'  Period: '+subPeriod;
     subRow.getCell(1).font={name:'Calibri',size:10,bold:false,color:{argb:'FFFFFFFF'}};
     subRow.getCell(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF9B1C1C'}};
     subRow.getCell(1).alignment={horizontal:'center',vertical:'middle'};
@@ -1016,7 +1016,7 @@ async function _buildWordDoc(){
   }else{
     children.push(H1('KPI Performance Report'));
   }
-  children.push(new Paragraph({children:[new TextRun({text:`Facility Management & Safety – ${deptName} Department`,bold:true,font:'Times New Roman',size:26,color:DARK})],alignment:AlignmentType.CENTER,spacing:{before:60,after:40}}));
+  children.push(new Paragraph({children:[new TextRun({text:`Facility Management & Safety Division – ${deptName} Department`,bold:true,font:'Times New Roman',size:26,color:DARK})],alignment:AlignmentType.CENTER,spacing:{before:60,after:40}}));
   children.push(new Paragraph({children:[new TextRun({text:'Qassim University Medical City',font:'Times New Roman',size:22,color:TEAL})],alignment:AlignmentType.CENTER,spacing:{before:40,after:40}}));
   children.push(new Paragraph({children:[new TextRun({text:dateStr+' | Period: '+(F.year==='all'?'All Years':F.year)+' | '+F.qtr.map(q=>q.toUpperCase()).join('+'),font:'Times New Roman',size:18,color:GREY})],alignment:AlignmentType.CENTER,spacing:{before:40,after:120}}));
   children.push(LINE());
@@ -1148,7 +1148,7 @@ async function _buildWordDoc(){
   }
   /* Footer line */
   children.push(SP(2));
-  children.push(new Paragraph({border:{top:{style:BorderStyle.SINGLE,size:4,color:TEAL,space:1}},children:[new TextRun({text:`KPI Performance Report — Facilities Management & Safety Division — Qassim University Medical City — ${dateStr}`,font:'Times New Roman',size:16,color:GREY})],alignment:AlignmentType.CENTER,spacing:{before:100,after:60}}));
+  children.push(new Paragraph({border:{top:{style:BorderStyle.SINGLE,size:4,color:TEAL,space:1}},children:[new TextRun({text:`KPI Performance Report — Facility Management & Safety Division — Qassim University Medical City — ${dateStr}`,font:'Times New Roman',size:16,color:GREY})],alignment:AlignmentType.CENTER,spacing:{before:100,after:60}}));
   /* Build document */
   const doc=new Document({
     numbering:{config:[{reference:'bullets',levels:[{level:0,format:'bullet',text:'•',alignment:AlignmentType.LEFT,style:{paragraph:{indent:{left:720,hanging:360}}}}]}]},
@@ -1663,7 +1663,7 @@ function renderReport(){
           <div style="width:3px;height:32px;background:#0195af;border-radius:2px;flex-shrink:0"></div>
           <div>
             <p style="margin:0;font-size:10px;font-weight:800;color:#fff">Qassim University Medical City</p>
-            <p style="margin:2px 0 0;font-size:8.5px;color:rgba(255,255,255,.50)">Facilities &amp; Safety Division · Governance &amp; Performance Department</p>
+            <p style="margin:2px 0 0;font-size:8.5px;color:rgba(255,255,255,.50)">Facility Management &amp; Safety Division · Governance &amp; Performance Department</p>
           </div>
         </div>
         <div style="text-align:right">

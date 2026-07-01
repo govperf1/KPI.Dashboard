@@ -429,10 +429,10 @@ function openReport(){
     gapSec+=`<div class="rpt-box warn"><div class="rpt-box-t">${k.id} — ${lang==='ar'?k.nameAr:k.nameEn}</div><p style="margin-bottom:4px"><b>${lang==='ar'?'الفجوة:':'Gap:'}</b> -${g}% | <b>${lang==='ar'?'تصنيف الخطر:':'Risk:'}</b> ${lang==='ar'?TIERS[k.tier||3].ar:TIERS[k.tier||3].en}${rc>=2?` | <b>${lang==='ar'?'تكرار:':'Repeat:'}</b> ${rc}x`:''}</p><p><b>${lang==='ar'?'السبب الجذري:':'Reasons:'}</b> ${(lang==='ar'?gd.gapAr:gd.gapEn)||(lang==='ar'?'لم تُدخل':'Not entered')}</p><p><b>${lang==='ar'?'الإجراء التصحيحي:':'Actions:'}</b> ${(lang==='ar'?gd.actAr:gd.actEn)||(lang==='ar'?'لم تُدخل':'Not entered')}</p><p><b>${lang==='ar'?'أثر الفجوة:':'Impact:'}</b> ${gd.impactEn||gd.impact||gd.impactOfGap||(lang==='ar'?'لم يُدخل':'Not entered')}</p>${ac.owner?`<p><b>${lang==='ar'?'الشخص المسؤول:':'Owner:'}</b> ${ac.owner} | <b>${lang==='ar'?'الحالة:':'Status:'}</b> ${ac.status||'—'} | <b>${lang==='ar'?'الموعد:':'Due:'}</b> ${ac.dueDate||'—'}</p>`:''}</div>`;
   });
   document.getElementById('rptB').innerHTML=`<div class="rpt"><div class="rpt-pg">
-    <div class="rpt-hdr"><div class="rpt-hdr-l"><img src="${logo}"><div><div class="rpt-org">${lang==='ar'?'المدينة الطبية — جامعة القصيم':'Medical City — Qassim University'}</div><div class="rpt-div">${lang==='ar'?'إدارة المرافق والسلامة':'Facility Management & Safety'}</div></div></div>
+    <div class="rpt-hdr"><div class="rpt-hdr-l"><img src="${logo}"><div><div class="rpt-org">${lang==='ar'?'المدينة الطبية — جامعة القصيم':'Medical City — Qassim University'}</div><div class="rpt-div">${lang==='ar'?'إدارة المرافق والسلامة':'Facility Management & Safety Division'}</div></div></div>
     <div class="rpt-meta"><div>${lang==='ar'?'التاريخ:':'Date:'} ${now}</div><div style="color:#1a7a6a;font-weight:700">${lang==='ar'?'للاستخدام الداخلي فقط':'Internal Use Only'}</div></div></div>
     <div class="rpt-ttl">${lang==='ar'?'تقرير مؤشرات الأداء الرئيسية':'KPI Performance Report'}</div>
-    <div class="rpt-sub">${lang==='ar'?'قسم الحوكمة والأداء — إدارة المرافق والسلامة':'Governance & Performance Dept — Facility Management & Safety'}</div>
+    <div class="rpt-sub">${lang==='ar'?'قسم الحوكمة والأداء — إدارة المرافق والسلامة':'Governance & Performance Dept — Facility Management & Safety Division'}</div>
     <div class="rpt-sec">1. ${lang==='ar'?'الملخص التنفيذي':'Executive Summary'}</div>
     <div class="rpt-kv"><div class="rpt-kv-i"><div class="rpt-kv-l">${lang==='ar'?'إجمالي':'Total'}</div><div class="rpt-kv-v" style="color:#1a7a6a">${ks.length}</div></div><div class="rpt-kv-i"><div class="rpt-kv-l">${lang==='ar'?'محقق الهدف':'Met'}</div><div class="rpt-kv-v" style="color:#065f46">${nOk}</div></div><div class="rpt-kv-i"><div class="rpt-kv-l">${lang==='ar'?'لم يحقق الهدف':'Missed'}</div><div class="rpt-kv-v" style="color:#7f1d1d">${miss}</div></div></div>
     <div class="rpt-sec">2. ${lang==='ar'?'تفاصيل المؤشرات':'KPI Detail Table'}</div>
@@ -444,7 +444,7 @@ function openReport(){
       ${allK().filter(k=>getRepeat(k)>=2).length?`<li>${lang==='ar'?'إعطاء الأولوية للمؤشرات ذات الإخفاق المتكرر مع مراجعة منهجية.':'Prioritize repeat-miss KPIs with systematic root cause review.'}</li>`:''}
       <li>${lang==='ar'?'الحفاظ على الأداء المتميز ومشاركة الممارسات الفضلى بين الأقسام.':'Sustain excellence in achieved KPIs and share best practices across departments.'}</li>
     </ul></div>
-    <div class="rpt-foot"><span>${lang==='ar'?'إدارة المرافق والسلامة — قسم الحوكمة والأداء':'Facilities & Safety — Governance & Performance Dept'}</span><span>${now}</span></div>
+    <div class="rpt-foot"><span>${lang==='ar'?'إدارة المرافق والسلامة — قسم الحوكمة والأداء':'Facility Management & Safety Division — Governance & Performance Dept'}</span><span>${now}</span></div>
   </div></div>`;
   document.getElementById('rptOv').classList.add('open');
 }
