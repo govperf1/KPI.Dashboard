@@ -3369,3 +3369,149 @@ async function importSnapshot(){
   },100);
   setTimeout(inject,600);
 })();
+
+/* ==========================================================
+   QUMC Report Print V11 — top-safe zone for page-start titles and text boxes
+   - Moves only report section titles / narrative boxes that Chrome places
+     directly on the printed page frame.
+   - Keeps the approved frame position and thickness.
+   - Does not resize fonts, tables, charts, or report content.
+   ========================================================== */
+(function(){
+  'use strict';
+  if(window.__QUMC_REPORT_PRINT_V11_TOP_SAFE_ZONE__) return;
+  window.__QUMC_REPORT_PRINT_V11_TOP_SAFE_ZONE__=true;
+
+  function inject(){
+    try{
+      var old=document.getElementById('qumc-report-print-v11-top-safe-zone');
+      if(old) old.remove();
+      var st=document.createElement('style');
+      st.id='qumc-report-print-v11-top-safe-zone';
+      st.textContent=[
+        '@media print{',
+        /* Keep the frame exactly where the user approved it. */
+        '#qumcPrintReportPage:before{top:0!important;right:0!important;bottom:0!important;left:0!important;border:2.6px solid #152538!important;border-radius:1.2mm!important}',
+        /* These classes are added only in the print clone when an item begins too close to a new page top. */
+        '#qumcPrintReportPage .qumc-print-v11-page-start-safe{margin-top:9mm!important}',
+        '#qumcPrintReportPage .qumc-print-v11-box-page-start-safe{margin-top:10mm!important}',
+        '#qumcPrintReportPage .qumc-print-v11-force-next-page{break-before:page!important;page-break-before:always!important;margin-top:10mm!important}',
+        '#qumcPrintReportPage .qumc-print-v11-inner-safe{padding-top:5mm!important;-webkit-box-decoration-break:clone!important;box-decoration-break:clone!important}',
+        '}'
+      ].join('');
+      document.head.appendChild(st);
+    }catch(e){}
+  }
+
+  function isVisible(el){
+    try{
+      var r=el.getBoundingClientRect();
+      return !!(r && r.width>0 && r.height>0);
+    }catch(e){return false;}
+  }
+  function isNarrativeBox(el){
+    try{
+      if(!el || !el.getAttribute) return false;
+      var st=String(el.getAttribute('style')||'').toLowerCase().replace(/\s+/g,'');
+      var txt=String(el.textContent||'').replace(/\s+/g,' ').trim();
+      if(!txt || txt.length>2400) return false;
+      var box = el.classList.contains('qumc-print-safe-box') || el.classList.contains('qumc-print-keep-box') ||
+                el.classList.contains('qumc-print-text-keep') || el.classList.contains('qumc-print-small-avoid') ||
+                st.indexOf('border:1pxsolidrgba(1,149,175,.18)')>-1 ||
+                st.indexOf('border:1pxsolid#e2e8f0')>-1 || st.indexOf('border:1pxsolid#cbd5e1')>-1 ||
+                st.indexOf('border:1pxsolid#bfdbfe')>-1 || st.indexOf('background:rgba(1,149,175,.05)')>-1 ||
+                st.indexOf('background:#f0fbff')>-1 || st.indexOf('background:#f8fafc')>-1 || st.indexOf('background:#f0fdfa')>-1;
+      var narrative=/^(analysis|interpretation|key insights|executive summary|recommendation|conclusion|forward outlook|التحليل|التفسير|الملخص|التوصيات|الخلاصة)\b/i.test(txt) || /performance\s+(remained|was|is|achieved|below|above)/i.test(txt);
+      return !!(box && narrative);
+    }catch(e){return false;}
+  }
+
+  function tune(){
+    try{
+      inject();
+      var holder=document.getElementById('qumcPrintReportPage');
+      if(!holder) return;
+
+      /* A4 print clone is built in CSS pixels. This matches the rest of the report print wrapper. */
+      var pagePx=297*(96/25.4);
+      var holderTop=holder.getBoundingClientRect().top;
+      var topSafe=14*(96/25.4);      // breathing space under the page frame
+      var bottomSafe=24*(96/25.4);   // used to move short boxes before they split
+
+      var headings=Array.prototype.slice.call(holder.querySelectorAll('.qumc-print-section-title,.qumc-print-section-heading-wrap h2,.qumc-print-section-heading-wrap h3'));
+      headings.forEach(function(el){
+        try{
+          if(!isVisible(el)) return;
+          if(el.closest && el.closest('.qumc-report-header')) return;
+          var r=el.getBoundingClientRect();
+          var absTop=r.top-holderTop;
+          if(absTop<pagePx*0.35) return; // do not touch the first report header area
+          var pos=((absTop%pagePx)+pagePx)%pagePx;
+          if(pos<topSafe){
+            el.classList.add('qumc-print-v11-page-start-safe');
+            el.style.marginTop='9mm';
+          }
+        }catch(_e){}
+      });
+
+      var boxes=Array.prototype.slice.call(holder.querySelectorAll('div,section,article')).filter(isNarrativeBox);
+      boxes.forEach(function(el){
+        try{
+          if(!isVisible(el)) return;
+          var r=el.getBoundingClientRect();
+          var absTop=r.top-holderTop;
+          if(absTop<pagePx*0.35) return;
+          var pos=((absTop%pagePx)+pagePx)%pagePx;
+          var h=r.height||0;
+
+          el.classList.add('qumc-print-v11-inner-safe');
+          el.style.webkitBoxDecorationBreak='clone';
+          el.style.boxDecorationBreak='clone';
+
+          /* If the whole narrative box starts too close to the page frame, move it down. */
+          if(pos<topSafe){
+            el.classList.add('qumc-print-v11-box-page-start-safe');
+            el.style.marginTop='10mm';
+          }
+
+          /* If a short narrative box would be split and continue at the next page top,
+             start it on the next page with a safe top gap. This fixes the visible
+             overlap without changing text/chart/table scale. */
+          if(h>0 && h<pagePx*0.34 && (pos+h)>(pagePx-bottomSafe)){
+            el.classList.add('qumc-print-v11-force-next-page');
+            el.style.breakBefore='page';
+            el.style.pageBreakBefore='always';
+            el.style.marginTop='10mm';
+          }
+        }catch(_e){}
+      });
+    }catch(e){}
+  }
+
+  window.addEventListener('beforeprint',function(){
+    inject();
+    setTimeout(tune,30);
+    setTimeout(tune,140);
+    setTimeout(tune,300);
+  });
+  var oldPrint=window.print;
+  if(typeof oldPrint==='function' && !oldPrint.__qumcV11TopSafeWrapped){
+    var wrapped=function(){
+      inject();
+      var result=oldPrint.apply(this,arguments);
+      setTimeout(tune,40);
+      setTimeout(tune,140);
+      setTimeout(tune,240);
+      return result;
+    };
+    wrapped.__qumcV11TopSafeWrapped=true;
+    window.print=wrapped;
+  }
+  var tries=0;
+  var t=setInterval(function(){
+    tries++;
+    if(document.getElementById('qumcPrintReportPage')) tune();
+    if(tries>260) clearInterval(t);
+  },100);
+  setTimeout(inject,600);
+})();

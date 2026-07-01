@@ -71,7 +71,7 @@ var TR = {
   'needs_attention': { en: 'Needs Attention', ar: 'يحتاج انتباهاً' },
   'all_good': { en: 'All Good', ar: 'كل المؤشرات جيدة' },
   'all_depts_ok': { en: 'All Depts OK', ar: 'جميع الأقسام مستوفية' },
-  'kpis_on_target': { en: 'KPIs on target', ar: 'المؤشرات محققة للأهداف' },
+  'kpis_on_target': { en: 'KPIs on target', ar: 'المؤشرات المحقق للأهداف' },
   'met_label': { en: 'Met', ar: 'محقق الهدف' },
   'improved': { en: 'Improved', ar: 'تحسّن' },
   'declined': { en: 'Declined', ar: 'انخفض' },
@@ -145,6 +145,7 @@ function t(key) {
   } else {
     val = key;
   }
+  if (_lang==='ar' && typeof _qumcCleanArabicUiText==='function') val=_qumcCleanArabicUiText(val);
   if (window._saEditMode) {
     return '<span data-tkey="' + key + '" class="sa-ed" title="Edit: ' + key + '">' + val + '</span>';
   }
@@ -155,9 +156,11 @@ window.t = t;
 
 function tText(key) {
   if (typeof ST !== 'undefined' && ST.textEdits && ST.textEdits[key]) {
-    var _l=(typeof lang!=='undefined'?lang:'en'); return (ST.textEdits[key][_l]!==undefined && ST.textEdits[key][_l]!==null && ST.textEdits[key][_l]!=='' ) ? ST.textEdits[key][_l] : key;
+    var _l=(typeof lang!=='undefined'?lang:'en');
+    var _v0=(ST.textEdits[key][_l]!==undefined && ST.textEdits[key][_l]!==null && ST.textEdits[key][_l]!=='' ) ? ST.textEdits[key][_l] : key;
+    return (_l==='ar' && typeof _qumcCleanArabicUiText==='function') ? _qumcCleanArabicUiText(_v0) : _v0;
   }
-  if (TR[key]) { var _l2=(typeof lang!=='undefined'?lang:'en'); return (TR[key][_l2]!==undefined && TR[key][_l2]!==null && TR[key][_l2]!=='' ) ? TR[key][_l2] : key; }
+  if (TR[key]) { var _l2=(typeof lang!=='undefined'?lang:'en'); var _v=(TR[key][_l2]!==undefined && TR[key][_l2]!==null && TR[key][_l2]!=='' ) ? TR[key][_l2] : key; return (_l2==='ar' && typeof _qumcCleanArabicUiText==='function') ? _qumcCleanArabicUiText(_v) : _v; }
   return key;
 }
 window.tText = tText;
@@ -227,6 +230,58 @@ window.applyDOMTranslations = applyDOMTranslations;
 
 function applyTextEdits() { applyDOMTranslations(); }
 window.applyTextEdits = applyTextEdits;
+
+
+/* ─── Arabic UI text cleaner: prevents repeated Arabic labels after language sweeps ─── */
+function _qumcCleanArabicUiText(s){
+  if(s===null||s===undefined) return s;
+  var out=String(s);
+  if(!/[\u0600-\u06FF]/.test(out)) return out;
+
+  var onTarget='المؤشرات المحقق للأهداف';
+  out=out.replace(/(?:اسم\s+){1,4}المؤشرات\s+محقق(?:ة)?\s+الهدف(?:\s+الهدف)*\s*(?:الهدفة\s*)?للأهداف/g,onTarget);
+  out=out.replace(/المؤشرات\s+محقق(?:ة)?\s+الهدف(?:\s+الهدف)*\s*(?:الهدفة\s*)?للأهداف/g,onTarget);
+  out=out.replace(/المؤشرات\s+محققة?\s+للأهداف/g,onTarget);
+  out=out.replace(/(?:اسم\s+)+المؤشرات\s+المحقق\s+للأهداف/g,onTarget);
+
+  out=out.replace(/الملخص\s+التنفيذي\s*الملخص\s+التنفيذي/g,'الملخص التنفيذي');
+  out=out.replace(/الملخص التنفيذي(?:\s*الملخص التنفيذي)+/g,'الملخص التنفيذي');
+  out=out.replace(/✓\s*محقق\s+الهدف(?:\s+الهدف)+/g,'✓ محقق الهدف');
+  out=out.replace(/محقق\s+الهدف(?:\s+الهدف)+/g,'محقق الهدف');
+  out=out.replace(/لم\s+يحقق\s+الهدف(?:\s+الهدف)+/g,'لم يحقق الهدف');
+  out=out.replace(/الهدف(?:\s+الهدف)+/g,'الهدف');
+  out=out.replace(/(?:اسم\s+){2,}(?=المؤشر(?:ات)?)/g,'اسم ');
+  out=out.replace(/اسم\s+المؤشرات\s+المحقق\s+للأهداف/g,onTarget);
+  out=out.replace(/اسم\s+المؤشرات\s+مح?قق\s+للأهداف/g,onTarget);
+  out=out.replace(/اسم(?:\s+اسم)+\s+/g,'اسم ');
+
+  /* Collapse accidental 3+ repeated Arabic words only; leave normal pairs untouched. */
+  out=out.replace(/([\u0621-\u064A]{2,})(?:\s+\1){2,}/g,'$1');
+  return out;
+}
+window._qumcCleanArabicUiText=_qumcCleanArabicUiText;
+
+function _qumcCleanArabicUiTree(root){
+  try{
+    if(typeof lang!=='undefined' && lang!=='ar') return;
+    root=root||document.body; if(!root) return;
+    function skip(el){
+      if(!el) return true;
+      var tag=(el.tagName||'').toLowerCase();
+      if(['script','style','textarea','input','select','option','canvas','svg','path'].indexOf(tag)>=0) return true;
+      if(el.closest&&el.closest('.kpi-name,[data-kpi-name],[contenteditable="true"]')) return true;
+      return false;
+    }
+    var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:function(n){return skip(n.parentElement)?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;}});
+    var arr=[],n; while((n=walker.nextNode())) arr.push(n);
+    arr.forEach(function(node){
+      var before=node.nodeValue;
+      var after=_qumcCleanArabicUiText(before);
+      if(after!==before) node.nodeValue=after;
+    });
+  }catch(e){ console.warn('[ArabicClean] failed:', e&&e.message?e.message:e); }
+}
+window._qumcCleanArabicUiTree=_qumcCleanArabicUiTree;
 
 /* ── All critical exports are already set above ──
    The block below re-affirms them and is safe to reach or not. */
@@ -394,8 +449,9 @@ if (typeof resetFilters === 'function') window.resetFilters = resetFilters;
         if(k.length<4) return;
         out=out.replace(new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g'),MAP[k]);
       });
-      node.nodeValue=out;
+      node.nodeValue=(typeof _qumcCleanArabicUiText==='function')?_qumcCleanArabicUiText(out):out;
     });
+    if(typeof _qumcCleanArabicUiTree==='function') _qumcCleanArabicUiTree(root);
     document.documentElement.setAttribute('dir','rtl');
   }
   window.qumcApplyArabicUI=apply;
@@ -446,10 +502,28 @@ if (typeof resetFilters === 'function') window.resetFilters = resetFilters;
   };
   function escRe(s){return String(s).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
   window.qumcAr=function(s){
-    if(s==null)return s; var out=String(s);
-    if(AR_MAP[out.trim()]) return AR_MAP[out.trim()];
-    Object.keys(AR_MAP).sort(function(a,b){return b.length-a.length;}).forEach(function(k){ if(k.length>2) out=out.replace(new RegExp(escRe(k),'g'),AR_MAP[k]); });
-    return out;
+    if(s==null)return s;
+    var out=String(s);
+    var compact=out.trim();
+    var hasArabic=/[\u0600-\u06FF]/.test(out);
+    var hasLatin=/[A-Za-z]/.test(out);
+
+    /* If text is already Arabic, do not translate it again. Only clean accidental repetitions. */
+    if(hasArabic && !hasLatin){
+      return (typeof _qumcCleanArabicUiText==='function')?_qumcCleanArabicUiText(out):out;
+    }
+
+    if(AR_MAP[compact] && !/[\u0600-\u06FF]/.test(compact)){
+      var exact=AR_MAP[compact];
+      return (typeof _qumcCleanArabicUiText==='function')?_qumcCleanArabicUiText(exact):exact;
+    }
+
+    Object.keys(AR_MAP).sort(function(a,b){return b.length-a.length;}).forEach(function(k){
+      /* English-to-Arabic only. Arabic-to-Arabic substring replacement was causing repeated labels. */
+      if(k.length<=2 || /[\u0600-\u06FF]/.test(k)) return;
+      out=out.replace(new RegExp(escRe(k),'g'),AR_MAP[k]);
+    });
+    return (typeof _qumcCleanArabicUiText==='function')?_qumcCleanArabicUiText(out):out;
   };
   function skip(el){
     if(!el)return true; var tag=(el.tagName||'').toLowerCase();
@@ -466,6 +540,7 @@ if (typeof resetFilters === 'function') window.resetFilters = resetFilters;
     arr.forEach(function(node){ var before=node.nodeValue; var after=window.qumcAr(before); if(after!==before)node.nodeValue=after; });
     // Header action buttons and export menu, without touching English mode.
     document.querySelectorAll('button,.export-menu-item,.tab span,.ch,.ch-r').forEach(function(el){ if(skip(el))return; var before=el.textContent; var after=window.qumcAr(before); if(after!==before)el.textContent=after; });
+    if(typeof _qumcCleanArabicUiTree==='function') _qumcCleanArabicUiTree(root);
     var deptF=document.getElementById('deptF'); if(deptF){ Array.prototype.forEach.call(deptF.options,function(o){ if(o.value==='housekeeping')o.textContent='النظافة'; }); }
   }
   window.qumcApplyArabicUI=apply;
@@ -474,4 +549,23 @@ if (typeof resetFilters === 'function') window.resetFilters = resetFilters;
   var oldToggle=window.toggleLang;
   if(typeof oldToggle==='function')window.toggleLang=function(){ var r=oldToggle.apply(this,arguments); setTimeout(function(){apply(document.body);},80); setTimeout(function(){apply(document.body);},350); return r; };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){apply(document.body);},300);}); else setTimeout(function(){apply(document.body);},300);
+})();
+
+
+/* ==========================================================
+   QUMC Arabic Duplicate Guard — final safety net
+   Arabic mode only; does not alter English or KPI names.
+   ========================================================== */
+(function(){
+  if(window.__QUMC_AR_DUPLICATE_GUARD__) return;
+  window.__QUMC_AR_DUPLICATE_GUARD__=true;
+  function run(){try{ if(typeof _qumcCleanArabicUiTree==='function') _qumcCleanArabicUiTree(document.body); }catch(_){}}
+  var oldRender=window.renderCurrent;
+  if(typeof oldRender==='function' && !oldRender.__qumcArCleanWrapped){
+    var wrapped=function(){var r=oldRender.apply(this,arguments);setTimeout(run,50);setTimeout(run,250);return r;};
+    wrapped.__qumcArCleanWrapped=true;
+    window.renderCurrent=wrapped;
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',function(){setTimeout(run,250);});
+  else setTimeout(run,250);
 })();
