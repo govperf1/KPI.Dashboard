@@ -2220,7 +2220,7 @@ async function importSnapshot(){
     css.id='qumc-report-print-only-css';
     css.textContent = [
       '@media print{',
-      '@page{size:A4;margin:16mm 6mm 8mm 6mm!important}',
+      '@page{size:A4;margin:10mm 4mm 7mm 4mm!important}',
       'html,body{margin:0!important;padding:0!important;background:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}',
       'body.qumc-print-report-only{background:#fff!important;overflow:visible!important}',
       'body.qumc-print-report-only > :not(#qumcPrintReportPage){display:none!important}',
@@ -2376,12 +2376,12 @@ async function importSnapshot(){
     css.id='qumc-report-print-v4-css';
     css.textContent = [
       '@media print{',
-      '@page{size:A4;margin:16mm 6mm 8mm 6mm!important}',
+      '@page{size:A4;margin:10mm 4mm 7mm 4mm!important}',
       'html,body{margin:0!important;padding:0!important;background:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}',
       'body.qumc-print-report-only{background:#fff!important;overflow:visible!important}',
       'body.qumc-print-report-only > :not(#qumcPrintReportPage){display:none!important}',
       '#qumcPrintReportPage{display:block!important;position:static!important;width:auto!important;min-height:auto!important;box-sizing:border-box!important;background:#fff!important;padding:0!important;margin:0!important;color:#152538!important}',
-      '#qumcPrintReportPage:before{content:"";position:fixed!important;top:3mm!important;right:3mm!important;bottom:3mm!important;left:3mm!important;border:1px solid #94A3B8!important;border-radius:4mm!important;pointer-events:none!important;z-index:999999!important}',
+      '#qumcPrintReportPage:before{content:"";position:fixed!important;top:.8mm!important;right:.8mm!important;bottom:.8mm!important;left:.8mm!important;border:1.8px solid #152538!important;border-radius:2.4mm!important;pointer-events:none!important;z-index:999999!important}',
       '#qumcPrintReportPage .qumc-print-report-sheet{display:block!important;width:100%!important;max-width:none!important;margin:0!important;background:#fff!important;border:0!important;border-radius:0!important;box-shadow:none!important;overflow:visible!important;box-sizing:border-box!important}',
       '#qumcPrintReportPage #rptDocument,#qumcPrintReportPage #reportDoc{display:block!important;width:100%!important;max-width:none!important;margin:0!important;background:#fff!important;border:0!important;border-radius:0!important;box-shadow:none!important;overflow:visible!important}',
       '#qumcPrintReportPage .rpt-topbar,#qumcPrintReportPage .rpt-edit-btn,#qumcPrintReportPage button,#qumcPrintReportPage select,#qumcPrintReportPage input{display:none!important}',
@@ -2406,6 +2406,7 @@ async function importSnapshot(){
       '#qumcPrintReportPage .qumc-print-chart-block,#qumcPrintReportPage .qumc-print-table-block{break-inside:avoid!important;page-break-inside:avoid!important}',
       '#qumcPrintReportPage .qumc-print-small-avoid{break-inside:avoid!important;page-break-inside:avoid!important;margin-bottom:2mm!important}',
       '#qumcPrintReportPage .qumc-print-section-title{margin-top:7mm!important;margin-bottom:3mm!important}',
+      '#qumcPrintReportPage .qumc-print-page-spacer{display:block!important;height:6mm!important;break-after:avoid!important;page-break-after:avoid!important}',
       '#qumcPrintReportPage [style*="height:260px"],#qumcPrintReportPage [style*="height:220px"],#qumcPrintReportPage [style*="height:210px"],#qumcPrintReportPage [style*="height:200px"],#qumcPrintReportPage [style*="height:176px"]{height:auto!important;min-height:0!important}',
       '#qumcPrintReportPage [style*="min-height:260px"],#qumcPrintReportPage [style*="min-height:240px"],#qumcPrintReportPage [style*="min-height:220px"],#qumcPrintReportPage [style*="min-height:200px"]{min-height:0!important}',
       '#qumcPrintReportPage [style*="background:#152538"],#qumcPrintReportPage [style*="background: #152538"],#qumcPrintReportPage [style*="background:#0B1C33"],#qumcPrintReportPage [style*="background:var(--top)"]{background:#0B1C33!important}',
@@ -2625,7 +2626,7 @@ async function importSnapshot(){
     css.id='qumc-report-print-v5-css';
     css.textContent=[
       '@media print{',
-      '@page{size:A4;margin:16mm 6mm 8mm 6mm!important}',
+      '@page{size:A4;margin:10mm 4mm 7mm 4mm!important}',
       'html,body{margin:0!important;padding:0!important;background:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}',
       'body.qumc-print-report-only{background:#fff!important;overflow:visible!important}',
       'body.qumc-print-report-only > :not(#qumcPrintReportPage){display:none!important}',
@@ -2920,7 +2921,7 @@ async function importSnapshot(){
     css.id='qumc-report-print-v6-css';
     css.textContent=[
       '@media print{',
-      '@page{size:A4;margin:16mm 6mm 8mm 6mm!important}',
+      '@page{size:A4;margin:10mm 4mm 7mm 4mm!important}',
       'html,body{margin:0!important;padding:0!important;background:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}',
       'body.qumc-print-report-only{background:#fff!important;overflow:visible!important}',
       'body.qumc-print-report-only > :not(#qumcPrintReportPage){display:none!important}',
@@ -3211,7 +3212,7 @@ async function importSnapshot(){
       if(old)old.remove();
       var st=document.createElement('style');
       st.id='qumc-report-print-v8-page-start-space';
-      st.textContent='@media print{@page{size:A4;margin:16mm 6mm 8mm 6mm!important}#qumcPrintReportPage:before{top:4mm!important;right:4mm!important;bottom:4mm!important;left:4mm!important}#qumcPrintReportPage .qumc-print-report-sheet,#qumcPrintReportPage #rptDocument,#qumcPrintReportPage #reportDoc{padding-top:2mm!important}#qumcPrintReportPage .qumc-print-section-title{scroll-margin-top:6mm!important}}';
+      st.textContent='@media print{@page{size:A4;margin:10mm 4mm 7mm 4mm!important}#qumcPrintReportPage:before{top:4mm!important;right:4mm!important;bottom:4mm!important;left:4mm!important}#qumcPrintReportPage .qumc-print-report-sheet,#qumcPrintReportPage #rptDocument,#qumcPrintReportPage #reportDoc{padding-top:2mm!important}#qumcPrintReportPage .qumc-print-section-title{scroll-margin-top:6mm!important}}';
       document.head.appendChild(st);
     }catch(e){}
   }
@@ -3223,4 +3224,34 @@ async function importSnapshot(){
     window.print=wrapped;
   }
   setTimeout(inject,500);
+})();
+
+/* ==========================================================
+   QUMC Report Print V9 — final border + page-start spacing
+   - Keeps current report text/table/chart sizing exactly as-is.
+   - Moves only the page frame close to the physical paper edge and makes it wider.
+   - Keeps a small page-start breathing space through @page margins.
+   ========================================================== */
+(function(){
+  'use strict';
+  if(window.__QUMC_REPORT_PRINT_V9_FINAL_FRAME__) return;
+  window.__QUMC_REPORT_PRINT_V9_FINAL_FRAME__=true;
+  function inject(){
+    try{
+      var old=document.getElementById('qumc-report-print-v9-final-frame');
+      if(old)old.remove();
+      var st=document.createElement('style');
+      st.id='qumc-report-print-v9-final-frame';
+      st.textContent='@media print{@page{size:A4;margin:10mm 4mm 7mm 4mm!important}#qumcPrintReportPage:before{top:.8mm!important;right:.8mm!important;bottom:.8mm!important;left:.8mm!important;border:1.8px solid #152538!important;border-radius:2.4mm!important}#qumcPrintReportPage .qumc-print-report-sheet,#qumcPrintReportPage #rptDocument,#qumcPrintReportPage #reportDoc{padding-top:2mm!important}}';
+      document.head.appendChild(st);
+    }catch(e){}
+  }
+  window.addEventListener('beforeprint',function(){setTimeout(inject,0);setTimeout(inject,80);setTimeout(inject,220);});
+  var oldPrint=window.print;
+  if(typeof oldPrint==='function'&&!oldPrint.__qumcV9FinalFrameWrapped){
+    var wrapped=function(){setTimeout(inject,10);setTimeout(inject,120);return oldPrint.apply(this,arguments);};
+    wrapped.__qumcV9FinalFrameWrapped=true;
+    window.print=wrapped;
+  }
+  setTimeout(inject,600);
 })();

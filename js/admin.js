@@ -4111,3 +4111,48 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',patchLabels,{once:true});else patchLabels();
   setTimeout(patchLabels,150);setTimeout(patchLabels,700);
 })();
+
+
+/* ==========================================================
+   QUMC PRE-LAUNCH CLEANUP V2 — one-time test data cleaning
+   - Clears current User Requests (Firestore kpi_requests + local fallback).
+   - Clears current Gap Approval requests.
+   - Marks currently-open Gap Analysis items as pre-launch baseline so the blue
+     Gap Analysis Open card starts clean; new future items will still appear.
+   - Runs once only for Super Admin/Admin and persists a flag so it will not
+     delete future operational data.
+   ========================================================== */
+(function(){
+  'use strict';
+  if(window.__QUMC_PRELAUNCH_CLEANUP_V2__) return;
+  window.__QUMC_PRELAUNCH_CLEANUP_V2__=true;
+  function role(){return String(window._fbRole||window.currentUserRole||'').toLowerCase().trim().replace(/[\s-]+/g,'_');}
+  function save(reason){try{if(typeof window.persistST==='function')return window.persistST(reason||'PRE_LAUNCH_CLEANUP_V2');if(typeof persistST==='function')return persistST(reason||'PRE_LAUNCH_CLEANUP_V2');if(typeof sLS==='function')sLS(ST);}catch(e){}return Promise.resolve();}
+  function refresh(){try{if(typeof window.renderCurrent==='function')window.renderCurrent();}catch(e){}try{if(typeof window._qumcApplyExecIntelligenceRootFix==='function')window._qumcApplyExecIntelligenceRootFix();}catch(e){}}
+  function run(){
+    try{
+      if(!window.ST)window.ST={};
+      if(ST._preLaunchCleanupV2Done===true)return;
+      var r=role();
+      if(r!=='super_admin'&&r!=='admin')return;
+      ST.gapApprovals=[];
+      ST.requests=[];
+      var clearedGapOpen=0;
+      try{if(typeof window._qumcMarkCurrentGapOpenClearedForLaunch==='function')clearedGapOpen=window._qumcMarkCurrentGapOpenClearedForLaunch()||0;}catch(e){}
+      ST._launchCleanupGapApprovalsRequestsV1=true;
+      ST._preLaunchCleanupV2Done=true;
+      save('PRE_LAUNCH_CLEANUP_V2').then(function(){
+        refresh();
+        try{if(typeof window.addAudit==='function')window.addAudit('PRE_LAUNCH_CLEANUP_V2','Cleared pre-launch test data: user requests, gap approvals, and '+clearedGapOpen+' open gap baseline item(s).');}catch(e){}
+      });
+      if(typeof window._kpiRequestsClearAllForLaunch==='function'){
+        window._kpiRequestsClearAllForLaunch().then(function(n){
+          try{if(typeof window.addAudit==='function')window.addAudit('PRE_LAUNCH_USER_REQUESTS_CLEANUP_V2','Cleared '+n+' pre-launch User Requests from Firestore.');}catch(e){}
+        }).catch(function(e){console.warn('[Pre-launch requests cleanup V2]',e&&e.message||e);});
+      }
+    }catch(e){console.warn('[Pre-launch cleanup V2]',e&&e.message||e);}
+  }
+  setTimeout(run,1200);
+  setTimeout(run,3200);
+  setTimeout(run,6500);
+})();
