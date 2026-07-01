@@ -3194,3 +3194,33 @@ async function importSnapshot(){
   }
   var tries=0;setInterval(function(){tries++;if(document.getElementById('qumcPrintReportPage'))tune();if(tries>200)tries=0;},120);
 })();
+
+
+/* ==========================================================
+   QUMC Report Print V8 — page-start breathing space only
+   - Adds a small top margin at the beginning of every printed page.
+   - Does not change font sizes, table sizes, or report component scale.
+   ========================================================== */
+(function(){
+  'use strict';
+  if(window.__QUMC_REPORT_PRINT_V8_PAGE_START_SPACE__) return;
+  window.__QUMC_REPORT_PRINT_V8_PAGE_START_SPACE__ = true;
+  function inject(){
+    try{
+      var old=document.getElementById('qumc-report-print-v8-page-start-space');
+      if(old)old.remove();
+      var st=document.createElement('style');
+      st.id='qumc-report-print-v8-page-start-space';
+      st.textContent='@media print{@page{size:A4;margin:12mm 6mm 8mm 6mm!important}#qumcPrintReportPage:before{top:4mm!important;right:4mm!important;bottom:4mm!important;left:4mm!important}#qumcPrintReportPage .qumc-print-report-sheet,#qumcPrintReportPage #rptDocument,#qumcPrintReportPage #reportDoc{padding-top:0!important}#qumcPrintReportPage .qumc-print-section-title{scroll-margin-top:6mm!important}}';
+      document.head.appendChild(st);
+    }catch(e){}
+  }
+  window.addEventListener('beforeprint',function(){setTimeout(inject,0);setTimeout(inject,80);setTimeout(inject,200);});
+  var oldPrint=window.print;
+  if(typeof oldPrint==='function'&&!oldPrint.__qumcV8PageStartWrapped){
+    var wrapped=function(){setTimeout(inject,20);setTimeout(inject,160);return oldPrint.apply(this,arguments);};
+    wrapped.__qumcV8PageStartWrapped=true;
+    window.print=wrapped;
+  }
+  setTimeout(inject,500);
+})();

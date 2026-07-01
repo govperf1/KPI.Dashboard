@@ -4106,3 +4106,68 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   setTimeout(patchLabels,150);
   setInterval(patchLabels,220);
 })();
+
+
+/* ==========================================================
+   QUMC GAP APPROVAL V8 — final unified label for all roles
+   - KPI Owner, Department Manager, and Super Admin all see the same label.
+   - Final label: Gap Analysis Status.
+   ========================================================== */
+(function(){
+  'use strict';
+  if(window.__QUMC_GAP_APPROVAL_V8_ALL_ROLES_LABEL__) return;
+  window.__QUMC_GAP_APPROVAL_V8_ALL_ROLES_LABEL__ = true;
+  function $(id){return document.getElementById(id);}
+  function isAr(){return (typeof window.lang!=='undefined'&&window.lang==='ar')||document.documentElement.dir==='rtl'||document.documentElement.lang==='ar';}
+  function label(){return isAr()?'حالة تحليل الفجوات':'Gap Analysis Status';}
+  function setText(el){
+    if(!el)return;
+    el.textContent=label();
+    el.setAttribute('data-en','Gap Analysis Status');
+    el.setAttribute('data-ar','حالة تحليل الفجوات');
+  }
+  function patchLabels(){
+    try{
+      var btns=[].slice.call(document.querySelectorAll('#profileGapApprovalsBtn'));
+      btns.slice(1).forEach(function(b){try{b.remove();}catch(_){}});
+      if(btns[0]){
+        btns[0].textContent='✅ '+label();
+        btns[0].setAttribute('aria-label',label());
+        btns[0].title=label();
+        btns[0].setAttribute('data-en','Gap Analysis Status');
+        btns[0].setAttribute('data-ar','حالة تحليل الفجوات');
+      }
+    }catch(_e){}
+    try{
+      var pop=$('_kpoStatusOv');
+      var t=pop&&(pop.querySelector('.mhd-t')||pop.querySelector('[data-en="Gap Approval"]')||pop.querySelector('[data-en="Gap Analysis Status"]'));
+      setText(t);
+    }catch(_e){}
+    try{
+      var ap=$('_gapApprovalsOv');
+      if(ap){
+        var titles=[].slice.call(ap.querySelectorAll('div'));
+        titles.some(function(h){
+          var tx=(h.textContent||'').replace(/\s+/g,' ').trim();
+          if(tx==='Gap Approval'||tx==='Gap Approvals Status'||tx==='Gap Analysis Approvals Status'||tx==='Gap Analysis Approval Inbox'||tx==='Gap Approval Inbox'||tx==='موافقة الفجوة'||tx==='موافقات تحليل الفجوات'||tx==='حالة موافقات الفجوات'||tx==='صندوق موافقات تحليل الفجوات'){
+            setText(h);
+            return true;
+          }
+          return false;
+        });
+      }
+    }catch(_e){}
+  }
+  function wrap(name){
+    var fn=window[name];
+    if(typeof fn!=='function'||fn.__qumcGapV8LabelWrapped)return;
+    var w=function(){var r=fn.apply(this,arguments);setTimeout(patchLabels,0);setTimeout(patchLabels,90);setTimeout(patchLabels,250);return r;};
+    w.__qumcGapV8LabelWrapped=true;
+    window[name]=w;
+  }
+  wrap('showKpoGapStatusPopup');
+  wrap('_showGapApprovals');
+  document.addEventListener('click',function(){setTimeout(patchLabels,40);setTimeout(patchLabels,180);},true);
+  setTimeout(patchLabels,80);
+  setInterval(patchLabels,300);
+})();
