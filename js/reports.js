@@ -3242,7 +3242,7 @@ async function importSnapshot(){
       if(old)old.remove();
       var st=document.createElement('style');
       st.id='qumc-report-print-v9-final-frame';
-      st.textContent='@media print{@page{size:A4;margin:10mm 4mm 7mm 4mm!important}#qumcPrintReportPage:before{top:.8mm!important;right:.8mm!important;bottom:.8mm!important;left:.8mm!important;border:1.8px solid #152538!important;border-radius:2.4mm!important}#qumcPrintReportPage .qumc-print-report-sheet,#qumcPrintReportPage #rptDocument,#qumcPrintReportPage #reportDoc{padding-top:2mm!important}}';
+      st.textContent='@media print{@page{size:A4;margin:10mm 4mm 7mm 4mm!important}#qumcPrintReportPage:before{top:0!important;right:0!important;bottom:0!important;left:0!important;border:2.6px solid #152538!important;border-radius:1.2mm!important}#qumcPrintReportPage .qumc-print-report-sheet,#qumcPrintReportPage #rptDocument,#qumcPrintReportPage #reportDoc{padding-top:2mm!important}}';
       document.head.appendChild(st);
     }catch(e){}
   }

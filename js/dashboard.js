@@ -2215,16 +2215,21 @@ function drilldept(d){
     });
     return out;
   }
-  function missingGapRowsRaw(){return aggregateMissingByKpi(missingGapQuarterRowsRaw());}
+  function missingGapRowsRaw(){return missingGapQuarterRowsRaw();}
   function missingGapRows(){
     var cleared=clearedGapOpenMap();
-    var visibleQuarterRows=missingGapQuarterRowsRaw().filter(function(r){return !cleared[r.key];});
-    return aggregateMissingByKpi(visibleQuarterRows);
+    return missingGapQuarterRowsRaw().filter(function(r){return !cleared[r.key];});
   }
+  function missingGapKpiRows(){return aggregateMissingByKpi(missingGapRows());}
+  function missingGapKpiRowsRaw(){return aggregateMissingByKpi(missingGapQuarterRowsRaw());}
+  /* Root rule: Gap Analysis Open is counted by missing KPI-quarter, not by KPI.
+     It depends on department scope only; year / quarter / status filters do not affect it. */
   window._qumcGapOpenRows=function(){return missingGapRows();};
   window._qumcGapOpenRowsRaw=function(){return missingGapRowsRaw();};
-  window._qumcGapOpenQuarterRows=function(){var cleared=clearedGapOpenMap();return missingGapQuarterRowsRaw().filter(function(r){return !cleared[r.key];});};
+  window._qumcGapOpenQuarterRows=missingGapRows;
   window._qumcGapOpenQuarterRowsRaw=missingGapQuarterRowsRaw;
+  window._qumcGapOpenKpiRows=missingGapKpiRows;
+  window._qumcGapOpenKpiRowsRaw=missingGapKpiRowsRaw;
   window._qumcMarkCurrentGapOpenClearedForLaunch=function(){
     if(!window.ST)window.ST={};
     var keys=missingGapQuarterRowsRaw().map(function(r){return r.key;});
@@ -2238,11 +2243,11 @@ function drilldept(d){
   window._showMissingGapKpisDrilldown=function(){
     var a=isAr(), rows=missingGapRows();
     modal('_missingGapDrilldown',
-      a?'تحليل الفجوات غير المكتمل':'Gap Analysis Open — Missing KPIs',
-      a?'يعرض فقط المؤشرات التي لديها نتائج غير محققة وتحتاج إدخال بيانات Gap Analysis، ويعتمد على فلتر القسم فقط.':'Shows only KPIs with missed results that still need Gap Analysis data; department filter only.',
+      a?'تحليل الفجوات المفتوحة حسب الربع':'Gap Analysis Open — Missing Quarters',
+      a?'يعرض كل ربع غير محقق لم يتم إدخال بيانات Gap Analysis له، ويعتمد على فلتر القسم فقط.':'Shows each missed KPI quarter that still has no Gap Analysis data; department filter only.',
       rows.length?rows.map(function(r){
-        var qchips=(r.quarters||[]).map(function(x){return '<button onclick="document.getElementById(\'_missingGapDrilldown\')&&document.getElementById(\'_missingGapDrilldown\').remove();window.openGapQuarter&&window.openGapQuarter(\''+esc(code(r.k))+'\',\''+esc(x.q)+'\')" style="border:1px solid rgba(217,119,6,.26);background:#fff7ed;color:#92400e;border-radius:999px;padding:4px 9px;font-size:10px;font-weight:900;cursor:pointer">'+esc(qName(x.q))+' · '+esc(x.value)+'%</button>';}).join('');
-        return '<div style="border:1px solid rgba(217,119,6,.20);background:rgba(255,251,235,.78);border-radius:16px;padding:12px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><b style="font-size:12px;color:#78350f">'+esc(code(r.k))+' — '+esc(kName(r.k))+'</b><span style="font-family:var(--mono);font-weight:900;color:#92400e;white-space:nowrap">'+esc((r.qs||[]).map(qName).join(', '))+'</span></div><div style="font-size:10px;color:#475569;margin-top:7px;display:flex;gap:12px;flex-wrap:wrap"><span>'+esc(r.dept||'')+'</span><span>'+esc(a?'السنة':'Year')+': <b>'+esc(r.year||'—')+'</b></span><span>'+esc(a?'الهدف':'Target')+': <b>'+esc(r.target)+'%</b></span></div><div style="margin-top:10px;display:flex;gap:7px;flex-wrap:wrap">'+qchips+'</div></div>';
+        var openCall='document.getElementById(\'_missingGapDrilldown\')&&document.getElementById(\'_missingGapDrilldown\').remove();window.openGapQuarter&&window.openGapQuarter(\''+esc(code(r.k))+'\',\''+esc(r.q)+'\')';
+        return '<div style="border:1px solid rgba(217,119,6,.20);background:rgba(255,251,235,.78);border-radius:16px;padding:12px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div><b style="font-size:12px;color:#78350f">'+esc(code(r.k))+' — '+esc(kName(r.k))+'</b><div style="font-size:10px;color:#64748b;margin-top:4px">'+esc(r.dept||'')+' · '+esc(a?'السنة':'Year')+': <b>'+esc(r.year||'—')+'</b> · '+esc(a?'الربع':'Quarter')+': <b>'+esc(qName(r.q))+'</b></div></div><span style="font-family:var(--mono);font-weight:900;color:#92400e;white-space:nowrap">'+esc(qName(r.q))+'</span></div><div style="font-size:10px;color:#475569;margin-top:8px;display:flex;gap:12px;flex-wrap:wrap"><span>'+esc(a?'النتيجة':'Result')+': <b>'+esc(r.value)+'%</b></span><span>'+esc(a?'الهدف':'Target')+': <b>'+esc(r.target)+'%</b></span></div><button onclick="'+openCall+'" style="margin-top:10px;border:1px solid rgba(217,119,6,.26);background:#fff7ed;color:#92400e;border-radius:999px;padding:5px 12px;font-size:10px;font-weight:900;cursor:pointer">'+(a?'إدخال بيانات الفجوة':'Enter Gap Data')+'</button></div>';
       }).join(''):'<div style="padding:18px;border-radius:16px;background:rgba(22,163,74,.10);color:#166534;font-weight:800;text-align:center">'+(a?'كل بيانات تحليل الفجوات مكتملة ضمن القسم المحدد.':'All Gap Analysis data is complete within the selected department.')+'</div>'
     );
   };
@@ -2256,7 +2261,7 @@ function drilldept(d){
       var a=atRiskRows(), m=missingGapRows(), c=criticalRows();
       var ar=$('eis_atrisk');if(ar){var av=String(a.length);if(ar.textContent!==av)ar.textContent=av;ar.style.cursor='pointer';ar.title=isAr()?'اضغط لعرض المؤشرات المتوقع عدم تحقيقها فقط':'Click to view KPIs forecasted to miss target';ar.onclick=window._showAtRiskKpisDrilldown;}
       var ae=$('eis_actions');if(ae){var mv=String(m.length);if(ae.textContent!==mv)ae.textContent=mv;ae.style.cursor='pointer';ae.onclick=window._showMissingGapKpisDrilldown;ae.style.color=m.length?'#D97706':'#15803D';ae.title=isAr()?'يعتمد على فلتر القسم فقط':'Depends on department filter only';}
-      var ab=$('eis_actions_badge');if(ab){var bt=m.length===0?(isAr()?'مكتمل':'All documented'):(m.length===1?('1 '+(isAr()?'معلق':'pending')):(m.length+' '+(isAr()?'معلقة':'pending')));if(ab.textContent!==bt)ab.textContent=bt;ab.style.color=m.length?'#D97706':'#15803D';ab.style.background=m.length?'rgba(217,119,6,.18)':'rgba(22,163,74,.14)';}
+      var ab=$('eis_actions_badge');if(ab){var bt=m.length===0?(isAr()?'مكتمل':'All documented'):(m.length===1?('1 '+(isAr()?'ربع مفتوح':'open quarter')):(m.length+' '+(isAr()?'أرباع مفتوحة':'open quarters')));if(ab.textContent!==bt)ab.textContent=bt;ab.style.color=m.length?'#D97706':'#15803D';ab.style.background=m.length?'rgba(217,119,6,.18)':'rgba(22,163,74,.14)';}
       var ce=$('eis_crit');if(ce){ce.textContent=c.length;ce.style.cursor='pointer';ce.onclick=window._showCriticalEscalationKpis;}
     }catch(e){console.warn('[QUMC exec intelligence root fix]',e);}finally{_applyBusy=false;}
   }
