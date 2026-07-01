@@ -1574,7 +1574,7 @@ function renderReport(){
         </table>
       </div>
       <div style="margin-bottom:22px">
-        <div style="background:rgba(1,149,175,.05);border:1px solid rgba(1,149,175,.18);border-radius:9px;padding:12px 15px;margin-bottom:6px">
+        <div style="background:rgba(1,149,175,.05);border:1px solid rgba(1,149,175,.18);border-radius:9px;padding:12px 15px;margin-bottom:6px;break-inside:avoid;page-break-inside:avoid;-webkit-box-decoration-break:clone;box-decoration-break:clone">
         <p style="font-size:11px;font-weight:700;color:#152538;margin:0 0 6px">Analysis:</p>
         ${EP(qBullets||'No quarterly data available for the selected period.')}
       </div>
@@ -3259,5 +3259,113 @@ async function importSnapshot(){
     wrapped.__qumcV9FinalFrameWrapped=true;
     window.print=wrapped;
   }
+  setTimeout(inject,600);
+})();
+
+/* ==========================================================
+   QUMC Report Print V10 — protect text from page-frame / box-border overlap
+   - Keeps the current dark page frame at the physical paper edge.
+   - Does not resize fonts, tables, or charts.
+   - Fixes boxes that continue at a new printed page by cloning their
+     border/padding and forcing a safe top inset for narrative boxes.
+   ========================================================== */
+(function(){
+  'use strict';
+  if(window.__QUMC_REPORT_PRINT_V10_SAFE_INSET__) return;
+  window.__QUMC_REPORT_PRINT_V10_SAFE_INSET__=true;
+
+  function inject(){
+    try{
+      var old=document.getElementById('qumc-report-print-v10-safe-inset');
+      if(old) old.remove();
+      var st=document.createElement('style');
+      st.id='qumc-report-print-v10-safe-inset';
+      st.textContent=[
+        '@media print{',
+        /* Keep the approved frame position/thickness exactly at the page edge. */
+        '@page{size:A4;margin:10mm 4mm 7mm 4mm!important}',
+        '#qumcPrintReportPage:before{top:0!important;right:0!important;bottom:0!important;left:0!important;border:2.6px solid #152538!important;border-radius:1.2mm!important}',
+        /* Safety inset for the report body only. No font/table/chart resizing. */
+        '#qumcPrintReportPage{padding:15mm 10mm 12mm!important}',
+        '#qumcPrintReportPage .qumc-print-report-sheet,#qumcPrintReportPage #rptDocument,#qumcPrintReportPage #reportDoc{padding-top:2mm!important}',
+        '#qumcPrintReportPage .qumc-print-body{padding-left:.5mm!important;padding-right:.5mm!important}',
+        /* When a bordered narrative box is fragmented by Chrome, repeat its padding/border on the new page. */
+        '#qumcPrintReportPage .qumc-print-safe-box,#qumcPrintReportPage .qumc-print-keep-box,#qumcPrintReportPage .qumc-print-analysis-keep,#qumcPrintReportPage .qumc-print-text-keep,#qumcPrintReportPage .qumc-print-small-avoid{-webkit-box-decoration-break:clone!important;box-decoration-break:clone!important;break-inside:avoid-page!important;page-break-inside:avoid!important;overflow:visible!important}',
+        /* Extra inner breathing room only for narrative/status boxes, to stop text touching the box line after page breaks. */
+        '#qumcPrintReportPage .qumc-print-safe-box{padding-top:4.5mm!important}',
+        '#qumcPrintReportPage .qumc-print-safe-box p:first-child,#qumcPrintReportPage .qumc-print-safe-box .rpt-ep:first-child p{margin-top:0!important}',
+        '#qumcPrintReportPage .qumc-print-safe-box .rpt-ep p{line-height:1.55!important}',
+        '}'
+      ].join('');
+      document.head.appendChild(st);
+    }catch(e){}
+  }
+
+  function looksLikeNarrativeBox(el){
+    try{
+      if(!el || !el.getAttribute) return false;
+      var style=String(el.getAttribute('style')||'').toLowerCase().replace(/\s+/g,'');
+      var txt=String(el.textContent||'').replace(/\s+/g,' ').trim();
+      if(!txt || txt.length>2200) return false;
+      var box = style.indexOf('border:1pxsolidrgba(1,149,175,.18)')>-1 ||
+                style.indexOf('border:1pxsolid#e2e8f0')>-1 ||
+                style.indexOf('border:1pxsolid#cbd5e1')>-1 ||
+                style.indexOf('border:1pxsolid#bfdbfe')>-1 ||
+                style.indexOf('background:rgba(1,149,175,.05)')>-1 ||
+                style.indexOf('background:#f0fbff')>-1 ||
+                style.indexOf('background:#f8fafc')>-1 ||
+                style.indexOf('background:#f0fdfa')>-1;
+      var narrative=/^(analysis|interpretation|key insights|executive summary|recommendation|conclusion|forward outlook|التحليل|التفسير|الملخص|التوصيات|الخلاصة)\b/i.test(txt) || /performance\s+(remained|was|is|achieved|below|above)/i.test(txt);
+      return !!(box && narrative);
+    }catch(e){return false;}
+  }
+
+  function markSafeBoxes(){
+    try{
+      inject();
+      var holder=document.getElementById('qumcPrintReportPage');
+      if(!holder) return;
+      var nodes=Array.prototype.slice.call(holder.querySelectorAll('div,section,article'));
+      nodes.forEach(function(el){
+        try{
+          if(looksLikeNarrativeBox(el)){
+            el.classList.add('qumc-print-safe-box','qumc-print-keep-box','qumc-print-text-keep');
+            el.style.breakInside='avoid-page';
+            el.style.pageBreakInside='avoid';
+            el.style.webkitBoxDecorationBreak='clone';
+            el.style.boxDecorationBreak='clone';
+            /* Keep text away from the top border if Chrome creates a new page fragment. */
+            var pt=parseFloat((el.style.paddingTop||'').replace('px',''));
+            if(!pt || pt<14) el.style.paddingTop='17px';
+          }
+        }catch(_e){}
+      });
+    }catch(e){}
+  }
+
+  window.addEventListener('beforeprint',function(){
+    inject();
+    setTimeout(markSafeBoxes,20);
+    setTimeout(markSafeBoxes,120);
+    setTimeout(markSafeBoxes,260);
+  });
+  var oldPrint=window.print;
+  if(typeof oldPrint==='function' && !oldPrint.__qumcV10SafeInsetWrapped){
+    var wrapped=function(){
+      inject();
+      setTimeout(markSafeBoxes,30);
+      setTimeout(markSafeBoxes,160);
+      setTimeout(markSafeBoxes,320);
+      return oldPrint.apply(this,arguments);
+    };
+    wrapped.__qumcV10SafeInsetWrapped=true;
+    window.print=wrapped;
+  }
+  var tries=0;
+  var t=setInterval(function(){
+    tries++;
+    if(document.getElementById('qumcPrintReportPage')) markSafeBoxes();
+    if(tries>240) clearInterval(t);
+  },100);
   setTimeout(inject,600);
 })();
