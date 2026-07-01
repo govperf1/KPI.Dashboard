@@ -6,7 +6,7 @@
 /* ─── Central Translation Table ─── */
 var TR = {
   'governance_risk_managementbr_compliance': { en: 'Governance · Risk Management<br>& Compliance', ar: 'الحوكمة · إدارة المخاطر<br>والالتزام' },
-  'facilities_safety_division_governance_performance': { en: 'Facilities & Safety Division — Governance & Performance', ar: 'إدارة المرافق والسلامة — الحوكمة والأداء' },
+  'facilities_safety_division_governance_performance': { en: 'Facility Management & Safety — Governance & Performance', ar: 'إدارة المرافق والسلامة — الحوكمة والأداء' },
   'year': { en: 'Year', ar: 'السنة' },
   'quarters': { en: 'Quarters', ar: 'الأرباع' },
   'all': { en: 'All', ar: 'الكل' },
@@ -24,7 +24,7 @@ var TR = {
   'kpi_register': { en: 'KPI Register', ar: 'سجل المؤشرات' },
   'accountability': { en: 'Accountability', ar: 'المساءلة والمتابعة' },
   'kpi_performance_command_center': { en: 'KPI Performance Command Center', ar: 'مركز قيادة مؤشرات الأداء' },
-  'governance_performance_dept_facilities_safety_divi': { en: 'Governance & Performance Dept — Facilities & Safety Division', ar: 'قسم الحوكمة والأداء — إدارة المرافق والسلامة' },
+  'governance_performance_dept_facilities_safety_divi': { en: 'Governance & Performance Dept — Facility Management & Safety', ar: 'قسم الحوكمة والأداء — إدارة المرافق والسلامة' },
   'enter_data_via_admin_panel_edit_kpi': { en: 'Enter data via Admin Panel → Edit KPI', ar: 'أدخل البيانات من لوحة المسؤول ← تعديل مؤشر' },
   'delete_kpi': { en: 'Delete KPI', ar: 'حذف المؤشر' },
   'gap_analysis': { en: 'Gap Analysis', ar: 'تحليل الفجوة' },
@@ -81,7 +81,7 @@ var TR = {
   'likely_to_meet_target': { en: 'Likely to meet target', ar: 'متوقع تحقيق الهدف' },
   'moderate_risk': { en: 'Moderate risk', ar: 'خطر متوسط' },
   'at_risk_label': { en: 'At risk', ar: 'في خطر' },
-  'q1_vs_prior_year': { en: 'Q1 vs prior year Q1', ar: 'الربع الأول مقارنةً بالسابق' },
+  'q1_vs_prior_year': { en: 'Q1 vs prior year Q1', ar: 'مقارنة Q1 السنة الحالية بالسنة الماضية' },
   'detailed_kpi_performance_cards': { en: 'DETAILED KPI PERFORMANCE CARDS', ar: 'بطاقات أداء المؤشرات التفصيلية' },
   'executive_intelligence': { en: 'Executive Intelligence', ar: 'الملخص التنفيذي' },
   'dept_performance': { en: 'Department Performance', ar: 'أداء الأقسام' },
@@ -239,6 +239,11 @@ function _qumcCleanArabicUiText(s){
   if(!/[\u0600-\u06FF]/.test(out)) return out;
 
   var onTarget='المؤشرات المحقق للأهداف';
+  out=out.replace(/(?:اسم\s+){2,}المؤشر/g,'اسم المؤشر');
+  out=out.replace(/(?:اسم\s+){2,}اسم\s+المؤشر/g,'اسم المؤشر');
+  out=out.replace(/اسم(?:\s+اسم)+\s+المؤشر/g,'اسم المؤشر');
+  out=out.replace(/المقارنة\s+بالسنة\s+الماضية\s*(Q[1-4])/g,'مقارنة $1 السنة الحالية بالسنة الماضية');
+  out=out.replace(/المقارنة\s+بالسنة\s+الماضية\s*(الربع\s+(?:الأول|الثاني|الثالث|الرابع))/g,'مقارنة $1 السنة الحالية بالسنة الماضية');
   out=out.replace(/(?:اسم\s+){1,4}المؤشرات\s+محقق(?:ة)?\s+الهدف(?:\s+الهدف)*\s*(?:الهدفة\s*)?للأهداف/g,onTarget);
   out=out.replace(/المؤشرات\s+محقق(?:ة)?\s+الهدف(?:\s+الهدف)*\s*(?:الهدفة\s*)?للأهداف/g,onTarget);
   out=out.replace(/المؤشرات\s+محققة?\s+للأهداف/g,onTarget);
@@ -418,7 +423,7 @@ if (typeof resetFilters === 'function') window.resetFilters = resetFilters;
     'Dept':'القسم','Department':'القسم','Status':'الحالة','All':'الكل','Met':'محقق الهدف','Missed':'لم يحقق الهدف','Pending':'قيد المتابعة','Reset':'إعادة الضبط','↺ Reset':'↺ إعادة الضبط',
     'Total':'الإجمالي','KPI Indicators':'مؤشرات الأداء','View all →':'عرض الكل ←','evaluated':'تم تقييمها','Target achieved':'محقق الهدف','Need attention':'بحاجة إلى متابعة','Critical':'حرج','Tier 1 escalations':'تصعيدات المستوى الأول',
     'Current Performance':'الأداء الحالي','Forecast YE':'التوقع السنوي','Selected period average':'متوسط الفترة المحددة','Expected year-end':'التوقع لنهاية السنة','Department Forecasts':'توقعات الأقسام','Overall Executive Forecast':'التوقع التنفيذي العام',
-    'KPI':'المؤشر','KPI Name':'اسم المؤشر','Code':'الرمز','Target':'الهدف','Result':'النتيجة','Achievement':'نسبة أداء القسم','Avg':'المتوسط','Average':'المتوسط','YoY':'المقارنة بالسنة الماضية','Risk':'تصنيف الخطر','Risk Tier':'تصنيف الخطر','Trend':'الاتجاه','Last Result':'آخر نتيجة','Owner':'المسؤول','KPI Owner':'مسؤول المؤشر',
+    'KPI':'المؤشر','KPI Name':'اسم المؤشر','اسم اسم اسم اسم اسم اسم المؤشر':'اسم المؤشر','Code':'الرمز','Target':'الهدف','Result':'النتيجة','Achievement':'نسبة أداء القسم','Avg':'المتوسط','Average':'المتوسط','YoY':'المقارنة بالسنة الماضية','Risk':'تصنيف الخطر','Risk Tier':'تصنيف الخطر','Trend':'الاتجاه','Last Result':'آخر نتيجة','Owner':'المسؤول','KPI Owner':'مسؤول المؤشر',
     'Target:':'الهدف:','Result:':'النتيجة:','Performance':'الأداء','Filters':'الفلاتر','Overview':'نظرة عامة','Executive Intelligence':'الملخص التنفيذي','Department Performance':'أداء الأقسام','Detailed KPI Performance Cards':'بطاقات أداء المؤشرات التفصيلية','DETAILED KPI PERFORMANCE CARDS':'بطاقات أداء المؤشرات التفصيلية',
     'Repeat Misses':'الإخفاقات المتكررة','Last Updated':'آخر تحديث','Top Risk':'أعلى خطر','Recommended Action':'الإجراء الموصى به','Critical Escalations':'المؤشرات التي تحتاج إلى تصعيد','Gap Analysis Open':'تحليل فجوات مفتوح','At-Risk KPIs':'مؤشرات قد تتعرض لخطر عدم تحقيق الهدف','Priority Department':'القسم ذو الأولوية','Biggest Gap':'أكبر فجوة (اسم المؤشر)',
     'ON TRACK':'في المسار','CRITICAL ATTENTION REQUIRED':'يتطلب انتباهاً عاجلاً','ATTENTION REQUIRED':'مطلوب الانتباه','NEEDS IMPROVEMENT':'يحتاج تحسيناً','All documented':'موثق بالكامل','Insufficient data':'بيانات غير كافية',
@@ -479,7 +484,7 @@ if (typeof resetFilters === 'function') window.resetFilters = resetFilters;
     'Executive Intelligence Summary':'الملخص التنفيذي','التحليل التنفيذيالملخص':'الملخص التنفيذي',
     'Missed KPIs without gap analysis':'مؤشرات لم تحقق الهدف بدون تحليل فجوات','مؤشرات غير محقق بدون تحليل فجوات':'مؤشرات لم تحقق الهدف بدون تحليل فجوات',
     '» View Gap Analysis':'استعراض تحليل الفجوات','View Gap Analysis':'استعراض تحليل الفجوات',
-    'KPI':'اسم المؤشر','المؤشر':'اسم المؤشر',
+    'KPI':'اسم المؤشر','المؤشر':'اسم المؤشر','اسم اسم اسم اسم اسم اسم المؤشر':'اسم المؤشر',
     'KPIs at risk of missing target':'مؤشرات قد تتعرض لخطر عدم تحقيق الهدف','At-Risk KPIs (Next Qtr)':'مؤشرات معرضة للخطر الربع القادم',
     'المقارنة السنوية':'المقارنة بالسنة الماضية','Critical Escalations':'المؤشرات التي تحتاج إلى تصعيد','تصعيدات حرجة':'المؤشرات التي تحتاج إلى تصعيد',
     'بلاغ مشكلة':'إبلاغ عن مشكلة',
@@ -490,7 +495,7 @@ if (typeof resetFilters === 'function') window.resetFilters = resetFilters;
     'Total':'الإجمالي','TOTAL':'الإجمالي','KPI Indicators':'مؤشرات الأداء','KPIs':'مؤشرات','View all →':'عرض الكل ←','evaluated':'تم تقييمها','evaluated 22':'تم تقييمها 22',
     'Current Performance':'الأداء الحالي','Forecast YE':'التوقع السنوي','Selected period average':'متوسط الفترة المحددة','Expected year-end':'التوقع لنهاية السنة','Department Forecasts':'توقعات الأقسام','Overall Executive Forecast':'التوقع التنفيذي العام',
     'Annual avg vs prior year':'المتوسط السنوي مقارنة بالسنة السابقة','Annual Average vs Prior Year':'المتوسط السنوي مقارنة بالسنة السابقة','Below target':'أقل من الهدف','Success rate':'معدل النجاح','Gap rate':'معدل الفجوة',
-    'KPI':'المؤشر','KPI Name':'اسم المؤشر','Code':'الرمز','Target':'الهدف','Result':'النتيجة','Achievement':'نسبة أداء القسم','Avg':'المتوسط','Average':'المتوسط','YoY':'المقارنة بالسنة الماضية','Risk':'تصنيف الخطر','Risk Tier':'تصنيف الخطر','Trend':'الاتجاه','Last Result':'آخر نتيجة','Owner':'المسؤول','KPI Owner':'مسؤول المؤشر',
+    'KPI':'المؤشر','KPI Name':'اسم المؤشر','اسم اسم اسم اسم اسم اسم المؤشر':'اسم المؤشر','Code':'الرمز','Target':'الهدف','Result':'النتيجة','Achievement':'نسبة أداء القسم','Avg':'المتوسط','Average':'المتوسط','YoY':'المقارنة بالسنة الماضية','Risk':'تصنيف الخطر','Risk Tier':'تصنيف الخطر','Trend':'الاتجاه','Last Result':'آخر نتيجة','Owner':'المسؤول','KPI Owner':'مسؤول المؤشر',
     'KPI Achievement vs Target':'تحقيق المؤشرات مقابل الهدف','KPI ACHIEVEMENT VS TARGET':'تحقيق المؤشرات مقابل الهدف','KPI Trends':'اتجاهات المؤشرات','KPI TRENDS':'اتجاهات المؤشرات','KPI Trend Analysis':'تحليل اتجاه المؤشرات','Quarterly Achievement':'الإنجاز الربعي','Quarterly Trend by Department':'الاتجاه الربعي حسب القسم','Risk Tiers':'تصنيف المخاطر',
     'Detailed KPI Performance Cards':'بطاقات أداء المؤشرات التفصيلية','DETAILED KPI PERFORMANCE CARDS':'بطاقات أداء المؤشرات التفصيلية','Summary':'الملخص التنفيذي','Critical Risks':'المخاطر الحرجة','Recommendations':'التوصيات','Last Updated':'آخر تحديث',
     'Target achieved':'محقق الهدف','Need attention':'بحاجة إلى متابعة','Critical':'حرج','Tier 1 escalations':'تصعيدات المستوى الأول','At-Risk KPIs':'مؤشرات قد تتعرض لخطر عدم تحقيق الهدف','Priority Department':'القسم ذو الأولوية','Biggest Gap':'أكبر فجوة (اسم المؤشر)','Repeat Misses':'الإخفاقات المتكررة',
