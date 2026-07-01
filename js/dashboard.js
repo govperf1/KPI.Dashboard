@@ -2217,8 +2217,10 @@ function drilldept(d){
   }
   function missingGapRowsRaw(){return missingGapQuarterRowsRaw();}
   function missingGapRows(){
-    var cleared=clearedGapOpenMap();
-    return missingGapQuarterRowsRaw().filter(function(r){return !cleared[r.key];});
+    /* Root rule: the blue Gap Analysis Open card must mirror every quarter that shows
+       ⚠ Needs data. Do not hide rows through any pre-launch cleanup map; cleanup is for
+       stored test requests only, not for real missing KPI-quarter gap data. */
+    return missingGapQuarterRowsRaw();
   }
   function missingGapKpiRows(){return aggregateMissingByKpi(missingGapRows());}
   function missingGapKpiRowsRaw(){return aggregateMissingByKpi(missingGapQuarterRowsRaw());}
