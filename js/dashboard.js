@@ -101,14 +101,33 @@ function renderExec(){
   const ks=filt();
   const evaluated=ks.filter(k=>ok(k)!==null);
   const total=evaluated.length,nOk=evaluated.filter(k=>ok(k)===true).length,miss=evaluated.filter(k=>ok(k)===false).length;
-  /* YoY Q1: compare Q1'26 vs actual Q1'25 (matched by nameEn+dept) */
-  const k26y=allK().filter(k=>k.yr===2026&&k.q1!==null);
+  /* Dynamic YoY: use the latest quarter with actual data in the latest year,
+     then compare that same quarter with the prior year (matched by KPI name + dept). */
+  const _yoyAll=allK();
+  const _yoyQuarters=['q1','q2','q3','q4'];
+  const _yoyHasValue=(k,q)=>k&&k[q]!==null&&k[q]!==undefined&&k[q]!==''&&Number.isFinite(Number(k[q]));
+  const _yoyYears=_yoyAll
+    .filter(k=>_yoyQuarters.some(q=>_yoyHasValue(k,q)))
+    .map(k=>Number(k.yr))
+    .filter(Number.isFinite);
+  const yoyCurrentYear=_yoyYears.length?Math.max(..._yoyYears):null;
+  const yoyQuarter=yoyCurrentYear===null?null:[..._yoyQuarters].reverse().find(q=>
+    _yoyAll.some(k=>Number(k.yr)===yoyCurrentYear&&_yoyHasValue(k,q))
+  )||null;
+  const yoyQuarterLabel=yoyQuarter?yoyQuarter.toUpperCase():'—';
   let yoyDelta=null;
-  if(k26y.length){
-    const diffs=k26y.map(k=>{
-      const k25=allK().find(x=>x.yr===2025&&x.dept===k.dept&&x.nameEn===k.nameEn);
-      return k25&&k25.q1!==null?k.q1-k25.q1:null;
-    }).filter(v=>v!==null);
+  if(yoyCurrentYear!==null&&yoyQuarter){
+    const _normYoyName=v=>String(v||'').trim().toLowerCase().replace(/\s+/g,' ');
+    const currentKpis=_yoyAll.filter(k=>Number(k.yr)===yoyCurrentYear&&_yoyHasValue(k,yoyQuarter));
+    const diffs=currentKpis.map(k=>{
+      const prior=_yoyAll.find(x=>
+        Number(x.yr)===yoyCurrentYear-1&&
+        String(x.dept||'')===String(k.dept||'')&&
+        _normYoyName(x.nameEn||x.nameAr)===_normYoyName(k.nameEn||k.nameAr)&&
+        _yoyHasValue(x,yoyQuarter)
+      );
+      return prior?Number(k[yoyQuarter])-Number(prior[yoyQuarter]):null;
+    }).filter(Number.isFinite);
     if(diffs.length)yoyDelta=(diffs.reduce((a,b)=>a+b,0)/diffs.length).toFixed(1);
   }
   /* Annual YoY: avg of ALL available 2026 quarters vs 2025 full-year avg
@@ -213,17 +232,17 @@ function renderExec(){
       </div>
     </div>
 
-    <!-- YoY Q1 -->
+    <!-- Dynamic YoY by latest entered quarter -->
     <div class="card" style="padding:20px 20px 16px;border-radius:16px;display:flex;flex-direction:column;gap:0;position:relative;overflow:hidden">
       <div style="position:absolute;top:-32px;right:-32px;width:115px;height:115px;border-radius:50%;background:rgba(59,130,246,.07)"></div>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
         <div style="width:38px;height:38px;border-radius:10px;background:#EFF6FF;display:flex;align-items:center;justify-content:center">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
         </div>
-        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">YoY Q1</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">YoY ${yoyQuarterLabel}</span>
       </div>
       <div style="font-size:36px;font-weight:900;color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'};font-family:var(--mono);line-height:1;margin-bottom:4px">${yoyDelta===null?'—':(parseFloat(yoyDelta)>0?'▲ ':'▼ ')+Math.abs(parseFloat(yoyDelta||0))+'%'}</div>
-      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">Q1 vs prior year Q1</div>
+      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">${yoyQuarterLabel} vs prior year ${yoyQuarterLabel}</div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #F0F4F8">
         <span style="font-size:8.5px;font-weight:700;padding:2px 10px;border-radius:12px;background:${yoyDelta===null?'#F1F5F9':parseFloat(yoyDelta)>=0?'#DCFCE7':'#FEE2E2'};color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}">${yoyDelta===null?t('no_data'):parseFloat(yoyDelta)>=0?t('improved'):t('declined')}</span>
         <svg width="44" height="22" viewBox="0 0 44 22" fill="none"><polyline points="2,16 12,9 22,12 32,6 42,9" stroke="${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
@@ -1838,7 +1857,7 @@ async function fetchAI(){
   }).join('\n');
   const prompt=lang==='ar'
     ?`أنت محلل مؤشرات أداء متخصص في مستشفيات الكبرى. البيانات لإدارة المرافق والسلامة في المدينة الطبية بجامعة القصيم:\n\nالإجمالي: ${ks.length} مؤشر | محقق: ${nOk} | غير محقق: ${miss} | معدل الإنجاز: ${rate}%\n\nالمؤشرات غير المحققة:\n${missStr||'لا توجد'}\n\nالأداء حسب القسم:\n${deptStr}\n\nاكتب تقريراً تنفيذياً موجزاً مكوناً من 3 فقرات قصيرة باللغة العربية الرسمية:\n1. تقييم الأداء العام بالأرقام الفعلية\n2. تحديد المخاطر الحرجة (ركز على مؤشرات T1 والإخفاق المتكرر)\n3. التوصية التشغيلية الأكثر أولوية\n\nلا تستخدم عبارات عامة. استخدم أسماء المؤشرات والأرقام الفعلية.`
-    :`You are a hospital KPI analyst, Facility Management & Safety Division, Qassim University Medical City.\n\nData: ${ks.length} KPIs | Achieved: ${nOk} | Missed: ${miss} | Rate: ${rate}%\n\nMissed KPIs:\n${missStr||'None'}\n\nDepartment breakdown:\n${deptStr}\n\nWrite a concise executive briefing in exactly 3 short paragraphs:\n1. Overall performance verdict with specific numbers\n2. Critical risk identification — name Tier 1 KPIs and repeat misses specifically\n3. Single highest-priority operational recommendation\n\nNo generic statements. Use actual KPI IDs and numbers.`;
+    :`You are a hospital KPI analyst, Facilities & Safety Division, Qassim University Medical City.\n\nData: ${ks.length} KPIs | Achieved: ${nOk} | Missed: ${miss} | Rate: ${rate}%\n\nMissed KPIs:\n${missStr||'None'}\n\nDepartment breakdown:\n${deptStr}\n\nWrite a concise executive briefing in exactly 3 short paragraphs:\n1. Overall performance verdict with specific numbers\n2. Critical risk identification — name Tier 1 KPIs and repeat misses specifically\n3. Single highest-priority operational recommendation\n\nNo generic statements. Use actual KPI IDs and numbers.`;
   try{
     const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:prompt}]})});
     const d=await r.json();const t=d.content?.[0]?.text||'';
