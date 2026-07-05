@@ -1,0 +1,14 @@
+// OPTIONAL FUTURE RULES — do not replace your current Firestore rules with this file.
+// Merge only when real GRC Firestore collections are added.
+// Assumption: users documents use the authenticated email as the document ID
+// and the role value is stored as: super_admin
+
+function isGrcSuperAdmin() {
+  return request.auth != null
+    && request.auth.token.email != null
+    && get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == 'super_admin';
+}
+
+match /grc/{document=**} {
+  allow read, write: if isGrcSuperAdmin();
+}
