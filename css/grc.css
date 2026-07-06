@@ -392,3 +392,78 @@ body.grc-coming-open{overflow:hidden!important}
 .grc-org-branch.housekeeping .grc-org-node.branch{border-bottom:4px solid #34D399}
 .grc-org-branch.projects .grc-org-node.branch{border-bottom:4px solid #FBBF24}
 @media(max-width:760px){#_grcComingSoon .grc-coming-card{min-height:330px!important;padding:31px 22px 26px!important}#grcApp .grc-footer-left>span{display:none}#grcApp .grc-registers-board{padding:12px;border-radius:14px}#grcApp .grc-domain-section{padding:11px}}
+
+/* ===== GRC refinement v9: risk status, HK/Laundry split, dynamic risk charts ===== */
+#grcApp .grc-risk-summary-grid{margin-bottom:14px}
+#grcApp .grc-risk-level-grid{margin-top:0}
+#grcApp .grc-housekeeping-risk-split{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:16px;
+  align-items:start;
+  margin:2px 0 18px;
+}
+#grcApp .grc-risk-subgroup{
+  min-width:0;
+  border:1px solid #DCE6EE;
+  border-radius:17px;
+  background:linear-gradient(180deg,#FFFFFF,#FBFDFE);
+  box-shadow:0 5px 16px rgba(15,23,42,.045);
+  overflow:hidden;
+}
+#grcApp .grc-risk-subgroup.housekeeping-subgroup{border-top:5px solid #34D399}
+#grcApp .grc-risk-subgroup.laundry-subgroup{border-top:5px solid #2FBF9F}
+#grcApp .grc-risk-subgroup>.grc-domain-section{
+  margin:0;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  padding:16px;
+}
+#grcApp .grc-risk-subgroup .grc-section-title{font-size:14px}
+#grcApp .grc-risk-subgroup .grc-metric-grid,
+#grcApp .grc-risk-subgroup .grc-metric-grid.cols-4{
+  grid-template-columns:repeat(2,minmax(120px,1fr));
+}
+#grcApp .grc-risk-subgroup .grc-chart-card{min-height:170px}
+#grcApp .grc-table-subgroup td{
+  background:linear-gradient(90deg,#F1FBF7,#FAFDFC)!important;
+  color:#145C4B!important;
+  font-size:8.9px!important;
+  font-weight:900!important;
+  padding:8px 18px 8px 27px!important;
+  border-top:1px solid #D9EEE6!important;
+  border-bottom:1px solid #D9EEE6!important;
+}
+#grcApp[dir="rtl"] .grc-table-subgroup td{padding:8px 27px 8px 18px!important}
+#grcApp .grc-table-subgroup td span:last-child{
+  margin-inline-start:8px;
+  color:#5C8F80;
+  font-family:Consolas,"Courier New",monospace;
+  font-size:8px;
+}
+#grcApp .grc-table-group-parent td{background:linear-gradient(90deg,#E8F8F1,#F8FCFA)!important}
+#grcApp .grc-risk-open-row td{
+  background:#FFF5F5!important;
+  border-bottom-color:#F4D5D8!important;
+}
+#grcApp .grc-risk-open-row td:first-child{box-shadow:inset 4px 0 0 #C42B2B}
+#grcApp[dir="rtl"] .grc-risk-open-row td:first-child{box-shadow:none}
+#grcApp[dir="rtl"] .grc-risk-open-row td:last-child{box-shadow:inset -4px 0 0 #C42B2B}
+#grcApp .grc-risk-open-row:hover td{background:#FDEBEC!important}
+#grcApp .grc-org-second-single{
+  display:flex!important;
+  width:auto!important;
+  min-width:260px;
+  justify-content:center;
+}
+#grcApp .grc-org-second-single:before{left:50%!important}
+@media(max-width:1180px){
+  #grcApp .grc-housekeeping-risk-split{grid-template-columns:1fr}
+  #grcApp .grc-risk-subgroup .grc-metric-grid,
+  #grcApp .grc-risk-subgroup .grc-metric-grid.cols-4{grid-template-columns:repeat(4,minmax(125px,1fr))}
+}
+@media(max-width:760px){
+  #grcApp .grc-risk-subgroup .grc-metric-grid,
+  #grcApp .grc-risk-subgroup .grc-metric-grid.cols-4{grid-template-columns:repeat(2,minmax(120px,1fr))}
+}
