@@ -16,7 +16,7 @@
   'use strict';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var STATE_VERSION=3;
+  var STATE_VERSION=4;
   var activeTab='executive';
   var app=null;
 
@@ -29,17 +29,17 @@
       riskTitle:'Risk Management',riskDesc:'Department-level oversight of risks, incidents and emergency codes with dedicated operational registers.',
       manualsTitle:'FMS Manuals & Guidelines',manualsDesc:'A controlled register for Facilities & Safety manuals, guidelines and approved operating references.',
       governanceOverview:'Governance Overview',riskOverview:'Risk, Incident & Code Overview',departmentView:'Department Sections',departmentSectionsDesc:'Each FMS department is displayed in a dedicated section, aligned with the Performance department view.',divisionOverview:'FMS Division Overview',allDepartments:'All FMS Departments',departmentRecords:'Department Records',
-      governanceStatusChart:'Governance Records Status',governanceVolumeChart:'Records by Governance Area',riskDistributionChart:'Risk Level Distribution',incidentTrendChart:'Incident Trend by Year',codeOutcomeChart:'Emergency Code Outcomes',dueThisYear:'Due This Year',other:'Other',attention:'Needs Attention',
+      executiveSnapshot:'Executive Portfolio Snapshot',executiveSnapshotDesc:'Live consolidated indicators across Governance and Risk Management.',governanceRecords:'Governance Records',governanceStatusChart:'Governance Records Status',governanceVolumeChart:'Records by Governance Area',riskDistributionChart:'Risk Level Distribution',incidentTrendChart:'Incident Trend by Year',codeOutcomeChart:'Emergency Code Outcomes',dueThisYear:'Due This Year',other:'Other',attention:'Needs Attention',
       policies:'Policies',plans:'Plans',emergencyPlans:'Emergency Plans',forms:'Forms',
-      totalPolicies:'Total Policies',openPolicies:'Active Policies',expiredPolicies:'Expired Policies',expiringThisYear:'Expiring This Year',expiredPolicyRate:'Percentage of Expired Policies',
+      totalPolicies:'Total Policies',openPolicies:'Active Policies',expiredPolicies:'Expired Policies',expiringThisYear:'Expiring This Year',expiredPolicyRate:'Expired Policies Rate',
       totalPlans:'Total Plans',activePlans:'Active Plans',expiredPlans:'Expired Plans',totalEmergencyPlans:'Total Emergency Plans',activeEmergencyPlans:'Active Emergency Plans',expiredEmergencyPlans:'Expired Emergency Plans',
       totalForms:'Total Forms',activeForms:'Active Forms',expiredForms:'Expired Forms',
       policyRegister:'Policy Register',planRegister:'Plan Register',emergencyPlanRegister:'Emergency Plan Register',formRegister:'Approved Forms Register',manualRegister:'Manuals & Guidelines Register',
       totalManuals:'Total Manuals',activeManuals:'Active Manuals',expiredManuals:'Expired Manuals',manualsDue:'Due for Review This Year',
       orgStructure:'Organizational Structure',orgStructureDesc:'FMS reporting lines, departments and process ownership.',raci:'RACI Matrix',raciDesc:'Responsibility, accountability, consultation and information mapping.',annualPlan:'Annual Operational Plan',annualPlanDesc:'Annual priorities, initiatives, owners and milestones.',
-      totalRisks:'Total Risks',openRisks:'Open Risks',closedRisks:'Closed Risks',closedRiskRate:'Percentage of Closed Risks',criticalRisks:'Critical Risks',highRisks:'High Risks',mediumRisks:'Medium Risks',lowRisks:'Low Risks',highCriticalRate:'Percentage of High & Critical Risks',
-      incidents:'Incidents',totalIncidents:'Total Incidents',openIncidents:'Open Incidents',closedIncidents:'Closed Incidents',closedIncidentRate:'Percentage of Closed Incidents',incidentsByYear:'Incidents by Year',
-      codes:'Emergency Codes',totalCodes:'Total Codes',realCodes:'Real Codes',successfulDrills:'Successful Drill Codes',failedDrills:'Failed Drill Codes',successVsFailed:'Successful vs Failed',
+      totalRisks:'Total Risks',openRisks:'Open Risks',closedRisks:'Closed Risks',closedRiskRate:'Closed Risks Rate',criticalRisks:'Critical Risks',highRisks:'High Risks',mediumRisks:'Medium Risks',lowRisks:'Low Risks',highCriticalRate:'High & Critical Risks Rate',
+      incidents:'Incidents',totalIncidents:'Total Incidents',openIncidents:'Open Incidents',closedIncidents:'Closed Incidents',closedIncidentRate:'Closed Incidents Rate',incidentsByYear:'Incidents by Year',
+      codes:'Emergency Codes',totalCodes:'Total Codes',realCodes:'Real Code',drillCodes:'Drill Code',successfulCodes:'Successful Code',failedCodes:'Failed Code',failedCodeRate:'Failed Codes Rate',successfulDrills:'Successful Code',failedDrills:'Failed Code',successVsFailed:'Successful vs Failed',
       riskRegister:'Risk Register',incidentRegister:'Incident Register',codeRegister:'Emergency Code Register',
       addPolicy:'Add Policy',addPlan:'Add Plan',addEmergencyPlan:'Add Emergency Plan',addForm:'Add Form',addManual:'Add Manual / Guideline',addRisk:'Add Risk',addIncident:'Add Incident',addCode:'Add Code',
       id:'ID',name:'Name',code:'Code',issueDate:'Issue Date',policyId:'Policy ID',policyName:'Policy Name',planId:'Plan ID',planName:'Plan Name',emergencyPlanId:'Plan ID',emergencyPlanName:'Emergency Plan',formId:'Form ID',formName:'Form Name',manualId:'Manual ID',manualName:'Manual / Guideline',
@@ -54,10 +54,10 @@
       maintenance:'Maintenance',safety:'Safety',housekeeping:'Housekeeping',projects:'Project Management',governanceDept:'Governance & Performance',allFms:'All FMS',
       noRecords:'No records added yet',noRecordsSub:'Use the Add button to start the preview register.',localNote:'Preview records are saved on this device only.',draftWorkspace:'Draft workspace',
       recordDetails:'Record Details',close:'Close',delete:'Delete',confirmDelete:'Delete this preview record?',cancel:'Cancel',save:'Save Record',required:'Please complete all required fields.',
-      percentage:'Percentage',records:'Records',clickToView:'Click to view records',year:'Year',count:'Count',noMatching:'No matching records.',
+      percentage:'Rate',records:'Records',clickToView:'Click to view records',year:'Year',count:'Count',noMatching:'No matching records.',
       complianceTitle:'Compliance',complianceDesc:'Regulatory requirements, evidence and corrective actions.',auditTitle:'Audit & Assurance',auditDesc:'Audit findings, recommendations and closure evidence.',actionsTitle:'Action Plans',actionsDesc:'Actions arising from risks, incidents, compliance gaps and reviews.',documentsTitle:'Documents & Records',documentsDesc:'Supporting controlled documents and historical records.',reportsTitle:'Reports & Archive',reportsDesc:'Quarterly, annual and executive reporting areas.',
       comingTitle:'GRC Module',comingSub:'The Governance, Risk & Compliance workspace is currently under development and is available to the Super Admin preview only.',comingSoon:'Coming Soon',
-      authority:'Authority / Standard',requirement:'Requirement',severity:'Severity',source:'Source',progress:'Progress %',title:'Title / Description',dueDate:'Due Date',
+      authority:'Authority / Standard',requirement:'Requirement',severity:'Severity',source:'Source',progress:'Progress Rate %',title:'Title / Description',dueDate:'Due Date',
       addRequirement:'Add Requirement',addFinding:'Add Finding',addAction:'Add Action',addDocument:'Add Document',compliant:'Compliant',partial:'Partially Compliant',nonCompliant:'Non-Compliant',notApplicable:'Not Applicable',major:'Major',minor:'Minor',observation:'Observation',pendingVerification:'Pending Verification',pendingApproval:'Pending Approval'
     },
     ar:{
@@ -68,17 +68,17 @@
       riskTitle:'إدارة المخاطر',riskDesc:'متابعة المخاطر والحوادث وأكواد الطوارئ لكل قسم مع سجلات تشغيلية مستقلة.',
       manualsTitle:'أدلة وإرشادات إدارة المرافق والسلامة',manualsDesc:'سجل منضبط لأدلة وإرشادات إدارة المرافق والسلامة والمراجع التشغيلية المعتمدة.',
       governanceOverview:'نظرة الحوكمة',riskOverview:'نظرة المخاطر والحوادث والأكواد',departmentView:'أقسام الإدارة',departmentSectionsDesc:'يظهر كل قسم من أقسام إدارة المرافق والسلامة في قسم مستقل وبنفس فكرة عرض الأقسام في الأداء.',divisionOverview:'نظرة شاملة لإدارة المرافق والسلامة',allDepartments:'جميع أقسام إدارة المرافق والسلامة',departmentRecords:'سجلات القسم',
-      governanceStatusChart:'حالة سجلات الحوكمة',governanceVolumeChart:'السجلات حسب مجال الحوكمة',riskDistributionChart:'توزيع مستويات المخاطر',incidentTrendChart:'اتجاه الحوادث حسب السنة',codeOutcomeChart:'نتائج أكواد الطوارئ',dueThisYear:'تستحق خلال السنة',other:'أخرى',attention:'بحاجة للمتابعة',
+      executiveSnapshot:'ملخص المحفظة التنفيذية',executiveSnapshotDesc:'مؤشرات موحدة ومحدثة للحوكمة وإدارة المخاطر.',governanceRecords:'سجلات الحوكمة',governanceStatusChart:'حالة سجلات الحوكمة',governanceVolumeChart:'السجلات حسب مجال الحوكمة',riskDistributionChart:'توزيع مستويات المخاطر',incidentTrendChart:'اتجاه الحوادث حسب السنة',codeOutcomeChart:'نتائج أكواد الطوارئ',dueThisYear:'تستحق خلال السنة',other:'أخرى',attention:'بحاجة للمتابعة',
       policies:'السياسات',plans:'الخطط',emergencyPlans:'خطط الطوارئ',forms:'النماذج',
-      totalPolicies:'عدد السياسات',openPolicies:'السياسات السارية',expiredPolicies:'السياسات المنتهية',expiringThisYear:'ستنتهي خلال السنة الحالية',expiredPolicyRate:'نسبة السياسات المنتهية',
+      totalPolicies:'عدد السياسات',openPolicies:'السياسات السارية',expiredPolicies:'السياسات المنتهية',expiringThisYear:'ستنتهي خلال السنة الحالية',expiredPolicyRate:'معدل السياسات المنتهية',
       totalPlans:'عدد الخطط',activePlans:'الخطط السارية',expiredPlans:'الخطط المنتهية',totalEmergencyPlans:'عدد خطط الطوارئ',activeEmergencyPlans:'خطط الطوارئ السارية',expiredEmergencyPlans:'خطط الطوارئ المنتهية',
       totalForms:'عدد النماذج',activeForms:'النماذج السارية',expiredForms:'النماذج المنتهية',
       policyRegister:'سجل السياسات',planRegister:'سجل الخطط',emergencyPlanRegister:'سجل خطط الطوارئ',formRegister:'سجل النماذج المعتمدة',manualRegister:'سجل الأدلة والإرشادات',
       totalManuals:'عدد الأدلة',activeManuals:'الأدلة السارية',expiredManuals:'الأدلة المنتهية',manualsDue:'مستحقة للمراجعة هذا العام',
       orgStructure:'الهيكل التنظيمي',orgStructureDesc:'خطوط الإشراف والأقسام وملاك العمليات في إدارة المرافق والسلامة.',raci:'مصفوفة RACI',raciDesc:'توزيع المسؤولية والمساءلة والاستشارة والإحاطة.',annualPlan:'الخطة التشغيلية السنوية',annualPlanDesc:'الأولويات والمبادرات والملاك والمراحل السنوية.',
-      totalRisks:'عدد المخاطر',openRisks:'المخاطر المفتوحة',closedRisks:'المخاطر المغلقة',closedRiskRate:'نسبة المخاطر المغلقة',criticalRisks:'المخاطر الحرجة',highRisks:'المخاطر العالية',mediumRisks:'المخاطر المتوسطة',lowRisks:'المخاطر المنخفضة',highCriticalRate:'نسبة المخاطر العالية والحرجة',
-      incidents:'الحوادث',totalIncidents:'عدد الحوادث',openIncidents:'الحوادث المفتوحة',closedIncidents:'الحوادث المغلقة',closedIncidentRate:'نسبة الحوادث المغلقة',incidentsByYear:'الحوادث حسب السنة',
-      codes:'أكواد الطوارئ',totalCodes:'عدد الأكواد',realCodes:'عدد الأكواد الفعلية',successfulDrills:'أكواد التدريب الناجحة',failedDrills:'أكواد التدريب غير الناجحة',successVsFailed:'الناجحة مقابل غير الناجحة',
+      totalRisks:'عدد المخاطر',openRisks:'المخاطر المفتوحة',closedRisks:'المخاطر المغلقة',closedRiskRate:'معدل المخاطر المغلقة',criticalRisks:'المخاطر الحرجة',highRisks:'المخاطر العالية',mediumRisks:'المخاطر المتوسطة',lowRisks:'المخاطر المنخفضة',highCriticalRate:'معدل المخاطر العالية والحرجة',
+      incidents:'الحوادث',totalIncidents:'عدد الحوادث',openIncidents:'الحوادث المفتوحة',closedIncidents:'الحوادث المغلقة',closedIncidentRate:'معدل الحوادث المغلقة',incidentsByYear:'الحوادث حسب السنة',
+      codes:'أكواد الطوارئ',totalCodes:'إجمالي الأكواد',realCodes:'الكود الفعلي',drillCodes:'الكود التدريبي',successfulCodes:'الكود الناجح',failedCodes:'الكود غير الناجح',failedCodeRate:'معدل الأكواد غير الناجحة',successfulDrills:'الكود الناجح',failedDrills:'الكود غير الناجح',successVsFailed:'الناجحة مقابل غير الناجحة',
       riskRegister:'سجل المخاطر',incidentRegister:'سجل الحوادث',codeRegister:'سجل أكواد الطوارئ',
       addPolicy:'إضافة سياسة',addPlan:'إضافة خطة',addEmergencyPlan:'إضافة خطة طوارئ',addForm:'إضافة نموذج',addManual:'إضافة دليل / إرشاد',addRisk:'إضافة مخاطرة',addIncident:'إضافة حادث',addCode:'إضافة كود',
       id:'الرقم',name:'الاسم',code:'الرمز',issueDate:'تاريخ الإصدار',policyId:'رقم السياسة',policyName:'اسم السياسة',planId:'رقم الخطة',planName:'اسم الخطة',emergencyPlanId:'رقم الخطة',emergencyPlanName:'خطة الطوارئ',formId:'رقم النموذج',formName:'اسم النموذج',manualId:'رقم الدليل',manualName:'اسم الدليل / الإرشاد',
@@ -93,10 +93,10 @@
       maintenance:'الصيانة',safety:'السلامة',housekeeping:'النظافة',projects:'إدارة المشاريع',governanceDept:'الحوكمة والأداء',allFms:'إدارة المرافق والسلامة',
       noRecords:'لا توجد سجلات مضافة',noRecordsSub:'استخدم زر الإضافة لبدء تجربة السجل.',localNote:'تُحفظ سجلات المعاينة في هذا الجهاز فقط.',draftWorkspace:'مساحة عمل تجريبية',
       recordDetails:'تفاصيل السجلات',close:'إغلاق',delete:'حذف',confirmDelete:'هل تريد حذف سجل المعاينة؟',cancel:'إلغاء',save:'حفظ السجل',required:'يرجى تعبئة جميع الحقول المطلوبة.',
-      percentage:'النسبة',records:'السجلات',clickToView:'اضغط لعرض السجلات',year:'السنة',count:'العدد',noMatching:'لا توجد سجلات مطابقة.',
+      percentage:'المعدل',records:'السجلات',clickToView:'اضغط لعرض السجلات',year:'السنة',count:'العدد',noMatching:'لا توجد سجلات مطابقة.',
       complianceTitle:'الالتزام',complianceDesc:'المتطلبات النظامية والأدلة والإجراءات التصحيحية.',auditTitle:'التدقيق والتوكيد',auditDesc:'ملاحظات التدقيق والتوصيات وأدلة الإغلاق.',actionsTitle:'خطط العمل',actionsDesc:'الإجراءات الناتجة من المخاطر والحوادث وفجوات الالتزام والمراجعات.',documentsTitle:'الوثائق والسجلات',documentsDesc:'الوثائق المساندة والسجلات التاريخية المنضبطة.',reportsTitle:'التقارير والأرشيف',reportsDesc:'مساحات التقارير الربعية والسنوية والتنفيذية.',
       comingTitle:'قسم GRC',comingSub:'قسم الحوكمة والمخاطر والالتزام تحت التطوير ومتاح حالياً لمعاينة السوبر أدمن فقط.',comingSoon:'قريباً',
-      authority:'الجهة / المعيار',requirement:'المتطلب',severity:'الخطورة',source:'المصدر',progress:'نسبة الإنجاز %',title:'العنوان / الوصف',dueDate:'تاريخ الاستحقاق',
+      authority:'الجهة / المعيار',requirement:'المتطلب',severity:'الخطورة',source:'المصدر',progress:'معدل الإنجاز %',title:'العنوان / الوصف',dueDate:'تاريخ الاستحقاق',
       addRequirement:'إضافة متطلب',addFinding:'إضافة ملاحظة',addAction:'إضافة إجراء',addDocument:'إضافة وثيقة',compliant:'ملتزم',partial:'ملتزم جزئياً',nonCompliant:'غير ملتزم',notApplicable:'لا ينطبق',major:'جوهري',minor:'بسيط',observation:'ملاحظة',pendingVerification:'بانتظار التحقق',pendingApproval:'بانتظار الاعتماد'
     }
   };
@@ -116,12 +116,16 @@
   var departments=['allFms','maintenance','safety','housekeeping','projects','governanceDept'];
   var departmentOrder=departments.slice(1);
   var departmentMeta={
-    maintenance:{abbr:'MNT',color:'#2A5280'},
-    safety:{abbr:'SAF',color:'#C42B2B'},
-    housekeeping:{abbr:'HKS',color:'#00A3C4'},
-    projects:{abbr:'PMD',color:'#B06000'},
-    governanceDept:{abbr:'G&P',color:'#1E3E6A'}
+    maintenance:{abbr:'MNT',color:'#60A5FA',ink:'#2563EB',soft:'rgba(96,165,250,.14)'},
+    safety:{abbr:'SAF',color:'#F87171',ink:'#DC2626',soft:'rgba(248,113,113,.14)'},
+    housekeeping:{abbr:'HK',color:'#34D399',ink:'#15803D',soft:'rgba(52,211,153,.14)'},
+    projects:{abbr:'PMD',color:'#FBBF24',ink:'#B45309',soft:'rgba(251,191,36,.18)'},
+    governanceDept:{abbr:'G&P',color:'#1E3E6A',ink:'#1E3E6A',soft:'rgba(30,62,106,.11)'}
   };
+
+  /* Imported from rrrisk.xlsx — department is derived from the Risk ID prefix. */
+  var RISK_REGISTER_SEED=[{"id":"SAF 01","riskIdentified":"Presence of anesthetic gases& equipment which act source of fire","riskCategory":"Hazard / Environmental","likelihood":3,"impact":5,"riskScore":15,"riskLevel":"Critical","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 02","riskIdentified":"storage of flamable items& hazardouse chemical which source of fire","riskCategory":"Hazard / Environmental","likelihood":2,"impact":5,"riskScore":10,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 03","riskIdentified":"fire in the medical record","riskCategory":"Hazard / Environmental","likelihood":2,"impact":2,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 04","riskIdentified":"Inadequate cleaning of grease filters and hoods near natural gas lines may leads to oil-ignited kitchen fires during cooking operations that may cause service interruption in food supply and threat to staff and visitor safety.","riskCategory":"Hazard / Environmental","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 05","riskIdentified":"electrical spark& flamable solar  as source fire","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 06","riskIdentified":"electrical sparks from equipment produce source of fire","riskCategory":"Hazard / Environmental","likelihood":1,"impact":3,"riskScore":3,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 07","riskIdentified":"Overheating and electrical faults from equipment which may act as source of fire& connected to electricty","riskCategory":"Hazard / Environmental","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 08","riskIdentified":"explosion of medical gase& presensice of flamable gases","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 09","riskIdentified":"lack of awarness of staff about how to deal in case of presence of fire","riskCategory":"Hazard / Environmental","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 10","riskIdentified":"Smoking inside the hospital","riskCategory":"Hazard / Environmental","likelihood":4,"impact":2,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 11","riskIdentified":"explosuion of natural gase line","riskCategory":"Hazard / Environmental","likelihood":2,"impact":1,"riskScore":2,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 12","riskIdentified":"fire in the main disel tank","riskCategory":"Hazard / Environmental","likelihood":1,"impact":4,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 13","riskIdentified":"Fire in parking area","riskCategory":"Hazard / Environmental","likelihood":1,"impact":4,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"open","department":"safety"},{"id":"SAF 14","riskIdentified":"Poor coordination in emergency responses","riskCategory":"Operational","likelihood":1,"impact":3,"riskScore":3,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 15","riskIdentified":"Slip, trip, and fall hazards","riskCategory":"Hazard / Environmental","likelihood":1,"impact":2,"riskScore":2,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 16","riskIdentified":"Natural disasters (e.g., earthquakes, floods)","riskCategory":"Hazard / Environmental","likelihood":1,"impact":3,"riskScore":3,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 17","riskIdentified":"Hazardous chemical spills","riskCategory":"Hazard / Environmental","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 18","riskIdentified":"Improper disposal of expired medications or chemical containers","riskCategory":"Hazard / Environmental","likelihood":4,"impact":2,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 19","riskIdentified":"Lack of evacuation maps in departments","riskCategory":"Strategic","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 20","riskIdentified":"No Fm-200 in some rooms","riskCategory":"Hazard / Environmental","likelihood":2,"impact":4,"riskScore":8,"riskLevel":"High","controlType":"Loss Reduction","actionStatus":"open","department":"safety"},{"id":"SAF 21","riskIdentified":"No water availabilty in fire OPD","riskCategory":"Hazard / Environmental","likelihood":3,"impact":5,"riskScore":15,"riskLevel":"Critical","controlType":"Loss Reduction","actionStatus":"open","department":"safety"},{"id":"SAF 22","riskIdentified":"failure to inspect fire extinguishing  during preventive rounds","riskCategory":"Hazard / Environmental","likelihood":1,"impact":2,"riskScore":2,"riskLevel":"Low","controlType":"Risk Avoidance","actionStatus":"closed","department":"safety"},{"id":"SAF 23","riskIdentified":"lack of sufficient fire extinguishers in some places","riskCategory":"Hazard / Environmental","likelihood":1,"impact":2,"riskScore":2,"riskLevel":"Low","controlType":"Risk Acceptance","actionStatus":"closed","department":"safety"},{"id":"SAF 24","riskIdentified":"Improper storage of hazardous chemical","riskCategory":"Hazard / Environmental","likelihood":2,"impact":5,"riskScore":10,"riskLevel":"High","controlType":"Loss Reduction","actionStatus":"closed","department":"safety"},{"id":"SAF 25","riskIdentified":"Operational failure of the fire alarm system","riskCategory":"Hazard / Environmental","likelihood":4,"impact":3,"riskScore":12,"riskLevel":"High","controlType":"Loss Reduction","actionStatus":"open","department":"safety"},{"id":"SAF 26","riskIdentified":"Failure of Firefighting System (Sprinklers / Pumps / Hose Reel)","riskCategory":"Hazard / Environmental","likelihood":3,"impact":5,"riskScore":15,"riskLevel":"Critical","controlType":"Loss Reduction","actionStatus":"open","department":"safety"},{"id":"MNT 01","riskIdentified":"Operational failure of the Air Handling Unit (AHU) in critical zones.","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"open","department":"maintenance"},{"id":"MNT 02","riskIdentified":"Interruption or depletion of medical gas supply.","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"maintenance"},{"id":"MNT 03","riskIdentified":"Main electrical power supply failure.","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Risk Transfer","actionStatus":"closed","department":"maintenance"},{"id":"MNT 04","riskIdentified":"Interruption or failure of the main water supply network","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Risk Transfer","actionStatus":"closed","department":"maintenance"},{"id":"HK01","riskIdentified":"Slip and fall hazards due to wet surfaces","riskCategory":"Hazard / Environmental","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK02","riskIdentified":"Risk of infection transmission via contaminated surfaces or equipment","riskCategory":"Hazard / Environmental","likelihood":4,"impact":3,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK03","riskIdentified":"Ergonomic injuries from handling heavy cleaning equipment","riskCategory":"Operational","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK04","riskIdentified":"Spills of liquids or beverages on corridors and floors","riskCategory":"Hazard / Environmental","likelihood":5,"impact":4,"riskScore":20,"riskLevel":"Critical","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK05","riskIdentified":"Neglecting the cleaning of electrical and mechanical rooms","riskCategory":"Operational","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK06","riskIdentified":"Accidental exposure to hazardous medical waste","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK07","riskIdentified":"Risk of cross-contamination via contaminated cleaning tools","riskCategory":"Operational","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK08","riskIdentified":"Chemical burns from hazardous cleaning agents","riskCategory":"Hazard / Environmental","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK09","riskIdentified":"Electrical hazards during the operation of cleaning equipment","riskCategory":"Operational","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK10","riskIdentified":"Inhalation of hazardous chemical fumes and toxic vapors","riskCategory":"Hazard / Environmental","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK11","riskIdentified":"Airborne dust and particulate accumulation in the workplace","riskCategory":"Hazard / Environmental","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK12","riskIdentified":"Spread of biological contaminants in the facility environment","riskCategory":"Hazard / Environmental","likelihood":1,"impact":4,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK13","riskIdentified":"Improper disposal and accumulation of regular waste","riskCategory":"Hazard / Environmental","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK14","riskIdentified":"Risk of staff non-compliance with trained cleaning policies","riskCategory":"Human Capital","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK15","riskIdentified":"Use of expired cleaning and disinfection materials","riskCategory":"Operational","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"open","department":"housekeeping"},{"id":"HK16","riskIdentified":"Contamination risks from shared cleaning equipment between departments","riskCategory":"Operational","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK17","riskIdentified":"Fall hazards when cleaning elevated areas","riskCategory":"Hazard / Environmental","likelihood":1,"impact":2,"riskScore":2,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK18","riskIdentified":"Accidental exposure to sharp medical needles and contaminated waste","riskCategory":"Operational","likelihood":4,"impact":4,"riskScore":16,"riskLevel":"Critical","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK19","riskIdentified":"Risk of hazardous cleaning detergent chemical spills or leaks","riskCategory":"Hazard / Environmental","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND01","riskIdentified":"ccidental exposure to hazardous chemical products","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND 02","riskIdentified":"Ergonomic and physical injuries from manual lifting","riskCategory":"Operational","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND03","riskIdentified":"Risk of infection transmission among laundry staff","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND04","riskIdentified":"Exposure to high heat and steam from laundry machinery","riskCategory":"Hazard / Environmental","likelihood":2,"impact":2,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Reduction","actionStatus":"closed","department":"housekeeping"},{"id":"LUND05","riskIdentified":"Mishandling of contaminated bio-hazardous fabrics","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND06","riskIdentified":"Staff exposure to biological infections","riskCategory":"Hazard / Environmental","likelihood":2,"impact":4,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND07","riskIdentified":"Incomplete or improper drying of laundered clothes","riskCategory":"Operational","likelihood":2,"impact":4,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND08","riskIdentified":"Cross-washing of contaminated and clean linens","riskCategory":"Operational","likelihood":2,"impact":5,"riskScore":10,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND 09","riskIdentified":"Chemical leakages or spills from laundry machinery","riskCategory":"Operational","likelihood":2,"impact":4,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND10","riskIdentified":"Improper handling of hot water in washing machinery","riskCategory":"Operational","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND11","riskIdentified":"Accumulation of dust and pathogens on curtains","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND12","riskIdentified":"Use of extreme temperatures or harsh cleaning chemicals.","riskCategory":"Operational","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND13","riskIdentified":"Foul odors due to insufficient washing or prolonged dampness","riskCategory":"Hazard / Environmental","likelihood":2,"impact":4,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND14","riskIdentified":"Inhalation of toxic chemical gases or foul vapors from laundry","riskCategory":"Hazard / Environmental","likelihood":1,"impact":4,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND15","riskIdentified":"High noise levels and severe vibrations from heavy machinery","riskCategory":"Operational","likelihood":1,"impact":2,"riskScore":2,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"open","department":"housekeeping"},{"id":"PM 01","riskIdentified":"Project completion delays","riskCategory":"Operational","likelihood":4,"impact":2,"riskScore":8,"riskLevel":"High","controlType":"Loss Reduction","actionStatus":"closed","department":"projects"},{"id":"PM 02","riskIdentified":"Contractor working without obtaining required permits","riskCategory":"Operational","likelihood":5,"impact":1,"riskScore":5,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"projects"},{"id":"PM 03","riskIdentified":"Project scope changes by the end-user","riskCategory":"Operational","likelihood":2,"impact":5,"riskScore":10,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"projects"},{"id":"PM 04","riskIdentified":"Substitution of approved project materials","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"projects"},{"id":"PM 05","riskIdentified":"Unauthorized onboarding or entry of contractors without project department knowledge.","riskCategory":"Operational","likelihood":2,"impact":5,"riskScore":10,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"projects"},{"id":"PM 06","riskIdentified":"Use of unauthorized or restricted materials by the contractor.","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"projects"}];
+
 
   function defaultState(){
     return{
@@ -135,13 +139,54 @@
 
   function copyRecord(r){var o={};Object.keys(r||{}).forEach(function(k){o[k]=r[k];});return o;}
   function normalizeStatus(v){
-    var s=String(v||'').trim();
-    var map={openStatus:'open',treatment:'inProgress',criticalSeverity:'critical',moderateSeverity:'medium'};
-    return map[s]||s;
+    var raw=String(v||'').trim();
+    var key=raw.toLowerCase().replace(/[\s_-]+/g,'');
+    var map={
+      openstatus:'open',open:'open',closed:'closed',active:'active',expired:'expired',
+      treatment:'inProgress',inprogress:'inProgress',underreview:'underReview',
+      pendingverification:'pendingVerification',pendingapproval:'pendingApproval',
+      criticalseverity:'critical',moderateseverity:'medium',critical:'critical',
+      high:'high',medium:'medium',low:'low',successful:'successful',failed:'failed',
+      real:'real',drill:'drill',completed:'completed',planned:'planned',draft:'draft',
+      archived:'archived',compliant:'compliant',partial:'partial',
+      noncompliant:'nonCompliant',notapplicable:'notApplicable',yes:'yes',no:'no'
+    };
+    return map[key]||raw;
+  }
+  function normalizeRiskId(v){return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');}
+  function departmentFromRiskCode(v){
+    var id=normalizeRiskId(v);
+    if(id.indexOf('SAF')===0)return'safety';
+    if(id.indexOf('MNT')===0)return'maintenance';
+    if(id.indexOf('HK')===0||id.indexOf('LUND')===0)return'housekeeping';
+    if(id.indexOf('PM')===0)return'projects';
+    if(id.indexOf('GOV')===0||id.indexOf('GRC')===0)return'governanceDept';
+    return'';
+  }
+  function applyRiskRegisterSeed(s){
+    s=s||defaultState();
+    var existing={};
+    (s.risks||[]).forEach(function(r){var k=normalizeRiskId(r.id);if(k)existing[k]=r;});
+    var merged=[];
+    RISK_REGISTER_SEED.forEach(function(seed){
+      var k=normalizeRiskId(seed.id),old=existing[k],r=copyRecord(seed);
+      if(old)Object.keys(old).forEach(function(p){if(old[p]!==undefined&&old[p]!==null&&old[p]!=='')r[p]=old[p];});
+      r.department=departmentFromRiskCode(r.id)||r.department||'allFms';
+      r.actionStatus=normalizeStatus(r.actionStatus||r.status||'open');
+      merged.push(r);delete existing[k];
+    });
+    Object.keys(existing).forEach(function(k){
+      var r=copyRecord(existing[k]);
+      r.department=departmentFromRiskCode(r.id)||r.department||'allFms';
+      r.actionStatus=normalizeStatus(r.actionStatus||r.status||'open');
+      merged.push(r);
+    });
+    s.risks=merged;
+    return s;
   }
   function migrateState(raw){
     var s=defaultState();
-    if(!raw||typeof raw!=='object')return s;
+    if(!raw||typeof raw!=='object')return applyRiskRegisterSeed(s);
     ['policies','plans','emergencyPlans','forms','manuals','risks','incidents','codes','compliance','audits','actions','documents'].forEach(function(k){if(Array.isArray(raw[k]))s[k]=raw[k].map(copyRecord);});
 
     /* Migrate the first GRC preview document catalog into the new registers. */
@@ -169,7 +214,7 @@
       s[k]=s[k].map(function(r){r.status=normalizeStatus(r.status);return r;});
     });
     s.version=STATE_VERSION;s.updatedAt=raw.updatedAt||new Date().toISOString();
-    return s;
+    return applyRiskRegisterSeed(s);
   }
   function hasId(arr,id){return arr.some(function(r){return String(r.id)===String(id);});}
   function departmentFromOwner(owner){
@@ -178,7 +223,7 @@
   }
   function loadState(){
     try{return migrateState(JSON.parse(localStorage.getItem(STORAGE_KEY)||'null'));}
-    catch(_){return defaultState();}
+    catch(_){return applyRiskRegisterSeed(defaultState());}
   }
   var state=loadState();
   try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}
@@ -207,7 +252,7 @@
   function isClosed(r){return['closed','completed'].indexOf(normalizeStatus(r.actionStatus||r.status))>=0;}
   function isOpen(r){return!isClosed(r);}
   function riskScore(r){var saved=Number(r.riskScore);if(isFinite(saved)&&saved>0)return saved;return Number(r.likelihood||0)*Number(r.impact||0);}
-  function riskLevel(r){var score=riskScore(r);return score>=15?'critical':score>=10?'high':score>=5?'medium':'low';}
+  function riskLevel(r){var saved=normalizeStatus(r&&r.riskLevel);if(['critical','high','medium','low'].indexOf(saved)>=0)return saved;var score=riskScore(r);return score>=15?'critical':score>=10?'high':score>=5?'medium':'low';}
   function badge(status){
     var s=normalizeStatus(status),cls='neutral';
     if(['active','open','closed','completed','compliant','successful'].indexOf(s)>=0)cls=s==='open'?'info':'good';
@@ -241,10 +286,18 @@
 
   function hero(eye,title,desc,actions){return'<div class="grc-hero"><div class="grc-hero-row"><div><div class="grc-eyebrow">'+eye+'</div><h1>'+title+'</h1><p>'+desc+'</p></div><div class="grc-hero-actions">'+(actions||'')+'</div></div></div>';}
   function sectionHead(title,sub,badgeText){return'<div class="grc-section-head"><div><div class="grc-section-title">'+title+'</div><div class="grc-section-sub">'+(sub||'')+'</div></div>'+(badgeText?'<span class="grc-section-badge">'+badgeText+'</span>':'')+'</div>';}
-  function metricCard(label,value,cls,sub,onclick){return'<div class="grc-metric-card '+(cls||'info')+' '+(onclick?'clickable':'')+' '+(isAr()?'rtl':'')+'" '+(onclick?'onclick="'+onclick+'" tabindex="0" role="button"':'')+'><div class="grc-metric-label">'+label+'</div><div class="grc-metric-value">'+value+'</div><div class="grc-metric-sub">'+(sub||'')+'</div>'+(onclick?'<span class="grc-metric-arrow">›</span>':'')+'</div>';}
+  function metricCard(label,value,cls,sub,onclick){
+    var tone=cls||'info',icons={info:'▦',good:'✓',warn:'△',bad:'!',purple:'◇',neutral:'•'};
+    return'<div class="grc-metric-card '+tone+' '+(onclick?'clickable':'')+' '+(isAr()?'rtl':'')+'" '+(onclick?'onclick="'+onclick+'" tabindex="0" role="button"':'')+'>'+
+      '<div class="grc-metric-top"><span class="grc-metric-icon">'+(icons[tone]||'▦')+'</span><span class="grc-metric-kicker">GRC</span></div>'+
+      '<div class="grc-metric-value">'+value+'</div><div class="grc-metric-label">'+label+'</div>'+
+      '<div class="grc-metric-foot"><span class="grc-metric-sub">'+(sub||'')+'</span>'+(onclick?'<span class="grc-metric-arrow">›</span>':'')+'</div></div>';
+  }
   function registerBlock(kind,title,note,button,table){return'<div class="grc-register-block"><div class="grc-register-titlebar '+kind+'"><div><div class="grc-register-name">'+title+'</div><div class="grc-register-note">'+note+'</div></div>'+button+'</div>'+table+'</div>';}
   function addBtn(type,label,dept){return'<button class="grc-primary-btn" onclick="window._grcOpenForm(\''+type+'\',\''+esc(dept||'')+'\')">＋ '+label+'</button>';}
   function deptColor(dept){return(departmentMeta[dept]&&departmentMeta[dept].color)||'#00A3C4';}
+  function deptInk(dept){return(departmentMeta[dept]&&departmentMeta[dept].ink)||deptColor(dept);}
+  function deptSoft(dept){return(departmentMeta[dept]&&departmentMeta[dept].soft)||'rgba(0,163,196,.12)';}
   function deptAbbr(dept){return(departmentMeta[dept]&&departmentMeta[dept].abbr)||'FMS';}
   function chartLegend(items){return'<div class="grc-chart-legend">'+items.map(function(x){return'<span><i style="background:'+x.color+'"></i>'+esc(x.label)+' <b>'+x.value+'</b></span>';}).join('')+'</div>';}
   function donutChart(title,items,centerLabel){
@@ -258,8 +311,8 @@
     return'<div class="grc-chart-card"><div class="grc-chart-title">'+title+'</div><div class="grc-bar-list">'+items.map(function(x){var w=Math.round(Number(x.value||0)/max*100);return'<div class="grc-bar-row"><div class="grc-bar-head"><span>'+esc(x.label)+'</span><b>'+Number(x.value||0)+'</b></div><div class="grc-bar-track"><span style="width:'+w+'%;background:'+x.color+'"></span></div></div>';}).join('')+'</div></div>';
   }
   function departmentPanel(dept,scope,total,second,alert,secondLabel,body){
-    var color=deptColor(dept);
-    return'<section class="grc-department-panel" style="--dept-color:'+color+'"><div class="grc-department-accent"></div><div class="grc-department-header"><div class="grc-department-identity"><div class="grc-department-abbr">'+esc(deptAbbr(dept))+'</div><div><div class="grc-department-name">'+esc(deptName(dept))+'</div><div class="grc-department-caption">'+esc(scope)+'</div></div></div><div class="grc-department-summary"><div class="grc-mini-stat"><b>'+Number(total||0)+'</b><span>'+L('total')+'</span></div><div class="grc-mini-stat good"><b>'+Number(second||0)+'</b><span>'+esc(secondLabel||L('active'))+'</span></div><div class="grc-mini-stat warn"><b>'+Number(alert||0)+'</b><span>'+L('attention')+'</span></div></div></div><div class="grc-department-body">'+body+'</div></section>';
+    var color=deptColor(dept),ink=deptInk(dept),soft=deptSoft(dept);
+    return'<section class="grc-department-panel" style="--dept-color:'+color+';--dept-ink:'+ink+';--dept-soft:'+soft+'"><div class="grc-department-accent"></div><div class="grc-department-header"><div class="grc-department-identity"><div class="grc-department-abbr">'+esc(deptAbbr(dept))+'</div><div><div class="grc-department-name">'+esc(deptName(dept))+'</div><div class="grc-department-caption">'+esc(scope)+'</div></div></div><div class="grc-department-summary"><div class="grc-mini-stat"><b>'+Number(total||0)+'</b><span>'+L('total')+'</span></div><div class="grc-mini-stat good"><b>'+Number(second||0)+'</b><span>'+esc(secondLabel||L('active'))+'</span></div><div class="grc-mini-stat warn"><b>'+Number(alert||0)+'</b><span>'+L('attention')+'</span></div></div></div><div class="grc-department-body">'+body+'</div></section>';
   }
 
   function governanceMetricCards(kind,dept){
@@ -303,10 +356,20 @@
     return'<div class="grc-metric-grid cols-4">'+defs.map(function(x){return metricCard(L(x[0]),x[1],x[2],x[3]==='years'?L('incidentsByYear'):L('clickToView'),'window._grcOpenMetric(\'incidents\',\''+x[3]+'\',\''+dept+'\')');}).join('')+'</div>';
   }
   function codeMetricCards(dept){
-    var arr=filterDept(state.codes,dept),real=arr.filter(function(r){return normalizeStatus(r.type)==='real';}),success=arr.filter(function(r){return normalizeStatus(r.type)==='drill'&&normalizeStatus(r.status)==='successful';}),failed=arr.filter(function(r){return normalizeStatus(r.type)==='drill'&&normalizeStatus(r.status)==='failed';});
-    var ratio=success.length+' : '+failed.length;
-    var defs=[['totalCodes',arr.length,'info','total'],['realCodes',real.length,'purple','real'],['successfulDrills',success.length,'good','successful'],['failedDrills',failed.length,'bad','failed'],['successVsFailed',ratio,'warn','drillRatio']];
-    return'<div class="grc-metric-grid">'+defs.map(function(x){var sub=x[3]==='drillRatio'?(pct(success.length,success.length+failed.length)+' '+L('successful')):L('clickToView');return metricCard(L(x[0]),x[1],x[2],sub,'window._grcOpenMetric(\'codes\',\''+x[3]+'\',\''+dept+'\')');}).join('')+'</div>';
+    var arr=filterDept(state.codes,dept);
+    var real=arr.filter(function(r){return normalizeStatus(r.type)==='real';});
+    var drill=arr.filter(function(r){return normalizeStatus(r.type)==='drill';});
+    var success=arr.filter(function(r){return normalizeStatus(r.status)==='successful';});
+    var failed=arr.filter(function(r){return normalizeStatus(r.status)==='failed';});
+    var defs=[
+      ['totalCodes',arr.length,'info','total'],
+      ['realCodes',real.length,'purple','real'],
+      ['drillCodes',drill.length,'info','drill'],
+      ['successfulCodes',success.length,'good','successful'],
+      ['failedCodes',failed.length,'bad','failed'],
+      ['failedCodeRate',pct(failed.length,drill.length),'warn','failedRate']
+    ];
+    return'<div class="grc-metric-grid cols-6">'+defs.map(function(x){return metricCard(L(x[0]),x[1],x[2],L('clickToView'),'window._grcOpenMetric(\'codes\',\''+x[3]+'\',\''+dept+'\')');}).join('')+'</div>';
   }
   function riskOverview(dept,withRegisters){
     var html='<div class="grc-section">'+sectionHead(L('riskRegister'),deptName(dept))+riskMetricCards(dept);
@@ -331,8 +394,8 @@
     var levelItems=[{label:L('critical'),value:levels.critical,color:'#C42B2B'},{label:L('high'),value:levels.high,color:'#B06000'},{label:L('medium'),value:levels.medium,color:'#2A5280'},{label:L('low'),value:levels.low,color:'#06845A'}];
     var incidents=filterDept(state.incidents,dept),years={},now=new Date().getFullYear();for(var y=2023;y<=now;y++)years[y]=0;incidents.forEach(function(r){var d=parseDate(r.date),yr=d?d.getFullYear():null;if(yr){if(years[yr]===undefined)years[yr]=0;years[yr]++;}});
     var yearItems=Object.keys(years).sort().map(function(y){return{label:y,value:years[y],color:'#00A3C4'};});
-    var codes=filterDept(state.codes,dept),real=codes.filter(function(r){return normalizeStatus(r.type)==='real';}).length,success=codes.filter(function(r){return normalizeStatus(r.type)==='drill'&&normalizeStatus(r.status)==='successful';}).length,failed=codes.filter(function(r){return normalizeStatus(r.type)==='drill'&&normalizeStatus(r.status)==='failed';}).length;
-    var codeItems=[{label:L('realCodes'),value:real,color:'#1E3E6A'},{label:L('successfulDrills'),value:success,color:'#06845A'},{label:L('failedDrills'),value:failed,color:'#C42B2B'}];
+    var codes=filterDept(state.codes,dept),real=codes.filter(function(r){return normalizeStatus(r.type)==='real';}).length,drill=codes.filter(function(r){return normalizeStatus(r.type)==='drill';}).length,success=codes.filter(function(r){return normalizeStatus(r.status)==='successful';}).length,failed=codes.filter(function(r){return normalizeStatus(r.status)==='failed';}).length;
+    var codeItems=[{label:L('realCodes'),value:real,color:'#1E3E6A'},{label:L('drillCodes'),value:drill,color:'#60A5FA'},{label:L('successfulCodes'),value:success,color:'#34D399'},{label:L('failedCodes'),value:failed,color:'#F87171'}];
     return'<div class="grc-chart-grid cols-3">'+donutChart(L('riskDistributionChart'),levelItems,L('totalRisks'))+barChart(L('incidentTrendChart'),yearItems)+barChart(L('codeOutcomeChart'),codeItems)+'</div>';
   }
   function governanceDepartmentPanel(dept){
@@ -347,20 +410,33 @@
     var alert=risks.filter(function(r){return['critical','high'].indexOf(riskLevel(r))>=0;}).length+incidents.filter(isOpen).length;
     return departmentPanel(dept,L('risk')+' · '+L('departmentRecords'),total,active,alert,L('open'),riskCharts(dept)+riskOverview(dept,true));
   }
+  function executiveSnapshotCards(){
+    var gov=countFor('governance');
+    var risks=state.risks||[],openRisk=risks.filter(isOpen).length;
+    var incidents=state.incidents||[],openIncident=incidents.filter(isOpen).length;
+    var codes=state.codes||[],drill=codes.filter(function(r){return normalizeStatus(r.type)==='drill';}).length,failed=codes.filter(function(r){return normalizeStatus(r.status)==='failed';}).length;
+    return'<div class="grc-exec-snapshot-grid">'+
+      metricCard(L('governanceRecords'),gov,'info',L('allDepartments'),'window._grcSwitch(\'governance\')')+
+      metricCard(L('openRisks'),openRisk,'warn',L('allDepartments'),'window._grcOpenMetric(\'risks\',\'open\',\'allFms\')')+
+      metricCard(L('openIncidents'),openIncident,'bad',L('allDepartments'),'window._grcOpenMetric(\'incidents\',\'open\',\'allFms\')')+
+      metricCard(L('failedCodeRate'),pct(failed,drill),'purple',L('codes'),'window._grcOpenMetric(\'codes\',\'failedRate\',\'allFms\')')+
+      '</div>';
+  }
   function executivePage(){
     return hero('GRC · Executive Command',L('executiveTitle'),L('executiveDesc'))+
-      '<div class="grc-section">'+sectionHead(L('governanceOverview'),L('allDepartments'),'FMS')+governanceCharts('allFms')+'</div>'+governanceOverview('allFms',false)+
-      '<div class="grc-divider"></div><div class="grc-section">'+sectionHead(L('riskOverview'),L('allDepartments'),'FMS')+riskCharts('allFms')+'</div>'+riskOverview('allFms',false);
+      '<section class="grc-exec-snapshot">'+sectionHead(L('executiveSnapshot'),L('executiveSnapshotDesc'),'FMS')+executiveSnapshotCards()+'</section>'+
+      '<section class="grc-exec-domain governance-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">01</span><h2>'+L('governanceOverview')+'</h2><p>'+L('governanceDesc')+'</p></div><span class="grc-exec-domain-badge">'+countFor('governance')+' '+L('records')+'</span></div>'+governanceCharts('allFms')+governanceOverview('allFms',false)+'</section>'+
+      '<section class="grc-exec-domain risk-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">02</span><h2>'+L('riskOverview')+'</h2><p>'+L('riskDesc')+'</p></div><span class="grc-exec-domain-badge">'+countFor('risk')+' '+L('records')+'</span></div>'+riskCharts('allFms')+riskOverview('allFms',false)+'</section>';
   }
   function governanceModules(){
     var a=[['⌂','orgStructure','orgStructureDesc'],['⇄','raci','raciDesc'],['▥','annualPlan','annualPlanDesc']];
     return'<div class="grc-module-grid">'+a.map(function(x){return'<div class="grc-module-card"><div class="grc-module-icon">'+x[0]+'</div><div><div class="grc-module-title">'+L(x[1])+'</div><div class="grc-module-desc">'+L(x[2])+'</div><span class="grc-module-status">'+L('planned')+'</span></div></div>';}).join('')+'</div>';
   }
   function governancePage(){
-    return hero('GRC · Governance',L('governanceTitle'),L('governanceDesc'))+governanceModules()+'<div class="grc-divider"></div>'+sectionHead(L('divisionOverview'),L('governanceDesc'),'FMS')+governanceCharts('allFms')+governanceOverview('allFms',false)+'<div class="grc-divider"></div>'+sectionHead(L('departmentView'),L('departmentSectionsDesc'))+'<div class="grc-department-stack">'+departmentOrder.map(governanceDepartmentPanel).join('')+'</div>';
+    return hero('GRC · Governance',L('governanceTitle'),L('governanceDesc'))+governanceModules()+'<div class="grc-divider"></div>'+sectionHead(L('departmentView'),L('departmentSectionsDesc'))+'<div class="grc-department-stack">'+departmentOrder.map(governanceDepartmentPanel).join('')+'</div>';
   }
   function riskPage(){
-    return hero('GRC · Risk Management',L('riskTitle'),L('riskDesc'))+sectionHead(L('divisionOverview'),L('riskDesc'),'FMS')+riskCharts('allFms')+riskOverview('allFms',false)+'<div class="grc-divider"></div>'+sectionHead(L('departmentView'),L('departmentSectionsDesc'))+'<div class="grc-department-stack">'+departmentOrder.map(riskDepartmentPanel).join('')+'</div>';
+    return hero('GRC · Risk Management',L('riskTitle'),L('riskDesc'))+sectionHead(L('departmentView'),L('departmentSectionsDesc'))+'<div class="grc-department-stack">'+departmentOrder.map(riskDepartmentPanel).join('')+'</div>';
   }
 
   function manualsPage(){
@@ -423,14 +499,16 @@
     if(['critical','high','medium','low'].indexOf(filter)>=0)return arr.filter(function(r){return riskLevel(r)===filter;});
     if(filter==='highCritical')return arr.filter(function(r){return['high','critical'].indexOf(riskLevel(r))>=0;});
     if(kind==='codes'&&filter==='real')return arr.filter(function(r){return normalizeStatus(r.type)==='real';});
+    if(kind==='codes'&&filter==='drill')return arr.filter(function(r){return normalizeStatus(r.type)==='drill';});
     if(kind==='codes'&&filter==='successful')return arr.filter(function(r){return normalizeStatus(r.type)==='drill'&&normalizeStatus(r.status)==='successful';});
     if(kind==='codes'&&filter==='failed')return arr.filter(function(r){return normalizeStatus(r.type)==='drill'&&normalizeStatus(r.status)==='failed';});
     if(kind==='codes'&&filter==='drillRatio')return arr.filter(function(r){return normalizeStatus(r.type)==='drill'&&['successful','failed'].indexOf(normalizeStatus(r.status))>=0;});
+    if(kind==='codes'&&filter==='failedRate')return arr.filter(function(r){return normalizeStatus(r.type)==='drill'&&normalizeStatus(r.status)==='failed';});
     return arr;
   }
   function metricTitle(kind,filter){
     var map={policies:'policies',plans:'plans',emergencyPlans:'emergencyPlans',forms:'forms',manuals:'manuals',risks:'riskRegister',incidents:'incidents',codes:'codes'};
-    var f={total:'total',open:'open',active:'active',expired:'expired',expiring:'expiringThisYear',closed:'closed',critical:'critical',high:'high',medium:'medium',low:'low',highCritical:'highCriticalRate',real:'realCodes',successful:'successfulDrills',failed:'failedDrills',drillRatio:'successVsFailed',years:'incidentsByYear'};
+    var f={total:'total',open:'open',active:'active',expired:'expired',expiring:'expiringThisYear',closed:'closed',critical:'critical',high:'high',medium:'medium',low:'low',highCritical:'highCriticalRate',real:'realCodes',drill:'drillCodes',successful:'successfulCodes',failed:'failedCodes',failedRate:'failedCodeRate',drillRatio:'successVsFailed',years:'incidentsByYear'};
     return L(map[kind])+' · '+L(f[filter]||filter);
   }
   function detailRow(kind,r){
