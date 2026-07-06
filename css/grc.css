@@ -140,3 +140,198 @@ body.grc-mode{overflow:hidden!important;background:var(--grc-bg)!important}
 @media print{
   #grcApp .grc-department-panel,#grcApp .grc-chart-card{box-shadow:none!important;break-inside:avoid}
 }
+
+
+/* ======================================================================
+   QUMC GRC premium alignment with Performance — 2026-07-06 v6
+   Exact department palette from Performance:
+   Maintenance #60A5FA · Safety #F87171 · Housekeeping #34D399 · Projects #FBBF24
+   ====================================================================== */
+#grcApp{
+  --perf-maintenance:#60A5FA;
+  --perf-safety:#F87171;
+  --perf-housekeeping:#34D399;
+  --perf-projects:#FBBF24;
+}
+#grcApp .grc-main{max-width:1560px;margin:0 auto;width:100%;padding:22px 24px 38px}
+#grcApp .grc-hero{
+  border-radius:17px;
+  padding:24px 26px;
+  background:
+    radial-gradient(circle at 88% 18%,rgba(96,165,250,.18),transparent 28%),
+    linear-gradient(120deg,#152538 0%,#1E3E6A 62%,#075E73 100%);
+  border:1px solid rgba(255,255,255,.08);
+  border-bottom:4px solid #00A3C4;
+  box-shadow:0 14px 34px rgba(21,37,56,.18);
+}
+#grcApp .grc-hero h1{font-size:27px;letter-spacing:-.45px}
+#grcApp .grc-hero p{font-size:10.5px;max-width:920px}
+#grcApp .grc-section{margin:18px 0 25px}
+#grcApp .grc-section-head{align-items:center;margin-bottom:13px}
+#grcApp .grc-section-title{font-size:15.5px;letter-spacing:-.1px}
+#grcApp .grc-section-sub{font-size:9.3px}
+#grcApp .grc-section-badge{
+  background:#EFF6FF;color:#2563EB;border:1px solid #DBEAFE;
+  padding:6px 11px;letter-spacing:.04em
+}
+
+/* Performance-style metric cards */
+#grcApp .grc-metric-grid{gap:14px}
+#grcApp .grc-metric-grid.cols-6{grid-template-columns:repeat(6,minmax(128px,1fr))}
+#grcApp .grc-metric-card{
+  min-height:146px;
+  padding:15px 16px 13px;
+  border-radius:16px;
+  border:1px solid #E2E8F0;
+  box-shadow:0 6px 18px rgba(15,23,42,.055);
+  display:flex;
+  flex-direction:column;
+  gap:0;
+  background:#fff;
+}
+#grcApp .grc-metric-card:before{width:4px;left:0;top:0;bottom:0;border-radius:16px 0 0 16px}
+#grcApp[dir="rtl"] .grc-metric-card:before{left:auto;right:0;border-radius:0 16px 16px 0}
+#grcApp .grc-metric-card:after{
+  content:"";position:absolute;width:112px;height:112px;border-radius:50%;
+  right:-42px;top:-48px;background:rgba(100,116,139,.045);pointer-events:none
+}
+#grcApp[dir="rtl"] .grc-metric-card:after{right:auto;left:-42px}
+#grcApp .grc-metric-top{display:flex;align-items:center;justify-content:space-between;position:relative;z-index:1}
+#grcApp .grc-metric-icon{
+  width:36px;height:36px;border-radius:10px;display:grid;place-items:center;
+  font-size:15px;font-weight:950;background:#EFF6FF;color:#2563EB
+}
+#grcApp .grc-metric-kicker{
+  font-size:8px;font-weight:900;letter-spacing:.12em;color:#94A3B8;text-transform:uppercase
+}
+#grcApp .grc-metric-value{
+  font-size:36px;line-height:1;font-weight:950;color:#152538;
+  margin:12px 0 5px;font-family:Consolas,"Courier New",monospace;letter-spacing:-1.1px;
+  position:relative;z-index:1
+}
+#grcApp .grc-metric-label{
+  min-height:30px;font-size:10.5px;font-weight:750;color:#52657A;line-height:1.35;
+  position:relative;z-index:1
+}
+#grcApp .grc-metric-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin-top:auto;padding-top:9px;border-top:1px solid #F0F4F8;position:relative;z-index:1
+}
+#grcApp .grc-metric-sub{font-size:8.3px;color:#8494A6;margin:0;line-height:1.25}
+#grcApp .grc-metric-arrow{position:static;font-size:15px;font-weight:900;color:#94A3B8}
+#grcApp .grc-metric-card.clickable:hover{
+  transform:translateY(-3px);border-color:#CBD5E1;
+  box-shadow:0 13px 28px rgba(15,23,42,.105)
+}
+#grcApp .grc-metric-card.info:before{background:#60A5FA}
+#grcApp .grc-metric-card.info .grc-metric-icon{background:#EFF6FF;color:#2563EB}
+#grcApp .grc-metric-card.good:before{background:#34D399}
+#grcApp .grc-metric-card.good .grc-metric-icon{background:#ECFDF5;color:#15803D}
+#grcApp .grc-metric-card.warn:before{background:#FBBF24}
+#grcApp .grc-metric-card.warn .grc-metric-icon{background:#FFFBEB;color:#B45309}
+#grcApp .grc-metric-card.bad:before{background:#F87171}
+#grcApp .grc-metric-card.bad .grc-metric-icon{background:#FEF2F2;color:#DC2626}
+#grcApp .grc-metric-card.purple:before{background:#A78BFA}
+#grcApp .grc-metric-card.purple .grc-metric-icon{background:#F5F3FF;color:#7C3AED}
+
+/* Executive Command: primary polished overview */
+#grcApp .grc-exec-snapshot{
+  background:linear-gradient(180deg,#FFFFFF,#F8FBFD);
+  border:1px solid #DCE7EE;border-radius:18px;padding:18px 19px 20px;
+  box-shadow:0 8px 24px rgba(21,37,56,.065);margin-bottom:20px
+}
+#grcApp .grc-exec-snapshot-grid{display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:14px}
+#grcApp .grc-exec-domain{
+  background:#fff;border:1px solid #DCE7EE;border-radius:19px;padding:20px 20px 8px;
+  box-shadow:0 8px 26px rgba(21,37,56,.06);margin:20px 0;position:relative;overflow:hidden
+}
+#grcApp .grc-exec-domain:before{content:"";position:absolute;left:0;right:0;top:0;height:5px}
+#grcApp .grc-exec-domain.governance-domain:before{background:linear-gradient(90deg,#00A3C4,#60A5FA)}
+#grcApp .grc-exec-domain.risk-domain:before{background:linear-gradient(90deg,#1E3E6A,#F87171)}
+#grcApp .grc-exec-domain-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+  padding:5px 2px 15px;border-bottom:1px solid #EEF2F6;margin-bottom:15px
+}
+#grcApp .grc-exec-domain-head>div{display:grid;grid-template-columns:auto 1fr;column-gap:10px;align-items:center}
+#grcApp .grc-exec-domain-kicker{
+  grid-row:1/3;width:37px;height:37px;border-radius:11px;background:#F1F5F9;color:#475569;
+  display:grid;place-items:center;font-size:10px;font-weight:950;font-family:Consolas,monospace
+}
+#grcApp .governance-domain .grc-exec-domain-kicker{background:#ECFEFF;color:#007A96}
+#grcApp .risk-domain .grc-exec-domain-kicker{background:#EFF6FF;color:#1E3E6A}
+#grcApp .grc-exec-domain-head h2{font-size:17px;color:#152538;margin:0;font-weight:950}
+#grcApp .grc-exec-domain-head p{font-size:9px;color:#7A8B9D;margin:4px 0 0;line-height:1.45}
+#grcApp .grc-exec-domain-badge{
+  border-radius:999px;padding:7px 11px;background:#F8FAFC;border:1px solid #E2E8F0;
+  color:#475569;font-size:8.5px;font-weight:900;white-space:nowrap
+}
+#grcApp .grc-exec-domain>.grc-section{padding:0 2px}
+#grcApp .grc-exec-domain>.grc-section:not(:last-child){padding-bottom:19px;border-bottom:1px solid #EEF2F6}
+
+/* Department cards exactly aligned with Performance department colors */
+#grcApp .grc-department-stack{gap:24px}
+#grcApp .grc-department-panel{
+  border-radius:18px;border:1px solid #DCE6EE;
+  box-shadow:0 7px 22px rgba(21,37,56,.065)
+}
+#grcApp .grc-department-accent{height:5px;background:var(--dept-color)}
+#grcApp .grc-department-header{
+  padding:16px 18px;
+  background:linear-gradient(100deg,var(--dept-soft) 0%,#FFFFFF 42%,#FFFFFF 100%);
+}
+#grcApp[dir="rtl"] .grc-department-header{
+  background:linear-gradient(260deg,var(--dept-soft) 0%,#FFFFFF 42%,#FFFFFF 100%);
+}
+#grcApp .grc-department-identity{gap:13px}
+#grcApp .grc-department-abbr{
+  width:56px;height:56px;border-radius:14px;display:grid;place-items:center;
+  font-size:18px;background:var(--dept-soft);color:var(--dept-ink);
+  border:1px solid var(--dept-color);box-shadow:0 4px 12px rgba(15,23,42,.05)
+}
+#grcApp .grc-department-name{font-size:15px;color:#152538}
+#grcApp .grc-department-caption{font-size:8.8px;color:#64748B}
+#grcApp .grc-department-summary{background:#fff;border-color:#DCE6EE;box-shadow:0 3px 10px rgba(21,37,56,.04)}
+#grcApp .grc-mini-stat{min-width:86px;padding:9px 13px}
+#grcApp .grc-mini-stat b{font-size:20px}
+#grcApp .grc-department-body{padding:18px 19px 22px;background:#fff}
+#grcApp .grc-department-panel .grc-section-title:before{background:var(--dept-color)}
+#grcApp .grc-department-panel .grc-section-badge{background:var(--dept-soft);color:var(--dept-ink);border-color:var(--dept-color)}
+
+/* Charts and registers */
+#grcApp .grc-chart-grid{gap:14px;margin:14px 0 20px}
+#grcApp .grc-chart-card{
+  border-radius:16px;border-color:#E2E8F0;padding:15px 16px;
+  box-shadow:0 5px 16px rgba(15,23,42,.05);background:linear-gradient(180deg,#fff,#FCFDFE)
+}
+#grcApp .grc-chart-title{font-size:9.2px;color:#475569;margin-bottom:14px}
+#grcApp .grc-bar-track{height:8px}
+#grcApp .grc-register-block{margin-top:16px}
+#grcApp .grc-register-titlebar{padding:13px 15px;border-radius:14px 14px 0 0}
+#grcApp .grc-table-wrap{border-radius:0 0 14px 14px}
+#grcApp .grc-table th{
+  background:#F1F5F9;color:#475569;font-size:8.7px;letter-spacing:.035em;
+  border-bottom:1px solid #DCE6EE
+}
+#grcApp .grc-table td{color:#334155;font-size:9.2px}
+#grcApp .grc-table tbody tr:hover td{background:#F0F9FF}
+
+/* Responsive */
+@media(max-width:1320px){
+  #grcApp .grc-metric-grid.cols-6{grid-template-columns:repeat(3,minmax(145px,1fr))}
+}
+@media(max-width:1080px){
+  #grcApp .grc-exec-snapshot-grid{grid-template-columns:repeat(2,minmax(160px,1fr))}
+}
+@media(max-width:760px){
+  #grcApp .grc-main{padding:14px 10px 28px}
+  #grcApp .grc-metric-grid.cols-6{grid-template-columns:repeat(2,minmax(125px,1fr))}
+  #grcApp .grc-exec-snapshot-grid{grid-template-columns:repeat(2,minmax(125px,1fr))}
+  #grcApp .grc-exec-domain{padding:16px 12px 6px;border-radius:16px}
+  #grcApp .grc-exec-domain-head{flex-direction:column}
+  #grcApp .grc-department-abbr{width:48px;height:48px;font-size:16px}
+}
+@media(max-width:430px){
+  #grcApp .grc-exec-snapshot-grid{grid-template-columns:1fr 1fr}
+  #grcApp .grc-metric-card{min-height:136px;padding:13px}
+  #grcApp .grc-metric-value{font-size:31px}
+}
