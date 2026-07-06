@@ -32,18 +32,18 @@
       manualsTitle:'FMS Manuals & Guidelines',manualsDesc:'A controlled register for Facilities & Safety manuals, guidelines and approved operating references.',
       governanceOverview:'Governance Overview',riskOverview:'Risk, Incident & Code Overview',departmentView:'Department View',allDepartments:'All FMS Departments',
       policies:'Policies',plans:'Plans',emergencyPlans:'Emergency Plans',forms:'Forms',
-      totalPolicies:'Total Policies',openPolicies:'Open Policies',expiredPolicies:'Expired Policies',expiringThisYear:'Expiring This Year',expiredPolicyRate:'Expired Policies / Total',
+      totalPolicies:'Total Policies',openPolicies:'Active Policies',expiredPolicies:'Expired Policies',expiringThisYear:'Expiring This Year',expiredPolicyRate:'Percentage of Expired Policies',
       totalPlans:'Total Plans',activePlans:'Active Plans',expiredPlans:'Expired Plans',totalEmergencyPlans:'Total Emergency Plans',activeEmergencyPlans:'Active Emergency Plans',expiredEmergencyPlans:'Expired Emergency Plans',
       totalForms:'Total Forms',activeForms:'Active Forms',expiredForms:'Expired Forms',
       policyRegister:'Policy Register',planRegister:'Plan Register',emergencyPlanRegister:'Emergency Plan Register',formRegister:'Approved Forms Register',manualRegister:'Manuals & Guidelines Register',
       totalManuals:'Total Manuals',activeManuals:'Active Manuals',expiredManuals:'Expired Manuals',manualsDue:'Due for Review This Year',
       orgStructure:'Organizational Structure',orgStructureDesc:'FMS reporting lines, departments and process ownership.',raci:'RACI Matrix',raciDesc:'Responsibility, accountability, consultation and information mapping.',annualPlan:'Annual Operational Plan',annualPlanDesc:'Annual priorities, initiatives, owners and milestones.',
-      totalRisks:'Total Risks',openRisks:'Open Risks',closedRisks:'Closed Risks',closedRiskRate:'Closed Risks / Total',criticalRisks:'Critical Risks',highRisks:'High Risks',mediumRisks:'Medium Risks',lowRisks:'Low Risks',highCriticalRate:'High & Critical / Total',
-      incidents:'Incidents',totalIncidents:'Total Incidents',openIncidents:'Open Incidents',closedIncidents:'Closed Incidents',closedIncidentRate:'Closed Incidents / Total',incidentsByYear:'Incidents by Year',
+      totalRisks:'Total Risks',openRisks:'Open Risks',closedRisks:'Closed Risks',closedRiskRate:'Percentage of Closed Risks',criticalRisks:'Critical Risks',highRisks:'High Risks',mediumRisks:'Medium Risks',lowRisks:'Low Risks',highCriticalRate:'Percentage of High & Critical Risks',
+      incidents:'Incidents',totalIncidents:'Total Incidents',openIncidents:'Open Incidents',closedIncidents:'Closed Incidents',closedIncidentRate:'Percentage of Closed Incidents',incidentsByYear:'Incidents by Year',
       codes:'Emergency Codes',totalCodes:'Total Codes',realCodes:'Real Codes',successfulDrills:'Successful Drill Codes',failedDrills:'Failed Drill Codes',successVsFailed:'Successful vs Failed',
       riskRegister:'Risk Register',incidentRegister:'Incident Register',codeRegister:'Emergency Code Register',
       addPolicy:'Add Policy',addPlan:'Add Plan',addEmergencyPlan:'Add Emergency Plan',addForm:'Add Form',addManual:'Add Manual / Guideline',addRisk:'Add Risk',addIncident:'Add Incident',addCode:'Add Code',
-      id:'ID',policyId:'Policy ID',policyName:'Policy Name',planId:'Plan ID',planName:'Plan Name',emergencyPlanId:'Plan ID',emergencyPlanName:'Emergency Plan',formId:'Form ID',formName:'Form Name',manualId:'Manual ID',manualName:'Manual / Guideline',
+      id:'ID',name:'Name',code:'Code',issueDate:'Issue Date',policyId:'Policy ID',policyName:'Policy Name',planId:'Plan ID',planName:'Plan Name',emergencyPlanId:'Plan ID',emergencyPlanName:'Emergency Plan',formId:'Form ID',formName:'Form Name',manualId:'Manual ID',manualName:'Manual / Guideline',
       department:'Department',owner:'Owner',effectiveDate:'Effective Date',startDate:'Start Date',expiryDate:'Expiry Date',reviewDate:'Review Date',version:'Version',status:'Status',category:'Category',actionsCol:'Actions',
       riskId:'Risk ID',riskIdentified:'Risk Identified',riskCategory:'Risk Category',likelihood:'Likelihood',impact:'Impact',riskScore:'Risk Score',riskLevel:'Risk Level',controlType:'Current Risk Control Type',actionStatus:'Action Status',
       incidentId:'Incident ID',date:'Date',contributingFactors:'Contributing Factors',investigationRequired:'Investigation Required (Yes/No)',responsibleDept:'Responsible Dept.',
@@ -70,18 +70,18 @@
       manualsTitle:'أدلة وإرشادات إدارة المرافق والسلامة',manualsDesc:'سجل منضبط لأدلة وإرشادات إدارة المرافق والسلامة والمراجع التشغيلية المعتمدة.',
       governanceOverview:'نظرة الحوكمة',riskOverview:'نظرة المخاطر والحوادث والأكواد',departmentView:'عرض القسم',allDepartments:'جميع أقسام إدارة المرافق والسلامة',
       policies:'السياسات',plans:'الخطط',emergencyPlans:'خطط الطوارئ',forms:'النماذج',
-      totalPolicies:'عدد السياسات',openPolicies:'السياسات المفتوحة',expiredPolicies:'السياسات المنتهية',expiringThisYear:'ستنتهي خلال السنة الحالية',expiredPolicyRate:'نسبة السياسات المنتهية من الإجمالي',
+      totalPolicies:'عدد السياسات',openPolicies:'السياسات السارية',expiredPolicies:'السياسات المنتهية',expiringThisYear:'ستنتهي خلال السنة الحالية',expiredPolicyRate:'نسبة السياسات المنتهية',
       totalPlans:'عدد الخطط',activePlans:'الخطط السارية',expiredPlans:'الخطط المنتهية',totalEmergencyPlans:'عدد خطط الطوارئ',activeEmergencyPlans:'خطط الطوارئ السارية',expiredEmergencyPlans:'خطط الطوارئ المنتهية',
       totalForms:'عدد النماذج',activeForms:'النماذج السارية',expiredForms:'النماذج المنتهية',
       policyRegister:'سجل السياسات',planRegister:'سجل الخطط',emergencyPlanRegister:'سجل خطط الطوارئ',formRegister:'سجل النماذج المعتمدة',manualRegister:'سجل الأدلة والإرشادات',
       totalManuals:'عدد الأدلة',activeManuals:'الأدلة السارية',expiredManuals:'الأدلة المنتهية',manualsDue:'مستحقة للمراجعة هذا العام',
       orgStructure:'الهيكل التنظيمي',orgStructureDesc:'خطوط الإشراف والأقسام وملاك العمليات في إدارة المرافق والسلامة.',raci:'مصفوفة RACI',raciDesc:'توزيع المسؤولية والمساءلة والاستشارة والإحاطة.',annualPlan:'الخطة التشغيلية السنوية',annualPlanDesc:'الأولويات والمبادرات والملاك والمراحل السنوية.',
-      totalRisks:'عدد المخاطر',openRisks:'المخاطر المفتوحة',closedRisks:'المخاطر المغلقة',closedRiskRate:'نسبة المخاطر المغلقة من الإجمالي',criticalRisks:'المخاطر الحرجة',highRisks:'المخاطر العالية',mediumRisks:'المخاطر المتوسطة',lowRisks:'المخاطر المنخفضة',highCriticalRate:'نسبة العالية والحرجة من الإجمالي',
-      incidents:'الحوادث',totalIncidents:'عدد الحوادث',openIncidents:'الحوادث المفتوحة',closedIncidents:'الحوادث المغلقة',closedIncidentRate:'نسبة الحوادث المغلقة من الإجمالي',incidentsByYear:'الحوادث حسب السنة',
+      totalRisks:'عدد المخاطر',openRisks:'المخاطر المفتوحة',closedRisks:'المخاطر المغلقة',closedRiskRate:'نسبة المخاطر المغلقة',criticalRisks:'المخاطر الحرجة',highRisks:'المخاطر العالية',mediumRisks:'المخاطر المتوسطة',lowRisks:'المخاطر المنخفضة',highCriticalRate:'نسبة المخاطر العالية والحرجة',
+      incidents:'الحوادث',totalIncidents:'عدد الحوادث',openIncidents:'الحوادث المفتوحة',closedIncidents:'الحوادث المغلقة',closedIncidentRate:'نسبة الحوادث المغلقة',incidentsByYear:'الحوادث حسب السنة',
       codes:'أكواد الطوارئ',totalCodes:'عدد الأكواد',realCodes:'عدد الأكواد الفعلية',successfulDrills:'أكواد التدريب الناجحة',failedDrills:'أكواد التدريب غير الناجحة',successVsFailed:'الناجحة مقابل غير الناجحة',
       riskRegister:'سجل المخاطر',incidentRegister:'سجل الحوادث',codeRegister:'سجل أكواد الطوارئ',
       addPolicy:'إضافة سياسة',addPlan:'إضافة خطة',addEmergencyPlan:'إضافة خطة طوارئ',addForm:'إضافة نموذج',addManual:'إضافة دليل / إرشاد',addRisk:'إضافة مخاطرة',addIncident:'إضافة حادث',addCode:'إضافة كود',
-      id:'الرقم',policyId:'رقم السياسة',policyName:'اسم السياسة',planId:'رقم الخطة',planName:'اسم الخطة',emergencyPlanId:'رقم الخطة',emergencyPlanName:'خطة الطوارئ',formId:'رقم النموذج',formName:'اسم النموذج',manualId:'رقم الدليل',manualName:'اسم الدليل / الإرشاد',
+      id:'الرقم',name:'الاسم',code:'الرمز',issueDate:'تاريخ الإصدار',policyId:'رقم السياسة',policyName:'اسم السياسة',planId:'رقم الخطة',planName:'اسم الخطة',emergencyPlanId:'رقم الخطة',emergencyPlanName:'خطة الطوارئ',formId:'رقم النموذج',formName:'اسم النموذج',manualId:'رقم الدليل',manualName:'اسم الدليل / الإرشاد',
       department:'القسم',owner:'المالك',effectiveDate:'تاريخ السريان',startDate:'تاريخ البداية',expiryDate:'تاريخ الانتهاء',reviewDate:'تاريخ المراجعة',version:'الإصدار',status:'الحالة',category:'التصنيف',actionsCol:'الإجراءات',
       riskId:'رقم الخطر',riskIdentified:'الخطر المحدد',riskCategory:'تصنيف الخطر',likelihood:'الاحتمالية',impact:'الأثر',riskScore:'درجة الخطر',riskLevel:'مستوى الخطر',controlType:'نوع الضوابط الحالية',actionStatus:'حالة الإجراء',
       incidentId:'رقم الحادث',date:'التاريخ',contributingFactors:'العوامل المساهمة',investigationRequired:'هل يتطلب تحقيقاً؟ (نعم/لا)',responsibleDept:'القسم المسؤول',
@@ -104,13 +104,13 @@
   var modules=[
     {id:'executive',icon:'⌂'},
     {id:'governance',icon:'▦',count:'governance'},
-    {id:'manuals',icon:'▤',count:'manuals'},
     {id:'risk',icon:'◇',count:'risk'},
     {id:'compliance',icon:'✓',count:'compliance'},
     {id:'audit',icon:'◎',count:'audits'},
     {id:'actions',icon:'→',count:'actions'},
     {id:'documents',icon:'▣',count:'documents'},
-    {id:'reports',icon:'▥'}
+    {id:'reports',icon:'▥'},
+    {id:'manuals',icon:'▤',count:'manuals'}
   ];
 
   var departments=['allFms','maintenance','safety','housekeeping','projects','governanceDept'];
@@ -239,10 +239,10 @@
   function deptBar(selected,handler){return'<div class="grc-dept-bar">'+departments.map(function(d){return'<button class="grc-dept-btn '+(selected===d?'is-active':'')+'" onclick="'+handler+'(\''+d+'\')">'+deptName(d)+'</button>';}).join('')+'</div>';}
 
   function governanceMetricCards(kind,dept){
-    var arr=filterDept(state[kind],dept),expired=arr.filter(isExpired),due=arr.filter(expiringThisYear),active=arr.filter(function(r){return normalizeStatus(r.status)==='active'&&!isExpired(r);}),open=arr.filter(function(r){return normalizeStatus(r.status)==='open'&&!isExpired(r);});
+    var arr=filterDept(state[kind],dept),expired=arr.filter(isExpired),due=arr.filter(expiringThisYear),active=arr.filter(function(r){return['active','open'].indexOf(normalizeStatus(r.status))>=0&&!isExpired(r);});
     var c=[];
     if(kind==='policies')c=[
-      ['totalPolicies',arr.length,'info','total'],['openPolicies',open.length,'good','open'],['expiredPolicies',expired.length,'bad','expired'],['expiringThisYear',due.length,'warn','expiring'],['expiredPolicyRate',pct(expired.length,arr.length),'purple','expired']
+      ['totalPolicies',arr.length,'info','total'],['openPolicies',active.length,'good','active'],['expiredPolicies',expired.length,'bad','expired'],['expiringThisYear',due.length,'warn','expiring'],['expiredPolicyRate',pct(expired.length,arr.length),'purple','expired']
     ];
     if(kind==='plans')c=[['totalPlans',arr.length,'info','total'],['activePlans',active.length,'good','active'],['expiredPlans',expired.length,'bad','expired'],['expiringThisYear',due.length,'warn','expiring']];
     if(kind==='emergencyPlans')c=[['totalEmergencyPlans',arr.length,'info','total'],['activeEmergencyPlans',active.length,'good','active'],['expiredEmergencyPlans',expired.length,'bad','expired']];
@@ -318,35 +318,25 @@
 
   function governanceTable(kind,dept,style){
     var rows=filterDept(state[kind],dept).map(function(r){
-      var cells='';
-      if(kind==='policies')cells='<td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.effectiveDate)+'</td><td>'+dateText(r.expiryDate)+'</td><td>'+badge(isExpired(r)?'expired':r.status)+'</td>';
-      if(kind==='plans')cells='<td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.startDate)+'</td><td>'+dateText(r.expiryDate)+'</td><td>'+badge(isExpired(r)?'expired':r.status)+'</td>';
-      if(kind==='emergencyPlans')cells='<td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.expiryDate)+'</td><td>'+badge(isExpired(r)?'expired':r.status)+'</td>';
-      if(kind==='forms')cells='<td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.version||'—')+'</td><td>'+dateText(r.expiryDate)+'</td><td>'+badge(isExpired(r)?'expired':r.status)+'</td>';
-      return'<tr>'+cells+'<td><div class="grc-row-actions">'+delBtn(kind,r.id)+'</div></td></tr>';
+      return'<tr><td>'+esc(recordName(r))+'</td><td class="grc-id">'+esc(r.code||r.id||'—')+'</td><td>'+dateText(r.issueDate)+'</td><td>'+dateText(r.effectiveDate||r.startDate)+'</td><td>'+dateText(r.reviewDate||r.expiryDate)+'</td></tr>';
     }).join('');
-    var heads=[];
-    if(kind==='policies')heads=['policyId','policyName','department','owner','effectiveDate','expiryDate','status','actionsCol'];
-    if(kind==='plans')heads=['planId','planName','department','owner','startDate','expiryDate','status','actionsCol'];
-    if(kind==='emergencyPlans')heads=['emergencyPlanId','emergencyPlanName','department','owner','expiryDate','status','actionsCol'];
-    if(kind==='forms')heads=['formId','formName','department','version','expiryDate','status','actionsCol'];
-    return tableHtml(style,heads,rows);
+    return tableHtml(style,['name','code','issueDate','effectiveDate','reviewDate'],rows);
   }
   function riskTable(dept){
-    var rows=filterDept(state.risks,dept).map(function(r){var score=riskScore(r),level=riskLevel(r);return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(L(r.riskCategory)||r.riskCategory||'—')+'</td><td>'+esc(r.likelihood||'—')+'</td><td>'+esc(r.impact||'—')+'</td><td><b>'+score+'</b></td><td>'+badge(level)+'</td><td>'+esc(L(r.controlType)||r.controlType||'—')+'</td><td>'+badge(r.actionStatus||r.status)+'</td><td>'+delBtn('risks',r.id)+'</td></tr>';}).join('');
-    return tableHtml('risk',['riskId','riskIdentified','riskCategory','likelihood','impact','riskScore','riskLevel','controlType','actionStatus','actionsCol'],rows);
+    var rows=filterDept(state.risks,dept).map(function(r){var score=riskScore(r),level=riskLevel(r);return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(L(r.riskCategory)||r.riskCategory||'—')+'</td><td>'+esc(r.likelihood||'—')+'</td><td>'+esc(r.impact||'—')+'</td><td><b>'+score+'</b></td><td>'+badge(level)+'</td><td>'+esc(L(r.controlType)||r.controlType||'—')+'</td><td>'+badge(r.actionStatus||r.status)+'</td></tr>';}).join('');
+    return tableHtml('risk',['riskId','riskIdentified','riskCategory','likelihood','impact','riskScore','riskLevel','controlType','actionStatus'],rows);
   }
   function incidentTable(dept){
-    var rows=filterDept(state.incidents,dept).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+dateText(r.date)+'</td><td>'+esc(r.category||'—')+'</td><td>'+esc(r.contributingFactors||'—')+'</td><td>'+badge(r.investigationRequired==='yes'?'yes':'no')+'</td><td>'+badge(r.status)+'</td><td>'+esc(deptName(r.department||r.responsibleDept))+'</td><td>'+delBtn('incidents',r.id)+'</td></tr>';}).join('');
-    return tableHtml('incident',['incidentId','date','category','contributingFactors','investigationRequired','status','responsibleDept','actionsCol'],rows);
+    var rows=filterDept(state.incidents,dept).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+dateText(r.date)+'</td><td>'+esc(r.category||'—')+'</td><td>'+esc(r.contributingFactors||'—')+'</td><td>'+badge(r.investigationRequired==='yes'?'yes':'no')+'</td><td>'+badge(r.status)+'</td><td>'+esc(deptName(r.department||r.responsibleDept))+'</td></tr>';}).join('');
+    return tableHtml('incident',['incidentId','date','category','contributingFactors','investigationRequired','status','responsibleDept'],rows);
   }
   function codeTable(dept){
-    var rows=filterDept(state.codes,dept).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+badge(r.status)+'</td><td>'+badge(r.type)+'</td><td>'+dateText(r.date)+'</td><td>'+esc(r.location||'—')+'</td><td>'+dateText(r.closeDateTime)+'</td><td>'+delBtn('codes',r.id)+'</td></tr>';}).join('');
-    return tableHtml('code',['codeNumber','status','type','date','location','closeDateTime','actionsCol'],rows);
+    var rows=filterDept(state.codes,dept).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+badge(r.status)+'</td><td>'+badge(r.type)+'</td><td>'+dateText(r.date)+'</td><td>'+esc(r.location||'—')+'</td><td>'+dateText(r.closeDateTime)+'</td></tr>';}).join('');
+    return tableHtml('code',['codeNumber','status','type','date','location','closeDateTime'],rows);
   }
   function manualTable(){
-    var rows=state.manuals.map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.category||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.reviewDate||r.expiryDate)+'</td><td>'+badge(isExpired(r)?'expired':r.status)+'</td><td>'+delBtn('manuals',r.id)+'</td></tr>';}).join('');
-    return tableHtml('policy',['manualId','manualName','category','department','owner','reviewDate','status','actionsCol'],rows);
+    var rows=state.manuals.map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.category||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.reviewDate||r.expiryDate)+'</td><td>'+badge(isExpired(r)?'expired':r.status)+'</td></tr>';}).join('');
+    return tableHtml('policy',['manualId','manualName','category','department','owner','reviewDate','status'],rows);
   }
   function tableHtml(style,heads,rows){return'<div class="grc-table-wrap"><table class="grc-table '+style+'"><thead><tr>'+heads.map(function(h){return'<th>'+L(h)+'</th>';}).join('')+'</tr></thead><tbody>'+(rows||emptyRow(heads.length))+'</tbody></table></div>';}
 
@@ -355,10 +345,10 @@
     var rows=(state[kind]||[]).map(rowBuilder).join('');
     return hero('GRC',L(titleKey),L(descKey),addBtn(addType,L(addKey)))+'<div class="grc-section">'+registerBlock(style||'policy',L(titleKey),L(descKey),addBtn(addType,L(addKey)),tableHtml(style||'policy',heads,rows))+'</div>';
   }
-  function compliancePage(){return simpleRegisterPage('compliance','complianceTitle','complianceDesc','compliance','addRequirement',['id','requirement','authority','department','owner','dueDate','status','actionsCol'],function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.authority||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td>'+badge(r.status)+'</td><td>'+delBtn('compliance',r.id)+'</td></tr>';},'policy');}
-  function auditPage(){return simpleRegisterPage('audits','auditTitle','auditDesc','audit','addFinding',['id','title','severity','department','owner','dueDate','status','actionsCol'],function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+badge(r.severity)+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td>'+badge(r.status)+'</td><td>'+delBtn('audits',r.id)+'</td></tr>';},'incident');}
-  function actionsPage(){return simpleRegisterPage('actions','actionsTitle','actionsDesc','action','addAction',['id','title','source','department','owner','dueDate','progress','status','actionsCol'],function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.source||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td><div style="display:flex;align-items:center;gap:7px"><div class="grc-progress"><span style="width:'+Math.max(0,Math.min(100,Number(r.progress||0)))+'%"></span></div><b>'+Number(r.progress||0)+'%</b></div></td><td>'+badge(r.status)+'</td><td>'+delBtn('actions',r.id)+'</td></tr>';},'plan');}
-  function documentsPage(){return simpleRegisterPage('documents','documentsTitle','documentsDesc','document','addDocument',['id','title','category','department','owner','reviewDate','status','actionsCol'],function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.category||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.reviewDate)+'</td><td>'+badge(r.status)+'</td><td>'+delBtn('documents',r.id)+'</td></tr>';},'form');}
+  function compliancePage(){return simpleRegisterPage('compliance','complianceTitle','complianceDesc','compliance','addRequirement',['id','requirement','authority','department','owner','dueDate','status'],function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.authority||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td>'+badge(r.status)+'</td></tr>';},'policy');}
+  function auditPage(){return simpleRegisterPage('audits','auditTitle','auditDesc','audit','addFinding',['id','title','severity','department','owner','dueDate','status'],function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+badge(r.severity)+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td>'+badge(r.status)+'</td></tr>';},'incident');}
+  function actionsPage(){return simpleRegisterPage('actions','actionsTitle','actionsDesc','action','addAction',['id','title','source','department','owner','dueDate','progress','status'],function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.source||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td><div style="display:flex;align-items:center;gap:7px"><div class="grc-progress"><span style="width:'+Math.max(0,Math.min(100,Number(r.progress||0)))+'%"></span></div><b>'+Number(r.progress||0)+'%</b></div></td><td>'+badge(r.status)+'</td></tr>';},'plan');}
+  function documentsPage(){return simpleRegisterPage('documents','documentsTitle','documentsDesc','document','addDocument',['id','title','category','department','owner','reviewDate','status'],function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.category||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.reviewDate)+'</td><td>'+badge(r.status)+'</td></tr>';},'form');}
   function reportsPage(){
     var cards=[['▥',isAr()?'التقارير الربعية':'Quarterly Reports'],['▤',isAr()?'التقارير السنوية':'Annual Reports'],['◫',isAr()?'التقارير التنفيذية':'Executive Reports'],['⌁',isAr()?'تقارير الحوادث':'Incident Reports'],['▣',isAr()?'أرشيف إدارة المرافق والسلامة':'FMS Archive'],['§',isAr()?'الأطر التنظيمية والتشريعية':'Regulatory & Legislative Framework']];
     return hero('GRC · Reporting',L('reportsTitle'),L('reportsDesc'))+'<div class="grc-module-grid">'+cards.map(function(x){return'<div class="grc-module-card"><div class="grc-module-icon">'+x[0]+'</div><div><div class="grc-module-title">'+x[1]+'</div><div class="grc-module-desc">'+L('planned')+'</div><span class="grc-module-status">'+L('planned')+'</span></div></div>';}).join('')+'</div>';
@@ -369,7 +359,7 @@
     var arr=filterDept(state[kind]||[],dept);
     if(filter==='total')return arr;
     if(filter==='open')return arr.filter(function(r){return kind==='policies'?(normalizeStatus(r.status)==='open'&&!isExpired(r)):isOpen(r);});
-    if(filter==='active')return arr.filter(function(r){return normalizeStatus(r.status)==='active'&&!isExpired(r);});
+    if(filter==='active')return arr.filter(function(r){return['active','open'].indexOf(normalizeStatus(r.status))>=0&&!isExpired(r);});
     if(filter==='expired')return arr.filter(isExpired);
     if(filter==='expiring')return arr.filter(expiringThisYear);
     if(filter==='closed')return arr.filter(isClosed);
@@ -423,10 +413,10 @@
   function defaultDeptFor(type){if(['policy','plan','emergencyPlan','form'].indexOf(type)>=0)return governanceDept==='allFms'?'governanceDept':governanceDept;if(['risk','incident','code'].indexOf(type)>=0)return riskDept==='allFms'?'safety':riskDept;return'governanceDept';}
   function formSpec(type){
     var d=defaultDeptFor(type);
-    if(type==='policy')return{title:L('addPolicy'),collection:'policies',prefix:'POL',fields:field('name',L('policyName'),'text',null,true,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('effectiveDate',L('effectiveDate'),'date')+field('expiryDate',L('expiryDate'),'date')+field('status',L('status'),'select',statusOptions(type),true,false,'open')};
-    if(type==='plan')return{title:L('addPlan'),collection:'plans',prefix:'PLN',fields:field('name',L('planName'),'text',null,true,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('startDate',L('startDate'),'date')+field('expiryDate',L('expiryDate'),'date')+field('status',L('status'),'select',statusOptions(type),true,false,'active')};
-    if(type==='emergencyPlan')return{title:L('addEmergencyPlan'),collection:'emergencyPlans',prefix:'EMP',fields:field('name',L('emergencyPlanName'),'text',null,true,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('expiryDate',L('expiryDate'),'date')+field('status',L('status'),'select',statusOptions(type),true,false,'active')};
-    if(type==='form')return{title:L('addForm'),collection:'forms',prefix:'FRM',fields:field('name',L('formName'),'text',null,true,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('version',L('version'),'text',null,true)+field('expiryDate',L('expiryDate'),'date')+field('status',L('status'),'select',statusOptions(type),true,false,'active')};
+    if(type==='policy')return{title:L('addPolicy'),collection:'policies',prefix:'POL',fields:field('name',L('name'),'text',null,true,true)+field('code',L('code'),'text',null,true)+field('issueDate',L('issueDate'),'date',null,true)+field('effectiveDate',L('effectiveDate'),'date',null,true)+field('reviewDate',L('reviewDate'),'date',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('status',L('status'),'select',statusOptions(type),true,false,'active')};
+    if(type==='plan')return{title:L('addPlan'),collection:'plans',prefix:'PLN',fields:field('name',L('name'),'text',null,true,true)+field('code',L('code'),'text',null,true)+field('issueDate',L('issueDate'),'date',null,true)+field('effectiveDate',L('effectiveDate'),'date',null,true)+field('reviewDate',L('reviewDate'),'date',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('status',L('status'),'select',statusOptions(type),true,false,'active')};
+    if(type==='emergencyPlan')return{title:L('addEmergencyPlan'),collection:'emergencyPlans',prefix:'EMP',fields:field('name',L('name'),'text',null,true,true)+field('code',L('code'),'text',null,true)+field('issueDate',L('issueDate'),'date',null,true)+field('effectiveDate',L('effectiveDate'),'date',null,true)+field('reviewDate',L('reviewDate'),'date',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('status',L('status'),'select',statusOptions(type),true,false,'active')};
+    if(type==='form')return{title:L('addForm'),collection:'forms',prefix:'FRM',fields:field('name',L('name'),'text',null,true,true)+field('code',L('code'),'text',null,true)+field('issueDate',L('issueDate'),'date',null,true)+field('effectiveDate',L('effectiveDate'),'date',null,true)+field('reviewDate',L('reviewDate'),'date',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('status',L('status'),'select',statusOptions(type),true,false,'active')};
     if(type==='manual')return{title:L('addManual'),collection:'manuals',prefix:'MAN',fields:field('name',L('manualName'),'text',null,true,true)+field('category',L('category'),'text',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('reviewDate',L('reviewDate'),'date')+field('status',L('status'),'select',statusOptions(type),true,false,'active')};
     if(type==='risk')return{title:L('addRisk'),collection:'risks',prefix:'RSK',fields:field('riskIdentified',L('riskIdentified'),'textarea',null,true,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('riskCategory',L('riskCategory'),'select',[['operational',L('operational')],['facility',L('facility')],['safetyRisk',L('safetyRisk')],['complianceRisk',L('complianceRisk')],['contractor',L('contractor')],['emergencyPreparedness',L('emergencyPreparedness')]],true)+field('likelihood',L('likelihood'),'select',[[1,'1'],[2,'2'],[3,'3'],[4,'4'],[5,'5']],true,false,1)+field('impact',L('impact'),'select',[[1,'1'],[2,'2'],[3,'3'],[4,'4'],[5,'5']],true,false,1)+field('controlType',L('controlType'),'select',[['preventive',L('preventive')],['detective',L('detective')],['corrective',L('corrective')],['directive',L('directive')],['noControl',L('noControl')]],true)+field('actionStatus',L('actionStatus'),'select',statusOptions(type),true,false,'open')};
     if(type==='incident')return{title:L('addIncident'),collection:'incidents',prefix:'INC',fields:field('date',L('date'),'date',null,true)+field('category',L('category'),'text',null,true)+field('contributingFactors',L('contributingFactors'),'textarea',null,true,true)+field('investigationRequired',L('investigationRequired'),'select',[['yes',L('yes')],['no',L('no')]],true)+field('status',L('status'),'select',statusOptions(type),true,false,'open')+field('department',L('responsibleDept'),'select',deptOptions(),true,false,d)};
