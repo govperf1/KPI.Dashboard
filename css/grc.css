@@ -76,3 +76,67 @@ body.grc-mode{overflow:hidden!important;background:var(--grc-bg)!important}
 #grcApp .grc-primary-btn{background:linear-gradient(135deg,#00A3C4,#007A96);box-shadow:0 5px 14px rgba(0,163,196,.20)}
 #grcApp .grc-dept-btn.is-active{background:linear-gradient(135deg,#00A3C4,#007A96);border-color:#00A3C4;box-shadow:0 4px 12px rgba(0,163,196,.18)}
 #grcApp .grc-user-avatar{color:#152538}
+
+/* Department-stacked Governance & Risk views — 2026-07-06 */
+#grcApp .grc-department-stack{display:flex;flex-direction:column;gap:22px;margin-top:14px}
+#grcApp .grc-department-panel{background:#fff;border:1px solid #D6E2EE;border-radius:15px;box-shadow:0 2px 12px rgba(21,37,56,.07);overflow:hidden;position:relative}
+#grcApp .grc-department-accent{height:4px;background:var(--dept-color,#00A3C4)}
+#grcApp .grc-department-header{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid #EDF2F6;background:linear-gradient(180deg,#FFFFFF,#FBFDFE)}
+#grcApp .grc-department-identity{display:flex;align-items:center;gap:11px;min-width:230px;flex:1}
+#grcApp .grc-department-abbr{font-size:21px;line-height:1;font-weight:950;color:var(--dept-color,#00A3C4);font-family:Consolas,"Courier New",monospace;letter-spacing:-.4px}
+#grcApp .grc-department-name{font-size:14px;font-weight:950;color:#152538}
+#grcApp .grc-department-caption{font-size:8.5px;color:#7A8B9D;margin-top:3px}
+#grcApp .grc-department-summary{display:flex;gap:0;border:1px solid #DCE6EE;border-radius:10px;overflow:hidden;background:#F8FAFC}
+#grcApp .grc-mini-stat{min-width:76px;padding:7px 12px;text-align:center;border-inline-start:1px solid #E2E8F0}
+#grcApp .grc-mini-stat:first-child{border-inline-start:0}
+#grcApp .grc-mini-stat b{display:block;font-size:18px;line-height:1;font-weight:950;color:#152538;font-family:Consolas,"Courier New",monospace}
+#grcApp .grc-mini-stat.good b{color:#06845A}
+#grcApp .grc-mini-stat.warn b{color:#B06000}
+#grcApp .grc-mini-stat span{display:block;font-size:7.5px;font-weight:800;text-transform:uppercase;color:#8A9AAA;margin-top:3px;white-space:nowrap}
+#grcApp .grc-department-body{padding:16px 18px 20px}
+#grcApp .grc-department-body>.grc-section:first-of-type{margin-top:18px}
+#grcApp .grc-department-body .grc-section:last-child{margin-bottom:0}
+
+#grcApp .grc-chart-grid{display:grid;gap:12px;margin:12px 0 18px}
+#grcApp .grc-chart-grid.cols-2{grid-template-columns:repeat(2,minmax(260px,1fr))}
+#grcApp .grc-chart-grid.cols-3{grid-template-columns:repeat(3,minmax(220px,1fr))}
+#grcApp .grc-chart-card{background:#fff;border:1px solid #D6E2EE;border-radius:13px;padding:13px 14px;box-shadow:0 3px 12px rgba(21,37,56,.045);min-height:176px}
+#grcApp .grc-chart-title{font-size:9px;font-weight:900;color:#52657A;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
+#grcApp .grc-donut-layout{display:flex;align-items:center;gap:16px;min-height:126px}
+#grcApp .grc-donut{width:112px;height:112px;border-radius:50%;position:relative;display:grid;place-items:center;flex:0 0 auto;box-shadow:inset 0 0 0 1px rgba(21,37,56,.04)}
+#grcApp .grc-donut:after{content:"";position:absolute;inset:17px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px #EDF2F6}
+#grcApp .grc-donut-center{position:relative;z-index:1;text-align:center;display:flex;flex-direction:column;line-height:1}
+#grcApp .grc-donut-center strong{font-size:24px;font-weight:950;color:#152538;font-family:Consolas,"Courier New",monospace}
+#grcApp .grc-donut-center span{font-size:7.5px;font-weight:800;color:#8A9AAA;margin-top:4px;text-transform:uppercase}
+#grcApp .grc-chart-legend{display:flex;flex-direction:column;gap:7px;min-width:0;flex:1}
+#grcApp .grc-chart-legend span{display:flex;align-items:center;gap:7px;font-size:8.5px;color:#64748B;min-width:0}
+#grcApp .grc-chart-legend i{width:8px;height:8px;border-radius:3px;flex:0 0 auto}
+#grcApp .grc-chart-legend b{margin-inline-start:auto;color:#152538;font-family:Consolas,"Courier New",monospace;font-size:9px}
+#grcApp .grc-bar-list{display:flex;flex-direction:column;gap:10px}
+#grcApp .grc-bar-row{min-width:0}
+#grcApp .grc-bar-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px;font-size:8.5px;color:#64748B}
+#grcApp .grc-bar-head b{font-size:9px;color:#152538;font-family:Consolas,"Courier New",monospace}
+#grcApp .grc-bar-track{height:7px;background:#EDF2F6;border-radius:999px;overflow:hidden}
+#grcApp .grc-bar-track span{display:block;height:100%;min-width:0;border-radius:999px;transition:width .25s ease}
+
+@media(max-width:1120px){
+  #grcApp .grc-chart-grid.cols-3{grid-template-columns:repeat(2,minmax(240px,1fr))}
+  #grcApp .grc-chart-grid.cols-3 .grc-chart-card:last-child{grid-column:1/-1}
+}
+@media(max-width:760px){
+  #grcApp .grc-department-header{padding:12px 13px;align-items:flex-start}
+  #grcApp .grc-department-summary{width:100%}
+  #grcApp .grc-mini-stat{flex:1;min-width:0;padding:7px 6px}
+  #grcApp .grc-department-body{padding:12px}
+  #grcApp .grc-chart-grid.cols-2,#grcApp .grc-chart-grid.cols-3{grid-template-columns:1fr}
+  #grcApp .grc-chart-grid.cols-3 .grc-chart-card:last-child{grid-column:auto}
+}
+@media(max-width:430px){
+  #grcApp .grc-donut-layout{align-items:flex-start;gap:12px}
+  #grcApp .grc-donut{width:94px;height:94px}
+  #grcApp .grc-donut:after{inset:15px}
+  #grcApp .grc-donut-center strong{font-size:20px}
+}
+@media print{
+  #grcApp .grc-department-panel,#grcApp .grc-chart-card{box-shadow:none!important;break-inside:avoid}
+}
