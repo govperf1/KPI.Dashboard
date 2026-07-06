@@ -1,6 +1,6 @@
 /* ======================================================================
    QUMC GRC Workspace — Super Admin Preview
-   Version: 2026-07-06 Registers / Org Structure / Layout Refinement
+   Version: 2026-07-06 Risk Register / Housekeeping Split / Dynamic Charts
 
    Scope
    - Executive Command: Governance + Risk/Incident/Code summaries.
@@ -16,27 +16,27 @@
   'use strict';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var STATE_VERSION=5;
+  var STATE_VERSION=6;
   var activeTab='executive';
   var app=null;
 
   var labels={
     en:{
-      app:'Governance, Risk & Compliance',sub:'Facilities & Safety Division · Governance & Performance Department',preview:'Super Admin Preview',back:'Back to Portal',
+      app:'Governance, Risk & Compliance',sub:'Facilities & Safety Division',preview:'Super Admin Preview',back:'Back to Portal',
       executive:'Executive Command',governance:'Governance',manuals:'FMS Manuals & Guidelines',risk:'Risk Management',register:'Register',compliance:'Compliance',audit:'Audit & Assurance',actions:'Action Plans',documents:'Documents & Records',reports:'Reports & Archive',
       executiveTitle:'Executive Command',executiveDesc:'A consolidated view of governance records, risks, incidents and emergency codes across the Facilities & Safety Division.',
       governanceTitle:'Governance',governanceDesc:'Policies, plans, emergency plans and approved forms, monitored for the division and for every department.',
       riskTitle:'Risk Management',riskDesc:'Department-level oversight of risks, incidents and emergency codes with dedicated operational registers.',registerTitle:'Registers',registerDesc:'A consolidated register center. Every register contains records from all FMS departments, grouped clearly by department.',governanceRegisterGroup:'Governance Registers',riskRegisterGroup:'Risk Management Registers',assuranceRegisterGroup:'Assurance & Control Registers',
       manualsTitle:'FMS Manuals & Guidelines',manualsDesc:'A controlled register for Facilities & Safety manuals, guidelines and approved operating references.',
       governanceOverview:'Governance Overview',riskOverview:'Risk, Incident & Code Overview',departmentView:'Department Sections',departmentSectionsDesc:'Each FMS department is displayed in a dedicated section, aligned with the Performance department view.',divisionOverview:'FMS Division Overview',allDepartments:'All FMS Departments',departmentRecords:'Department Records',
-      executiveSnapshot:'Executive Portfolio Snapshot',executiveSnapshotDesc:'Live consolidated indicators across Governance and Risk Management.',governanceRecords:'Governance Records',governanceStatusChart:'Governance Records Status',governanceVolumeChart:'Records by Governance Area',riskDistributionChart:'Risk Level Distribution',incidentTrendChart:'Incident Trend by Year',codeOutcomeChart:'Emergency Code Outcomes',dueThisYear:'Due This Year',other:'Other',attention:'Needs Attention',
+      executiveSnapshot:'Executive Portfolio Snapshot',executiveSnapshotDesc:'Live consolidated indicators across Governance and Risk Management.',governanceRecords:'Governance Records',governanceStatusChart:'Governance Records Status',governanceVolumeChart:'Records by Governance Area',riskDistributionChart:'Risk Level Distribution',riskExposureChart:'High & Critical Risks by Department',incidentTrendChart:'Incident Trend by Year',codeOutcomeChart:'Emergency Code Outcomes',dueThisYear:'Due This Year',other:'Other',attention:'Needs Attention',
       policies:'Policies',plans:'Plans',emergencyPlans:'Emergency Plans',forms:'Forms',
       totalPolicies:'Total Policies',openPolicies:'Active Policies',expiredPolicies:'Expired Policies',expiringThisYear:'Expiring This Year',expiredPolicyRate:'Expired Policies Rate',
       totalPlans:'Total Plans',activePlans:'Active Plans',expiredPlans:'Expired Plans',expiredPlanRate:'Expired Plans Rate',totalEmergencyPlans:'Total Emergency Plans',activeEmergencyPlans:'Active Emergency Plans',expiredEmergencyPlans:'Expired Emergency Plans',
       totalForms:'Total Forms',activeForms:'Active Forms',expiredForms:'Expired Forms',
       policyRegister:'Policy Register',planRegister:'Plan Register',emergencyPlanRegister:'Emergency Plan Register',formRegister:'Approved Forms Register',manualRegister:'Manuals & Guidelines Register',
       totalManuals:'Total Manuals',activeManuals:'Active Manuals',expiredManuals:'Expired Manuals',manualsDue:'Due for Review This Year',
-      orgStructure:'Organizational Structure',orgStructureDesc:'FMS reporting lines, departments and process ownership.',raci:'RACI Matrix',raciDesc:'Responsibility, accountability, consultation and information mapping.',annualPlan:'Annual Operational Plan',annualPlanDesc:'Annual priorities, initiatives, owners and milestones.',orgChartTitle:'FMS Organizational Structure',orgChartDesc:'Approved reporting lines, departments, units and service functions.',fmsDirector:'FMS Director',governanceOperations:'Governance & Performance Department',ticketingCentre:'Ticketing Centre',planningAuditing:'Planning & Auditing',administrativeServices:'Administrative Services Unit',mechanicalUnit:'Mechanical Unit',hvacUnit:'HVAC Unit',electronicsUnit:'Electronics Unit',electricalUnit:'Electrical Unit',architecturalCivilUnit:'Architectural & Civil Works Unit',medicalWasteUnit:'Medical Waste Unit',housekeepingServicesUnit:'Housekeeping Services Unit',laundryServicesUnit:'Laundry Services Unit',safetyManagementUnit:'Safety Management Unit',fireProtectionUnit:'Fire Protection Unit',hazardousMaterialUnit:'Hazardous Material Management Unit',projectStudies:'Project Studies',projectMonitoring:'Project Monitoring',
+      orgStructure:'Organizational Structure',orgStructureDesc:'FMS reporting lines, departments and process ownership.',raci:'RACI Matrix',raciDesc:'Responsibility, accountability, consultation and information mapping.',annualPlan:'Annual Operational Plan',annualPlanDesc:'Annual priorities, initiatives, owners and milestones.',orgChartTitle:'FMS Organizational Structure',orgChartDesc:'Approved reporting lines, departments, units and service functions.',fmsDirector:'FMS Director',governanceOperations:'',ticketingCentre:'Ticketing Centre',planningAuditing:'Planning & Auditing',administrativeServices:'Administrative Services Unit',mechanicalUnit:'Mechanical Unit',hvacUnit:'HVAC Unit',electronicsUnit:'Electronics Unit',electricalUnit:'Electrical Unit',architecturalCivilUnit:'Architectural & Civil Works Unit',medicalWasteUnit:'Medical Waste Unit',housekeepingServicesUnit:'Housekeeping Services Unit',laundryServicesUnit:'Laundry Services Unit',safetyManagementUnit:'Safety Management Unit',fireProtectionUnit:'Fire Protection Unit',hazardousMaterialUnit:'Hazardous Material Management Unit',projectStudies:'Project Studies',projectMonitoring:'Project Monitoring',
       totalRisks:'Total Risks',openRisks:'Open Risks',closedRisks:'Closed Risks',closedRiskRate:'Closed Risks Rate',criticalRisks:'Critical Risks',highRisks:'High Risks',mediumRisks:'Medium Risks',lowRisks:'Low Risks',highCriticalRate:'High & Critical Risks Rate',
       incidents:'Incidents',totalIncidents:'Total Incidents',openIncidents:'Open Incidents',closedIncidents:'Closed Incidents',closedIncidentRate:'Closed Incidents Rate',incidentsByYear:'Incidents by Year',
       codes:'Emergency Codes',totalCodes:'Total Codes',realCodes:'Real Code',drillCodes:'Drill Code',successfulCodes:'Successful Code',failedCodes:'Failed Code',failedCodeRate:'Failed Codes Rate',successfulDrills:'Successful Code',failedDrills:'Failed Code',successVsFailed:'Successful vs Failed',
@@ -51,7 +51,7 @@
       critical:'Critical',high:'High',medium:'Medium',low:'Low',successful:'Successful',failed:'Failed',real:'Real',drill:'Drill',yes:'Yes',no:'No',
       preventive:'Preventive',detective:'Detective',corrective:'Corrective',directive:'Directive',noControl:'No Current Control',
       operational:'Operational',facility:'Facility',safetyRisk:'Safety',complianceRisk:'Compliance',contractor:'Contractor',emergencyPreparedness:'Emergency Preparedness',
-      maintenance:'Maintenance',safety:'Safety',housekeeping:'Housekeeping',projects:'Project Management',governanceDept:'Governance & Performance',allFms:'All FMS',
+      maintenance:'Maintenance',safety:'Safety',housekeeping:'Housekeeping',housekeepingRisk:'Housekeeping',laundryRisk:'Laundry',projects:'Project Management',division:'FMS Division',allFms:'All FMS',
       noRecords:'No records added yet',noRecordsSub:'Use the Add button to start the preview register.',localNote:'Preview records are saved on this device only.',draftWorkspace:'Draft workspace',
       recordDetails:'Record Details',close:'Close',delete:'Delete',confirmDelete:'Delete this preview record?',cancel:'Cancel',save:'Save Record',required:'Please complete all required fields.',
       percentage:'Rate',records:'Records',clickToView:'Click to view records',year:'Year',count:'Count',noMatching:'No matching records.',
@@ -61,21 +61,21 @@
       addRequirement:'Add Requirement',addFinding:'Add Finding',addAction:'Add Action',addDocument:'Add Document',compliant:'Compliant',partial:'Partially Compliant',nonCompliant:'Non-Compliant',notApplicable:'Not Applicable',major:'Major',minor:'Minor',observation:'Observation',pendingVerification:'Pending Verification',pendingApproval:'Pending Approval'
     },
     ar:{
-      app:'الحوكمة والمخاطر والالتزام',sub:'إدارة المرافق والسلامة · قسم الحوكمة والأداء',preview:'معاينة السوبر أدمن',back:'العودة للبوابة',
+      app:'الحوكمة والمخاطر والالتزام',sub:'إدارة المرافق والسلامة',preview:'معاينة السوبر أدمن',back:'العودة للبوابة',
       executive:'القيادة التنفيذية',governance:'الحوكمة',manuals:'أدلة وإرشادات إدارة المرافق والسلامة',risk:'إدارة المخاطر',register:'السجلات',compliance:'الالتزام',audit:'التدقيق والتوكيد',actions:'خطط العمل',documents:'الوثائق والسجلات',reports:'التقارير والأرشيف',
       executiveTitle:'القيادة التنفيذية',executiveDesc:'نظرة موحدة على سجلات الحوكمة والمخاطر والحوادث وأكواد الطوارئ في إدارة المرافق والسلامة.',
       governanceTitle:'الحوكمة',governanceDesc:'متابعة السياسات والخطط وخطط الطوارئ والنماذج المعتمدة على مستوى الإدارة وكل قسم.',
       riskTitle:'إدارة المخاطر',riskDesc:'متابعة المخاطر والحوادث وأكواد الطوارئ لكل قسم مع سجلات تشغيلية مستقلة.',registerTitle:'السجلات',registerDesc:'مركز موحد لجميع سجلات إدارة المرافق والسلامة، مع تجميع سجلات كل قسم بصورة واضحة داخل كل سجل.',governanceRegisterGroup:'سجلات الحوكمة',riskRegisterGroup:'سجلات إدارة المخاطر',assuranceRegisterGroup:'سجلات التوكيد والرقابة',
       manualsTitle:'أدلة وإرشادات إدارة المرافق والسلامة',manualsDesc:'سجل منضبط لأدلة وإرشادات إدارة المرافق والسلامة والمراجع التشغيلية المعتمدة.',
       governanceOverview:'نظرة الحوكمة',riskOverview:'نظرة المخاطر والحوادث والأكواد',departmentView:'أقسام الإدارة',departmentSectionsDesc:'يظهر كل قسم من أقسام إدارة المرافق والسلامة في قسم مستقل وبنفس فكرة عرض الأقسام في الأداء.',divisionOverview:'نظرة شاملة لإدارة المرافق والسلامة',allDepartments:'جميع أقسام إدارة المرافق والسلامة',departmentRecords:'سجلات القسم',
-      executiveSnapshot:'ملخص المحفظة التنفيذية',executiveSnapshotDesc:'مؤشرات موحدة ومحدثة للحوكمة وإدارة المخاطر.',governanceRecords:'سجلات الحوكمة',governanceStatusChart:'حالة سجلات الحوكمة',governanceVolumeChart:'السجلات حسب مجال الحوكمة',riskDistributionChart:'توزيع مستويات المخاطر',incidentTrendChart:'اتجاه الحوادث حسب السنة',codeOutcomeChart:'نتائج أكواد الطوارئ',dueThisYear:'تستحق خلال السنة',other:'أخرى',attention:'بحاجة للمتابعة',
+      executiveSnapshot:'ملخص المحفظة التنفيذية',executiveSnapshotDesc:'مؤشرات موحدة ومحدثة للحوكمة وإدارة المخاطر.',governanceRecords:'سجلات الحوكمة',governanceStatusChart:'حالة سجلات الحوكمة',governanceVolumeChart:'السجلات حسب مجال الحوكمة',riskDistributionChart:'توزيع مستويات المخاطر',riskExposureChart:'المخاطر العالية والحرجة حسب القسم',incidentTrendChart:'اتجاه الحوادث حسب السنة',codeOutcomeChart:'نتائج أكواد الطوارئ',dueThisYear:'تستحق خلال السنة',other:'أخرى',attention:'بحاجة للمتابعة',
       policies:'السياسات',plans:'الخطط',emergencyPlans:'خطط الطوارئ',forms:'النماذج',
       totalPolicies:'عدد السياسات',openPolicies:'السياسات السارية',expiredPolicies:'السياسات المنتهية',expiringThisYear:'ستنتهي خلال السنة الحالية',expiredPolicyRate:'معدل السياسات المنتهية',
       totalPlans:'عدد الخطط',activePlans:'الخطط السارية',expiredPlans:'الخطط المنتهية',expiredPlanRate:'معدل الخطط المنتهية',totalEmergencyPlans:'عدد خطط الطوارئ',activeEmergencyPlans:'خطط الطوارئ السارية',expiredEmergencyPlans:'خطط الطوارئ المنتهية',
       totalForms:'عدد النماذج',activeForms:'النماذج السارية',expiredForms:'النماذج المنتهية',
       policyRegister:'سجل السياسات',planRegister:'سجل الخطط',emergencyPlanRegister:'سجل خطط الطوارئ',formRegister:'سجل النماذج المعتمدة',manualRegister:'سجل الأدلة والإرشادات',
       totalManuals:'عدد الأدلة',activeManuals:'الأدلة السارية',expiredManuals:'الأدلة المنتهية',manualsDue:'مستحقة للمراجعة هذا العام',
-      orgStructure:'الهيكل التنظيمي',orgStructureDesc:'خطوط الإشراف والأقسام وملاك العمليات في إدارة المرافق والسلامة.',raci:'مصفوفة RACI',raciDesc:'توزيع المسؤولية والمساءلة والاستشارة والإحاطة.',annualPlan:'الخطة التشغيلية السنوية',annualPlanDesc:'الأولويات والمبادرات والملاك والمراحل السنوية.',orgChartTitle:'الهيكل التنظيمي لإدارة المرافق والسلامة',orgChartDesc:'خطوط الارتباط المعتمدة والأقسام والوحدات والمهام الخدمية.',fmsDirector:'مدير إدارة المرافق والسلامة',governanceOperations:'قسم الحوكمة والأداء',ticketingCentre:'مركز التذاكر',planningAuditing:'التخطيط والتدقيق',administrativeServices:'وحدة الخدمات الإدارية',mechanicalUnit:'وحدة الميكانيكا',hvacUnit:'وحدة التكييف',electronicsUnit:'وحدة الإلكترونيات',electricalUnit:'وحدة الكهرباء',architecturalCivilUnit:'وحدة الأعمال المعمارية والمدنية',medicalWasteUnit:'وحدة النفايات الطبية',housekeepingServicesUnit:'وحدة خدمات النظافة',laundryServicesUnit:'وحدة خدمات الغسيل',safetyManagementUnit:'وحدة إدارة السلامة',fireProtectionUnit:'وحدة الوقاية من الحريق',hazardousMaterialUnit:'وحدة إدارة المواد الخطرة',projectStudies:'دراسة المشاريع',projectMonitoring:'متابعة المشاريع',
+      orgStructure:'الهيكل التنظيمي',orgStructureDesc:'خطوط الإشراف والأقسام وملاك العمليات في إدارة المرافق والسلامة.',raci:'مصفوفة RACI',raciDesc:'توزيع المسؤولية والمساءلة والاستشارة والإحاطة.',annualPlan:'الخطة التشغيلية السنوية',annualPlanDesc:'الأولويات والمبادرات والملاك والمراحل السنوية.',orgChartTitle:'الهيكل التنظيمي لإدارة المرافق والسلامة',orgChartDesc:'خطوط الارتباط المعتمدة والأقسام والوحدات والمهام الخدمية.',fmsDirector:'مدير إدارة المرافق والسلامة',governanceOperations:'',ticketingCentre:'مركز التذاكر',planningAuditing:'التخطيط والتدقيق',administrativeServices:'وحدة الخدمات الإدارية',mechanicalUnit:'وحدة الميكانيكا',hvacUnit:'وحدة التكييف',electronicsUnit:'وحدة الإلكترونيات',electricalUnit:'وحدة الكهرباء',architecturalCivilUnit:'وحدة الأعمال المعمارية والمدنية',medicalWasteUnit:'وحدة النفايات الطبية',housekeepingServicesUnit:'وحدة خدمات النظافة',laundryServicesUnit:'وحدة خدمات الغسيل',safetyManagementUnit:'وحدة إدارة السلامة',fireProtectionUnit:'وحدة الوقاية من الحريق',hazardousMaterialUnit:'وحدة إدارة المواد الخطرة',projectStudies:'دراسة المشاريع',projectMonitoring:'متابعة المشاريع',
       totalRisks:'عدد المخاطر',openRisks:'المخاطر المفتوحة',closedRisks:'المخاطر المغلقة',closedRiskRate:'معدل المخاطر المغلقة',criticalRisks:'المخاطر الحرجة',highRisks:'المخاطر العالية',mediumRisks:'المخاطر المتوسطة',lowRisks:'المخاطر المنخفضة',highCriticalRate:'معدل المخاطر العالية والحرجة',
       incidents:'الحوادث',totalIncidents:'عدد الحوادث',openIncidents:'الحوادث المفتوحة',closedIncidents:'الحوادث المغلقة',closedIncidentRate:'معدل الحوادث المغلقة',incidentsByYear:'الحوادث حسب السنة',
       codes:'أكواد الطوارئ',totalCodes:'إجمالي الأكواد',realCodes:'الكود الفعلي',drillCodes:'الكود التدريبي',successfulCodes:'الكود الناجح',failedCodes:'الكود غير الناجح',failedCodeRate:'معدل الأكواد غير الناجحة',successfulDrills:'الكود الناجح',failedDrills:'الكود غير الناجح',successVsFailed:'الناجحة مقابل غير الناجحة',
@@ -90,7 +90,7 @@
       critical:'حرج',high:'عالٍ',medium:'متوسط',low:'منخفض',successful:'ناجح',failed:'غير ناجح',real:'فعلي',drill:'تدريبي',yes:'نعم',no:'لا',
       preventive:'وقائي',detective:'كاشف',corrective:'تصحيحي',directive:'توجيهي',noControl:'لا توجد ضوابط حالية',
       operational:'تشغيلي',facility:'مرافق',safetyRisk:'سلامة',complianceRisk:'التزام',contractor:'مقاولون',emergencyPreparedness:'استعداد للطوارئ',
-      maintenance:'الصيانة',safety:'السلامة',housekeeping:'النظافة',projects:'إدارة المشاريع',governanceDept:'الحوكمة والأداء',allFms:'إدارة المرافق والسلامة',
+      maintenance:'الصيانة',safety:'السلامة',housekeeping:'النظافة',housekeepingRisk:'النظافة',laundryRisk:'المغسلة',projects:'إدارة المشاريع',division:'إدارة المرافق والسلامة',allFms:'إدارة المرافق والسلامة',
       noRecords:'لا توجد سجلات مضافة',noRecordsSub:'استخدم زر الإضافة لبدء تجربة السجل.',localNote:'تُحفظ سجلات المعاينة في هذا الجهاز فقط.',draftWorkspace:'مساحة عمل تجريبية',
       recordDetails:'تفاصيل السجلات',close:'إغلاق',delete:'حذف',confirmDelete:'هل تريد حذف سجل المعاينة؟',cancel:'إلغاء',save:'حفظ السجل',required:'يرجى تعبئة جميع الحقول المطلوبة.',
       percentage:'المعدل',records:'السجلات',clickToView:'اضغط لعرض السجلات',year:'السنة',count:'العدد',noMatching:'لا توجد سجلات مطابقة.',
@@ -114,14 +114,16 @@
     {id:'manuals',icon:'▤',count:'manuals'}
   ];
 
-  var departments=['allFms','maintenance','safety','housekeeping','projects','governanceDept'];
+  var departments=['allFms','maintenance','safety','housekeeping','projects'];
   var departmentOrder=departments.slice(1);
   var departmentMeta={
     maintenance:{abbr:'MNT',color:'#60A5FA',ink:'#2563EB',soft:'rgba(96,165,250,.14)'},
     safety:{abbr:'SAF',color:'#F87171',ink:'#DC2626',soft:'rgba(248,113,113,.14)'},
     housekeeping:{abbr:'HK',color:'#34D399',ink:'#15803D',soft:'rgba(52,211,153,.14)'},
+    housekeepingRisk:{abbr:'HK',color:'#34D399',ink:'#15803D',soft:'rgba(52,211,153,.14)'},
+    laundryRisk:{abbr:'LND',color:'#2FBF9F',ink:'#0F766E',soft:'rgba(47,191,159,.14)'},
     projects:{abbr:'PMD',color:'#FBBF24',ink:'#B45309',soft:'rgba(251,191,36,.18)'},
-    governanceDept:{abbr:'G&P',color:'#1E3E6A',ink:'#1E3E6A',soft:'rgba(30,62,106,.11)'}
+    division:{abbr:'FMS',color:'#1E3E6A',ink:'#1E3E6A',soft:'rgba(30,62,106,.11)'}
   };
 
   /* Imported from rrrisk.xlsx — department is derived from the Risk ID prefix. */
@@ -161,7 +163,6 @@
     if(id.indexOf('MNT')===0)return'maintenance';
     if(id.indexOf('HK')===0||id.indexOf('LUND')===0)return'housekeeping';
     if(id.indexOf('PM')===0)return'projects';
-    if(id.indexOf('GOV')===0||id.indexOf('GRC')===0)return'governanceDept';
     return'';
   }
   function applyRiskRegisterSeed(s){
@@ -194,7 +195,7 @@
     if(Array.isArray(raw.documents)){
       raw.documents.forEach(function(d){
         var x=copyRecord(d),cat=String(x.category||'').toLowerCase();
-        x.department=x.department||departmentFromOwner(x.owner)||'governanceDept';
+        x.department=x.department||departmentFromOwner(x.owner)||'division';
         x.expiryDate=x.expiryDate||x.reviewDate||'';
         x.status=normalizeStatus(x.status||'planned');
         if(cat==='policy'&&!hasId(s.policies,x.id)){x.name=x.title||x.titleEn||x.titleAr||'';s.policies.push(x);}
@@ -212,15 +213,20 @@
       return r;
     });
     ['policies','plans','emergencyPlans','forms','manuals','incidents','codes','compliance','audits','actions','documents'].forEach(function(k){
-      s[k]=s[k].map(function(r){r.status=normalizeStatus(r.status);return r;});
+      s[k]=s[k].map(function(r){
+        r.status=normalizeStatus(r.status);
+        if(r.department==='governanceDept')r.department='division';
+        return r;
+      });
     });
+    s.risks=s.risks.map(function(r){if(r.department==='governanceDept')r.department='division';return r;});
     s.version=STATE_VERSION;s.updatedAt=raw.updatedAt||new Date().toISOString();
     return applyRiskRegisterSeed(s);
   }
   function hasId(arr,id){return arr.some(function(r){return String(r.id)===String(id);});}
   function departmentFromOwner(owner){
     var x=String(owner||'').toLowerCase();
-    if(x.indexOf('maintenance')>=0)return'maintenance';if(x.indexOf('safety')>=0)return'safety';if(x.indexOf('house')>=0)return'housekeeping';if(x.indexOf('project')>=0)return'projects';if(x.indexOf('governance')>=0)return'governanceDept';return'';
+    if(x.indexOf('maintenance')>=0)return'maintenance';if(x.indexOf('safety')>=0)return'safety';if(x.indexOf('house')>=0)return'housekeeping';if(x.indexOf('project')>=0)return'projects';if(x.indexOf('governance')>=0)return'division';return'';
   }
   function loadState(){
     try{return migrateState(JSON.parse(localStorage.getItem(STORAGE_KEY)||'null'));}
@@ -242,7 +248,12 @@
   function pct(n,d){return d?((n/d)*100).toFixed((n*100)%d===0?0:1)+'%':'0%';}
   function deptName(v){return L(v||'allFms');}
   function recordName(r){return(isAr()?(r.nameAr||r.titleAr||r.riskIdentifiedAr||r.name||r.title||r.riskIdentified||r.requirement||r.finding||r.description):(r.nameEn||r.titleEn||r.riskIdentifiedEn||r.name||r.title||r.riskIdentified||r.requirement||r.finding||r.description))||'—';}
-  function filterDept(arr,dept){if(!dept||dept==='allFms')return(arr||[]).slice();return(arr||[]).filter(function(r){return String(r.department||r.responsibleDept||'')===String(dept);});}
+  function riskSubgroup(r){return normalizeRiskId(r&&r.id).indexOf('LUND')===0?'laundryRisk':'housekeepingRisk';}
+  function filterDept(arr,dept){
+    if(!dept||dept==='allFms')return(arr||[]).slice();
+    if(dept==='housekeepingRisk'||dept==='laundryRisk')return(arr||[]).filter(function(r){return String(r.department||r.responsibleDept||'')==='housekeeping'&&riskSubgroup(r)===dept;});
+    return(arr||[]).filter(function(r){return String(r.department||r.responsibleDept||'')===String(dept);});
+  }
   function countFor(key){
     if(key==='governance')return state.policies.length+state.plans.length+state.emergencyPlans.length+state.forms.length;
     if(key==='risk')return state.risks.length+state.incidents.length+state.codes.length;
@@ -264,6 +275,11 @@
     if(s==='low'||s==='minor'||s==='observation')cls='good';
     if(s==='drill')cls='purple';
     return'<span class="grc-badge '+cls+'">'+esc(L(s))+'</span>';
+  }
+  function riskActionBadge(status){
+    var s=normalizeStatus(status);
+    if(s==='open')return'<span class="grc-badge bad">'+esc(L(s))+'</span>';
+    return badge(s);
   }
   function emptyRow(cols){return'<tr><td colspan="'+cols+'"><div class="grc-empty"><div class="grc-empty-icon">＋</div><div class="grc-empty-title">'+L('noRecords')+'</div><div class="grc-empty-sub">'+L('noRecordsSub')+'</div></div></td></tr>';}
   function delBtn(collection,id){return'<button class="grc-icon-btn danger" title="'+L('delete')+'" onclick="window._grcDelete(\''+collection+'\',\''+esc(id)+'\')">×</button>';}
@@ -346,11 +362,21 @@
   function riskMetricCards(dept){
     var arr=filterDept(state.risks,dept),closed=arr.filter(isClosed),open=arr.filter(isOpen);
     var levels={critical:[],high:[],medium:[],low:[]};arr.forEach(function(r){levels[riskLevel(r)].push(r);});
-    var defs=[
-      ['totalRisks',arr.length,'info','total'],['openRisks',open.length,'warn','open'],['closedRisks',closed.length,'good','closed'],['closedRiskRate',pct(closed.length,arr.length),'purple','closed'],
-      ['criticalRisks',levels.critical.length,'bad','critical'],['highRisks',levels.high.length,'warn','high'],['mediumRisks',levels.medium.length,'info','medium'],['lowRisks',levels.low.length,'good','low'],['highCriticalRate',pct(levels.high.length+levels.critical.length,arr.length),'bad','highCritical']
+    var summary=[
+      ['totalRisks',arr.length,'info','total'],
+      ['openRisks',open.length,'bad','open'],
+      ['closedRisks',closed.length,'good','closed'],
+      ['closedRiskRate',pct(closed.length,arr.length),'purple','closed'],
+      ['highCriticalRate',pct(levels.high.length+levels.critical.length,arr.length),'bad','highCritical']
     ];
-    return'<div class="grc-metric-grid">'+defs.map(function(x){return metricCard(L(x[0]),x[1],x[2],L('clickToView'),'window._grcOpenMetric(\'risks\',\''+x[3]+'\',\''+dept+'\')');}).join('')+'</div>';
+    var levelsRow=[
+      ['criticalRisks',levels.critical.length,'bad','critical'],
+      ['highRisks',levels.high.length,'warn','high'],
+      ['mediumRisks',levels.medium.length,'info','medium'],
+      ['lowRisks',levels.low.length,'good','low']
+    ];
+    function cards(defs,cls){return'<div class="grc-metric-grid '+(cls||'')+'">'+defs.map(function(x){return metricCard(L(x[0]),x[1],x[2],L('clickToView'),'window._grcOpenMetric(\'risks\',\''+x[3]+'\',\''+dept+'\')');}).join('')+'</div>';}
+    return cards(summary,'grc-risk-summary-grid')+cards(levelsRow,'cols-4 grc-risk-level-grid');
   }
   function incidentMetricCards(dept){
     var arr=filterDept(state.incidents,dept),closed=arr.filter(isClosed),open=arr.filter(isOpen);
@@ -377,21 +403,40 @@
     var risks=filterDept(state.risks,dept),levels={critical:0,high:0,medium:0,low:0};risks.forEach(function(r){levels[riskLevel(r)]++;});
     return'<div class="grc-chart-grid cols-1 grc-chart-after-metrics">'+donutChart(L('riskDistributionChart'),[{label:L('critical'),value:levels.critical,color:'#F87171'},{label:L('high'),value:levels.high,color:'#FBBF24'},{label:L('medium'),value:levels.medium,color:'#60A5FA'},{label:L('low'),value:levels.low,color:'#34D399'}],L('totalRisks'))+'</div>';
   }
+  function riskExposureByDepartmentChart(){
+    var items=departmentOrder.map(function(dept){
+      var value=filterDept(state.risks,dept).filter(function(r){return['critical','high'].indexOf(riskLevel(r))>=0;}).length;
+      return{label:deptName(dept),value:value,color:deptColor(dept)};
+    });
+    return'<div class="grc-chart-grid cols-1 grc-chart-after-metrics">'+barChart(L('riskExposureChart'),items)+'</div>';
+  }
   function incidentTrendChartHtml(dept){
-    var incidents=filterDept(state.incidents,dept),years={},now=new Date().getFullYear();for(var y=2023;y<=now;y++)years[y]=0;
+    var incidents=filterDept(state.incidents,dept),years={};
     incidents.forEach(function(r){var d=parseDate(r.date),yr=d?d.getFullYear():null;if(yr){if(years[yr]===undefined)years[yr]=0;years[yr]++;}});
-    var items=Object.keys(years).sort().map(function(y){return{label:y,value:years[y],color:'#00A3C4'};});
+    var keys=Object.keys(years).sort(function(a,b){return Number(a)-Number(b);});
+    if(!keys.length){var current=String(new Date().getFullYear());years[current]=0;keys=[current];}
+    var items=keys.map(function(y){return{label:y,value:years[y],color:'#00A3C4'};});
     return'<div class="grc-chart-grid cols-1 grc-chart-after-metrics">'+barChart(L('incidentTrendChart'),items)+'</div>';
   }
   function codeOutcomeDonut(dept){
     var codes=filterDept(state.codes,dept),success=codes.filter(function(r){return normalizeStatus(r.status)==='successful';}).length,failed=codes.filter(function(r){return normalizeStatus(r.status)==='failed';}).length;
     return'<div class="grc-chart-grid cols-1 grc-chart-after-metrics">'+donutChart(L('codeOutcomeChart'),[{label:L('successfulCodes'),value:success,color:'#34D399'},{label:L('failedCodes'),value:failed,color:'#F87171'}],L('codes'))+'</div>';
   }
-  function riskOverview(dept,withRegisters,withCharts){
+  function riskSection(dept,withRegisters,withCharts){
     var html='<div class="grc-section grc-domain-section">'+sectionHead(L('riskRegister'),deptName(dept))+riskMetricCards(dept);
-    if(withCharts!==false)html+=riskDistributionDonut(dept);
-    if(withRegisters)html+=registerBlock('risk',L('riskRegister'),deptName(dept),addBtn('risk',L('addRisk'),dept),riskTable(dept,false));
-    html+='</div><div class="grc-section grc-domain-section">'+sectionHead(L('incidents'),deptName(dept))+incidentMetricCards(dept);
+    if(withCharts!==false){html+=riskDistributionDonut(dept);if(dept==='allFms')html+=riskExposureByDepartmentChart();}
+    if(withRegisters)html+=registerBlock('risk',L('riskRegister'),deptName(dept),addBtn('risk',L('addRisk'),dept==='housekeepingRisk'||dept==='laundryRisk'?'housekeeping':dept),riskTable(dept,false));
+    return html+'</div>';
+  }
+  function housekeepingRiskSplit(withRegisters,withCharts){
+    return'<div class="grc-housekeeping-risk-split">'+
+      '<section class="grc-risk-subgroup housekeeping-subgroup">'+riskSection('housekeepingRisk',withRegisters,withCharts)+'</section>'+
+      '<section class="grc-risk-subgroup laundry-subgroup">'+riskSection('laundryRisk',withRegisters,withCharts)+'</section>'+
+      '</div>';
+  }
+  function riskOverview(dept,withRegisters,withCharts){
+    var html=dept==='housekeeping'?housekeepingRiskSplit(withRegisters,withCharts):riskSection(dept,withRegisters,withCharts);
+    html+='<div class="grc-section grc-domain-section">'+sectionHead(L('incidents'),deptName(dept))+incidentMetricCards(dept);
     if(withCharts!==false)html+=incidentTrendChartHtml(dept);
     if(withRegisters)html+=registerBlock('incident',L('incidentRegister'),deptName(dept),addBtn('incident',L('addIncident'),dept),incidentTable(dept,false));
     html+='</div><div class="grc-section grc-domain-section">'+sectionHead(L('codes'),deptName(dept))+codeMetricCards(dept);
@@ -476,6 +521,8 @@
       var rows=rowBuilder(dept);
       out+='<tr class="grc-table-group"><td colspan="'+cols+'"><span class="grc-table-group-dot" style="background:'+deptColor(dept)+'"></span><strong>'+esc(deptName(dept))+'</strong><span>'+esc(deptAbbr(dept))+'</span></td></tr>'+(rows||'<tr class="grc-table-group-empty"><td colspan="'+cols+'">'+L('noRecords')+'</td></tr>');
     });
+    var divisionRows=rowBuilder('division');
+    if(divisionRows)out+='<tr class="grc-table-group"><td colspan="'+cols+'"><span class="grc-table-group-dot" style="background:'+deptColor('division')+'"></span><strong>'+esc(deptName('division'))+'</strong><span>'+esc(deptAbbr('division'))+'</span></td></tr>'+divisionRows;
     return out;
   }
 
@@ -487,9 +534,22 @@
   }
   function riskTable(dept,grouped){
     var heads=['riskId','riskIdentified','riskCategory','likelihood','impact','riskScore','riskLevel','controlType','actionStatus'];
-    function rowsFor(d){return filterDept(state.risks,d).map(function(r){var score=riskScore(r),level=riskLevel(r);return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(L(r.riskCategory)||r.riskCategory||'—')+'</td><td>'+esc(r.likelihood||'—')+'</td><td>'+esc(r.impact||'—')+'</td><td><b>'+score+'</b></td><td>'+badge(level)+'</td><td>'+esc(L(r.controlType)||r.controlType||'—')+'</td><td>'+badge(r.actionStatus||r.status)+'</td></tr>';}).join('');}
-    return tableHtml('risk',heads,grouped?groupedDepartmentRows(heads.length,rowsFor):rowsFor(dept));
+    function rowsFor(d){return filterDept(state.risks,d).map(function(r){var score=riskScore(r),level=riskLevel(r),status=normalizeStatus(r.actionStatus||r.status);return'<tr class="'+(status==='open'?'grc-risk-open-row':'')+'"><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(L(r.riskCategory)||r.riskCategory||'—')+'</td><td>'+esc(r.likelihood||'—')+'</td><td>'+esc(r.impact||'—')+'</td><td><b>'+score+'</b></td><td>'+badge(level)+'</td><td>'+esc(L(r.controlType)||r.controlType||'—')+'</td><td>'+riskActionBadge(status)+'</td></tr>';}).join('');}
+    function groupedRows(){
+      var out='';
+      ['maintenance','safety'].forEach(function(d){out+=riskGroupRow(d,rowsFor(d),heads.length);});
+      out+='<tr class="grc-table-group grc-table-group-parent"><td colspan="'+heads.length+'"><span class="grc-table-group-dot" style="background:'+deptColor('housekeeping')+'"></span><strong>'+esc(deptName('housekeeping'))+'</strong><span>'+esc(deptAbbr('housekeeping'))+'</span></td></tr>';
+      out+=riskSubgroupRow('housekeepingRisk',rowsFor('housekeepingRisk'),heads.length);
+      out+=riskSubgroupRow('laundryRisk',rowsFor('laundryRisk'),heads.length);
+      out+=riskGroupRow('projects',rowsFor('projects'),heads.length);
+      var divisionRows=filterDept(state.risks,'division').length?rowsFor('division'):'';
+      if(divisionRows)out+=riskGroupRow('division',divisionRows,heads.length);
+      return out;
+    }
+    return tableHtml('risk',heads,grouped?groupedRows():rowsFor(dept));
   }
+  function riskGroupRow(dept,rows,cols){return'<tr class="grc-table-group"><td colspan="'+cols+'"><span class="grc-table-group-dot" style="background:'+deptColor(dept)+'"></span><strong>'+esc(deptName(dept))+'</strong><span>'+esc(deptAbbr(dept))+'</span></td></tr>'+(rows||'<tr class="grc-table-group-empty"><td colspan="'+cols+'">'+L('noRecords')+'</td></tr>');}
+  function riskSubgroupRow(dept,rows,cols){return'<tr class="grc-table-subgroup"><td colspan="'+cols+'"><span class="grc-table-group-dot" style="background:'+deptColor(dept)+'"></span><strong>'+esc(deptName(dept))+'</strong><span>'+esc(deptAbbr(dept))+'</span></td></tr>'+(rows||'<tr class="grc-table-group-empty"><td colspan="'+cols+'">'+L('noRecords')+'</td></tr>');}
   function incidentTable(dept,grouped){
     var heads=['incidentId','date','category','contributingFactors','investigationRequired','responsibleDept','status'];
     function rowsFor(d){return filterDept(state.incidents,d).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+dateText(r.date)+'</td><td>'+esc(r.category||'—')+'</td><td>'+esc(r.contributingFactors||'—')+'</td><td>'+badge(r.investigationRequired==='yes'?'yes':'no')+'</td><td>'+esc(deptName(r.department||r.responsibleDept))+'</td><td>'+badge(r.status)+'</td></tr>';}).join('');}
@@ -526,7 +586,7 @@
     var old=document.getElementById('_grcOrgModal');if(old)old.remove();
     var departmentsHtml=orgUnit(L('maintenance'),[L('mechanicalUnit'),L('hvacUnit'),L('electronicsUnit'),L('electricalUnit'),L('architecturalCivilUnit')],'maintenance')+orgUnit(L('housekeeping'),[L('medicalWasteUnit'),L('housekeepingServicesUnit'),L('laundryServicesUnit')],'housekeeping')+orgUnit(L('safety'),[L('safetyManagementUnit'),L('fireProtectionUnit'),L('hazardousMaterialUnit')],'safety')+orgUnit(L('projects'),[L('projectStudies'),L('projectMonitoring')],'projects');
     var ov=document.createElement('div');ov.id='_grcOrgModal';ov.className='grc-modal-backdrop grc-org-backdrop';
-    ov.innerHTML='<div class="grc-modal grc-org-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+L('orgChartTitle')+'</div><div class="grc-modal-sub">'+L('orgChartDesc')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcOrgModal\').remove()">×</button></div><div class="grc-modal-body grc-org-body"><div class="grc-org-chart"><div class="grc-org-node director">'+L('fmsDirector')+'</div><div class="grc-org-second"><div class="grc-org-side"><div class="grc-org-node department governance">'+L('governanceOperations')+'</div><div class="grc-org-units compact"><div class="grc-org-node function">'+L('ticketingCentre')+'</div><div class="grc-org-node function">'+L('planningAuditing')+'</div></div></div><div class="grc-org-node admin">'+L('administrativeServices')+'</div></div><div class="grc-org-departments">'+departmentsHtml+'</div></div></div></div>';
+    ov.innerHTML='<div class="grc-modal grc-org-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+L('orgChartTitle')+'</div><div class="grc-modal-sub">'+L('orgChartDesc')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcOrgModal\').remove()">×</button></div><div class="grc-modal-body grc-org-body"><div class="grc-org-chart"><div class="grc-org-node director">'+L('fmsDirector')+'</div><div class="grc-org-second grc-org-second-single"><div class="grc-org-node admin">'+L('administrativeServices')+'</div></div><div class="grc-org-departments">'+departmentsHtml+'</div></div></div></div>';
     document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
   };
 
@@ -566,7 +626,8 @@
     var records=metricRecords(kind,filter,dept),old=document.getElementById('_grcDetailModal');if(old)old.remove();
     var body='';
     if(kind==='incidents'&&filter==='years'){
-      var current=new Date().getFullYear(),years=[];for(var y=2023;y<=current;y++)years.push(y);
+      var yearMap={};records.forEach(function(r){var d=parseDate(r.date);if(d)yearMap[d.getFullYear()]=true;});
+      var years=Object.keys(yearMap).map(Number).sort(function(a,b){return a-b;});if(!years.length)years=[new Date().getFullYear()];
       body='<div class="grc-year-grid">'+years.map(function(y){var n=records.filter(function(r){var d=parseDate(r.date);return d&&d.getFullYear()===y;}).length;return'<div class="grc-year-card"><div class="grc-year-label">'+y+'</div><div class="grc-year-value">'+n+'</div></div>';}).join('')+'</div>';
     }
     body+='<div class="grc-detail-list">'+(records.length?records.map(function(r){return detailRow(kind,r);}).join(''):'<div class="grc-empty"><div class="grc-empty-icon">0</div><div class="grc-empty-title">'+L('noMatching')+'</div></div>')+'</div>';
@@ -581,13 +642,13 @@
     return'<div class="'+cls+'"><label>'+label+(required?' *':'')+'</label><input class="grc-input" name="'+name+'" type="'+(type||'text')+'" value="'+esc(v)+'"'+req+(type==='number'?' min="0" max="100"':'')+'></div>';
   }
   function selectOptions(items,selected){return items.map(function(x){return'<option value="'+esc(x[0])+'" '+(String(selected)===String(x[0])?'selected':'')+'>'+esc(x[1])+'</option>';}).join('');}
-  function deptOptions(){return departments.slice(1).concat(['allFms']).map(function(d){return[d,deptName(d)];});}
+  function deptOptions(){return departments.slice(1).map(function(d){return[d,deptName(d)];});}
   function statusOptions(kind){
     if(kind==='policy')return[['active',L('active')],['draft',L('draft')],['underReview',L('underReview')],['expired',L('expired')],['archived',L('archived')]];
     if(['plan','emergencyPlan','form','manual','document'].indexOf(kind)>=0)return[['active',L('active')],['draft',L('draft')],['underReview',L('underReview')],['expired',L('expired')],['archived',L('archived')]];
     return[['open',L('open')],['inProgress',L('inProgress')],['closed',L('closed')]];
   }
-  function defaultDeptFor(type,deptOverride){if(deptOverride&&departmentOrder.indexOf(deptOverride)>=0)return deptOverride;if(['policy','plan','emergencyPlan','form'].indexOf(type)>=0)return'governanceDept';if(['risk','incident','code'].indexOf(type)>=0)return'safety';return'governanceDept';}
+  function defaultDeptFor(type,deptOverride){if(deptOverride&&departmentOrder.indexOf(deptOverride)>=0)return deptOverride;if(['policy','plan','emergencyPlan','form'].indexOf(type)>=0)return'maintenance';if(['risk','incident','code'].indexOf(type)>=0)return'safety';return'maintenance';}
   function formSpec(type,deptOverride){
     var d=defaultDeptFor(type,deptOverride);
     if(type==='policy')return{title:L('addPolicy'),collection:'policies',prefix:'POL',fields:field('name',L('name'),'text',null,true,true)+field('code',L('code'),'text',null,true)+field('issueDate',L('issueDate'),'date',null,true)+field('effectiveDate',L('effectiveDate'),'date',null,true)+field('reviewDate',L('reviewDate'),'date',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('status',L('status'),'select',statusOptions(type),true,false,'active')};
