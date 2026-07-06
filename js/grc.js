@@ -1,6 +1,6 @@
 /* ======================================================================
    QUMC GRC Workspace — Super Admin Preview
-   Version: 2026-07-05 Governance/Risk Registers
+   Version: 2026-07-06 Registers / Org Structure / Layout Refinement
 
    Scope
    - Executive Command: Governance + Risk/Incident/Code summaries.
@@ -16,27 +16,27 @@
   'use strict';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var STATE_VERSION=4;
+  var STATE_VERSION=5;
   var activeTab='executive';
   var app=null;
 
   var labels={
     en:{
       app:'Governance, Risk & Compliance',sub:'Facilities & Safety Division · Governance & Performance Department',preview:'Super Admin Preview',back:'Back to Portal',
-      executive:'Executive Command',governance:'Governance',manuals:'FMS Manuals & Guidelines',risk:'Risk Management',compliance:'Compliance',audit:'Audit & Assurance',actions:'Action Plans',documents:'Documents & Records',reports:'Reports & Archive',
+      executive:'Executive Command',governance:'Governance',manuals:'FMS Manuals & Guidelines',risk:'Risk Management',register:'Register',compliance:'Compliance',audit:'Audit & Assurance',actions:'Action Plans',documents:'Documents & Records',reports:'Reports & Archive',
       executiveTitle:'Executive Command',executiveDesc:'A consolidated view of governance records, risks, incidents and emergency codes across the Facilities & Safety Division.',
       governanceTitle:'Governance',governanceDesc:'Policies, plans, emergency plans and approved forms, monitored for the division and for every department.',
-      riskTitle:'Risk Management',riskDesc:'Department-level oversight of risks, incidents and emergency codes with dedicated operational registers.',
+      riskTitle:'Risk Management',riskDesc:'Department-level oversight of risks, incidents and emergency codes with dedicated operational registers.',registerTitle:'Registers',registerDesc:'A consolidated register center. Every register contains records from all FMS departments, grouped clearly by department.',governanceRegisterGroup:'Governance Registers',riskRegisterGroup:'Risk Management Registers',assuranceRegisterGroup:'Assurance & Control Registers',
       manualsTitle:'FMS Manuals & Guidelines',manualsDesc:'A controlled register for Facilities & Safety manuals, guidelines and approved operating references.',
       governanceOverview:'Governance Overview',riskOverview:'Risk, Incident & Code Overview',departmentView:'Department Sections',departmentSectionsDesc:'Each FMS department is displayed in a dedicated section, aligned with the Performance department view.',divisionOverview:'FMS Division Overview',allDepartments:'All FMS Departments',departmentRecords:'Department Records',
       executiveSnapshot:'Executive Portfolio Snapshot',executiveSnapshotDesc:'Live consolidated indicators across Governance and Risk Management.',governanceRecords:'Governance Records',governanceStatusChart:'Governance Records Status',governanceVolumeChart:'Records by Governance Area',riskDistributionChart:'Risk Level Distribution',incidentTrendChart:'Incident Trend by Year',codeOutcomeChart:'Emergency Code Outcomes',dueThisYear:'Due This Year',other:'Other',attention:'Needs Attention',
       policies:'Policies',plans:'Plans',emergencyPlans:'Emergency Plans',forms:'Forms',
       totalPolicies:'Total Policies',openPolicies:'Active Policies',expiredPolicies:'Expired Policies',expiringThisYear:'Expiring This Year',expiredPolicyRate:'Expired Policies Rate',
-      totalPlans:'Total Plans',activePlans:'Active Plans',expiredPlans:'Expired Plans',totalEmergencyPlans:'Total Emergency Plans',activeEmergencyPlans:'Active Emergency Plans',expiredEmergencyPlans:'Expired Emergency Plans',
+      totalPlans:'Total Plans',activePlans:'Active Plans',expiredPlans:'Expired Plans',expiredPlanRate:'Expired Plans Rate',totalEmergencyPlans:'Total Emergency Plans',activeEmergencyPlans:'Active Emergency Plans',expiredEmergencyPlans:'Expired Emergency Plans',
       totalForms:'Total Forms',activeForms:'Active Forms',expiredForms:'Expired Forms',
       policyRegister:'Policy Register',planRegister:'Plan Register',emergencyPlanRegister:'Emergency Plan Register',formRegister:'Approved Forms Register',manualRegister:'Manuals & Guidelines Register',
       totalManuals:'Total Manuals',activeManuals:'Active Manuals',expiredManuals:'Expired Manuals',manualsDue:'Due for Review This Year',
-      orgStructure:'Organizational Structure',orgStructureDesc:'FMS reporting lines, departments and process ownership.',raci:'RACI Matrix',raciDesc:'Responsibility, accountability, consultation and information mapping.',annualPlan:'Annual Operational Plan',annualPlanDesc:'Annual priorities, initiatives, owners and milestones.',
+      orgStructure:'Organizational Structure',orgStructureDesc:'FMS reporting lines, departments and process ownership.',raci:'RACI Matrix',raciDesc:'Responsibility, accountability, consultation and information mapping.',annualPlan:'Annual Operational Plan',annualPlanDesc:'Annual priorities, initiatives, owners and milestones.',orgChartTitle:'FMS Organizational Structure',orgChartDesc:'Approved reporting lines, departments, units and service functions.',fmsDirector:'FMS Director',governanceOperations:'Governance & Performance Department',ticketingCentre:'Ticketing Centre',planningAuditing:'Planning & Auditing',administrativeServices:'Administrative Services Unit',mechanicalUnit:'Mechanical Unit',hvacUnit:'HVAC Unit',electronicsUnit:'Electronics Unit',electricalUnit:'Electrical Unit',architecturalCivilUnit:'Architectural & Civil Works Unit',medicalWasteUnit:'Medical Waste Unit',housekeepingServicesUnit:'Housekeeping Services Unit',laundryServicesUnit:'Laundry Services Unit',safetyManagementUnit:'Safety Management Unit',fireProtectionUnit:'Fire Protection Unit',hazardousMaterialUnit:'Hazardous Material Management Unit',projectStudies:'Project Studies',projectMonitoring:'Project Monitoring',
       totalRisks:'Total Risks',openRisks:'Open Risks',closedRisks:'Closed Risks',closedRiskRate:'Closed Risks Rate',criticalRisks:'Critical Risks',highRisks:'High Risks',mediumRisks:'Medium Risks',lowRisks:'Low Risks',highCriticalRate:'High & Critical Risks Rate',
       incidents:'Incidents',totalIncidents:'Total Incidents',openIncidents:'Open Incidents',closedIncidents:'Closed Incidents',closedIncidentRate:'Closed Incidents Rate',incidentsByYear:'Incidents by Year',
       codes:'Emergency Codes',totalCodes:'Total Codes',realCodes:'Real Code',drillCodes:'Drill Code',successfulCodes:'Successful Code',failedCodes:'Failed Code',failedCodeRate:'Failed Codes Rate',successfulDrills:'Successful Code',failedDrills:'Failed Code',successVsFailed:'Successful vs Failed',
@@ -62,20 +62,20 @@
     },
     ar:{
       app:'الحوكمة والمخاطر والالتزام',sub:'إدارة المرافق والسلامة · قسم الحوكمة والأداء',preview:'معاينة السوبر أدمن',back:'العودة للبوابة',
-      executive:'القيادة التنفيذية',governance:'الحوكمة',manuals:'أدلة وإرشادات إدارة المرافق والسلامة',risk:'إدارة المخاطر',compliance:'الالتزام',audit:'التدقيق والتوكيد',actions:'خطط العمل',documents:'الوثائق والسجلات',reports:'التقارير والأرشيف',
+      executive:'القيادة التنفيذية',governance:'الحوكمة',manuals:'أدلة وإرشادات إدارة المرافق والسلامة',risk:'إدارة المخاطر',register:'السجلات',compliance:'الالتزام',audit:'التدقيق والتوكيد',actions:'خطط العمل',documents:'الوثائق والسجلات',reports:'التقارير والأرشيف',
       executiveTitle:'القيادة التنفيذية',executiveDesc:'نظرة موحدة على سجلات الحوكمة والمخاطر والحوادث وأكواد الطوارئ في إدارة المرافق والسلامة.',
       governanceTitle:'الحوكمة',governanceDesc:'متابعة السياسات والخطط وخطط الطوارئ والنماذج المعتمدة على مستوى الإدارة وكل قسم.',
-      riskTitle:'إدارة المخاطر',riskDesc:'متابعة المخاطر والحوادث وأكواد الطوارئ لكل قسم مع سجلات تشغيلية مستقلة.',
+      riskTitle:'إدارة المخاطر',riskDesc:'متابعة المخاطر والحوادث وأكواد الطوارئ لكل قسم مع سجلات تشغيلية مستقلة.',registerTitle:'السجلات',registerDesc:'مركز موحد لجميع سجلات إدارة المرافق والسلامة، مع تجميع سجلات كل قسم بصورة واضحة داخل كل سجل.',governanceRegisterGroup:'سجلات الحوكمة',riskRegisterGroup:'سجلات إدارة المخاطر',assuranceRegisterGroup:'سجلات التوكيد والرقابة',
       manualsTitle:'أدلة وإرشادات إدارة المرافق والسلامة',manualsDesc:'سجل منضبط لأدلة وإرشادات إدارة المرافق والسلامة والمراجع التشغيلية المعتمدة.',
       governanceOverview:'نظرة الحوكمة',riskOverview:'نظرة المخاطر والحوادث والأكواد',departmentView:'أقسام الإدارة',departmentSectionsDesc:'يظهر كل قسم من أقسام إدارة المرافق والسلامة في قسم مستقل وبنفس فكرة عرض الأقسام في الأداء.',divisionOverview:'نظرة شاملة لإدارة المرافق والسلامة',allDepartments:'جميع أقسام إدارة المرافق والسلامة',departmentRecords:'سجلات القسم',
       executiveSnapshot:'ملخص المحفظة التنفيذية',executiveSnapshotDesc:'مؤشرات موحدة ومحدثة للحوكمة وإدارة المخاطر.',governanceRecords:'سجلات الحوكمة',governanceStatusChart:'حالة سجلات الحوكمة',governanceVolumeChart:'السجلات حسب مجال الحوكمة',riskDistributionChart:'توزيع مستويات المخاطر',incidentTrendChart:'اتجاه الحوادث حسب السنة',codeOutcomeChart:'نتائج أكواد الطوارئ',dueThisYear:'تستحق خلال السنة',other:'أخرى',attention:'بحاجة للمتابعة',
       policies:'السياسات',plans:'الخطط',emergencyPlans:'خطط الطوارئ',forms:'النماذج',
       totalPolicies:'عدد السياسات',openPolicies:'السياسات السارية',expiredPolicies:'السياسات المنتهية',expiringThisYear:'ستنتهي خلال السنة الحالية',expiredPolicyRate:'معدل السياسات المنتهية',
-      totalPlans:'عدد الخطط',activePlans:'الخطط السارية',expiredPlans:'الخطط المنتهية',totalEmergencyPlans:'عدد خطط الطوارئ',activeEmergencyPlans:'خطط الطوارئ السارية',expiredEmergencyPlans:'خطط الطوارئ المنتهية',
+      totalPlans:'عدد الخطط',activePlans:'الخطط السارية',expiredPlans:'الخطط المنتهية',expiredPlanRate:'معدل الخطط المنتهية',totalEmergencyPlans:'عدد خطط الطوارئ',activeEmergencyPlans:'خطط الطوارئ السارية',expiredEmergencyPlans:'خطط الطوارئ المنتهية',
       totalForms:'عدد النماذج',activeForms:'النماذج السارية',expiredForms:'النماذج المنتهية',
       policyRegister:'سجل السياسات',planRegister:'سجل الخطط',emergencyPlanRegister:'سجل خطط الطوارئ',formRegister:'سجل النماذج المعتمدة',manualRegister:'سجل الأدلة والإرشادات',
       totalManuals:'عدد الأدلة',activeManuals:'الأدلة السارية',expiredManuals:'الأدلة المنتهية',manualsDue:'مستحقة للمراجعة هذا العام',
-      orgStructure:'الهيكل التنظيمي',orgStructureDesc:'خطوط الإشراف والأقسام وملاك العمليات في إدارة المرافق والسلامة.',raci:'مصفوفة RACI',raciDesc:'توزيع المسؤولية والمساءلة والاستشارة والإحاطة.',annualPlan:'الخطة التشغيلية السنوية',annualPlanDesc:'الأولويات والمبادرات والملاك والمراحل السنوية.',
+      orgStructure:'الهيكل التنظيمي',orgStructureDesc:'خطوط الإشراف والأقسام وملاك العمليات في إدارة المرافق والسلامة.',raci:'مصفوفة RACI',raciDesc:'توزيع المسؤولية والمساءلة والاستشارة والإحاطة.',annualPlan:'الخطة التشغيلية السنوية',annualPlanDesc:'الأولويات والمبادرات والملاك والمراحل السنوية.',orgChartTitle:'الهيكل التنظيمي لإدارة المرافق والسلامة',orgChartDesc:'خطوط الارتباط المعتمدة والأقسام والوحدات والمهام الخدمية.',fmsDirector:'مدير إدارة المرافق والسلامة',governanceOperations:'قسم الحوكمة والأداء',ticketingCentre:'مركز التذاكر',planningAuditing:'التخطيط والتدقيق',administrativeServices:'وحدة الخدمات الإدارية',mechanicalUnit:'وحدة الميكانيكا',hvacUnit:'وحدة التكييف',electronicsUnit:'وحدة الإلكترونيات',electricalUnit:'وحدة الكهرباء',architecturalCivilUnit:'وحدة الأعمال المعمارية والمدنية',medicalWasteUnit:'وحدة النفايات الطبية',housekeepingServicesUnit:'وحدة خدمات النظافة',laundryServicesUnit:'وحدة خدمات الغسيل',safetyManagementUnit:'وحدة إدارة السلامة',fireProtectionUnit:'وحدة الوقاية من الحريق',hazardousMaterialUnit:'وحدة إدارة المواد الخطرة',projectStudies:'دراسة المشاريع',projectMonitoring:'متابعة المشاريع',
       totalRisks:'عدد المخاطر',openRisks:'المخاطر المفتوحة',closedRisks:'المخاطر المغلقة',closedRiskRate:'معدل المخاطر المغلقة',criticalRisks:'المخاطر الحرجة',highRisks:'المخاطر العالية',mediumRisks:'المخاطر المتوسطة',lowRisks:'المخاطر المنخفضة',highCriticalRate:'معدل المخاطر العالية والحرجة',
       incidents:'الحوادث',totalIncidents:'عدد الحوادث',openIncidents:'الحوادث المفتوحة',closedIncidents:'الحوادث المغلقة',closedIncidentRate:'معدل الحوادث المغلقة',incidentsByYear:'الحوادث حسب السنة',
       codes:'أكواد الطوارئ',totalCodes:'إجمالي الأكواد',realCodes:'الكود الفعلي',drillCodes:'الكود التدريبي',successfulCodes:'الكود الناجح',failedCodes:'الكود غير الناجح',failedCodeRate:'معدل الأكواد غير الناجحة',successfulDrills:'الكود الناجح',failedDrills:'الكود غير الناجح',successVsFailed:'الناجحة مقابل غير الناجحة',
@@ -105,6 +105,7 @@
     {id:'executive',icon:'⌂'},
     {id:'governance',icon:'▦',count:'governance'},
     {id:'risk',icon:'◇',count:'risk'},
+    {id:'register',icon:'▤',count:'register'},
     {id:'compliance',icon:'✓',count:'compliance'},
     {id:'audit',icon:'◎',count:'audits'},
     {id:'actions',icon:'→',count:'actions'},
@@ -245,6 +246,7 @@
   function countFor(key){
     if(key==='governance')return state.policies.length+state.plans.length+state.emergencyPlans.length+state.forms.length;
     if(key==='risk')return state.risks.length+state.incidents.length+state.codes.length;
+    if(key==='register')return countFor('governance')+countFor('risk')+state.manuals.length+state.compliance.length+state.audits.length+state.actions.length+state.documents.length;
     return Array.isArray(state[key])?state[key].length:0;
   }
   function isExpired(r){var st=normalizeStatus(r.status);var d=parseDate(r.expiryDate||r.reviewDate);return st==='expired'||(d&&d<today());}
@@ -280,7 +282,7 @@
       '<button class="grc-top-btn grc-back" onclick="window._exitGRC()">← '+L('back')+'</button></header>'+
       '<div class="grc-nav-wrap"><nav class="grc-nav">'+modules.map(function(x){var c=x.count?countFor(x.count):null;return'<button class="grc-tab '+(activeTab===x.id?'is-active':'')+'" onclick="window._grcSwitch(\''+x.id+'\')"><span class="grc-tab-icon">'+x.icon+'</span><span>'+L(x.id)+'</span>'+(c!==null?'<span class="grc-tab-count">'+c+'</span>':'')+'</button>';}).join('')+'</nav></div>'+
       '<main class="grc-main">'+modules.map(function(x){return'<section id="grc-page-'+x.id+'" class="grc-page '+(activeTab===x.id?'is-active':'')+'">'+pageHtml(x.id)+'</section>';}).join('')+'</main>'+
-      '<footer class="grc-footer"><span><strong>QUMC GRC Workspace</strong> · '+L('draftWorkspace')+' · '+L('localNote')+'</span><span class="grc-live"><i></i> Super Admin Preview · © 2026 QUMC</span></footer>';
+      '<footer class="grc-footer"><div class="grc-footer-left"><button class="footer-back-glass grc-footer-back" onclick="window._exitGRC()" type="button" title="Back to Portal Selection"><span>'+(isAr()?'رجوع':'← Back')+'</span></button><span><strong>QUMC GRC Workspace</strong> · '+L('draftWorkspace')+' · '+L('localNote')+'</span></div><span class="grc-live"><i></i> Super Admin Preview · © 2026 QUMC</span></footer>';
   }
   function render(){if(!app||!app.classList.contains('grc-visible'))return;app.setAttribute('dir',isAr()?'rtl':'ltr');app.innerHTML=shellHtml();}
 
@@ -289,7 +291,7 @@
   function metricCard(label,value,cls,sub,onclick){
     var tone=cls||'info',icons={info:'▦',good:'✓',warn:'△',bad:'!',purple:'◇',neutral:'•'};
     return'<div class="grc-metric-card '+tone+' '+(onclick?'clickable':'')+' '+(isAr()?'rtl':'')+'" '+(onclick?'onclick="'+onclick+'" tabindex="0" role="button"':'')+'>'+
-      '<div class="grc-metric-top"><span class="grc-metric-icon">'+(icons[tone]||'▦')+'</span><span class="grc-metric-kicker">GRC</span></div>'+
+      '<div class="grc-metric-top"><span class="grc-metric-icon">'+(icons[tone]||'▦')+'</span></div>'+
       '<div class="grc-metric-value">'+value+'</div><div class="grc-metric-label">'+label+'</div>'+
       '<div class="grc-metric-foot"><span class="grc-metric-sub">'+(sub||'')+'</span>'+(onclick?'<span class="grc-metric-arrow">›</span>':'')+'</div></div>';
   }
@@ -314,29 +316,29 @@
     var color=deptColor(dept),ink=deptInk(dept),soft=deptSoft(dept);
     return'<section class="grc-department-panel" style="--dept-color:'+color+';--dept-ink:'+ink+';--dept-soft:'+soft+'"><div class="grc-department-accent"></div><div class="grc-department-header"><div class="grc-department-identity"><div class="grc-department-abbr">'+esc(deptAbbr(dept))+'</div><div><div class="grc-department-name">'+esc(deptName(dept))+'</div><div class="grc-department-caption">'+esc(scope)+'</div></div></div><div class="grc-department-summary"><div class="grc-mini-stat"><b>'+Number(total||0)+'</b><span>'+L('total')+'</span></div><div class="grc-mini-stat good"><b>'+Number(second||0)+'</b><span>'+esc(secondLabel||L('active'))+'</span></div><div class="grc-mini-stat warn"><b>'+Number(alert||0)+'</b><span>'+L('attention')+'</span></div></div></div><div class="grc-department-body">'+body+'</div></section>';
   }
-
   function governanceMetricCards(kind,dept){
     var arr=filterDept(state[kind],dept),expired=arr.filter(isExpired),due=arr.filter(expiringThisYear),active=arr.filter(function(r){return['active','open'].indexOf(normalizeStatus(r.status))>=0&&!isExpired(r);});
     var c=[];
-    if(kind==='policies')c=[
-      ['totalPolicies',arr.length,'info','total'],['openPolicies',active.length,'good','active'],['expiredPolicies',expired.length,'bad','expired'],['expiringThisYear',due.length,'warn','expiring'],['expiredPolicyRate',pct(expired.length,arr.length),'purple','expired']
-    ];
-    if(kind==='plans')c=[['totalPlans',arr.length,'info','total'],['activePlans',active.length,'good','active'],['expiredPlans',expired.length,'bad','expired'],['expiringThisYear',due.length,'warn','expiring']];
+    if(kind==='policies')c=[['totalPolicies',arr.length,'info','total'],['openPolicies',active.length,'good','active'],['expiredPolicies',expired.length,'bad','expired'],['expiringThisYear',due.length,'warn','expiring'],['expiredPolicyRate',pct(expired.length,arr.length),'purple','expired']];
+    if(kind==='plans')c=[['totalPlans',arr.length,'info','total'],['activePlans',active.length,'good','active'],['expiredPlans',expired.length,'bad','expired'],['expiringThisYear',due.length,'warn','expiring'],['expiredPlanRate',pct(expired.length,arr.length),'purple','expired']];
     if(kind==='emergencyPlans')c=[['totalEmergencyPlans',arr.length,'info','total'],['activeEmergencyPlans',active.length,'good','active'],['expiredEmergencyPlans',expired.length,'bad','expired']];
     if(kind==='forms')c=[['totalForms',arr.length,'info','total'],['activeForms',active.length,'good','active'],['expiredForms',expired.length,'bad','expired']];
     var gridClass=c.length===4?'cols-4':c.length===3?'cols-3':'';
     return'<div class="grc-metric-grid '+gridClass+'">'+c.map(function(x){return metricCard(L(x[0]),x[1],x[2],L('clickToView'),'window._grcOpenMetric(\''+kind+'\',\''+x[3]+'\',\''+dept+'\')');}).join('')+'</div>';
   }
-  function governanceOverview(dept,withRegisters){
-    var sections=[
-      ['policies','policies','policyRegister','addPolicy','policy'],
-      ['plans','plans','planRegister','addPlan','plan'],
-      ['emergencyPlans','emergencyPlans','emergencyPlanRegister','addEmergencyPlan','emergencyPlan'],
-      ['forms','forms','formRegister','addForm','form']
-    ];
+  function governanceCategoryChart(kind,dept){
+    var arr=filterDept(state[kind],dept),expired=arr.filter(isExpired),due=arr.filter(expiringThisYear),active=arr.filter(function(r){return['active','open'].indexOf(normalizeStatus(r.status))>=0&&!isExpired(r);});
+    var other=Math.max(0,arr.length-expired.length-due.length-active.length);
+    var items=[{label:L('active'),value:active.length,color:'#34D399'},{label:L('dueThisYear'),value:due.length,color:'#FBBF24'},{label:L('expired'),value:expired.length,color:'#F87171'},{label:L('other'),value:other,color:'#94A3B8'}];
+    var titleMap={policies:'policies',plans:'plans',emergencyPlans:'emergencyPlans',forms:'forms'};
+    return'<div class="grc-chart-grid cols-1 grc-chart-after-metrics">'+donutChart(L(titleMap[kind])+' · '+L('governanceStatusChart'),items,L('records'))+'</div>';
+  }
+  function governanceOverview(dept,withRegisters,withCharts){
+    var sections=[['policies','policies','policyRegister','addPolicy','policy'],['plans','plans','planRegister','addPlan','plan'],['emergencyPlans','emergencyPlans','emergencyPlanRegister','addEmergencyPlan','emergencyPlan'],['forms','forms','formRegister','addForm','form']];
     return sections.map(function(s){
-      var html='<div class="grc-section">'+sectionHead(L(s[1]),deptName(dept),withRegisters?'':'')+governanceMetricCards(s[0],dept);
-      if(withRegisters)html+=registerBlock(s[4],L(s[2]),deptName(dept),addBtn(s[4],L(s[3]),dept),governanceTable(s[0],dept,s[4]));
+      var html='<div class="grc-section grc-domain-section">'+sectionHead(L(s[1]),deptName(dept),withRegisters?'':'')+governanceMetricCards(s[0],dept);
+      if(withCharts!==false)html+=governanceCategoryChart(s[0],dept);
+      if(withRegisters)html+=registerBlock(s[4],L(s[2]),deptName(dept),addBtn(s[4],L(s[3]),dept),governanceTable(s[0],dept,s[4],false));
       return html+'</div>';
     }).join('');
   }
@@ -367,76 +369,96 @@
       ['drillCodes',drill.length,'info','drill'],
       ['successfulCodes',success.length,'good','successful'],
       ['failedCodes',failed.length,'bad','failed'],
-      ['failedCodeRate',pct(failed.length,drill.length),'warn','failedRate']
+      ['failedCodeRate',pct(failed.length,success.length+failed.length),'warn','failedRate']
     ];
     return'<div class="grc-metric-grid cols-6">'+defs.map(function(x){return metricCard(L(x[0]),x[1],x[2],L('clickToView'),'window._grcOpenMetric(\'codes\',\''+x[3]+'\',\''+dept+'\')');}).join('')+'</div>';
   }
-  function riskOverview(dept,withRegisters){
-    var html='<div class="grc-section">'+sectionHead(L('riskRegister'),deptName(dept))+riskMetricCards(dept);
-    if(withRegisters)html+=registerBlock('risk',L('riskRegister'),deptName(dept),addBtn('risk',L('addRisk'),dept),riskTable(dept));
-    html+='</div><div class="grc-section">'+sectionHead(L('incidents'),deptName(dept))+incidentMetricCards(dept);
-    if(withRegisters)html+=registerBlock('incident',L('incidentRegister'),deptName(dept),addBtn('incident',L('addIncident'),dept),incidentTable(dept));
-    html+='</div><div class="grc-section">'+sectionHead(L('codes'),deptName(dept))+codeMetricCards(dept);
-    if(withRegisters)html+=registerBlock('code',L('codeRegister'),deptName(dept),addBtn('code',L('addCode'),dept),codeTable(dept));
+  function riskDistributionDonut(dept){
+    var risks=filterDept(state.risks,dept),levels={critical:0,high:0,medium:0,low:0};risks.forEach(function(r){levels[riskLevel(r)]++;});
+    return'<div class="grc-chart-grid cols-1 grc-chart-after-metrics">'+donutChart(L('riskDistributionChart'),[{label:L('critical'),value:levels.critical,color:'#F87171'},{label:L('high'),value:levels.high,color:'#FBBF24'},{label:L('medium'),value:levels.medium,color:'#60A5FA'},{label:L('low'),value:levels.low,color:'#34D399'}],L('totalRisks'))+'</div>';
+  }
+  function incidentTrendChartHtml(dept){
+    var incidents=filterDept(state.incidents,dept),years={},now=new Date().getFullYear();for(var y=2023;y<=now;y++)years[y]=0;
+    incidents.forEach(function(r){var d=parseDate(r.date),yr=d?d.getFullYear():null;if(yr){if(years[yr]===undefined)years[yr]=0;years[yr]++;}});
+    var items=Object.keys(years).sort().map(function(y){return{label:y,value:years[y],color:'#00A3C4'};});
+    return'<div class="grc-chart-grid cols-1 grc-chart-after-metrics">'+barChart(L('incidentTrendChart'),items)+'</div>';
+  }
+  function codeOutcomeDonut(dept){
+    var codes=filterDept(state.codes,dept),success=codes.filter(function(r){return normalizeStatus(r.status)==='successful';}).length,failed=codes.filter(function(r){return normalizeStatus(r.status)==='failed';}).length;
+    return'<div class="grc-chart-grid cols-1 grc-chart-after-metrics">'+donutChart(L('codeOutcomeChart'),[{label:L('successfulCodes'),value:success,color:'#34D399'},{label:L('failedCodes'),value:failed,color:'#F87171'}],L('codes'))+'</div>';
+  }
+  function riskOverview(dept,withRegisters,withCharts){
+    var html='<div class="grc-section grc-domain-section">'+sectionHead(L('riskRegister'),deptName(dept))+riskMetricCards(dept);
+    if(withCharts!==false)html+=riskDistributionDonut(dept);
+    if(withRegisters)html+=registerBlock('risk',L('riskRegister'),deptName(dept),addBtn('risk',L('addRisk'),dept),riskTable(dept,false));
+    html+='</div><div class="grc-section grc-domain-section">'+sectionHead(L('incidents'),deptName(dept))+incidentMetricCards(dept);
+    if(withCharts!==false)html+=incidentTrendChartHtml(dept);
+    if(withRegisters)html+=registerBlock('incident',L('incidentRegister'),deptName(dept),addBtn('incident',L('addIncident'),dept),incidentTable(dept,false));
+    html+='</div><div class="grc-section grc-domain-section">'+sectionHead(L('codes'),deptName(dept))+codeMetricCards(dept);
+    if(withCharts!==false)html+=codeOutcomeDonut(dept);
+    if(withRegisters)html+=registerBlock('code',L('codeRegister'),deptName(dept),addBtn('code',L('addCode'),dept),codeTable(dept,false));
     return html+'</div>';
   }
-
-  function governanceCharts(dept){
-    var collections=['policies','plans','emergencyPlans','forms'],all=[];
-    collections.forEach(function(k){all=all.concat(filterDept(state[k],dept));});
-    var expired=all.filter(isExpired),due=all.filter(expiringThisYear),active=all.filter(function(r){return !isExpired(r)&&!expiringThisYear(r)&&['active','open'].indexOf(normalizeStatus(r.status))>=0;}),other=Math.max(0,all.length-expired.length-due.length-active.length);
-    var statusItems=[{label:L('active'),value:active.length,color:'#06845A'},{label:L('dueThisYear'),value:due.length,color:'#B06000'},{label:L('expired'),value:expired.length,color:'#C42B2B'},{label:L('other'),value:other,color:'#94A3B8'}];
-    var volumeItems=[{label:L('policies'),value:filterDept(state.policies,dept).length,color:'#00A3C4'},{label:L('plans'),value:filterDept(state.plans,dept).length,color:'#1E3E6A'},{label:L('emergencyPlans'),value:filterDept(state.emergencyPlans,dept).length,color:'#B06000'},{label:L('forms'),value:filterDept(state.forms,dept).length,color:'#2A5280'}];
-    return'<div class="grc-chart-grid cols-2">'+donutChart(L('governanceStatusChart'),statusItems,L('records'))+barChart(L('governanceVolumeChart'),volumeItems)+'</div>';
-  }
-  function riskCharts(dept){
-    var risks=filterDept(state.risks,dept),levels={critical:0,high:0,medium:0,low:0};risks.forEach(function(r){levels[riskLevel(r)]++;});
-    var levelItems=[{label:L('critical'),value:levels.critical,color:'#C42B2B'},{label:L('high'),value:levels.high,color:'#B06000'},{label:L('medium'),value:levels.medium,color:'#2A5280'},{label:L('low'),value:levels.low,color:'#06845A'}];
-    var incidents=filterDept(state.incidents,dept),years={},now=new Date().getFullYear();for(var y=2023;y<=now;y++)years[y]=0;incidents.forEach(function(r){var d=parseDate(r.date),yr=d?d.getFullYear():null;if(yr){if(years[yr]===undefined)years[yr]=0;years[yr]++;}});
-    var yearItems=Object.keys(years).sort().map(function(y){return{label:y,value:years[y],color:'#00A3C4'};});
-    var codes=filterDept(state.codes,dept),real=codes.filter(function(r){return normalizeStatus(r.type)==='real';}).length,drill=codes.filter(function(r){return normalizeStatus(r.type)==='drill';}).length,success=codes.filter(function(r){return normalizeStatus(r.status)==='successful';}).length,failed=codes.filter(function(r){return normalizeStatus(r.status)==='failed';}).length;
-    var codeItems=[{label:L('realCodes'),value:real,color:'#1E3E6A'},{label:L('drillCodes'),value:drill,color:'#60A5FA'},{label:L('successfulCodes'),value:success,color:'#34D399'},{label:L('failedCodes'),value:failed,color:'#F87171'}];
-    return'<div class="grc-chart-grid cols-3">'+donutChart(L('riskDistributionChart'),levelItems,L('totalRisks'))+barChart(L('incidentTrendChart'),yearItems)+barChart(L('codeOutcomeChart'),codeItems)+'</div>';
-  }
+  function governanceCharts(dept){return governanceCategoryChart('policies',dept)+governanceCategoryChart('plans',dept)+governanceCategoryChart('emergencyPlans',dept)+governanceCategoryChart('forms',dept);}
+  function riskCharts(dept){return riskDistributionDonut(dept)+incidentTrendChartHtml(dept)+codeOutcomeDonut(dept);}
   function governanceDepartmentPanel(dept){
     var all=[];['policies','plans','emergencyPlans','forms'].forEach(function(k){all=all.concat(filterDept(state[k],dept));});
     var active=all.filter(function(r){return['active','open'].indexOf(normalizeStatus(r.status))>=0&&!isExpired(r);}).length;
     var alert=all.filter(function(r){return isExpired(r)||expiringThisYear(r);}).length;
-    return departmentPanel(dept,L('governance')+' · '+L('departmentRecords'),all.length,active,alert,L('active'),governanceCharts(dept)+governanceOverview(dept,true));
+    return departmentPanel(dept,L('governance')+' · '+L('departmentRecords'),all.length,active,alert,L('active'),governanceOverview(dept,false,true));
   }
   function riskDepartmentPanel(dept){
     var risks=filterDept(state.risks,dept),incidents=filterDept(state.incidents,dept),codes=filterDept(state.codes,dept),total=risks.length+incidents.length+codes.length;
     var active=risks.filter(isOpen).length+incidents.filter(isOpen).length;
     var alert=risks.filter(function(r){return['critical','high'].indexOf(riskLevel(r))>=0;}).length+incidents.filter(isOpen).length;
-    return departmentPanel(dept,L('risk')+' · '+L('departmentRecords'),total,active,alert,L('open'),riskCharts(dept)+riskOverview(dept,true));
+    return departmentPanel(dept,L('risk')+' · '+L('departmentRecords'),total,active,alert,L('open'),riskOverview(dept,false,true));
   }
   function executiveSnapshotCards(){
     var gov=countFor('governance');
     var risks=state.risks||[],openRisk=risks.filter(isOpen).length;
     var incidents=state.incidents||[],openIncident=incidents.filter(isOpen).length;
-    var codes=state.codes||[],drill=codes.filter(function(r){return normalizeStatus(r.type)==='drill';}).length,failed=codes.filter(function(r){return normalizeStatus(r.status)==='failed';}).length;
+    var codes=state.codes||[],success=codes.filter(function(r){return normalizeStatus(r.status)==='successful';}).length,failed=codes.filter(function(r){return normalizeStatus(r.status)==='failed';}).length;
     return'<div class="grc-exec-snapshot-grid">'+
       metricCard(L('governanceRecords'),gov,'info',L('allDepartments'),'window._grcSwitch(\'governance\')')+
       metricCard(L('openRisks'),openRisk,'warn',L('allDepartments'),'window._grcOpenMetric(\'risks\',\'open\',\'allFms\')')+
       metricCard(L('openIncidents'),openIncident,'bad',L('allDepartments'),'window._grcOpenMetric(\'incidents\',\'open\',\'allFms\')')+
-      metricCard(L('failedCodeRate'),pct(failed,drill),'purple',L('codes'),'window._grcOpenMetric(\'codes\',\'failedRate\',\'allFms\')')+
+      metricCard(L('failedCodeRate'),pct(failed,success+failed),'purple',L('codes'),'window._grcOpenMetric(\'codes\',\'failedRate\',\'allFms\')')+
       '</div>';
   }
   function executivePage(){
     return hero('GRC · Executive Command',L('executiveTitle'),L('executiveDesc'))+
       '<section class="grc-exec-snapshot">'+sectionHead(L('executiveSnapshot'),L('executiveSnapshotDesc'),'FMS')+executiveSnapshotCards()+'</section>'+
-      '<section class="grc-exec-domain governance-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">01</span><h2>'+L('governanceOverview')+'</h2><p>'+L('governanceDesc')+'</p></div><span class="grc-exec-domain-badge">'+countFor('governance')+' '+L('records')+'</span></div>'+governanceCharts('allFms')+governanceOverview('allFms',false)+'</section>'+
-      '<section class="grc-exec-domain risk-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">02</span><h2>'+L('riskOverview')+'</h2><p>'+L('riskDesc')+'</p></div><span class="grc-exec-domain-badge">'+countFor('risk')+' '+L('records')+'</span></div>'+riskCharts('allFms')+riskOverview('allFms',false)+'</section>';
+      '<section class="grc-exec-domain governance-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">01</span><h2>'+L('governanceOverview')+'</h2><p>'+L('governanceDesc')+'</p></div><span class="grc-exec-domain-badge">'+countFor('governance')+' '+L('records')+'</span></div>'+governanceOverview('allFms',false,true)+'</section>'+
+      '<section class="grc-exec-domain risk-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">02</span><h2>'+L('riskOverview')+'</h2><p>'+L('riskDesc')+'</p></div><span class="grc-exec-domain-badge">'+countFor('risk')+' '+L('records')+'</span></div>'+riskOverview('allFms',false,true)+'</section>';
   }
   function governanceModules(){
-    var a=[['⌂','orgStructure','orgStructureDesc'],['⇄','raci','raciDesc'],['▥','annualPlan','annualPlanDesc']];
-    return'<div class="grc-module-grid">'+a.map(function(x){return'<div class="grc-module-card"><div class="grc-module-icon">'+x[0]+'</div><div><div class="grc-module-title">'+L(x[1])+'</div><div class="grc-module-desc">'+L(x[2])+'</div><span class="grc-module-status">'+L('planned')+'</span></div></div>';}).join('')+'</div>';
+    var a=[['⌂','orgStructure','orgStructureDesc','window._grcOpenOrgStructure()','ready'],['⇄','raci','raciDesc','','planned'],['▥','annualPlan','annualPlanDesc','','planned']];
+    return'<div class="grc-module-grid">'+a.map(function(x){return'<div class="grc-module-card '+(x[3]?'clickable':'')+'" '+(x[3]?'onclick="'+x[3]+'" tabindex="0" role="button"':'')+'><div class="grc-module-icon">'+x[0]+'</div><div><div class="grc-module-title">'+L(x[1])+'</div><div class="grc-module-desc">'+L(x[2])+'</div><span class="grc-module-status '+(x[4]==='ready'?'ready':'')+'">'+(x[4]==='ready'?(isAr()?'عرض الهيكل':'View Structure'):L('planned'))+'</span></div></div>';}).join('')+'</div>';
   }
-  function governancePage(){
-    return hero('GRC · Governance',L('governanceTitle'),L('governanceDesc'))+governanceModules()+'<div class="grc-divider"></div>'+sectionHead(L('departmentView'),L('departmentSectionsDesc'))+'<div class="grc-department-stack">'+departmentOrder.map(governanceDepartmentPanel).join('')+'</div>';
+  function governancePage(){return hero('GRC · Governance',L('governanceTitle'),L('governanceDesc'))+governanceModules()+'<div class="grc-divider"></div>'+sectionHead(L('departmentView'),L('departmentSectionsDesc'))+'<div class="grc-department-stack">'+departmentOrder.map(governanceDepartmentPanel).join('')+'</div>'+governanceRegistersBoard();}
+  function riskPage(){return hero('GRC · Risk Management',L('riskTitle'),L('riskDesc'))+sectionHead(L('departmentView'),L('departmentSectionsDesc'))+'<div class="grc-department-stack">'+departmentOrder.map(riskDepartmentPanel).join('')+'</div>'+riskRegistersBoard();}
+
+  function governanceRegistersBoard(){
+    return'<section class="grc-registers-board">'+sectionHead(L('governanceRegisterGroup'),L('registerDesc'))+
+      registerBlock('policy',L('policyRegister'),L('allDepartments'),addBtn('policy',L('addPolicy')),governanceTable('policies','allFms','policy',true))+
+      registerBlock('plan',L('planRegister'),L('allDepartments'),addBtn('plan',L('addPlan')),governanceTable('plans','allFms','plan',true))+
+      registerBlock('emergency',L('emergencyPlanRegister'),L('allDepartments'),addBtn('emergencyPlan',L('addEmergencyPlan')),governanceTable('emergencyPlans','allFms','emergency',true))+
+      registerBlock('form',L('formRegister'),L('allDepartments'),addBtn('form',L('addForm')),governanceTable('forms','allFms','form',true))+'</section>';
   }
-  function riskPage(){
-    return hero('GRC · Risk Management',L('riskTitle'),L('riskDesc'))+sectionHead(L('departmentView'),L('departmentSectionsDesc'))+'<div class="grc-department-stack">'+departmentOrder.map(riskDepartmentPanel).join('')+'</div>';
+  function riskRegistersBoard(){
+    return'<section class="grc-registers-board">'+sectionHead(L('riskRegisterGroup'),L('registerDesc'))+
+      registerBlock('risk',L('riskRegister'),L('allDepartments'),addBtn('risk',L('addRisk')),riskTable('allFms',true))+
+      registerBlock('incident',L('incidentRegister'),L('allDepartments'),addBtn('incident',L('addIncident')),incidentTable('allFms',true))+
+      registerBlock('code',L('codeRegister'),L('allDepartments'),addBtn('code',L('addCode')),codeTable('allFms',true))+'</section>';
+  }
+  function registerPage(){
+    return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+governanceRegistersBoard()+riskRegistersBoard()+
+      '<section class="grc-registers-board">'+sectionHead(L('assuranceRegisterGroup'),L('registerDesc'))+
+      registerBlock('policy',L('complianceTitle'),L('allDepartments'),addBtn('compliance',L('addRequirement')),tableHtml('policy',['id','requirement','authority','department','owner','dueDate','status'],(state.compliance||[]).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.authority||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td>'+badge(r.status)+'</td></tr>';}).join('')))+
+      registerBlock('incident',L('auditTitle'),L('allDepartments'),addBtn('audit',L('addFinding')),tableHtml('incident',['id','title','severity','department','owner','dueDate','status'],(state.audits||[]).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+badge(r.severity)+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td>'+badge(r.status)+'</td></tr>';}).join('')))+
+      registerBlock('plan',L('actionsTitle'),L('allDepartments'),addBtn('action',L('addAction')),tableHtml('plan',['id','title','source','department','owner','dueDate','progress','status'],(state.actions||[]).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.source||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td><div style="display:flex;align-items:center;gap:7px"><div class="grc-progress"><span style="width:'+Math.max(0,Math.min(100,Number(r.progress||0)))+'%"></span></div><b>'+Number(r.progress||0)+'%</b></div></td><td>'+badge(r.status)+'</td></tr>';}).join('')))+
+      registerBlock('form',L('documentsTitle'),L('allDepartments'),addBtn('document',L('addDocument')),tableHtml('form',['id','title','category','department','owner','reviewDate','status'],(state.documents||[]).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.category||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.reviewDate)+'</td><td>'+badge(r.status)+'</td></tr>';}).join('')))+
+      registerBlock('policy',L('manualRegister'),L('allDepartments'),addBtn('manual',L('addManual')),manualTable())+'</section>';
   }
 
   function manualsPage(){
@@ -448,24 +470,35 @@
       metricCard(L('manualsDue'),due.length,'warn',L('clickToView'),'window._grcOpenMetric(\'manuals\',\'expiring\',\'allFms\')')+'</div>';
     return hero('GRC · Document Governance',L('manualsTitle'),L('manualsDesc'),addBtn('manual',L('addManual')))+'<div class="grc-section">'+metrics+registerBlock('policy',L('manualRegister'),L('manualsDesc'),addBtn('manual',L('addManual')),manualTable())+'</div>';
   }
+  function groupedDepartmentRows(cols,rowBuilder){
+    var out='';
+    departmentOrder.forEach(function(dept){
+      var rows=rowBuilder(dept);
+      out+='<tr class="grc-table-group"><td colspan="'+cols+'"><span class="grc-table-group-dot" style="background:'+deptColor(dept)+'"></span><strong>'+esc(deptName(dept))+'</strong><span>'+esc(deptAbbr(dept))+'</span></td></tr>'+(rows||'<tr class="grc-table-group-empty"><td colspan="'+cols+'">'+L('noRecords')+'</td></tr>');
+    });
+    return out;
+  }
 
-  function governanceTable(kind,dept,style){
-    var rows=filterDept(state[kind],dept).map(function(r){
-      return'<tr><td>'+esc(recordName(r))+'</td><td class="grc-id">'+esc(r.code||r.id||'—')+'</td><td>'+dateText(r.issueDate)+'</td><td>'+dateText(r.effectiveDate||r.startDate)+'</td><td>'+dateText(r.reviewDate||r.expiryDate)+'</td></tr>';
-    }).join('');
-    return tableHtml(style,['name','code','issueDate','effectiveDate','reviewDate'],rows);
+  function governanceTable(kind,dept,style,grouped){
+    var heads=['name','code','issueDate','effectiveDate','reviewDate','status'];
+    function rowsFor(d){return filterDept(state[kind],d).map(function(r){return'<tr><td>'+esc(recordName(r))+'</td><td class="grc-id">'+esc(r.code||r.id||'—')+'</td><td>'+dateText(r.issueDate)+'</td><td>'+dateText(r.effectiveDate||r.startDate)+'</td><td>'+dateText(r.reviewDate||r.expiryDate)+'</td><td>'+badge(isExpired(r)?'expired':r.status)+'</td></tr>';}).join('');}
+    var rows=grouped?groupedDepartmentRows(heads.length,rowsFor):rowsFor(dept);
+    return tableHtml(style,heads,rows);
   }
-  function riskTable(dept){
-    var rows=filterDept(state.risks,dept).map(function(r){var score=riskScore(r),level=riskLevel(r);return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(L(r.riskCategory)||r.riskCategory||'—')+'</td><td>'+esc(r.likelihood||'—')+'</td><td>'+esc(r.impact||'—')+'</td><td><b>'+score+'</b></td><td>'+badge(level)+'</td><td>'+esc(L(r.controlType)||r.controlType||'—')+'</td><td>'+badge(r.actionStatus||r.status)+'</td></tr>';}).join('');
-    return tableHtml('risk',['riskId','riskIdentified','riskCategory','likelihood','impact','riskScore','riskLevel','controlType','actionStatus'],rows);
+  function riskTable(dept,grouped){
+    var heads=['riskId','riskIdentified','riskCategory','likelihood','impact','riskScore','riskLevel','controlType','actionStatus'];
+    function rowsFor(d){return filterDept(state.risks,d).map(function(r){var score=riskScore(r),level=riskLevel(r);return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(L(r.riskCategory)||r.riskCategory||'—')+'</td><td>'+esc(r.likelihood||'—')+'</td><td>'+esc(r.impact||'—')+'</td><td><b>'+score+'</b></td><td>'+badge(level)+'</td><td>'+esc(L(r.controlType)||r.controlType||'—')+'</td><td>'+badge(r.actionStatus||r.status)+'</td></tr>';}).join('');}
+    return tableHtml('risk',heads,grouped?groupedDepartmentRows(heads.length,rowsFor):rowsFor(dept));
   }
-  function incidentTable(dept){
-    var rows=filterDept(state.incidents,dept).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+dateText(r.date)+'</td><td>'+esc(r.category||'—')+'</td><td>'+esc(r.contributingFactors||'—')+'</td><td>'+badge(r.investigationRequired==='yes'?'yes':'no')+'</td><td>'+badge(r.status)+'</td><td>'+esc(deptName(r.department||r.responsibleDept))+'</td></tr>';}).join('');
-    return tableHtml('incident',['incidentId','date','category','contributingFactors','investigationRequired','status','responsibleDept'],rows);
+  function incidentTable(dept,grouped){
+    var heads=['incidentId','date','category','contributingFactors','investigationRequired','responsibleDept','status'];
+    function rowsFor(d){return filterDept(state.incidents,d).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+dateText(r.date)+'</td><td>'+esc(r.category||'—')+'</td><td>'+esc(r.contributingFactors||'—')+'</td><td>'+badge(r.investigationRequired==='yes'?'yes':'no')+'</td><td>'+esc(deptName(r.department||r.responsibleDept))+'</td><td>'+badge(r.status)+'</td></tr>';}).join('');}
+    return tableHtml('incident',heads,grouped?groupedDepartmentRows(heads.length,rowsFor):rowsFor(dept));
   }
-  function codeTable(dept){
-    var rows=filterDept(state.codes,dept).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+badge(r.status)+'</td><td>'+badge(r.type)+'</td><td>'+dateText(r.date)+'</td><td>'+esc(r.location||'—')+'</td><td>'+dateText(r.closeDateTime)+'</td></tr>';}).join('');
-    return tableHtml('code',['codeNumber','status','type','date','location','closeDateTime'],rows);
+  function codeTable(dept,grouped){
+    var heads=['codeNumber','status','type','date','location','closeDateTime'];
+    function rowsFor(d){return filterDept(state.codes,d).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+badge(r.status)+'</td><td>'+badge(r.type)+'</td><td>'+dateText(r.date)+'</td><td>'+esc(r.location||'—')+'</td><td>'+dateText(r.closeDateTime)+'</td></tr>';}).join('');}
+    return tableHtml('code',heads,grouped?groupedDepartmentRows(heads.length,rowsFor):rowsFor(dept));
   }
   function manualTable(){
     var rows=state.manuals.map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.category||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.reviewDate||r.expiryDate)+'</td><td>'+badge(isExpired(r)?'expired':r.status)+'</td></tr>';}).join('');
@@ -486,7 +519,16 @@
     var cards=[['▥',isAr()?'التقارير الربعية':'Quarterly Reports'],['▤',isAr()?'التقارير السنوية':'Annual Reports'],['◫',isAr()?'التقارير التنفيذية':'Executive Reports'],['⌁',isAr()?'تقارير الحوادث':'Incident Reports'],['▣',isAr()?'أرشيف إدارة المرافق والسلامة':'FMS Archive'],['§',isAr()?'الأطر التنظيمية والتشريعية':'Regulatory & Legislative Framework']];
     return hero('GRC · Reporting',L('reportsTitle'),L('reportsDesc'))+'<div class="grc-module-grid">'+cards.map(function(x){return'<div class="grc-module-card"><div class="grc-module-icon">'+x[0]+'</div><div><div class="grc-module-title">'+x[1]+'</div><div class="grc-module-desc">'+L('planned')+'</div><span class="grc-module-status">'+L('planned')+'</span></div></div>';}).join('')+'</div>';
   }
-  function pageHtml(id){if(id==='executive')return executivePage();if(id==='governance')return governancePage();if(id==='manuals')return manualsPage();if(id==='risk')return riskPage();if(id==='compliance')return compliancePage();if(id==='audit')return auditPage();if(id==='actions')return actionsPage();if(id==='documents')return documentsPage();return reportsPage();}
+  function pageHtml(id){if(id==='executive')return executivePage();if(id==='governance')return governancePage();if(id==='risk')return riskPage();if(id==='register')return registerPage();if(id==='manuals')return manualsPage();if(id==='compliance')return compliancePage();if(id==='audit')return auditPage();if(id==='actions')return actionsPage();if(id==='documents')return documentsPage();return reportsPage();}
+
+  function orgUnit(title,items,cls){return'<div class="grc-org-branch '+(cls||'')+'"><div class="grc-org-node branch">'+esc(title)+'</div><div class="grc-org-units">'+items.map(function(x){return'<div class="grc-org-node unit">'+esc(x)+'</div>';}).join('')+'</div></div>';}
+  window._grcOpenOrgStructure=function(){
+    var old=document.getElementById('_grcOrgModal');if(old)old.remove();
+    var departmentsHtml=orgUnit(L('maintenance'),[L('mechanicalUnit'),L('hvacUnit'),L('electronicsUnit'),L('electricalUnit'),L('architecturalCivilUnit')],'maintenance')+orgUnit(L('housekeeping'),[L('medicalWasteUnit'),L('housekeepingServicesUnit'),L('laundryServicesUnit')],'housekeeping')+orgUnit(L('safety'),[L('safetyManagementUnit'),L('fireProtectionUnit'),L('hazardousMaterialUnit')],'safety')+orgUnit(L('projects'),[L('projectStudies'),L('projectMonitoring')],'projects');
+    var ov=document.createElement('div');ov.id='_grcOrgModal';ov.className='grc-modal-backdrop grc-org-backdrop';
+    ov.innerHTML='<div class="grc-modal grc-org-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+L('orgChartTitle')+'</div><div class="grc-modal-sub">'+L('orgChartDesc')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcOrgModal\').remove()">×</button></div><div class="grc-modal-body grc-org-body"><div class="grc-org-chart"><div class="grc-org-node director">'+L('fmsDirector')+'</div><div class="grc-org-second"><div class="grc-org-side"><div class="grc-org-node department governance">'+L('governanceOperations')+'</div><div class="grc-org-units compact"><div class="grc-org-node function">'+L('ticketingCentre')+'</div><div class="grc-org-node function">'+L('planningAuditing')+'</div></div></div><div class="grc-org-node admin">'+L('administrativeServices')+'</div></div><div class="grc-org-departments">'+departmentsHtml+'</div></div></div></div>';
+    document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
+  };
 
   function metricRecords(kind,filter,dept){
     var arr=filterDept(state[kind]||[],dept);
@@ -500,10 +542,10 @@
     if(filter==='highCritical')return arr.filter(function(r){return['high','critical'].indexOf(riskLevel(r))>=0;});
     if(kind==='codes'&&filter==='real')return arr.filter(function(r){return normalizeStatus(r.type)==='real';});
     if(kind==='codes'&&filter==='drill')return arr.filter(function(r){return normalizeStatus(r.type)==='drill';});
-    if(kind==='codes'&&filter==='successful')return arr.filter(function(r){return normalizeStatus(r.type)==='drill'&&normalizeStatus(r.status)==='successful';});
-    if(kind==='codes'&&filter==='failed')return arr.filter(function(r){return normalizeStatus(r.type)==='drill'&&normalizeStatus(r.status)==='failed';});
-    if(kind==='codes'&&filter==='drillRatio')return arr.filter(function(r){return normalizeStatus(r.type)==='drill'&&['successful','failed'].indexOf(normalizeStatus(r.status))>=0;});
-    if(kind==='codes'&&filter==='failedRate')return arr.filter(function(r){return normalizeStatus(r.type)==='drill'&&normalizeStatus(r.status)==='failed';});
+    if(kind==='codes'&&filter==='successful')return arr.filter(function(r){return normalizeStatus(r.status)==='successful';});
+    if(kind==='codes'&&filter==='failed')return arr.filter(function(r){return normalizeStatus(r.status)==='failed';});
+    if(kind==='codes'&&filter==='drillRatio')return arr.filter(function(r){return['successful','failed'].indexOf(normalizeStatus(r.status))>=0;});
+    if(kind==='codes'&&filter==='failedRate')return arr.filter(function(r){return normalizeStatus(r.status)==='failed';});
     return arr;
   }
   function metricTitle(kind,filter){
@@ -578,7 +620,14 @@
   window._exitGRC=function(){window._hideGRC();var bg=document.getElementById('_bgLayer'),po=document.getElementById('_portalOverlay'),auth=document.getElementById('_authOverlay');if(auth)auth.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
   window._openGrcPortal=function(){if(normalizedRole()==='super_admin')window._enterGRC();else window._showGrcComingSoon();};
   window._enterGRC=function(){if(normalizedRole()!=='super_admin'){window._showGrcComingSoon();return;}['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');render();};
-  window._showGrcComingSoon=function(){var old=document.getElementById('_grcComingSoon');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcComingSoon';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-coming-card"><div class="grc-coming-icon">▦</div><div class="grc-coming-title">'+L('comingTitle')+'</div><div class="grc-coming-sub">'+L('comingSub')+'</div><div class="grc-coming-pill">'+L('comingSoon')+'</div><div><button class="grc-top-btn grc-back" style="margin:auto;background:#153b4f" onclick="document.getElementById(\'_grcComingSoon\').remove()">← '+L('back')+'</button></div></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});};
+  window._closeGrcComingSoon=function(){var ov=document.getElementById('_grcComingSoon');if(ov)ov.remove();document.body.classList.remove('grc-coming-open');};
+  window._showGrcComingSoon=function(){
+    window._closeGrcComingSoon();document.body.classList.add('grc-coming-open');
+    var ov=document.createElement('div');ov.id='_grcComingSoon';ov.className='grc-modal-backdrop grc-coming-backdrop';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');ov.setAttribute('aria-labelledby','_grcComingTitle');
+    ov.style.cssText='position:fixed!important;inset:0!important;z-index:2147483646!important;display:flex!important;align-items:center!important;justify-content:center!important;padding:22px!important;background:rgba(3,13,31,.84)!important;backdrop-filter:blur(10px)!important;-webkit-backdrop-filter:blur(10px)!important;';
+    ov.innerHTML='<div class="grc-coming-card" style="width:min(520px,calc(100vw - 34px))!important;max-width:520px!important;background:#fff!important;border:1px solid rgba(1,149,175,.28)!important;border-radius:22px!important;padding:38px 34px 31px!important;text-align:center!important;box-shadow:0 30px 90px rgba(0,0,0,.52)!important;position:relative!important;opacity:1!important;filter:none!important;color:#17384a!important;"><div class="grc-coming-icon">▦</div><div id="_grcComingTitle" class="grc-coming-title">'+L('comingTitle')+'</div><div class="grc-coming-sub">'+L('comingSub')+'</div><div class="grc-coming-pill">'+L('comingSoon')+'</div><div><button type="button" class="grc-coming-back-btn" onclick="window._closeGrcComingSoon()">← '+L('back')+'</button></div></div>';
+    document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)window._closeGrcComingSoon();});
+  };
 
   document.addEventListener('DOMContentLoaded',function(){ensureApp();});
 })();
