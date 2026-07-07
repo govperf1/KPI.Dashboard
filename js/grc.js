@@ -756,13 +756,58 @@
   window._grcReportQuarter=function(q){reportNav.quarter=Number(q);render();};
   function pageHtml(id){if(id==='executive')return executivePage();if(id==='governance')return governancePage();if(id==='risk')return riskPage();if(id==='register')return registerPage();if(id==='manuals')return manualsPage();if(id==='compliance')return compliancePage();if(id==='audit')return auditPage();if(id==='actions')return actionsPage();if(id==='documents')return documentsPage();return reportsPage();}
 
-  function orgUnit(title,items,cls){return'<div class="grc-org-branch '+(cls||'')+'"><div class="grc-org-node branch">'+esc(title)+'</div><div class="grc-org-units">'+items.map(function(x){return'<div class="grc-org-node unit">'+esc(x)+'</div>';}).join('')+'</div></div>';}
+  function ensureOrgViewerStyles(){
+    if(document.getElementById('_grcOrgViewerStyles'))return;
+    var st=document.createElement('style');
+    st.id='_grcOrgViewerStyles';
+    st.textContent='\
+#_grcOrgModal{position:fixed;inset:0;z-index:2147483000;background:rgba(5,18,32,.82);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:18px;}\
+#_grcOrgModal .grc-org-viewer{width:min(96vw,1500px);height:min(94vh,980px);background:#f8fbfd;border:1px solid rgba(255,255,255,.5);border-radius:24px;box-shadow:0 30px 90px rgba(0,0,0,.38);display:flex;flex-direction:column;overflow:hidden;}\
+#_grcOrgModal .grc-org-viewer-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 18px;background:linear-gradient(135deg,#0d3f67,#0f7f86);color:#fff;}\
+#_grcOrgModal .grc-org-viewer-title{font-weight:800;font-size:18px;line-height:1.3;}\
+#_grcOrgModal .grc-org-viewer-sub{opacity:.82;font-size:12px;margin-top:3px;}\
+#_grcOrgModal .grc-org-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}\
+#_grcOrgModal .grc-org-tool{height:36px;min-width:38px;border:1px solid rgba(255,255,255,.35);border-radius:10px;background:rgba(255,255,255,.13);color:#fff;font-weight:800;cursor:pointer;padding:0 12px;}\
+#_grcOrgModal .grc-org-tool:hover{background:rgba(255,255,255,.23);}\
+#_grcOrgModal .grc-org-close{font-size:22px;line-height:1;}\
+#_grcOrgModal .grc-org-stage{position:relative;flex:1;overflow:auto;background:linear-gradient(180deg,#eef5f8,#f9fbfc);padding:24px;text-align:center;}\
+#_grcOrgModal .grc-org-image-wrap{display:inline-block;transform-origin:top center;transition:transform .18s ease;line-height:0;}\
+#_grcOrgModal .grc-org-image{display:block;width:min(100%,1120px);height:auto;max-width:none;border-radius:14px;box-shadow:0 14px 42px rgba(19,62,91,.16);background:#fff;image-rendering:auto;}\
+#_grcOrgModal .grc-org-note{position:absolute;left:20px;bottom:16px;background:rgba(9,48,78,.82);color:#fff;border-radius:999px;padding:7px 11px;font-size:11px;pointer-events:none;}\
+@media(max-width:720px){#_grcOrgModal{padding:0;}#_grcOrgModal .grc-org-viewer{width:100vw;height:100vh;border-radius:0;}#_grcOrgModal .grc-org-viewer-head{padding:12px;}#_grcOrgModal .grc-org-viewer-sub{display:none;}#_grcOrgModal .grc-org-stage{padding:12px;}#_grcOrgModal .grc-org-image{width:980px;}}';
+    document.head.appendChild(st);
+  }
+  window._grcOrgZoom=function(delta){
+    var wrap=document.querySelector('#_grcOrgModal .grc-org-image-wrap');
+    var stage=document.querySelector('#_grcOrgModal .grc-org-stage');
+    if(!wrap||!stage)return;
+    var current=Number(wrap.getAttribute('data-scale')||1);
+    var next=Math.max(.55,Math.min(2.6,current+delta));
+    wrap.setAttribute('data-scale',String(next));
+    wrap.style.transform='scale('+next+')';
+    wrap.style.marginBottom=Math.max(0,(wrap.offsetHeight*(next-1)))+'px';
+  };
+  window._grcOrgFit=function(){
+    var wrap=document.querySelector('#_grcOrgModal .grc-org-image-wrap');
+    if(!wrap)return;
+    wrap.setAttribute('data-scale','1');
+    wrap.style.transform='scale(1)';
+    wrap.style.marginBottom='0';
+    var stage=document.querySelector('#_grcOrgModal .grc-org-stage');
+    if(stage){stage.scrollTop=0;stage.scrollLeft=0;}
+  };
   window._grcOpenOrgStructure=function(){
     var old=document.getElementById('_grcOrgModal');if(old)old.remove();
-    var departmentsHtml=orgUnit(L('maintenance'),[L('mechanicalUnit'),L('hvacUnit'),L('electronicsUnit'),L('electricalUnit'),L('architecturalCivilUnit')],'maintenance')+orgUnit(L('housekeeping'),[L('medicalWasteUnit'),L('housekeepingServicesUnit'),L('laundryServicesUnit')],'housekeeping')+orgUnit(L('safety'),[L('safetyManagementUnit'),L('fireProtectionUnit'),L('hazardousMaterialUnit')],'safety')+orgUnit(L('projects'),[L('projectStudies'),L('projectMonitoring')],'projects');
-    var ov=document.createElement('div');ov.id='_grcOrgModal';ov.className='grc-modal-backdrop grc-org-backdrop';
-    ov.innerHTML='<div class="grc-modal grc-org-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+L('orgChartTitle')+'</div><div class="grc-modal-sub">'+L('orgChartDesc')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcOrgModal\').remove()">×</button></div><div class="grc-modal-body grc-org-body"><div class="grc-org-chart"><div class="grc-org-node director">'+L('fmsDirector')+'</div><div class="grc-org-second grc-org-second-single"><div class="grc-org-node admin">'+L('administrativeServices')+'</div></div><div class="grc-org-departments">'+departmentsHtml+'</div></div></div></div>';
-    document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
+    ensureOrgViewerStyles();
+    var ov=document.createElement('div');
+    ov.id='_grcOrgModal';
+    ov.innerHTML='<div class="grc-org-viewer" role="dialog" aria-modal="true" aria-label="'+esc(L('orgChartTitle'))+'">'+
+      '<div class="grc-org-viewer-head"><div><div class="grc-org-viewer-title">'+L('orgChartTitle')+'</div><div class="grc-org-viewer-sub">'+L('orgChartDesc')+'</div></div>'+
+      '<div class="grc-org-toolbar"><button class="grc-org-tool" onclick="window._grcOrgZoom(-0.15)" aria-label="Zoom out">−</button><button class="grc-org-tool" onclick="window._grcOrgFit()">'+(isAr()?'ملاءمة':'Fit')+'</button><button class="grc-org-tool" onclick="window._grcOrgZoom(0.15)" aria-label="Zoom in">+</button><button class="grc-org-tool grc-org-close" onclick="document.getElementById(\'_grcOrgModal\').remove()" aria-label="Close">×</button></div></div>'+
+      '<div class="grc-org-stage"><div class="grc-org-image-wrap" data-scale="1"><img class="grc-org-image" src="assets/grc/fms-organizational-structure.png?v=20260707-org-hires" alt="'+esc(L('orgChartTitle'))+'"></div><div class="grc-org-note">'+(isAr()?'استخدمي + و − للتكبير':'Use + and − to zoom')+'</div></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
+    document.addEventListener('keydown',function onKey(e){if(e.key==='Escape'&&document.getElementById('_grcOrgModal')){document.getElementById('_grcOrgModal').remove();document.removeEventListener('keydown',onKey);}});
   };
 
   function metricRecords(kind,filter,dept){
