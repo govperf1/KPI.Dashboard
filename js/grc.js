@@ -58,7 +58,7 @@
       recordDetails:'Record Details',close:'Close',delete:'Delete',confirmDelete:'Delete this preview record?',cancel:'Cancel',save:'Save Record',required:'Please complete all required fields.',
       percentage:'Rate',records:'Records',clickToView:'Click to view records',year:'Year',count:'Count',noMatching:'No matching records.',
       complianceTitle:'Compliance',complianceDesc:'Regulatory requirements, evidence and corrective actions.',auditTitle:'Audit & Assurance',auditDesc:'Audit findings, recommendations and closure evidence.',actionsTitle:'Action Plans',actionsDesc:'Actions arising from risks, incidents, compliance gaps and reviews.',documentsTitle:'Documents & Records',documentsDesc:'Supporting controlled documents and historical records.',reportsTitle:'Reports & Archive',reportsDesc:'Quarterly, annual and executive reporting areas.',
-      comingTitle:'GRC Module',comingSub:'The Governance, Risk & Compliance workspace is currently under development and is available to the Super Admin preview only.',comingSoon:'Coming Soon',
+      comingTitle:'GRC Module',comingSub:'This module is currently under development.',comingSoon:'Coming Soon',
       authority:'Authority / Standard',requirement:'Requirement',severity:'Severity',source:'Source',progress:'Progress Rate %',title:'Title / Description',dueDate:'Due Date',
       addRequirement:'Add Requirement',addFinding:'Add Finding',addAction:'Add Action',addDocument:'Add Document',compliant:'Compliant',partial:'Partially Compliant',nonCompliant:'Non-Compliant',notApplicable:'Not Applicable',major:'Major',minor:'Minor',observation:'Observation',pendingVerification:'Pending Verification',pendingApproval:'Pending Approval'
     },
@@ -97,7 +97,7 @@
       recordDetails:'تفاصيل السجلات',close:'إغلاق',delete:'حذف',confirmDelete:'هل تريد حذف سجل المعاينة؟',cancel:'إلغاء',save:'حفظ السجل',required:'يرجى تعبئة جميع الحقول المطلوبة.',
       percentage:'المعدل',records:'السجلات',clickToView:'اضغط لعرض السجلات',year:'السنة',count:'العدد',noMatching:'لا توجد سجلات مطابقة.',
       complianceTitle:'الالتزام',complianceDesc:'المتطلبات النظامية والأدلة والإجراءات التصحيحية.',auditTitle:'التدقيق والتوكيد',auditDesc:'ملاحظات التدقيق والتوصيات وأدلة الإغلاق.',actionsTitle:'خطط العمل',actionsDesc:'الإجراءات الناتجة من المخاطر والحوادث وفجوات الالتزام والمراجعات.',documentsTitle:'الوثائق والسجلات',documentsDesc:'الوثائق المساندة والسجلات التاريخية المنضبطة.',reportsTitle:'التقارير والأرشيف',reportsDesc:'مساحات التقارير الربعية والسنوية والتنفيذية.',
-      comingTitle:'قسم GRC',comingSub:'قسم الحوكمة والمخاطر والالتزام تحت التطوير ومتاح حالياً لمعاينة السوبر أدمن فقط.',comingSoon:'قريباً',
+      comingTitle:'قسم GRC',comingSub:'هذا القسم تحت التطوير حالياً.',comingSoon:'قريباً',
       authority:'الجهة / المعيار',requirement:'المتطلب',severity:'الخطورة',source:'المصدر',progress:'معدل الإنجاز %',title:'العنوان / الوصف',dueDate:'تاريخ الاستحقاق',
       addRequirement:'إضافة متطلب',addFinding:'إضافة ملاحظة',addAction:'إضافة إجراء',addDocument:'إضافة وثيقة',compliant:'ملتزم',partial:'ملتزم جزئياً',nonCompliant:'غير ملتزم',notApplicable:'لا ينطبق',major:'جوهري',minor:'بسيط',observation:'ملاحظة',pendingVerification:'بانتظار التحقق',pendingApproval:'بانتظار الاعتماد'
     }
