@@ -1,0 +1,65 @@
+[
+  {
+    "type": "quarterlyReport",
+    "year": 2025,
+    "quarter": 1,
+    "file": "quarterly_report_2025_q1.pdf",
+    "pages": 128,
+    "titleEn": "Facilities & Safety Quarterly Report - Q1 2025",
+    "titleAr": "التقرير الربعي الأول لإدارة المرافق والسلامة لعام 2025"
+  },
+  {
+    "type": "quarterlyReport",
+    "year": 2025,
+    "quarter": 2,
+    "file": "quarterly_report_2025_q2.pdf",
+    "pages": 130,
+    "titleEn": "Facilities & Safety Quarterly Report - Q2 2025",
+    "titleAr": "التقرير الربعي الثاني لإدارة المرافق والسلامة لعام 2025"
+  },
+  {
+    "type": "quarterlyReport",
+    "year": 2025,
+    "quarter": 3,
+    "file": "quarterly_report_2025_q3.pdf",
+    "pages": 135,
+    "titleEn": "Facilities & Safety Quarterly Report - Q3 2025",
+    "titleAr": "التقرير الربعي الثالث لإدارة المرافق والسلامة لعام 2025"
+  },
+  {
+    "type": "quarterlyReport",
+    "year": 2025,
+    "quarter": 4,
+    "file": "quarterly_report_2025_q4.pdf",
+    "pages": 137,
+    "titleEn": "Facilities & Safety Quarterly Report - Q4 2025",
+    "titleAr": "التقرير الربعي الرابع لإدارة المرافق والسلامة لعام 2025"
+  },
+  {
+    "type": "quarterlyExecutive",
+    "year": 2025,
+    "quarter": 3,
+    "file": "quarterly_executive_2025_q3.pdf",
+    "pages": 11,
+    "titleEn": "Executive Summary - Q3 2025",
+    "titleAr": "الملخص التنفيذي للربع الثالث لعام 2025"
+  },
+  {
+    "type": "quarterlyExecutive",
+    "year": 2025,
+    "quarter": 4,
+    "file": "quarterly_executive_2025_q4.pdf",
+    "pages": 14,
+    "titleEn": "Executive Summary - Q4 2025",
+    "titleAr": "الملخص التنفيذي للربع الرابع لعام 2025"
+  },
+  {
+    "type": "quarterlyReport",
+    "year": 2026,
+    "quarter": 2,
+    "file": "quarterly_report_2026_q2.pdf",
+    "pages": 1,
+    "titleEn": "Facilities & Safety Quarterly Report - Q2 2026",
+    "titleAr": "التقرير الربعي الثاني لإدارة المرافق والسلامة لعام 2026"
+  }
+]
