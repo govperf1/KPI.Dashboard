@@ -1,6 +1,6 @@
 /* ======================================================================
    QUMC GRC Workspace — Super Admin Preview
-   Version: 2026-07-06 Risk Register / Housekeeping Split / Dynamic Charts
+   Version: 2026-07-07 Risk Register / Housekeeping Split / Dynamic Charts / Cache Refresh
 
    Scope
    - Executive Command: Governance + Risk/Incident/Code summaries.
@@ -15,8 +15,10 @@
 (function(){
   'use strict';
 
+  window.__QUMC_GRC_BUILD__='20260707-grc-risk-hk-v10';
+
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var STATE_VERSION=6;
+  var STATE_VERSION=7;
   var activeTab='executive';
   var app=null;
 
