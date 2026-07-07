@@ -105,12 +105,6 @@ body.grc-coming-open #_portalPanel{opacity:.22!important;filter:blur(5px)!import
 #grcApp .grc-chart-grid.cols-3{grid-template-columns:repeat(3,minmax(220px,1fr))}
 #grcApp .grc-chart-card{background:#fff;border:1px solid #D6E2EE;border-radius:13px;padding:13px 14px;box-shadow:0 3px 12px rgba(21,37,56,.045);min-height:176px}
 #grcApp .grc-chart-title{font-size:9px;font-weight:900;color:#52657A;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
-#grcApp .grc-donut-layout{display:flex;align-items:center;gap:16px;min-height:126px}
-#grcApp .grc-donut{width:112px;height:112px;border-radius:50%;position:relative;display:grid;place-items:center;flex:0 0 auto;box-shadow:inset 0 0 0 1px rgba(21,37,56,.04)}
-#grcApp .grc-donut:after{content:"";position:absolute;inset:17px;border-radius:50%;background:#fff;box-shadow:0 0 0 1px #EDF2F6}
-#grcApp .grc-donut-center{position:relative;z-index:1;text-align:center;display:flex;flex-direction:column;line-height:1}
-#grcApp .grc-donut-center strong{font-size:24px;font-weight:950;color:#152538;font-family:Consolas,"Courier New",monospace}
-#grcApp .grc-donut-center span{font-size:7.5px;font-weight:800;color:#8A9AAA;margin-top:4px;text-transform:uppercase}
 #grcApp .grc-chart-legend{display:flex;flex-direction:column;gap:7px;min-width:0;flex:1}
 #grcApp .grc-chart-legend span{display:flex;align-items:center;gap:7px;font-size:8.5px;color:#64748B;min-width:0}
 #grcApp .grc-chart-legend i{width:8px;height:8px;border-radius:3px;flex:0 0 auto}
@@ -135,10 +129,6 @@ body.grc-coming-open #_portalPanel{opacity:.22!important;filter:blur(5px)!import
   #grcApp .grc-chart-grid.cols-3 .grc-chart-card:last-child{grid-column:auto}
 }
 @media(max-width:430px){
-  #grcApp .grc-donut-layout{align-items:flex-start;gap:12px}
-  #grcApp .grc-donut{width:94px;height:94px}
-  #grcApp .grc-donut:after{inset:15px}
-  #grcApp .grc-donut-center strong{font-size:20px}
 }
 @media print{
   #grcApp .grc-department-panel,#grcApp .grc-chart-card{box-shadow:none!important;break-inside:avoid}
@@ -467,4 +457,62 @@ body.grc-coming-open{overflow:hidden!important}
 @media(max-width:760px){
   #grcApp .grc-risk-subgroup .grc-metric-grid,
   #grcApp .grc-risk-subgroup .grc-metric-grid.cols-4{grid-template-columns:repeat(2,minmax(120px,1fr))}
+}
+
+
+/* ===== GRC refinement v12: risk heat map + diversified charts (no donut) ===== */
+#grcApp .grc-vertical-card{min-height:220px}
+#grcApp .grc-vertical-bars{height:160px;display:flex;align-items:flex-end;justify-content:center;gap:18px;padding:10px 8px 0;border-bottom:1px solid #DCE6EE}
+#grcApp .grc-vbar-item{height:100%;min-width:70px;max-width:145px;flex:1;display:grid;grid-template-rows:22px 1fr 32px;gap:5px;align-items:end;text-align:center}
+#grcApp .grc-vbar-value{font:900 11px/1 Consolas,"Courier New",monospace;color:#17384A}
+#grcApp .grc-vbar-column{height:100%;display:flex;align-items:flex-end;justify-content:center;background:linear-gradient(180deg,transparent,#F5F8FA);border-radius:9px 9px 0 0;overflow:hidden}
+#grcApp .grc-vbar-column span{display:block;width:min(58px,65%);min-height:0;border-radius:8px 8px 0 0;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
+#grcApp .grc-vbar-label{font-size:8.2px;line-height:1.25;font-weight:850;color:#64748B;align-self:start}
+#grcApp .grc-stacked-card{min-height:205px}
+#grcApp .grc-stacked-list{display:flex;flex-direction:column;gap:12px;margin-bottom:15px}
+#grcApp .grc-stacked-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:5px;font-size:8.7px;color:#64748B}
+#grcApp .grc-stacked-head b{font:900 9px/1 Consolas,"Courier New",monospace;color:#17384A}
+#grcApp .grc-stacked-track{display:flex;height:12px;border-radius:999px;overflow:hidden;background:#EEF3F6;box-shadow:inset 0 0 0 1px rgba(15,23,42,.035)}
+#grcApp .grc-stacked-track span{display:block;height:100%;min-width:0;transition:width .2s ease}
+#grcApp .grc-stacked-card .grc-chart-legend{flex-direction:row;flex-wrap:wrap;gap:9px 16px}
+#grcApp .grc-stacked-card .grc-chart-legend span{min-width:120px;flex:1}
+#grcApp .grc-line-card{min-height:245px}
+#grcApp .grc-line-wrap{height:190px;overflow:hidden}
+#grcApp .grc-line-wrap svg{width:100%;height:100%;display:block;overflow:visible}
+#grcApp .grc-line-axis{stroke:#D7E2EA;stroke-width:1.5}
+#grcApp .grc-line-value{font:900 11px/1 Consolas,"Courier New",monospace;fill:#17384A}
+#grcApp .grc-line-label{font:800 10px/1 Arial,sans-serif;fill:#718396}
+#grcApp .grc-heatmap-card{min-height:455px;padding:15px 16px 17px;background:linear-gradient(180deg,#FFFFFF,#FAFCFD)}
+#grcApp .grc-heat-impact-title{margin:0 118px 8px 0;background:#1595A4;color:#fff;border:1px solid #0B6176;border-radius:2px;padding:9px 12px;text-align:center;font-size:14px;font-weight:950;letter-spacing:.01em}
+#grcApp[dir="rtl"] .grc-heat-impact-title{margin:0 0 8px 118px}
+#grcApp .grc-heat-grid{display:grid;grid-template-columns:repeat(5,minmax(90px,1fr)) 110px;gap:7px;align-items:stretch}
+#grcApp .grc-heat-impact-head,#grcApp .grc-heat-side-head,#grcApp .grc-heat-like-label{border:1px solid #178CA0;background:#fff;color:#123F77;display:flex;align-items:center;justify-content:center;text-align:center;font-size:10px;line-height:1.15;font-weight:950;padding:8px 5px;min-height:44px}
+#grcApp .grc-heat-side-head{background:#1595A4;color:#fff;border-color:#0B6176;font-size:12px}
+#grcApp .grc-heat-like-label{font-size:11px;min-height:58px}
+#grcApp .grc-heat-cell{position:relative;border:1px solid rgba(12,65,92,.65);min-height:58px;padding:6px 5px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;color:#0B3860;font-family:inherit;transition:transform .15s ease,box-shadow .15s ease,filter .15s ease}
+#grcApp .grc-heat-cell:hover{transform:translateY(-2px);filter:saturate(1.08);box-shadow:0 8px 18px rgba(15,23,42,.16);z-index:2}
+#grcApp .grc-heat-cell strong{font:950 16px/1 Consolas,"Courier New",monospace}
+#grcApp .grc-heat-cell span{font-size:9px;line-height:1.05;font-weight:950}
+#grcApp .grc-heat-cell em{position:absolute;top:4px;right:5px;background:rgba(255,255,255,.86);color:#17384A;border-radius:999px;padding:2px 5px;font-style:normal;font-size:6.8px;font-weight:900;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+#grcApp[dir="rtl"] .grc-heat-cell em{right:auto;left:5px}
+#grcApp .grc-heat-cell.very-high{background:#C91D29;color:#102D53}
+#grcApp .grc-heat-cell.high{background:#FDBB16;color:#0E3A62}
+#grcApp .grc-heat-cell.medium{background:#FFF20C;color:#0E3A62}
+#grcApp .grc-heat-cell.low{background:#1EB95A;color:#0E3A62}
+@media(max-width:1180px){
+  #grcApp .grc-heatmap-card{min-height:420px;overflow:auto}
+  #grcApp .grc-heat-grid{min-width:760px}
+  #grcApp .grc-heat-impact-title{min-width:642px;margin-right:118px}
+  #grcApp[dir="rtl"] .grc-heat-impact-title{margin-left:118px;margin-right:0}
+}
+@media(max-width:760px){
+  #grcApp .grc-chart-grid.cols-2{grid-template-columns:1fr}
+  #grcApp .grc-vertical-bars{gap:8px}
+  #grcApp .grc-vbar-item{min-width:54px}
+  #grcApp .grc-heatmap-card{padding:12px}
+}
+@media print{
+  #grcApp .grc-heatmap-card{break-inside:avoid;box-shadow:none}
+  #grcApp .grc-heat-grid{min-width:0;grid-template-columns:repeat(5,1fr) 88px;gap:4px}
+  #grcApp .grc-heat-cell,#grcApp .grc-heat-like-label{min-height:46px}
 }
