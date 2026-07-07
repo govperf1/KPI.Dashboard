@@ -1,4 +1,4 @@
-/* QUMC GRC build 20260707-grc-risk-hk-v10 */
+/* QUMC GRC build 20260707-grc-executive-chart-polish-v14 */
 /* ======================================================================
    QUMC GRC Workspace
    Scoped styles for the Super Admin preview. Other portal pages are not
@@ -533,4 +533,144 @@ body.grc-coming-open{overflow:hidden!important}
   #grcApp .grc-donut{width:112px;height:112px}
   #grcApp .grc-donut:after{inset:18px}
   #grcApp .grc-donut-card .grc-chart-legend{width:100%;min-width:0}
+}
+
+
+/* ======================================================================
+   GRC v14 — Executive Command spacing + premium chart language
+   Calm QUMC palette, modern chart cards and consistent dashboard rhythm.
+   ====================================================================== */
+#grcApp{
+  --chart-navy:#4E6B8F;
+  --chart-blue:#6F93C2;
+  --chart-teal:#52A8A5;
+  --chart-green:#70B59B;
+  --chart-amber:#D7B267;
+  --chart-coral:#D77B80;
+  --chart-violet:#8C84B8;
+  --chart-slate:#A5B2C1;
+}
+#grcApp .grc-main{padding-top:24px;padding-bottom:48px;background:linear-gradient(180deg,#F4F7FA 0%,#EEF3F7 100%)}
+#grcApp .grc-page{max-width:1480px}
+#grcApp .grc-hero{margin-bottom:22px;padding:25px 28px;border-radius:20px}
+#grcApp .grc-exec-snapshot{margin:0 0 22px;padding:20px;border-radius:20px;background:#fff;box-shadow:0 10px 30px rgba(30,51,86,.065)}
+#grcApp .grc-exec-snapshot .grc-section-head{margin-bottom:15px}
+#grcApp .grc-exec-snapshot-grid{gap:15px}
+#grcApp .grc-exec-domain{margin:0 0 24px;padding:22px;border-radius:20px;box-shadow:0 10px 32px rgba(30,51,86,.06)}
+#grcApp .grc-exec-domain-head{padding:3px 0 17px;margin-bottom:18px}
+#grcApp .grc-exec-domain-head h2{font-size:18px}
+#grcApp .grc-exec-domain-head p{font-size:9.5px;max-width:760px}
+#grcApp .grc-exec-domain-kicker{width:40px;height:40px;border-radius:12px}
+#grcApp .grc-exec-domain-badge{padding:7px 12px;background:#F7FAFC}
+#grcApp .grc-exec-portfolio-cards{margin-bottom:16px}
+#grcApp .grc-exec-portfolio-cards .grc-metric-card{min-height:128px}
+#grcApp .grc-exec-risk-summary{margin-bottom:16px}
+#grcApp .grc-exec-risk-summary .grc-metric-grid{margin-bottom:14px}
+#grcApp .grc-exec-risk-visuals{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,.75fr);gap:16px;align-items:stretch;margin:8px 0 18px}
+#grcApp .grc-exec-risk-heat>.grc-chart-card{height:100%;margin:0}
+#grcApp .grc-exec-risk-side{display:grid;grid-template-rows:auto 1fr;gap:16px;min-width:0}
+#grcApp .grc-exec-risk-side>.grc-chart-grid{margin:0;display:block}
+#grcApp .grc-exec-risk-side .grc-chart-card{height:100%;min-height:0}
+#grcApp .grc-exec-operations-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:18px}
+#grcApp .grc-exec-ops-panel{background:#F9FBFC;border:1px solid #DFE8EF;border-radius:18px;padding:17px;min-width:0}
+#grcApp .grc-exec-ops-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0 2px 13px;margin-bottom:14px;border-bottom:1px solid #E7EDF2}
+#grcApp .grc-exec-ops-head h3{margin:0;color:#1C3C50;font-size:14px;font-weight:950}
+#grcApp .grc-exec-ops-head p{margin:4px 0 0;color:#8493A3;font-size:8.5px}
+#grcApp .grc-exec-ops-head>span{min-width:36px;height:30px;padding:0 9px;border-radius:10px;background:#EEF4F7;display:grid;place-items:center;color:#3E6074;font:900 11px/1 Consolas,monospace}
+#grcApp .grc-exec-ops-panel .grc-metric-card{min-height:112px;padding:12px 13px}
+#grcApp .grc-exec-ops-panel .grc-metric-value{font-size:29px;margin-top:8px}
+#grcApp .grc-exec-ops-panel .grc-metric-label{font-size:9.2px;min-height:25px}
+#grcApp .grc-exec-ops-panel .grc-metric-icon{width:30px;height:30px;font-size:13px}
+#grcApp .grc-exec-ops-panel .grc-metric-grid{gap:10px}
+#grcApp .grc-exec-ops-panel .grc-metric-grid.cols-4{grid-template-columns:repeat(2,minmax(115px,1fr))}
+#grcApp .grc-exec-ops-panel .grc-metric-grid.cols-6{grid-template-columns:repeat(3,minmax(100px,1fr))}
+#grcApp .grc-exec-ops-panel>.grc-chart-grid{margin:14px 0 0}
+#grcApp .grc-exec-ops-panel .grc-chart-grid.cols-2{grid-template-columns:1fr}
+
+/* Chart card system */
+#grcApp .grc-chart-grid{gap:16px;margin:15px 0 20px}
+#grcApp .grc-chart-card{position:relative;min-height:218px;padding:16px 17px;border:1px solid #E0E8EF;border-radius:17px;background:linear-gradient(180deg,#FFFFFF 0%,#FBFCFD 100%);box-shadow:0 8px 22px rgba(30,51,86,.055);overflow:hidden}
+#grcApp .grc-chart-card:before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:linear-gradient(90deg,var(--chart-teal),var(--chart-blue));opacity:.8}
+#grcApp .grc-chart-card:hover{border-color:#D4E0E8;box-shadow:0 12px 28px rgba(30,51,86,.08)}
+#grcApp .grc-chart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:16px;position:relative;z-index:1}
+#grcApp .grc-chart-title{display:flex;align-items:center;gap:8px;margin:0;color:#28485B;font-size:11px;font-weight:900;letter-spacing:0;text-transform:none}
+#grcApp .grc-chart-mark{width:8px;height:8px;border-radius:3px;background:linear-gradient(135deg,var(--chart-teal),var(--chart-blue));box-shadow:0 0 0 4px rgba(82,168,165,.10)}
+#grcApp .grc-chart-caption{font-size:7.8px;color:#96A3B1;margin:5px 0 0 16px;letter-spacing:.02em}
+#grcApp .grc-chart-total{min-width:34px;height:27px;border:1px solid #E2E9EF;border-radius:9px;background:#F5F8FA;color:#466276;display:grid;place-items:center;padding:0 8px;font:900 10px/1 Consolas,monospace}
+
+/* Modern radial charts */
+#grcApp .grc-donut-card{min-height:238px}
+#grcApp .grc-donut-layout{display:grid;grid-template-columns:minmax(145px,.9fr) minmax(180px,1.1fr);align-items:center;gap:20px;min-height:158px;padding:0}
+#grcApp .grc-donut-svg-wrap{width:145px;height:145px;position:relative;display:grid;place-items:center;margin:auto}
+#grcApp .grc-donut-svg{width:145px;height:145px;display:block;filter:drop-shadow(0 8px 12px rgba(30,51,86,.08))}
+#grcApp .grc-donut-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;pointer-events:none}
+#grcApp .grc-donut-center strong{font:950 27px/1 Consolas,monospace;color:#243F52}
+#grcApp .grc-donut-center span{max-width:78px;margin-top:6px;color:#8A9AAA;font-size:7.4px;font-weight:850;line-height:1.2;text-transform:none;letter-spacing:.03em}
+#grcApp .grc-chart-legend{display:flex;flex-direction:column;gap:8px;min-width:0}
+#grcApp .grc-chart-legend span{display:grid;grid-template-columns:9px minmax(0,1fr) auto auto;align-items:center;gap:8px;padding:8px 9px;border:1px solid #EDF1F4;border-radius:10px;background:rgba(248,250,252,.72);font-size:8.5px;color:#607487}
+#grcApp .grc-chart-legend i{width:9px;height:9px;border-radius:50%}
+#grcApp .grc-chart-legend .grc-legend-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#grcApp .grc-chart-legend small{font-size:7.5px;color:#9AA7B3}
+#grcApp .grc-chart-legend b{font:900 9px/1 Consolas,monospace;color:#2E4B5E;margin:0}
+
+/* Refined bars */
+#grcApp .grc-bar-list{gap:13px}
+#grcApp .grc-bar-head{font-size:8.8px;margin-bottom:6px}
+#grcApp .grc-bar-head>span{display:flex;align-items:center;gap:7px;min-width:0;color:#5D7284;font-weight:800}
+#grcApp .grc-bar-head em{width:18px;height:18px;border-radius:6px;background:#F0F4F7;display:grid;place-items:center;color:#8192A1;font:800 7px/1 Consolas,monospace;font-style:normal;flex:0 0 auto}
+#grcApp .grc-bar-track{height:8px;background:#EDF2F5;border-radius:999px;box-shadow:inset 0 1px 2px rgba(30,51,86,.04)}
+#grcApp .grc-bar-track span{background:linear-gradient(90deg,color-mix(in srgb,var(--bar-color) 78%,white),var(--bar-color))!important;box-shadow:0 2px 6px color-mix(in srgb,var(--bar-color) 24%,transparent)}
+#grcApp .grc-vertical-card{min-height:238px}
+#grcApp .grc-vertical-bars{height:166px;gap:22px;padding:7px 10px 0;border-bottom:0;background:linear-gradient(180deg,transparent 0%,rgba(238,243,247,.42) 100%);border-radius:12px}
+#grcApp .grc-vbar-item{grid-template-rows:22px 1fr 34px}
+#grcApp .grc-vbar-column{background:repeating-linear-gradient(to top,transparent 0,transparent 25%,rgba(215,226,234,.45) calc(25% + 1px));border-radius:9px 9px 5px 5px}
+#grcApp .grc-vbar-column span{background:linear-gradient(180deg,color-mix(in srgb,var(--bar-color) 75%,white),var(--bar-color))!important;border-radius:9px 9px 4px 4px;box-shadow:0 6px 12px color-mix(in srgb,var(--bar-color) 22%,transparent)}
+#grcApp .grc-vbar-value{font-size:10px;color:#3D596C}
+#grcApp .grc-vbar-label{color:#718395;font-weight:800}
+
+/* Refined stacked and line charts */
+#grcApp .grc-stacked-track{height:13px;background:#EDF2F5;gap:2px;padding:2px}
+#grcApp .grc-stacked-track span{background:var(--segment-color)!important;border-radius:999px;opacity:.9}
+#grcApp .grc-stacked-card .grc-chart-legend{display:grid;grid-template-columns:repeat(2,minmax(130px,1fr));gap:8px;margin-top:14px}
+#grcApp .grc-stacked-card .grc-chart-legend span{min-width:0}
+#grcApp .grc-line-card{min-height:270px}
+#grcApp .grc-line-wrap{height:205px;padding:0 2px}
+#grcApp .grc-line-grid{stroke:#E7EDF2;stroke-width:1;stroke-dasharray:4 6}
+#grcApp .grc-line-axis{display:none}
+#grcApp .grc-line-value{font-size:10px;fill:#3A566A}
+#grcApp .grc-line-label{font-size:9px;fill:#7A8C9D}
+
+/* Heat map is a focal analytical card, not a classic table */
+#grcApp .grc-heatmap-card{border-radius:17px;min-height:465px;background:linear-gradient(180deg,#FFFFFF,#FBFCFD)}
+#grcApp .grc-heatmap-card:before{background:linear-gradient(90deg,#52A8A5,#6F93C2,#D7B267,#D77B80)}
+#grcApp .grc-heat-impact-title{background:#3E8E98;border:0;border-radius:9px;padding:10px;color:#fff;box-shadow:0 5px 12px rgba(62,142,152,.16)}
+#grcApp .grc-heat-impact-head,#grcApp .grc-heat-side-head,#grcApp .grc-heat-like-label{border-color:#D4E2E8;border-radius:7px;color:#38566A}
+#grcApp .grc-heat-side-head{background:#3E8E98;color:#fff;border:0}
+#grcApp .grc-heat-cell{border:0;border-radius:8px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.5),0 3px 8px rgba(30,51,86,.06);color:#274A5F}
+#grcApp .grc-heat-cell.very-high{background:#D96D73;color:#fff}
+#grcApp .grc-heat-cell.high{background:#E7A76E;color:#374B59}
+#grcApp .grc-heat-cell.medium{background:#E7D17A;color:#374B59}
+#grcApp .grc-heat-cell.low{background:#7DBCA5;color:#244D43}
+#grcApp .grc-heat-cell em{background:rgba(255,255,255,.84);color:#38566A}
+
+@media(max-width:1240px){
+  #grcApp .grc-exec-risk-visuals{grid-template-columns:1fr}
+  #grcApp .grc-exec-risk-side{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:auto}
+}
+@media(max-width:1020px){
+  #grcApp .grc-exec-operations-grid{grid-template-columns:1fr}
+  #grcApp .grc-exec-snapshot-grid{grid-template-columns:repeat(2,minmax(150px,1fr))}
+}
+@media(max-width:760px){
+  #grcApp .grc-main{padding:15px 12px 34px}
+  #grcApp .grc-exec-domain,#grcApp .grc-exec-snapshot{padding:14px;border-radius:16px}
+  #grcApp .grc-exec-risk-side{grid-template-columns:1fr}
+  #grcApp .grc-exec-ops-panel .grc-metric-grid.cols-6{grid-template-columns:repeat(2,minmax(105px,1fr))}
+  #grcApp .grc-donut-layout{grid-template-columns:1fr;gap:12px}
+  #grcApp .grc-chart-legend{width:100%}
+  #grcApp .grc-stacked-card .grc-chart-legend{grid-template-columns:1fr}
+}
+@media print{
+  #grcApp .grc-chart-card,#grcApp .grc-exec-domain,#grcApp .grc-exec-snapshot,#grcApp .grc-exec-ops-panel{box-shadow:none!important}
+  #grcApp .grc-exec-risk-visuals,#grcApp .grc-exec-operations-grid{display:block}
 }
