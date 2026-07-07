@@ -14,13 +14,12 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
 
     const ge=id=>{const e=document.getElementById(id);if(!e)console.warn('[Auth] Missing element:',id);return e;};
     const cleanAccountName=v=>{v=String(v||'').trim();if(!v)return'';if(['user','username','account','admin','null','undefined','-','—'].includes(v.toLowerCase()))return'';return v;};
-    const normalizeRole=v=>{const r=String(v||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_');return r==='superadmin'?'super_admin':r;};
     const accountNameFrom=(data,user,email)=>cleanAccountName(data&&data.userName)||cleanAccountName(data&&data.username)||cleanAccountName(data&&data.name)||cleanAccountName(data&&data.fullName)||cleanAccountName(data&&data.displayName)||cleanAccountName(user&&user.displayName)||cleanAccountName(email&&email.split('@')[0])||'';
     const setUserDisplay=(name,role)=>{try{const n=cleanAccountName(name)||cleanAccountName(window._fbName)||cleanAccountName((window._fbUser||'').split('@')[0])||'';window._fbName=n;window.currentUserName=n;const ids=['_portalUserName','_userName','topUserName','profileName','profileNameRow'];ids.forEach(id=>{const e=ge(id);if(e)e.textContent=n;});const avIds=['_userAvatar','topUserAvatar','profileAvatar'];avIds.forEach(id=>{const av=ge(id);if(av)av.textContent=(n||'U')[0].toUpperCase();});if(role){const rl=ge('_userRole');if(rl)rl.textContent=role;}if(typeof window.updateUserBadge==='function')window.updateUserBadge(n,window._fbRole||role,window._fbPerms||[]);}catch(e){console.warn('[Auth] user display update skipped',e);}};
     const showEntryLoading=(msg)=>{try{let ov=ge('_perfEntryLoading');if(!ov){ov=document.createElement('div');ov.id='_perfEntryLoading';ov.style.cssText='position:fixed;inset:0;z-index:2147483646;background:rgba(239,243,248,.92);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;font-family:inherit;color:#152538';ov.innerHTML='<div style="background:#fff;border:1px solid rgba(15,23,42,.10);border-radius:18px;box-shadow:0 24px 60px rgba(15,23,42,.16);padding:20px 24px;text-align:center;min-width:220px"><div style="width:34px;height:34px;border-radius:50%;border:3px solid rgba(1,149,175,.18);border-top-color:#0195af;margin:0 auto 12px;animation:qumcSpin .85s linear infinite"></div><div id="_perfEntryLoadingText" style="font-size:12px;font-weight:900"></div></div>';document.body.appendChild(ov);let st=document.getElementById('qumc-entry-loading-style');if(!st){st=document.createElement('style');st.id='qumc-entry-loading-style';st.textContent='@keyframes qumcSpin{to{transform:rotate(360deg)}}';document.head.appendChild(st);}}const t=ge('_perfEntryLoadingText');if(t)t.textContent=msg||'Loading dashboard…';ov.style.display='flex';}catch(e){}};
     const hideEntryLoading=()=>{try{const ov=document.getElementById('_perfEntryLoading');if(ov)ov.remove();}catch(e){}};
-    const showLogin=()=>{console.log('[Auth] showLogin');if(typeof window._hideGRC==='function')window._hideGRC();/* Show overlay (already visible, but ensure it is) */const ao=ge('_authOverlay');if(ao){ao.style.display='flex';ao.style.alignItems='flex-end';ao.style.background='rgba(245,247,252,0)'}/* Hide loading spinner, show login form */const ld=ge('_authLoading');if(ld)ld.style.display='none';const lp=ge('_loginPanel');if(lp)lp.style.display='block';const po=ge('_portalOverlay');if(po)po.style.display='none';const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
-    const showPortal=(name,role)=>{console.log('[Auth] showPortal:',name,role);if(typeof window._hideGRC==='function')window._hideGRC();const po=ge('_portalOverlay'),lo=ge('_authOverlay');if(lo)lo.style.display='none';if(po){po.style.display='flex';console.log('[Auth] _portalOverlay is now flex');}else{console.error('[Auth] PORTAL OVERLAY NOT FOUND');return;}const nm=ge('_portalUserName'),rl=ge('_portalUserRole');const realName=cleanAccountName(name)||cleanAccountName(window._fbName)||cleanAccountName((window._fbUser||'').split('@')[0])||'';if(nm)nm.textContent=realName;if(rl){const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',viewer:'Viewer'};rl.textContent=L[role]||role;}console.log('[Auth] Portal ready');};
+    const showLogin=()=>{console.log('[Auth] showLogin');/* Show overlay (already visible, but ensure it is) */const ao=ge('_authOverlay');if(ao){ao.style.display='flex';ao.style.alignItems='flex-end';ao.style.background='rgba(245,247,252,0)'}/* Hide loading spinner, show login form */const ld=ge('_authLoading');if(ld)ld.style.display='none';const lp=ge('_loginPanel');if(lp)lp.style.display='block';const po=ge('_portalOverlay');if(po)po.style.display='none';const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
+    const showPortal=(name,role)=>{console.log('[Auth] showPortal:',name,role);const po=ge('_portalOverlay'),lo=ge('_authOverlay');if(lo)lo.style.display='none';if(po){po.style.display='flex';console.log('[Auth] _portalOverlay is now flex');}else{console.error('[Auth] PORTAL OVERLAY NOT FOUND');return;}const nm=ge('_portalUserName'),rl=ge('_portalUserRole');const realName=cleanAccountName(name)||cleanAccountName(window._fbName)||cleanAccountName((window._fbUser||'').split('@')[0])||'';if(nm)nm.textContent=realName;if(rl){const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',viewer:'Viewer'};rl.textContent=L[role]||role;}console.log('[Auth] Portal ready');};
     const setErr=msg=>{console.warn('[Auth] Error:',msg);const e=ge('_fbErr');if(e)e.textContent=msg;const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
 
     window._doLogin=async()=>{
@@ -39,9 +38,9 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       }
     };
 
-    window._doLogout=async()=>{console.log('[Auth] Logout');if(typeof window._hideGRC==='function')window._hideGRC();try{await signOut(auth);}catch(e){console.error('[Auth]',e);}};
+    window._doLogout=async()=>{console.log('[Auth] Logout');try{await signOut(auth);}catch(e){console.error('[Auth]',e);}};
 
-    window._backToPortal=()=>{console.log('[Auth] Back to portal');if(typeof window._hideGRC==='function')window._hideGRC();const lo=document.getElementById('_authOverlay'),po=document.getElementById('_portalOverlay'),bg=document.getElementById('_bgLayer');if(lo)lo.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
+    window._backToPortal=()=>{console.log('[Auth] Back to portal');const lo=document.getElementById('_authOverlay'),po=document.getElementById('_portalOverlay'),bg=document.getElementById('_bgLayer');if(lo)lo.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
 window._selectPortal=async portal=>{
       console.log('[Auth] Selected:',portal);
       if(portal==='performance'){
@@ -81,20 +80,30 @@ window._selectPortal=async portal=>{
         /* Start read-only Firestore listener for cross-user updates */
         if(typeof window._startReadListener==='function') setTimeout(window._startReadListener, 800);
         console.log('[Auth] ✓ Performance portal entered');
-      }else if(portal==='governance'||portal==='grc'){
-        hideEntryLoading();
-        setUserDisplay(window._fbName,window._fbRole);
-        if(normalizeRole(window._fbRole)==='super_admin'){
-          console.log('[Auth] Entering GRC Super Admin preview...');
-          if(typeof window._enterGRC==='function') window._enterGRC();
-          else console.warn('[GRC] grc.js is not loaded yet');
-        }else{
-          console.log('[Auth] GRC is restricted to Super Admin during development');
-          if(typeof window._showGrcComingSoon==='function') window._showGrcComingSoon();
-        }
       }else{
-        console.warn('[Auth] Unknown portal:',portal);
-
+        /* GRC is not active yet. Show a clean portal-level modal ABOVE the portal overlay.
+           Previous z-index was lower than #_portalOverlay, so the portal cards appeared on top of
+           the coming-soon screen and the Back button overlapped the cards. */
+        const old=document.getElementById('_grcComingSoon');
+        if(old) old.remove();
+        const cs=document.createElement('div');
+        cs.id='_grcComingSoon';
+        cs.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(5,15,35,.68);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;padding:24px;font-family:inherit;pointer-events:all';
+        cs.innerHTML='\
+          <div style="width:min(420px,88vw);background:rgba(15,35,65,.92);border:1px solid rgba(255,255,255,.20);border-radius:24px;box-shadow:0 30px 90px rgba(0,0,0,.45);padding:30px 28px;text-align:center;color:#fff">\
+            <div style="width:64px;height:64px;border-radius:20px;background:rgba(1,149,175,.18);border:1px solid rgba(1,149,175,.28);display:flex;align-items:center;justify-content:center;margin:0 auto 16px">\
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="18" width="18" height="3" rx="1"></rect><rect x="3" y="3" width="18" height="3" rx="1"></rect><rect x="5" y="6" width="2" height="12"></rect><rect x="11" y="6" width="2" height="12"></rect><rect x="17" y="6" width="2" height="12"></rect></svg>\
+            </div>\
+            <div style="font-size:24px;font-weight:900;margin-bottom:6px">GRC</div>\
+            <div style="font-size:13px;color:rgba(255,255,255,.62);font-weight:700;margin-bottom:10px">Governance · Risk Management & Compliance</div>\
+            <div style="display:inline-flex;align-items:center;justify-content:center;padding:7px 18px;background:rgba(1,149,175,.15);border:1px solid rgba(1,149,175,.32);border-radius:999px;font-size:11px;color:#21bfd9;font-weight:900;letter-spacing:.04em;margin-bottom:18px">COMING SOON</div>\
+            <div style="font-size:11px;color:rgba(255,255,255,.45);line-height:1.7;margin-bottom:20px">This module is currently under development and will be enabled when ready.</div>\
+            <button id="_grcBackBtn" type="button" style="background:rgba(255,255,255,.08);color:rgba(255,255,255,.82);border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:10px 24px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">← Back</button>\
+          </div>';
+        document.body.appendChild(cs);
+        cs.addEventListener('click',e=>{if(e.target===cs)cs.remove();});
+        const bb=document.getElementById('_grcBackBtn');
+        if(bb)bb.onclick=()=>cs.remove();
       }
     };
 
@@ -132,7 +141,7 @@ window._selectPortal=async portal=>{
         if(!snap.exists()){console.warn('[Auth] Not in Firestore:',email);await signOut(auth);setErr('Account not registered. Contact admin.');showLogin();return;}
         const d=snap.data();
         if(!d.approved){console.warn('[Auth] Not approved:',email);await signOut(auth);setErr('Account pending approval.');showLogin();return;}
-        const role=normalizeRole(d.role||'viewer');
+        const role=d.role||'viewer';
         console.log('[Auth] Role:',role,'Dept:',d.dept||'none');
         let perms=[];console.log('[FS READ] config_roles/'+role);
         try{
@@ -158,6 +167,24 @@ window._selectPortal=async portal=>{
     let _fsSaveTimer=null, _fsPending=null;
     /* Queue of resolvers for the debounced write — allows callers to await real completion */
     var _fsResolveQueue=[];
+    window._clearAuditLogFS = async function(){
+      if(!window._fbUser||!db) throw new Error('not authenticated');
+      const role=String(window._fbRole||'').toLowerCase().replace(/[\s-]+/g,'_');
+      if(role!=='super_admin'&&role!=='admin') throw new Error('access denied');
+
+      /* If an ordinary dashboard save is waiting in the debounce queue, make sure
+         it cannot recreate the old audit records after this clear finishes. */
+      if(_fsPending && typeof _fsPending==='object') _fsPending.audit=[];
+
+      window._lastCloudSaveTime=Date.now();
+      await setDoc(doc(db,'kpi_dashboard','audit'),{
+        log:[],
+        _clearedBy:window._fbUser,
+        _clearedAt:serverTimestamp()
+      },{merge:false});
+      return true;
+    };
+
     window._saveToFS = async (data) => {
       if(!window._fbUser||!db){
         console.warn('[FS] Write skipped — not authenticated');

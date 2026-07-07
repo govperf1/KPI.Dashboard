@@ -1255,12 +1255,41 @@ function loadAuditLog(){
   el.appendChild(wrap);
 }
 
-function clearAuditLog(){
-  if(!confirm('Clear all audit records? This cannot be undone.'))return;
-  ST.audit=[];
-  sLS(ST);
-  loadAuditLog();
-  toast('Audit log cleared');
+async function clearAuditLog(buttonEl){
+  if(!confirm('Clear all audit records permanently? This cannot be undone.'))return;
+
+  const btn=buttonEl||null;
+  const previous=Array.isArray(ST.audit)?ST.audit.slice():[];
+  if(btn){btn.disabled=true;btn.textContent='Clearing…';}
+
+  try{
+    /* Clear the screen and local cache immediately, then remove the shared
+       Firestore audit data so it cannot return after refresh or next login. */
+    ST.audit=[];
+    sLS(ST);
+    loadAuditLog();
+
+    if(typeof window._clearAuditLogFS!=='function'){
+      throw new Error('Firestore clear function is unavailable');
+    }
+    await window._clearAuditLogFS();
+
+    /* Persist the empty local copy again after the cloud delete completes. */
+    ST.audit=[];
+    sLS(ST);
+    loadAuditLog();
+    toast('Audit log permanently cleared');
+  }catch(e){
+    /* Do not show a false success. Restore the records if Firestore rejected
+       the deletion, for example because of permissions or connection loss. */
+    ST.audit=previous;
+    sLS(ST);
+    loadAuditLog();
+    console.error('[AUDIT] Permanent clear failed:',e);
+    toast('Could not clear audit log permanently');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent=' Clear Log';}
+  }
 }
 
 /* ==========================================
