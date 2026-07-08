@@ -6,7 +6,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>KPI Command Center — Facilities &amp; Safety | Qassim University Medical City</title>
+  <title>KPI Command Center — Facility Management &amp; Safety Division | Qassim University Medical City</title>
   <link href="https://fonts.googleapis.com" rel="preconnect">
   <link crossorigin href="https://fonts.gstatic.com" rel="preconnect">
 
@@ -14,7 +14,7 @@
   <link rel="stylesheet" href="css/style.css">
   <link rel="stylesheet" href="css/admin.css">
   <link rel="stylesheet" href="css/reports.css">
-  <link rel="stylesheet" href="css/grc.css?v=20260708-monthly-incident-strips-v27">
+  <link rel="stylesheet" href="css/grc.css?v=20260708-report-filters-compliance-v28">
 </head>
 <body>
 
@@ -75,7 +75,7 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <div style="text-align:center;margin-bottom:20px">
 <div style="font-size:16.5px;font-weight:900;color:#152538;margin-bottom:7px;line-height:1.3">Governance and Performance Department</div>
 <div style="width:40px;height:3px;background:#0195af;border-radius:2px;margin:0 auto 9px"></div>
-<div style="font-size:12px;font-weight:700;color:#0195af;margin-bottom:3px">Facilities &amp; Safety Division</div>
+<div style="font-size:12px;font-weight:700;color:#0195af;margin-bottom:3px">Facility Management &amp; Safety Division</div>
 <div style="font-size:11px;color:#94A3B8">Qassim University Medical City</div>
 </div>
 <div style="display:flex;flex-direction:column;gap:12px">
@@ -114,7 +114,7 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <div id="_portalUserName" style="font-size:22px;font-weight:900;color:#fff;margin-bottom:4px">User</div>
 <div id="_portalUserRole" style="font-size:10px;color:#0195af;font-weight:700;text-transform:uppercase;letter-spacing:.08em"></div>
 <div style="width:36px;height:2px;background:linear-gradient(90deg,#0195af,#4ADE80);border-radius:2px;margin:10px auto 4px"></div>
-<div style="font-size:9px;color:rgba(255,255,255,.35)">Qassim University Medical City · Facilities &amp; Safety Division</div>
+<div style="font-size:9px;color:rgba(255,255,255,.35)">Qassim University Medical City · Facility Management &amp; Safety Division</div>
 </div>
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%;max-width:520px">
 <div onclick="window._selectPortal('performance')" onmouseout="this.style.background='rgba(255,255,255,.10)';this.style.borderColor='rgba(255,255,255,.25)';this.style.transform='none'" onmouseover="this.style.background='rgba(74,222,128,.18)';this.style.borderColor='#4ADE80';this.style.transform='translateY(-5px)'" style="background:rgba(255,255,255,.10);border:1.5px solid rgba(255,255,255,.25);border-radius:20px;padding:36px 24px;text-align:center;cursor:pointer;transition:all .22s;box-shadow:0 8px 32px rgba(0,0,0,.25)">
@@ -162,7 +162,7 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <div class="tb-logo"><img alt="QUMC" id="logoImg" src=""/></div>
 <div class="tb-identity">
 <div class="tb-org">Qassim University Medical City</div>
-<div class="tb-div" data-ar="إدارة المرافق والسلامة — الحوكمة والأداء" data-en="Facilities &amp; Safety Division — Governance &amp; Performance">Facilities &amp; Safety — Governance &amp; Performance</div>
+<div class="tb-div" data-ar="إدارة المرافق والسلامة — الحوكمة والأداء" data-en="Facility Management &amp; Safety Division — Governance &amp; Performance">Facility Management &amp; Safety Division — Governance &amp; Performance</div>
 </div>
 </div>
 <!-- Separator -->
@@ -285,7 +285,7 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <div class="footbar-info">
 <span class="footbar-title" data-ar="مركز قيادة مؤشرات الأداء" data-en="KPI Performance Command Center">KPI Performance Command Center</span>
 <span class="footbar-sep">·</span>
-<span class="footbar-sub" data-ar="قسم الحوكمة والأداء — إدارة المرافق والسلامة" data-en="Governance &amp; Performance Dept — Facilities &amp; Safety Division">Governance &amp; Performance — Facilities &amp; Safety</span>
+<span class="footbar-sub" data-ar="قسم الحوكمة والأداء — إدارة المرافق والسلامة" data-en="Governance &amp; Performance Dept — Facility Management &amp; Safety Division">Governance &amp; Performance — Facility Management &amp; Safety Division</span>
 </div>
 </div>
 <div class="footbar-r">
@@ -784,7 +784,7 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <script src="js/admin.js?v=20260623-emergency-loadfix-v1"></script>
 <script src="js/notifications.js?v=20260624-ar-full-polish-v2"></script>
 <script src="js/auth.js?v=20260623-emergency-loadfix-v1"></script>
-<script src="js/grc.js?v=20260708-monthly-incident-strips-v27"></script>
+<script src="js/grc.js?v=20260708-report-filters-compliance-v28"></script>
 
 <!-- ── Password reset (type=module — Firebase imports required) ── -->
 <script id="qumc_reset_registered_only_patch" type="module">
@@ -956,5 +956,38 @@ window._doResetPassword=async function(){
 })();
 </script>
 
+
+<script>
+(function(){
+  'use strict';
+  var rx=/Facilities\s*&\s*Safety(?:\s*Division)?/gi;
+  var replacement='Facility Management & Safety Division';
+  function safeTextNode(node){
+    var p=node&&node.parentElement;
+    return p&&!p.closest('script,style,textarea,code,pre');
+  }
+  function patchNode(root){
+    if(!root)return;
+    if(root.nodeType===3){
+      if(safeTextNode(root)&&rx.test(root.nodeValue||'')){rx.lastIndex=0;root.nodeValue=(root.nodeValue||'').replace(rx,replacement);}else rx.lastIndex=0;
+      return;
+    }
+    if(root.nodeType!==1&&root.nodeType!==9&&root.nodeType!==11)return;
+    if(root.nodeType===1){
+      ['data-en','title','aria-label','placeholder','alt'].forEach(function(name){
+        var v=root.getAttribute&&root.getAttribute(name);if(v&&rx.test(v)){rx.lastIndex=0;root.setAttribute(name,v.replace(rx,replacement));}else rx.lastIndex=0;
+      });
+    }
+    var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+    var n;while((n=walker.nextNode())){if(safeTextNode(n)&&rx.test(n.nodeValue||'')){rx.lastIndex=0;n.nodeValue=(n.nodeValue||'').replace(rx,replacement);}else rx.lastIndex=0;}
+    if(root.querySelectorAll)root.querySelectorAll('[data-en],[title],[aria-label],[placeholder],[alt]').forEach(function(el){
+      ['data-en','title','aria-label','placeholder','alt'].forEach(function(name){var v=el.getAttribute(name);if(v&&rx.test(v)){rx.lastIndex=0;el.setAttribute(name,v.replace(rx,replacement));}else rx.lastIndex=0;});
+    });
+  }
+  function boot(){patchNode(document.body);}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
+  new MutationObserver(function(list){list.forEach(function(m){m.addedNodes.forEach(patchNode);if(m.type==='characterData')patchNode(m.target);});}).observe(document.documentElement,{subtree:true,childList:true,characterData:true});
+})();
+</script>
 </body>
 </html>
