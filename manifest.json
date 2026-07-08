@@ -1,9 +1,0 @@
-[
-  {"type":"quarterlyReport","year":2025,"quarter":1,"file":"quarterly_report_2025_q1.pdf","pages":128},
-  {"type":"quarterlyReport","year":2025,"quarter":2,"file":"quarterly_report_2025_q2.pdf","pages":130},
-  {"type":"quarterlyReport","year":2025,"quarter":3,"file":"quarterly_report_2025_q3.pdf","pages":135},
-  {"type":"quarterlyReport","year":2025,"quarter":4,"file":"quarterly_report_2025_q4.pdf","pages":137},
-  {"type":"quarterlyExecutive","year":2025,"quarter":3,"file":"quarterly_executive_2025_q3.pdf","pages":11},
-  {"type":"quarterlyExecutive","year":2025,"quarter":4,"file":"quarterly_executive_2025_q4.pdf","pages":14},
-  {"type":"quarterlyReport","year":2026,"quarter":2,"file":"quarterly_report_2026_q2.pdf","pages":1}
-]
