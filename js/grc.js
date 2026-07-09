@@ -15,7 +15,7 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__='20260709-report-type-chart-v30';
+  window.__QUMC_GRC_BUILD__='20260709-report-type-clean-v31';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
   var STATE_VERSION=9;
@@ -1081,7 +1081,7 @@
     if(!reportLibraryLoaded){loadReportLibrary(false);return content+'<div class="grc-report-loading">'+L('reportsLoading')+'</div>';}
     if(reportLibraryError)return content+'<div class="grc-report-error">'+L('reportLoadError')+'<div style="margin-top:12px"><button class="grc-upload-primary" onclick="window._grcRefreshReports()">'+L('refreshReports')+'</button></div></div>';
     if(!reportNav.group)return content+reportTopCards()+reportMetricsAndCharts();
-    if(!reportNav.type)return content+sectionHead(L('selectReportType'),L(reportNav.group==='annual'?'annualReports':'quarterlyReports'))+'<div class="grc-report-type-grid">'+reportTypeCards(reportNav.group)+'</div>'+reportMetricsAndCharts();
+    if(!reportNav.type)return content+sectionHead(L('selectReportType'),L(reportNav.group==='annual'?'annualReports':'quarterlyReports'))+'<div class="grc-report-type-grid">'+reportTypeCards(reportNav.group)+'</div>';
     if(!reportNav.year)return content+sectionHead(L('selectYear'),reportTypeLabel(reportNav.type))+'<div class="grc-report-year-grid">'+reportYearCards(reportNav.type)+'</div>';
     if(reportNav.group==='quarterly'&&!reportNav.quarter)return content+sectionHead(L('selectQuarter'),reportTypeLabel(reportNav.type)+' · '+reportNav.year)+'<div class="grc-quarter-grid">'+reportQuarterCards(reportNav.type,reportNav.year)+'</div>';
     return content+sectionHead(L('reportViewer'),reportTypeLabel(reportNav.type))+reportViewerHtml(reportFind(reportNav.type,reportNav.year,reportNav.quarter));
