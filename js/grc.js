@@ -15,7 +15,7 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__='20260709-compliance-external-link-v33';
+  window.__QUMC_GRC_BUILD__='20260709-remove-report-coverage-v34';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
   var STATE_VERSION=9;
@@ -1079,9 +1079,7 @@
       {label:L('annualDocuments'),value:reportCount('annualReport'),color:chartPalette.amber},
       {label:L('executiveSummaries'),value:reportCount('quarterlyExecutive')+reportCount('annualExecutive'),color:chartPalette.violet}
     ];
-    var rows=years.slice().reverse().map(function(y){return{label:String(y),segments:[{label:L('quarterlyFmsReport'),value:reportCount('quarterlyReport',y),color:chartPalette.teal},{label:L('quarterlyExecutiveSummary'),value:reportCount('quarterlyExecutive',y),color:chartPalette.violet},{label:L('annualReports'),value:reportCount('annualReport',y)+reportCount('annualExecutive',y),color:chartPalette.amber}]};});
-    var legend=[{label:L('quarterlyFmsReport'),color:chartPalette.teal},{label:L('quarterlyExecutiveSummary'),color:chartPalette.violet},{label:L('annualReports'),color:chartPalette.amber}];
-    return metrics+'<div class="grc-chart-grid cols-2">'+verticalBarChart(L('reportsByYear'),yearItems)+stackedBarChart(L('reportCoverage'),rows,legend)+'</div>';
+    return metrics+'<div class="grc-chart-grid cols-1">'+verticalBarChart(L('reportsByYear'),yearItems)+'</div>';
   }
   function reportTypeCards(group){return reportGroupTypes(group).map(function(type){var count=reportCount(type),icon=type.indexOf('Executive')>=0?'◫':'▥',available=count>0;return'<button class="grc-report-year-card grc-report-kind-card" onclick="window._grcReportType(\''+type+'\')"><span class="grc-report-kind-icon">'+icon+'</span><strong>'+reportTypeLabel(type)+'</strong><small>'+count+' '+L('reportDocuments')+'</small><span class="grc-report-availability '+(available?'':'off')+'">'+L(available?'available':'unavailable')+'</span></button>';}).join('');}
   function reportYearCards(type){return reportYears().map(function(y){var count=reportCount(type,y),available=count>0;return'<button class="grc-report-year-card" onclick="window._grcReportYear('+y+')"><strong>'+y+'</strong><small>'+count+' '+L('reportDocuments')+'</small><span class="grc-report-availability '+(available?'':'off')+'">'+L(available?'available':'unavailable')+'</span></button>';}).join('');}
