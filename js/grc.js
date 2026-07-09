@@ -15,7 +15,7 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__='20260708-report-filters-compliance-v28';
+  window.__QUMC_GRC_BUILD__='20260709-compliance-doc-library-v29';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
   var STATE_VERSION=9;
@@ -128,7 +128,44 @@
     {id:'mof',acronym:'MOF',en:'Ministry of Finance',ar:'وزارة المالية'},
     {id:'mhrsd',acronym:'MHRSD',en:'Ministry of Human Resources and Social Development',ar:'وزارة الموارد البشرية والتنمية الاجتماعية'}
   ];
+  var COMPLIANCE_DOCUMENT_SEED=[
+    {id:'jci-hospital-8',authorityId:'jci',titleEn:'Joint Commission International Standards for Hospitals, 8th Edition',titleAr:'معايير اللجنة الدولية المشتركة للمستشفيات – الإصدار الثامن'},
+    {id:'mof-gov-procurement-law',authorityId:'mof',titleEn:'Government Tenders and Procurement Law and Its Implementing Regulations',titleAr:'نظام المنافسات والمشتريات الحكومية ولائحته التنفيذية'},
+    {id:'mhrsd-om-saudization-guide',authorityId:'mhrsd',titleEn:'Saudization Guide for Operation and Maintenance Contracts in Public Entities',titleAr:'دليل توطين عقود التشغيل والصيانة في الجهات العامة'},
+    {id:'mhrsd-om-saudization-decision-83956',authorityId:'mhrsd',titleEn:'Decision No. 83956 on Saudization of Operation and Maintenance Contracts in Public Entities',titleAr:'قرار توطين عقود التشغيل والصيانة في الجهات العامة رقم 83956'},
+    {id:'moh-hazardous-acute-healthcare-waste',authorityId:'moh',titleEn:'Management of Hazardous and Acute Healthcare Waste',titleAr:'إدارة نفايات الرعاية الصحية الخطرة والحادة'},
+    {id:'moh-gcc-healthcare-waste-regulation',authorityId:'moh',titleEn:'Unified Healthcare Waste Management Regulation for the Gulf Cooperation Council Countries',titleAr:'النظام الموحد لإدارة نفايات الرعاية الصحية بدول مجلس التعاون'},
+    {id:'nrrc-r-16-radioactive-waste',authorityId:'nrrc',titleEn:'NRRC-R-16: Radioactive Waste Management Regulation',titleAr:'لائحة إدارة النفايات المشعة (NRRC-R-16)'},
+    {id:'mwan-waste-law-implementing-regulations',authorityId:'mwan',titleEn:'Implementing Regulations of the Waste Management Law',titleAr:'اللائحة التنفيذية لنظام إدارة النفايات'},
+    {id:'mwan-violations-classification-schedule',authorityId:'mwan',titleEn:'Waste Management Violations Classification Schedule',titleAr:'جدول تصنيف مخالفات إدارة النفايات'},
+    {id:'mwan-waste-management-law',authorityId:'mwan',titleEn:'Waste Management Law',titleAr:'نظام إدارة النفايات'},
+    {id:'civil-defense-pharmacies-fire-safety',authorityId:'civil-defense',titleEn:'Safety and Fire Protection Regulations for Pharmacies and Pharmaceutical Warehouses',titleAr:'لائحة السلامة والحماية من الحريق في الصيدليات ومستودعات الأدوية'},
+    {id:'civil-defense-fire-engineering-activities',authorityId:'civil-defense',titleEn:'Regulations Governing Engineering, Technical, and Contracting Activities Related to Fire Prevention and Protection',titleAr:'لائحة تنظيم ممارسة الأنشطة الهندسية والفنية والمقاولات المتعلقة بالوقاية والحماية من الحريق'},
+    {id:'civil-defense-residential-admin-buildings',authorityId:'civil-defense',titleEn:'Safety Requirements and Protection Measures for Residential and Administrative Buildings',titleAr:'لائحة اشتراطات السلامة وسبل الحماية الواجب توافرها في المباني السكنية والإدارية'},
+    {id:'civil-defense-hospitals',authorityId:'civil-defense',titleEn:'Fire Safety and Protection Requirements for Hospitals',titleAr:'لائحة شروط السلامة والحماية من الحريق في المستشفيات'},
+    {id:'civil-defense-information-centers',authorityId:'civil-defense',titleEn:'Fire Safety and Protection Requirements for Information Centers',titleAr:'لائحة شروط السلامة والحماية من الحريق في مراكز المعلومات'},
+    {id:'civil-defense-laboratories',authorityId:'civil-defense',titleEn:'Safety Requirements and Protection Measures for Laboratories',titleAr:'لائحة شروط السلامة وسبل الحماية الواجب توافرها في المعامل والمختبرات'},
+    {id:'civil-defense-storage-warehouses',authorityId:'civil-defense',titleEn:'Safety Requirements and Protection Measures for Storage Warehouses',titleAr:'لائحة شروط السلامة وسبل الحماية الواجب توافرها في مستودعات التخزين'},
+    {id:'civil-defense-safety-officer-1447',authorityId:'civil-defense',titleEn:'Responsibilities of the Safety Officer Regulation (1447 AH)',titleAr:'لائحة مسؤوليات المختص بأعمال السلامة 1447هـ'},
+    {id:'cbahi-fms-1750416781',authorityId:'cbahi',titleEn:'CBAHI_FMS__1750416781',titleAr:'CBAHI_FMS__1750416781'},
+    {id:'cbahi-fms-standards',authorityId:'cbahi',titleEn:'CBAHI Facility Management and Safety (FMS) Standards',titleAr:'معايير إدارة المرافق والسلامة (FMS) – سباهي'},
+    {id:'sbc-310-concrete-repair',authorityId:'sbc',titleEn:'Saudi Code for Repair, Rehabilitation, and Treatment of Concrete Structures in Existing Buildings (SBC 310)',titleAr:'الكود السعودي لإصلاح وتأهيل ومعالجة المنشآت الخرسانية للمباني القائمة (SBC 310)'},
+    {id:'sbc-401-electrical',authorityId:'sbc',titleEn:'Saudi Electrical Code (SBC 401)',titleAr:'الكود السعودي الكهربائي (SBC 401)'},
+    {id:'sbc-501-mechanical',authorityId:'sbc',titleEn:'Saudi Mechanical Code (SBC 501)',titleAr:'الكود السعودي الميكانيكي (SBC 501)'},
+    {id:'sbc-302-construction',authorityId:'sbc',titleEn:'Saudi Construction Code (SBC 302)',titleAr:'الكود السعودي للتشييد (SBC 302)'},
+    {id:'sbc-701-plumbing',authorityId:'sbc',titleEn:'Saudi Plumbing Code (SBC 701)',titleAr:'الكود السعودي للتمديدات الصحية (SBC 701)'},
+    {id:'sbc-801-fire',authorityId:'sbc',titleEn:'Saudi Fire Code (SBC 801)',titleAr:'الكود السعودي للحماية من الحرائق (SBC 801)'},
+    {id:'sbc-702-private-sewage',authorityId:'sbc',titleEn:'Saudi Private Sewage Disposal Code (SBC 702)',titleAr:'الكود السعودي للصرف الصحي الخاص (SBC 702)'},
+    {id:'sbc-901-existing-buildings',authorityId:'sbc',titleEn:'Saudi Existing Buildings Code (SBC 901)',titleAr:'الكود السعودي للمباني القائمة (SBC 901)'},
+    {id:'sbc-201-general',authorityId:'sbc',titleEn:'Saudi Building Code – General (SBC 201)',titleAr:'كود البناء السعودي العام (SBC 201)'},
+    {id:'sbc-application-law',authorityId:'sbc',titleEn:'Saudi Building Code Application Law',titleAr:'نظام تطبيق كود البناء السعودي'}
+  ];
   var complianceNavAuthority=null;
+  var complianceNavDocument=null;
+  var COMPLIANCE_DOC_LIBRARY=[];
+  var complianceLibraryLoaded=false,complianceLibraryLoading=false,complianceLibraryError='';
+  var complianceIndexUnsub=null;
+  var COMPLIANCE_INDEX_DOC='grc_compliance_documents_index';
 
   var departments=['allFms','maintenance','safety','housekeeping','projects'];
   var departmentOrder=departments.slice(1);
@@ -218,6 +255,30 @@
     });
   }
   function loadReportManifest(){loadReportLibrary(false);}
+  function complianceIndexRef(b){return b.fs.doc(b.db,'kpi_dashboard',COMPLIANCE_INDEX_DOC);}
+  function complianceFileRecord(d){
+    d=d||{};var chunkCount=Number(d.chunkCount||0);if(!d.id||chunkCount<1)return null;
+    return{id:String(d.id),authorityId:String(d.authorityId||''),titleEn:String(d.titleEn||''),titleAr:String(d.titleAr||''),pages:Number(d.pages||0),fileName:String(d.fileName||''),fileSize:Number(d.fileSize||0),contentType:'application/pdf',chunkCount:chunkCount,chunkKey:String(d.chunkKey||d.id),version:Number(d.version||0),uploadedBy:String(d.uploadedBy||''),source:'firestore-chunks'};
+  }
+  function applyComplianceIndex(raw){
+    COMPLIANCE_DOC_LIBRARY=(raw&&Array.isArray(raw.documents)?raw.documents:[]).map(complianceFileRecord).filter(Boolean);
+    complianceLibraryLoaded=true;complianceLibraryLoading=false;complianceLibraryError='';
+  }
+  function ensureComplianceIndexListener(b){
+    if(complianceIndexUnsub)return;
+    complianceIndexUnsub=b.fs.onSnapshot(complianceIndexRef(b),function(snap){applyComplianceIndex(snap.exists()?snap.data():{documents:[]});if(activeTab==='compliance')render();},function(err){console.error('[GRC Compliance] live sync failed',err);complianceLibraryError=String(err&&err.code||err&&err.message||err||'sync-failed');complianceLibraryLoaded=true;complianceLibraryLoading=false;if(activeTab==='compliance')render();});
+  }
+  function loadComplianceLibrary(force){
+    if(complianceLibraryLoading)return Promise.resolve(COMPLIANCE_DOC_LIBRARY);
+    if(complianceLibraryLoaded&&!force)return Promise.resolve(COMPLIANCE_DOC_LIBRARY);
+    complianceLibraryLoading=true;complianceLibraryError='';
+    return ensureReportBackend().then(function(b){if(!b.auth.currentUser)throw new Error('not-authenticated');ensureComplianceIndexListener(b);return b.fs.getDoc(complianceIndexRef(b));}).then(function(snap){applyComplianceIndex(snap.exists()?snap.data():{documents:[]});if(activeTab==='compliance')render();return COMPLIANCE_DOC_LIBRARY;}).catch(function(err){console.error('[GRC Compliance] load failed',err);complianceLibraryLoading=false;complianceLibraryLoaded=true;complianceLibraryError=String(err&&err.code||err&&err.message||err||'load-failed');if(activeTab==='compliance')render();return COMPLIANCE_DOC_LIBRARY;});
+  }
+  async function updateComplianceIndex(b,record,removeId){
+    await b.fs.runTransaction(b.db,async function(tx){var ref=complianceIndexRef(b),snap=await tx.get(ref),data=snap.exists()?snap.data():{},list=Array.isArray(data.documents)?data.documents.slice():[];if(removeId)list=list.filter(function(x){return String(x&&x.id)!==String(removeId);});if(record){list=list.filter(function(x){return String(x&&x.id)!==String(record.id);});list.push(record);}tx.set(ref,{documents:list,updatedAt:b.fs.serverTimestamp(),updatedBy:window._fbUser||b.auth.currentUser&&b.auth.currentUser.email||''},{merge:false});});
+  }
+  function complianceSeedDocument(id){return COMPLIANCE_DOCUMENT_SEED.find(function(x){return String(x.id)===String(id);})||null;}
+  function complianceFileDocument(id){return COMPLIANCE_DOC_LIBRARY.find(function(x){return String(x.id)===String(id);})||null;}
 
   function arrayBufferToBase64(buffer){
     var bytes=new Uint8Array(buffer),binary='',step=0x8000;
@@ -273,16 +334,11 @@
     var url=URL.createObjectURL(new Blob(parts,{type:'application/pdf'}));reportBlobCache[key]=url;return url;
   }
   async function mountReportViewer(){
-    var frame=document.querySelector('.grc-report-frame[data-grc-report-id]');if(!frame)return;
-    var id=frame.getAttribute('data-grc-report-id'),record=REPORT_LIBRARY.find(function(r){return String(r.id)===String(id);});if(!record)return;
-    try{var url=await getReportBlobUrl(record);if(frame.isConnected)frame.src=url+'#toolbar=1&navpanes=0&view=FitH&page=1';}
-    catch(err){console.error('[GRC Reports] viewer failed',err);if(frame.isConnected)frame.srcdoc='<div style="font:600 16px Arial;padding:40px;text-align:center;color:#7f1d1d">'+String(L('reportLoadError')).replace(/</g,'&lt;')+'</div>';}
+    var frames=Array.prototype.slice.call(document.querySelectorAll('.grc-report-frame[data-grc-report-id]'));if(!frames.length)return;
+    await Promise.all(frames.map(async function(frame){var id=frame.getAttribute('data-grc-report-id'),library=frame.getAttribute('data-grc-library')||'reports',record=library==='compliance'?complianceFileDocument(id):REPORT_LIBRARY.find(function(r){return String(r.id)===String(id);});if(!record)return;try{var url=await getReportBlobUrl(record);if(frame.isConnected)frame.src=url+'#toolbar=1&navpanes=0&view=FitH&page=1';}catch(err){console.error('[GRC PDF] viewer failed',err);if(frame.isConnected)frame.srcdoc='<div style="font:600 16px Arial;padding:40px;text-align:center;color:#7f1d1d">'+String(L('reportLoadError')).replace(/</g,'&lt;')+'</div>';}}));
   }
-  window._grcOpenReportFullScreen=async function(id){
-    var popup=window.open('about:blank','_blank');
-    try{var record=REPORT_LIBRARY.find(function(r){return String(r.id)===String(id);});if(!record)throw new Error('report-not-found');var url=await getReportBlobUrl(record);if(popup)popup.location.href=url;else window.location.href=url;}
-    catch(err){if(popup)popup.close();window.alert(L('reportLoadError'));}
-  };
+  window._grcOpenReportFullScreen=async function(id){var popup=window.open('about:blank','_blank');try{var record=REPORT_LIBRARY.find(function(r){return String(r.id)===String(id);});if(!record)throw new Error('report-not-found');var url=await getReportBlobUrl(record);if(popup)popup.location.href=url;else window.location.href=url;}catch(err){if(popup)popup.close();window.alert(L('reportLoadError'));}};
+  window._grcOpenComplianceFullScreen=async function(id){var popup=window.open('about:blank','_blank');try{var record=complianceFileDocument(id);if(!record)throw new Error('document-not-found');var url=await getReportBlobUrl(record);if(popup)popup.location.href=url;else window.location.href=url;}catch(err){if(popup)popup.close();window.alert(L('reportLoadError'));}};
 
   /* Approved Safety plans supplied for the Governance plan register. */
   var SAFETY_PLAN_SEED=[{"id":"PLN-SAF-14","name":"EXTERNAL DISASTER MANAGEMENT PLAN (CODE YELLOW)","code":"QUMC-APP-FMS/SAF-14","issueDate":"2025-01-01","effectiveDate":"2025-04-01","reviewDate":"2026-01-01","status":"invalid","department":"safety"},{"id":"PLN-SAF-07","name":"FIRE SAFETY PLAN","code":"QUMC-DPP-FMS/SAF-07","issueDate":"2025-01-01","effectiveDate":"2025-04-01","reviewDate":"2026-01-01","status":"invalid","department":"safety"},{"id":"PLN-SAF-08","name":"INTERNAL DISASTER PLAN","code":"QUMC-DPP-FMS/SAF-08","issueDate":"2025-01-01","effectiveDate":"2025-04-01","reviewDate":"2026-01-01","status":"invalid","department":"safety"},{"id":"PLN-SAF-09","name":"EVACUATION PLAN","code":"QUMC-DPP-FMS/SAF-09","issueDate":"2025-01-01","effectiveDate":"2025-04-01","reviewDate":"2026-01-01","status":"invalid","department":"safety"},{"id":"PLN-SAF-10","name":"SAFETY OF THE BUILDING PLAN","code":"QUMC-DPP-FMS/SAF-10","issueDate":"2025-01-01","effectiveDate":"2025-04-01","reviewDate":"2026-01-01","status":"invalid","department":"safety"},{"id":"PLN-SAF-12","name":"HAZARDOUS MATERIALS AND WASTE MANAGEMENT PLAN","code":"QUMC-DPP-FMS/SAF-12","issueDate":"2025-01-01","effectiveDate":"2025-04-01","reviewDate":"2026-01-01","status":"invalid","department":"safety"},{"id":"PLN-SAF-01","name":"CODE RED (FIRE EMERGENCY)","code":"QUMC-DPP-FMS/SAF-01","issueDate":"2024-08-01","effectiveDate":"2024-11-01","reviewDate":"2027-08-01","status":"valid","department":"safety"}];
@@ -594,7 +650,7 @@
       }
     });
   }
-  function render(){if(!app||!app.classList.contains('grc-visible'))return;app.setAttribute('dir',isAr()?'rtl':'ltr');app.innerHTML=shellHtml();setTimeout(enhanceRegisterFilters,0);if(activeTab==='reports')setTimeout(mountReportViewer,0);}
+  function render(){if(!app||!app.classList.contains('grc-visible'))return;app.setAttribute('dir',isAr()?'rtl':'ltr');app.innerHTML=shellHtml();setTimeout(enhanceRegisterFilters,0);if(activeTab==='reports'||activeTab==='compliance')setTimeout(mountReportViewer,0);}
 
   function hero(eye,title,desc,actions){return'<div class="grc-hero"><div class="grc-hero-row"><div><div class="grc-eyebrow">'+eye+'</div><h1>'+title+'</h1><p>'+desc+'</p></div><div class="grc-hero-actions">'+(actions||'')+'</div></div></div>';}
   function sectionHead(title,sub,badgeText){return'<div class="grc-section-head"><div><div class="grc-section-title">'+title+'</div><div class="grc-section-sub">'+(sub||'')+'</div></div>'+(badgeText?'<span class="grc-section-badge">'+badgeText+'</span>':'')+'</div>';}
@@ -951,15 +1007,29 @@
     var raw=String(record&&record.authority||'').toLowerCase(),terms=[authority.en,authority.ar,authority.acronym].filter(Boolean).map(function(x){return String(x).toLowerCase();});
     return terms.some(function(t){return raw===t||raw.indexOf(t)>=0;});
   }
+  function ensureComplianceStyles(){
+    if(document.getElementById('_grcComplianceStyles'))return;var st=document.createElement('style');st.id='_grcComplianceStyles';st.textContent='.grc-compliance-authority-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin-top:16px;}.grc-compliance-authority-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;width:100%;padding:18px;border:1px solid #d8e5ec;border-radius:18px;background:linear-gradient(180deg,#fff,#f8fbfd);box-shadow:0 8px 24px rgba(22,59,82,.07);text-align:inherit;cursor:pointer;color:#18384b;transition:.18s ease;}.grc-compliance-authority-card:hover{transform:translateY(-2px);border-color:#8ecdd3;box-shadow:0 14px 32px rgba(22,59,82,.11);}.grc-compliance-authority-mark{display:flex;align-items:center;justify-content:center;min-width:54px;height:42px;padding:0 10px;border-radius:12px;background:linear-gradient(135deg,#e7f6f6,#dff0f7);color:#0f7780;font-weight:900;font-size:11px;letter-spacing:.4px;border:1px solid #c8e6e8;}.grc-compliance-authority-card h3{margin:0;font-size:14px;line-height:1.4;color:#17394d;}.grc-compliance-authority-card p{margin:5px 0 0;color:#6b8291;font-size:10px;}.grc-compliance-count{display:flex;align-items:center;justify-content:center;min-width:32px;height:32px;border-radius:10px;background:#edf4f7;color:#31566e;font-weight:900;font-size:11px;}.grc-compliance-doc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:16px;}.grc-compliance-doc-card{position:relative;display:flex;flex-direction:column;gap:14px;min-height:176px;padding:18px;border:1px solid #d9e6ed;border-radius:18px;background:#fff;box-shadow:0 8px 24px rgba(21,56,78,.07);overflow:hidden;}.grc-compliance-doc-card:before{content:"";position:absolute;inset:0 auto 0 0;width:5px;background:linear-gradient(180deg,#1598a2,#4aa8c5);}[dir="rtl"] .grc-compliance-doc-card:before{left:auto;right:0;}.grc-compliance-doc-index{font-size:10px;font-weight:900;color:#5d7a8d;text-transform:uppercase;letter-spacing:.7px;}.grc-compliance-doc-title{font-size:14px;line-height:1.55;font-weight:800;color:#17394d;flex:1;}.grc-compliance-doc-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}.grc-compliance-doc-actions button{border:0;border-radius:10px;padding:9px 12px;font-weight:800;font-size:10px;cursor:pointer;}.grc-compliance-doc-actions .open{background:#164968;color:#fff;}.grc-compliance-doc-actions .upload{background:#e5f5f3;color:#0d756f;}.grc-compliance-doc-actions .delete{background:#fdeced;color:#a63842;}.grc-compliance-status{display:inline-flex;align-items:center;gap:6px;width:max-content;border-radius:999px;padding:6px 9px;font-size:9px;font-weight:900;background:#eef3f6;color:#6d8290;}.grc-compliance-status.ready{background:#e7f6ef;color:#19714d;}.grc-compliance-breadcrumb{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0 16px;}.grc-compliance-breadcrumb button{border:0;background:#edf5f7;color:#15566c;border-radius:999px;padding:8px 12px;font-weight:800;cursor:pointer;}.grc-compliance-empty{padding:28px;border:1px dashed #cbdbe4;border-radius:16px;text-align:center;color:#6f8491;background:#fbfdfe;}';document.head.appendChild(st);
+  }
+  function complianceDocsFor(authorityId){return COMPLIANCE_DOCUMENT_SEED.filter(function(x){return x.authorityId===authorityId;});}
   function complianceAuthorityCards(){
-    return'<div class="grc-compliance-folder-grid">'+COMPLIANCE_AUTHORITIES.map(function(a){var count=(state.compliance||[]).filter(function(r){return authorityMatches(r,a);}).length;return'<button class="grc-compliance-folder" onclick="window._grcComplianceAuthority(\''+a.id+'\')"><span class="grc-compliance-folder-icon"></span><span><h3>'+esc(isAr()?a.ar:a.en)+'</h3><p>'+esc(isAr()?a.en:a.acronym)+'</p></span><span class="folder-count">'+count+'</span></button>';}).join('')+'</div>';
+    return'<div class="grc-compliance-authority-grid">'+COMPLIANCE_AUTHORITIES.map(function(a){var docs=complianceDocsFor(a.id),uploaded=docs.filter(function(d){return!!complianceFileDocument(d.id);}).length;return'<button class="grc-compliance-authority-card" onclick="window._grcComplianceAuthority('+JSON.stringify(a.id)+')"><span class="grc-compliance-authority-mark">'+esc(a.acronym||'REG')+'</span><span><h3>'+esc(isAr()?a.ar:a.en)+'</h3><p>'+docs.length+' '+(isAr()?'مستند':'documents')+' · '+uploaded+' '+L('available')+'</p></span><span class="grc-compliance-count">'+docs.length+'</span></button>';}).join('')+'</div>';
+  }
+  function complianceDocumentCards(authority){
+    var docs=complianceDocsFor(authority.id);if(!docs.length)return'<div class="grc-compliance-empty">'+L('noRecords')+'</div>';
+    return'<div class="grc-compliance-doc-grid">'+docs.map(function(d,i){var file=complianceFileDocument(d.id),ready=!!file,actions='';if(ready)actions+='<button class="open" onclick="window._grcComplianceDocument('+JSON.stringify(d.id)+')">'+(isAr()?'فتح المستند':'Open Document')+'</button>';if(normalizedRole()==='super_admin')actions+='<button class="upload" onclick="window._grcOpenComplianceUpload('+JSON.stringify(d.id)+')">'+(ready?L('replaceReport'):(isAr()?'رفع PDF':'Upload PDF'))+'</button>'+(ready?'<button class="delete" onclick="window._grcDeleteComplianceDocument('+JSON.stringify(d.id)+')">'+L('deleteReport')+'</button>':'');return'<div class="grc-compliance-doc-card"><div class="grc-compliance-doc-index">'+esc(authority.acronym)+' · '+String(i+1).padStart(2,'0')+'</div><div class="grc-compliance-doc-title">'+esc(d.titleEn)+'</div><span class="grc-compliance-status '+(ready?'ready':'')+'">'+L(ready?'available':'unavailable')+'</span><div class="grc-compliance-doc-actions">'+actions+'</div></div>';}).join('')+'</div>';
+  }
+  function complianceViewerHtml(seed,file){
+    if(!file)return'<div class="grc-report-empty"><b>'+L('unavailable')+'</b>'+L('noReportAvailable')+'</div>';
+    var meta=(file.fileSize?fileSizeText(file.fileSize):'')+(file.pages?' · '+file.pages+' '+L('pages'):'');var actions='<button onclick="window._grcOpenComplianceFullScreen('+JSON.stringify(String(file.id))+')">'+L('openFullScreen')+'</button>';if(normalizedRole()==='super_admin')actions='<button class="replace" onclick="window._grcOpenComplianceUpload('+JSON.stringify(String(file.id))+')">'+L('replaceReport')+'</button><button class="danger" onclick="window._grcDeleteComplianceDocument('+JSON.stringify(String(file.id))+')">'+L('deleteReport')+'</button>'+actions;return'<div class="grc-report-viewer-card"><div class="grc-report-viewer-head"><div><div class="grc-report-viewer-title">'+esc(seed.titleEn)+'</div><div class="grc-report-viewer-meta">'+esc(meta)+'</div></div><div class="grc-report-viewer-actions">'+actions+'</div></div><div class="grc-report-viewer-help">'+L('reportViewerHelp')+'</div><iframe class="grc-report-frame" data-grc-library="compliance" data-grc-report-id="'+esc(file.id)+'" loading="lazy" title="'+esc(seed.titleEn)+'" src="about:blank"></iframe></div>';
   }
   function compliancePage(){
-    var top=hero('GRC · Compliance',L('complianceTitle'),L('complianceDesc'),addBtn('compliance',L('addRequirement')));
+    ensureComplianceStyles();if(!complianceLibraryLoaded&&!complianceLibraryLoading)loadComplianceLibrary(false);
+    var top=hero('GRC · Compliance',L('complianceTitle'),L('complianceDesc'));
     if(!complianceNavAuthority)return top+'<div class="grc-section">'+sectionHead(L('complianceAuthorities'),L('selectAuthority'))+complianceAuthorityCards()+'</div>';
-    var authority=COMPLIANCE_AUTHORITIES.find(function(a){return a.id===complianceNavAuthority;});if(!authority){complianceNavAuthority=null;return compliancePage();}
-    var rows=(state.compliance||[]).filter(function(r){return authorityMatches(r,authority);}).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.authority||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td>'+badge(r.status)+'</td></tr>';}).join('');
-    return top+'<div class="grc-section"><div class="grc-compliance-breadcrumb"><button onclick="window._grcComplianceHome()">← '+L('backToAuthorities')+'</button><span>›</span><strong>'+esc(isAr()?authority.ar:authority.en)+'</strong></div>'+registerBlock('policy',L('authorityRecords'),esc(isAr()?authority.ar:authority.en),addBtn('compliance',L('addRequirement')),tableHtml('policy',['id','requirement','authority','department','owner','dueDate','status'],rows))+'</div>';
+    var authority=COMPLIANCE_AUTHORITIES.find(function(a){return a.id===complianceNavAuthority;});if(!authority){complianceNavAuthority=null;complianceNavDocument=null;return compliancePage();}
+    if(!complianceNavDocument)return top+'<div class="grc-section"><div class="grc-compliance-breadcrumb"><button onclick="window._grcComplianceHome()">← '+L('backToAuthorities')+'</button><span>›</span><strong>'+esc(isAr()?authority.ar:authority.en)+'</strong></div>'+sectionHead(esc(isAr()?authority.ar:authority.en),String(complianceDocsFor(authority.id).length)+' '+(isAr()?'مستند':'documents'))+complianceDocumentCards(authority)+'</div>';
+    var seed=complianceSeedDocument(complianceNavDocument);if(!seed||seed.authorityId!==authority.id){complianceNavDocument=null;return compliancePage();}var file=complianceFileDocument(seed.id);
+    return top+'<div class="grc-section"><div class="grc-compliance-breadcrumb"><button onclick="window._grcComplianceHome()">'+L('backToAuthorities')+'</button><span>›</span><button onclick="window._grcComplianceAuthority('+JSON.stringify(authority.id)+')">'+esc(isAr()?authority.ar:authority.en)+'</button><span>›</span><strong>'+esc(seed.titleEn)+'</strong></div>'+complianceViewerHtml(seed,file)+'</div>';
   }
   function auditPage(){return simpleRegisterPage('audits','auditTitle','auditDesc','audit','addFinding',['id','title','severity','department','owner','dueDate','status'],function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+badge(r.severity)+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td>'+badge(r.status)+'</td></tr>';},'incident');}
   function actionsPage(){return simpleRegisterPage('actions','actionsTitle','actionsDesc','action','addAction',['id','title','source','department','owner','dueDate','progress','status'],function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.source||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td><div style="display:flex;align-items:center;gap:7px"><div class="grc-progress"><span style="width:'+Math.max(0,Math.min(100,Number(r.progress||0)))+'%"></span></div><b>'+Number(r.progress||0)+'%</b></div></td><td>'+badge(r.status)+'</td></tr>';},'plan');}
@@ -1067,8 +1137,18 @@
     try{var b=await ensureReportBackend();await deletePdfChunks(b,r.chunkKey||r.id,r.chunkCount);await updateReportIndex(b,null,r.id);invalidateReportBlob(r.id);reportNav={group:r.group,type:r.type,year:r.year,quarter:null};reportLibraryLoaded=false;await loadReportLibrary(true);render();}catch(err){console.error('[GRC Reports] delete failed',err);window.alert(L('uploadFailed')+' '+String(err&&err.code||err&&err.message||err));}
   };
 
-  window._grcComplianceAuthority=function(id){complianceNavAuthority=id;render();var m=app&&app.querySelector('.grc-main');if(m)m.scrollTop=0;};
-  window._grcComplianceHome=function(){complianceNavAuthority=null;render();var m=app&&app.querySelector('.grc-main');if(m)m.scrollTop=0;};
+  window._grcOpenComplianceUpload=function(docId){
+    if(normalizedRole()!=='super_admin')return;var seed=complianceSeedDocument(docId);if(!seed)return;var existing=complianceFileDocument(docId),old=document.getElementById('_grcComplianceUploadModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcComplianceUploadModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+esc(seed.titleEn)+'</div><div class="grc-modal-sub">'+(isAr()?'رفع ملف PDF وقراءته داخل المنصة':'Upload a PDF for in-platform viewing')+'</div></div><button class="grc-modal-close" type="button" onclick="document.getElementById(&quot;_grcComplianceUploadModal&quot;).remove()">×</button></div><form class="grc-modal-body" id="_grcComplianceUploadForm"><div class="grc-report-upload-grid"><div class="grc-report-upload-field"><label>'+L('reportPages')+'</label><input name="pages" type="number" min="0" value="'+Number(existing&&existing.pages||0)+'"></div><div class="grc-report-upload-field full grc-report-filebox"><label>'+L('choosePdf')+'</label><input name="pdf" type="file" accept="application/pdf,.pdf" required><small>'+L('pdfOnly')+'</small></div></div><div class="grc-upload-progress" id="_grcComplianceUploadProgress"><span></span></div><div class="grc-upload-status" id="_grcComplianceUploadStatus"></div><div class="grc-modal-actions"><button type="button" class="grc-btn ghost" onclick="document.getElementById(&quot;_grcComplianceUploadModal&quot;).remove()">'+L('cancel')+'</button><button type="submit" class="grc-upload-primary" id="_grcComplianceUploadBtn">'+(existing?L('replaceReport'):(isAr()?'رفع PDF':'Upload PDF'))+'</button></div></form></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});document.getElementById('_grcComplianceUploadForm').addEventListener('submit',function(e){e.preventDefault();window._grcSubmitComplianceUpload(e.target,seed,existing);});
+  };
+  window._grcSubmitComplianceUpload=async function(form,seed,existing){
+    if(normalizedRole()!=='super_admin')return;var status=document.getElementById('_grcComplianceUploadStatus'),progress=document.getElementById('_grcComplianceUploadProgress'),bar=progress&&progress.querySelector('span'),btn=document.getElementById('_grcComplianceUploadBtn');try{var fd=new FormData(form),file=form.elements.pdf.files[0]||null;if(!file||!(file.type==='application/pdf'||/\.pdf$/i.test(file.name)))throw new Error('invalid-pdf');if(file.size>REPORT_MAX_BYTES)throw new Error('file-too-large');var b=await ensureReportBackend();if(!b.auth.currentUser)throw new Error('not-authenticated');if(btn){btn.disabled=true;btn.textContent=L('uploading');}if(status)status.textContent=L('uploading');if(progress)progress.style.display='block';invalidateReportBlob(seed.id);var oldChunkCount=Number(existing&&existing.chunkCount||0),oldChunkKey=String(existing&&existing.chunkKey||existing&&existing.id||''),version=Date.now(),chunkKey='compliance_'+seed.id+'_'+version,chunkCount=await writePdfChunks(b,chunkKey,file,function(pct){if(bar)bar.style.width=pct+'%';if(status)status.textContent=L('uploading')+' '+pct+'%';});var record={id:seed.id,authorityId:seed.authorityId,titleEn:seed.titleEn,titleAr:seed.titleAr,pages:Number(fd.get('pages')||0),fileName:file.name,fileSize:file.size,contentType:'application/pdf',chunkCount:chunkCount,chunkKey:chunkKey,version:version,uploadedBy:window._fbUser||b.auth.currentUser.email||''};await updateComplianceIndex(b,record,null);if(oldChunkCount&&oldChunkKey)await deletePdfChunks(b,oldChunkKey,oldChunkCount);if(status)status.textContent=L('uploadComplete');complianceLibraryLoaded=false;await loadComplianceLibrary(true);complianceNavAuthority=seed.authorityId;complianceNavDocument=seed.id;var modal=document.getElementById('_grcComplianceUploadModal');if(modal)modal.remove();render();}catch(err){console.error('[GRC Compliance] upload failed',err);var msg=String(err&&err.code||err&&err.message||'');if(msg.indexOf('file-too-large')>=0)msg=L('fileTooLarge');else if(msg.indexOf('invalid-pdf')>=0)msg=L('invalidPdf');else msg=L('uploadFailed')+' '+msg;if(status)status.textContent=msg;if(btn){btn.disabled=false;btn.textContent=existing?L('replaceReport'):(isAr()?'رفع PDF':'Upload PDF');}} 
+  };
+  window._grcDeleteComplianceDocument=async function(id){
+    if(normalizedRole()!=='super_admin'||!window.confirm(L('confirmDeleteReport')))return;var file=complianceFileDocument(id);if(!file)return;try{var b=await ensureReportBackend();await deletePdfChunks(b,file.chunkKey||file.id,file.chunkCount);await updateComplianceIndex(b,null,file.id);invalidateReportBlob(file.id);complianceLibraryLoaded=false;complianceNavDocument=null;await loadComplianceLibrary(true);render();}catch(err){console.error('[GRC Compliance] delete failed',err);window.alert(L('uploadFailed')+' '+String(err&&err.code||err&&err.message||err));}
+  };
+  window._grcComplianceDocument=function(id){var seed=complianceSeedDocument(id);if(!seed)return;complianceNavAuthority=seed.authorityId;complianceNavDocument=id;render();var m=app&&app.querySelector('.grc-main');if(m)m.scrollTop=0;};
+  window._grcComplianceAuthority=function(id){complianceNavAuthority=id;complianceNavDocument=null;render();var m=app&&app.querySelector('.grc-main');if(m)m.scrollTop=0;};
+  window._grcComplianceHome=function(){complianceNavAuthority=null;complianceNavDocument=null;render();var m=app&&app.querySelector('.grc-main');if(m)m.scrollTop=0;};
   window._grcReportHome=function(){reportNav={group:null,type:null,year:null,quarter:null};render();};
   window._grcReportGroup=function(group){reportNav={group:group,type:null,year:null,quarter:null};render();};
   window._grcReportType=function(type){reportNav.type=type;reportNav.year=null;reportNav.quarter=null;render();};
@@ -1221,7 +1301,7 @@
   };
 
   window._grcDelete=function(collection,id){if(normalizedRole()!=='super_admin')return;if(!window.confirm(L('confirmDelete')))return;state[collection]=(state[collection]||[]).filter(function(r){return String(r.id)!==String(id);});saveState();};
-  window._grcSwitch=function(id){if(!modules.some(function(x){return x.id===id;}))id='executive';activeTab=id;if(id==='reports')reportNav={group:null,type:null,year:null,quarter:null};if(id==='compliance')complianceNavAuthority=null;render();var m=app&&app.querySelector('.grc-main');if(m)m.scrollTop=0;};
+  window._grcSwitch=function(id){if(!modules.some(function(x){return x.id===id;}))id='executive';activeTab=id;if(id==='reports')reportNav={group:null,type:null,year:null,quarter:null};if(id==='compliance'){complianceNavAuthority=null;complianceNavDocument=null;}render();var m=app&&app.querySelector('.grc-main');if(m)m.scrollTop=0;};
   window._grcToggleLang=function(){if(typeof window.lang!=='undefined')window.lang=window.lang==='en'?'ar':'en';else window.lang=isAr()?'en':'ar';document.documentElement.lang=isAr()?'ar':'en';document.documentElement.dir=isAr()?'rtl':'ltr';var b=document.getElementById('langBtn');if(b)b.textContent=isAr()?'EN':'عربي';render();};
   window._grcRefreshLanguage=function(){render();};
   window._hideGRC=function(){var a=document.getElementById('grcApp');if(a){a.classList.remove('grc-visible');a.setAttribute('aria-hidden','true');}document.body.classList.remove('grc-mode');};
