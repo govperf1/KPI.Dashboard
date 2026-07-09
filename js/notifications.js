@@ -554,8 +554,8 @@ function updateExecTrend(yr){
       var stt = String(rq.status || ''), rd = deptAlias(rq.dept || ''), rr = role(), show = false, level = 'blue', meta = '';
       if((rr === 'department_manager' || rr === 'dept_manager') && stt === 'pending_manager' && rd === dept()){
         show = true; level = 'orange'; meta = isAr()?'طلب تحليل فجوة بانتظار موافقتك':'Gap Analysis request pending your approval';
-      }else if(isSuper() && (stt === 'pending_manager' || stt === 'pending_super_admin')){
-        show = true; level = 'orange'; meta = stt === 'pending_manager' ? (isAr()?'طلب تحليل فجوة بانتظار مدير القسم':'Gap Analysis request pending Department Manager approval') : (isAr()?'اعتماد نهائي مطلوب من السوبر أدمن':'Final Super Admin approval required');
+      }else if(isSuper() && stt === 'pending_super_admin'){
+        show = true; level = 'orange'; meta = isAr()?'اعتماد نهائي مطلوب من السوبر أدمن':'Final Super Admin approval required';
       }else if((rr === 'department_manager' || rr === 'dept_manager') && rd === dept() && stt.indexOf('rejected') === 0){
         show = true; level = 'red'; meta = isAr()?'تم رفض طلب تحليل فجوة ضمن قسمك':'A Gap Analysis request in your department was rejected';
       }else if(isSuper() && stt.indexOf('rejected') === 0){
@@ -747,7 +747,6 @@ function updateExecTrend(yr){
   }
   function logout(ev){
     if(ev){ ev.preventDefault(); ev.stopPropagation(); if(ev.stopImmediatePropagation) ev.stopImmediatePropagation(); }
-    try{ if(typeof window.addAudit === 'function') window.addAudit('LOGOUT','User logout'); }catch(_){ }
     var old=window.__qumcOriginalDoLogout || window._doLogout;
     try{ if(old && old !== window.qumcLogoutToLogin) old(); }catch(_){ }
     setTimeout(showLoginPage,80); return false;

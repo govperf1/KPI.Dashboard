@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
     import { getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,sendPasswordResetEmail,fetchSignInMethodsForEmail,setPersistence,browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-    import { getFirestore,doc,getDoc,setDoc,addDoc,collection,serverTimestamp,onSnapshot,updateDoc,arrayUnion,query,where,orderBy,getDocs,deleteDoc } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { getFirestore,doc,getDoc,setDoc,addDoc,collection,serverTimestamp,onSnapshot,updateDoc,arrayUnion,query,where,orderBy,getDocs,deleteDoc,runTransaction } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     const firebaseConfig={apiKey:"AIzaSyAlLWZvsu4UbHn-LncFdrSHlbL3bIAG4no",authDomain:"qumc-kpi-dashboard-f10dd.firebaseapp.com",projectId:"qumc-kpi-dashboard-f10dd",storageBucket:"qumc-kpi-dashboard-f10dd.firebasestorage.app",messagingSenderId:"659971973475",appId:"1:659971973475:web:483116a0711008a6a97356"};
     const DPERMS={super_admin:['*'],admin:['manage_users','view_all_departments','view_department','edit_kpi','edit_gap_analysis','edit_actions','edit_targets','approve_changes','lock_quarter','unlock_quarter','view_executive_intelligence','export_reports','manage_dashboard_settings','view_audit_trail'],executive:['view_all_departments','view_department','view_executive_intelligence','export_reports'],department_manager:['view_department','view_executive_intelligence','export_reports'],kpi_owner:['view_department','edit_gap_analysis','export_reports'],viewer:['view_all_departments','view_department','export_reports']};
@@ -8,6 +8,107 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
+
+
+    /* ── Shared Audit Trail ─────────────────────────────────────────────
+       Every meaningful user action is persisted to Firestore so the
+       Super Admin sees one shared log across all users and devices.
+       Normal users can append their own actions; only users who can view
+       the Audit Trail subscribe to the shared log in real time. */
+    const AUDIT_DOC_REF=doc(db,'kpi_dashboard','audit');
+    const AUDIT_MAX_RECORDS=1000;
+    let _auditListenerUnsub=null;
+    let _auditWriteChain=Promise.resolve();
+
+    function _auditId(){
+      try{return crypto.randomUUID();}catch(_){return 'audit_'+Date.now()+'_'+Math.random().toString(36).slice(2,10);}
+    }
+    function _auditCleanValue(v){
+      if(v===undefined)return null;
+      if(v===null)return null;
+      if(typeof v==='object'){
+        try{return JSON.parse(JSON.stringify(v));}catch(_){return String(v);}
+      }
+      return String(v);
+    }
+    function _auditEntry(raw){
+      raw=raw||{};
+      return {
+        id:String(raw.id||_auditId()),
+        ts:String(raw.ts||new Date().toISOString()),
+        user:String(raw.user||window._fbName||window.currentUserName||((window._fbUser||'').split('@')[0])||'User'),
+        email:String(raw.email||window._fbUser||window.currentUserEmail||auth.currentUser&&auth.currentUser.email||'—'),
+        role:String(raw.role||window._fbRole||window.currentUserRole||'viewer'),
+        action:String(raw.action||'ACTIVITY'),
+        detail:String(raw.detail||''),
+        oldVal:_auditCleanValue(raw.oldVal),
+        newVal:_auditCleanValue(raw.newVal),
+        portal:String(raw.portal||window.__qumcActivePortal||''),
+        page:String(raw.page||window.curPage||''),
+        dept:String(raw.dept||window._fbDept||window.currentUserDept||''),
+        sessionId:String(raw.sessionId||window.__qumcAuditSessionId||(window.__qumcAuditSessionId='s_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)))
+      };
+    }
+    function _auditSort(log){
+      return (Array.isArray(log)?log:[]).filter(Boolean).sort(function(a,b){return String(b.ts||'').localeCompare(String(a.ts||''));});
+    }
+    function _auditCanView(){
+      const r=String(window._fbRole||'').toLowerCase().replace(/[\s-]+/g,'_');
+      return r==='super_admin'||r==='admin'||(Array.isArray(window._fbPerms)&&window._fbPerms.includes('view_audit_trail'))||(Array.isArray(window._fbPerms)&&window._fbPerms.includes('*'));
+    }
+    function _applyAuditCloudLog(log){
+      log=_auditSort(log).slice(0,AUDIT_MAX_RECORDS);
+      window.__qumcAuditCloudLog=log;
+      try{
+        if(typeof ST!=='undefined'){
+          ST.audit=log.slice();
+          localStorage.setItem('kpi_v3',JSON.stringify(Object.assign({},ST,{_v:3})));
+        }
+      }catch(_){ }
+      try{if(typeof window.loadAuditLog==='function')window.loadAuditLog();else if(typeof loadAuditLog==='function')loadAuditLog();}catch(_){ }
+    }
+    window._appendAuditToFS=function(raw){
+      const entry=_auditEntry(raw);
+      if(!auth.currentUser){
+        window.__qumcAuditPending=window.__qumcAuditPending||[];
+        window.__qumcAuditPending.push(entry);
+        return Promise.resolve(false);
+      }
+      _auditWriteChain=_auditWriteChain.catch(function(){return null;}).then(function(){
+        return runTransaction(db,async function(tx){
+          const snap=await tx.get(AUDIT_DOC_REF);
+          const data=snap.exists()?snap.data():{};
+          let log=Array.isArray(data.log)?data.log.slice():[];
+          log=log.filter(function(x){return x&&String(x.id)!==entry.id;});
+          log.unshift(entry);
+          log=_auditSort(log).slice(0,AUDIT_MAX_RECORDS);
+          tx.set(AUDIT_DOC_REF,{log:log,updatedAt:serverTimestamp(),updatedBy:entry.email},{merge:true});
+        });
+      });
+      return _auditWriteChain;
+    };
+    window._recordAuditDirect=function(action,detail,oldVal,newVal,extra){
+      return window._appendAuditToFS(Object.assign({},extra||{},{action:action,detail:detail,oldVal:oldVal,newVal:newVal}));
+    };
+    window._clearAuditFromFS=async function(){
+      if(!_auditCanView())throw new Error('access denied');
+      await setDoc(AUDIT_DOC_REF,{log:[],clearedAt:serverTimestamp(),clearedBy:window._fbUser||'',updatedAt:serverTimestamp()},{merge:false});
+      _applyAuditCloudLog([]);
+      return true;
+    };
+    window._startAuditListener=function(){
+      if(_auditListenerUnsub||!auth.currentUser||!_auditCanView())return;
+      _auditListenerUnsub=onSnapshot(AUDIT_DOC_REF,function(snap){
+        const data=snap.exists()?snap.data():{};
+        _applyAuditCloudLog(data.log||[]);
+      },function(err){console.warn('[AUDIT] live listener failed:',err&&err.code||err&&err.message||err);});
+      console.log('[AUDIT] Shared Audit Trail listener active');
+    };
+    window._stopAuditListener=function(){if(_auditListenerUnsub){_auditListenerUnsub();_auditListenerUnsub=null;}};
+    async function _flushPendingAudit(){
+      const q=(window.__qumcAuditPending||[]).splice(0);
+      for(const e of q){try{await window._appendAuditToFS(e);}catch(err){console.warn('[AUDIT] pending write failed',err);}}
+    }
 
     /* Session-only persistence — clears on browser close, prevents cached auto-login */
     setPersistence(auth,browserSessionPersistence).then(()=>console.log('[Auth] Session persistence set')).catch(e=>console.warn('[Auth] Persistence:',e.message));
@@ -38,11 +139,13 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       }
     };
 
-    window._doLogout=async()=>{console.log('[Auth] Logout');try{await signOut(auth);}catch(e){console.error('[Auth]',e);}};
+    window._doLogout=async()=>{console.log('[Auth] Logout');try{await window._recordAuditDirect('LOGOUT','User signed out');}catch(e){console.warn('[AUDIT] logout write skipped',e);}try{window._stopAuditListener&&window._stopAuditListener();await signOut(auth);}catch(e){console.error('[Auth]',e);}};
 
     window._backToPortal=()=>{console.log('[Auth] Back to portal');const lo=document.getElementById('_authOverlay'),po=document.getElementById('_portalOverlay'),bg=document.getElementById('_bgLayer');if(lo)lo.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
 window._selectPortal=async portal=>{
       console.log('[Auth] Selected:',portal);
+      window.__qumcActivePortal=portal;
+      try{window._recordAuditDirect&&window._recordAuditDirect('PORTAL_OPEN','Opened portal: '+portal,null,portal,{portal:portal});}catch(_){ }
       if(portal==='performance'){
         hideEntryLoading();
         ['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(id=>{const e=ge(id);if(e)e.style.display='none';});
@@ -133,7 +236,7 @@ window._selectPortal=async portal=>{
 
     onAuthStateChanged(auth,async user=>{
       console.log('[Auth] onAuthStateChanged — user:',user?user.email:'none');
-      if(!user){showLogin();return;}
+      if(!user){window.__qumcAuditLoginLoggedFor='';try{window._stopAuditListener&&window._stopAuditListener();}catch(_){}showLogin();return;}
       const email=user.email||'';
       try{
         console.log('[FS READ] users/'+email);
@@ -151,8 +254,15 @@ window._selectPortal=async portal=>{
         const realName=accountNameFrom(d,user,email);
         window._fbUser=email;window._fbEmail=email;window.currentUserEmail=email;window._fbRole=role;window.currentUserRole=role;window._fbDept=d.dept||null;window.currentUserDept=d.dept||null;window._fbPerms=perms;window._fbName=realName;window.currentUserName=realName;window._fbAssignedKpis=d.assignedKpis||null;
         setUserDisplay(window._fbName,role);
-        /* [REMOVED] lastLogin write — was costing 1 Firestore write per login */
-        /* [REMOVED] activity_log write — was 1 Firestore write per login */
+        /* Shared audit: successful authentication + live audit sync for authorized viewers. */
+        try{
+          window._startAuditListener&&window._startAuditListener();
+          await _flushPendingAudit();
+          if(window.__qumcAuditLoginLoggedFor!==email){
+            window.__qumcAuditLoginLoggedFor=email;
+            await window._recordAuditDirect('LOGIN','Successful sign in');
+          }
+        }catch(ae){console.warn('[AUDIT] login event failed',ae&&ae.message||ae);}
         console.log('[Auth] All checks passed — showing portal');
         showPortal(window._fbName,role);
       }catch(e){console.error('[Auth] Error:',e);setErr('Connection error. Try again.');showLogin();}
@@ -167,24 +277,6 @@ window._selectPortal=async portal=>{
     let _fsSaveTimer=null, _fsPending=null;
     /* Queue of resolvers for the debounced write — allows callers to await real completion */
     var _fsResolveQueue=[];
-    window._clearAuditLogFS = async function(){
-      if(!window._fbUser||!db) throw new Error('not authenticated');
-      const role=String(window._fbRole||'').toLowerCase().replace(/[\s-]+/g,'_');
-      if(role!=='super_admin'&&role!=='admin') throw new Error('access denied');
-
-      /* If an ordinary dashboard save is waiting in the debounce queue, make sure
-         it cannot recreate the old audit records after this clear finishes. */
-      if(_fsPending && typeof _fsPending==='object') _fsPending.audit=[];
-
-      window._lastCloudSaveTime=Date.now();
-      await setDoc(doc(db,'kpi_dashboard','audit'),{
-        log:[],
-        _clearedBy:window._fbUser,
-        _clearedAt:serverTimestamp()
-      },{merge:false});
-      return true;
-    };
-
     window._saveToFS = async (data) => {
       if(!window._fbUser||!db){
         console.warn('[FS] Write skipped — not authenticated');
@@ -208,12 +300,9 @@ window._selectPortal=async portal=>{
         const {audit=[], ...rest} = d;
         await setDoc(doc(db,'kpi_dashboard','state'),
           {...rest, _by:window._fbUser, _at:serverTimestamp()}, {merge:true});
-        // Save audit separately (collection for scalability)
-        if(audit.length){
-          console.log('[FS WRITE] kpi_dashboard/audit');
-          await setDoc(doc(db,'kpi_dashboard','audit'),
-            {log:audit.slice(0,2000)}, {merge:false});
-        }
+        /* Audit is persisted entry-by-entry through _appendAuditToFS.
+           Never rewrite the whole audit array from dashboard state, because
+           that would overwrite other users' events or restore cleared logs. */
         /* Firestore write successful — resolve all waiting callers */
         _localQueue.forEach(function(p){p.resolve();});
       } catch(e){
@@ -329,7 +418,7 @@ window._selectPortal=async portal=>{
           console.log('[FS READ] onSnapshot: remote change — merging + updating UI');
           /* MERGE into ST — localStorage only, ZERO Firestore write */
           /* Fields where REMOTE is authoritative (no local writes during normal use) */
-          const safe=['gaps','actions','audit','pci','codeOv','pciConfig','requests']; /* F5: textEdits removed — handled separately below with LOCAL WINS */
+          const safe=['gaps','actions','pci','codeOv','pciConfig','requests']; /* F5: textEdits removed — handled separately below with LOCAL WINS */
           let changed=false;
           /* Simple replace: local has no business modifying these */
           safe.forEach(function(f){
@@ -435,15 +524,16 @@ window._selectPortal=async portal=>{
     window._loadFromFS = async () => {
       if(!db) return null;
       try {
-        console.log('[FS READ] kpi_dashboard/state + audit');
-        const [stateSnap, auditSnap] = await Promise.all([
-          getDoc(doc(db,'kpi_dashboard','state')),
-          getDoc(doc(db,'kpi_dashboard','audit'))
-        ]);
+        console.log('[FS READ] kpi_dashboard/state'+(_auditCanView()?' + audit':''));
+        const stateSnap = await getDoc(doc(db,'kpi_dashboard','state'));
         const state  = stateSnap.exists()  ? stateSnap.data()  : {};
-        const audit  = auditSnap.exists()  ? auditSnap.data()  : {};
         const {_by, _at, ...clean} = state;
-        return {...clean, audit: audit.log||[]};
+        if(_auditCanView()){
+          const auditSnap=await getDoc(AUDIT_DOC_REF);
+          const audit=auditSnap.exists()?auditSnap.data():{};
+          return {...clean, audit:_auditSort(audit.log||[]).slice(0,AUDIT_MAX_RECORDS)};
+        }
+        return clean;
       } catch(e){ console.warn('[FS] Load error:',e.code||e.message); return null; }
     };
 

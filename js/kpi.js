@@ -1133,30 +1133,49 @@ function setF(type,val,el){
   }
   if(typeof applyDepartmentFilterScope==='function')applyDepartmentFilterScope();
   updateChips();updateBadge();renderCurrent();
+  try{if(window._fbUser&&typeof addAudit==='function')addAudit('FILTER_CHANGE','Filter changed: '+type+' = '+(Array.isArray(F[type])?F[type].join(', '):String(F[type])));}catch(_){}
 
 /* -- Audit log, toast, clock -- */
 }
+function _auditMakeId(){try{return crypto.randomUUID();}catch(_){return 'audit_'+Date.now()+'_'+Math.random().toString(36).slice(2,10);}}
+function _combinedAuditLog(){
+  const all=[];
+  if(Array.isArray(window.__qumcAuditCloudLog))all.push(...window.__qumcAuditCloudLog);
+  if(Array.isArray(ST.audit))all.push(...ST.audit);
+  const seen=new Set(),out=[];
+  all.forEach(function(e){if(!e)return;const key=String(e.id||[e.ts,e.email,e.action,e.detail].join('|'));if(seen.has(key))return;seen.add(key);out.push(e);});
+  return out.sort(function(a,b){return String(b.ts||'').localeCompare(String(a.ts||''));}).slice(0,1000);
+}
 function addAudit(action,detail,oldVal,newVal){
   if(!ST.audit)ST.audit=[];
-  ST.audit.unshift({
+  const entry={
+    id:_auditMakeId(),
     ts:new Date().toISOString(),
-    user:window._fbName||'Admin',
-    email:window._fbUser||'—',
-    role:window._fbRole||'admin',
-    action,
-    detail,
-    oldVal:oldVal||null,
-    newVal:newVal||null
-  });
-  ST.audit=ST.audit.slice(0,2000);
-  /* Audit memory-only — no Firestore write per audit entry */
-  try{ localStorage.setItem('kpi_v3',JSON.stringify({...ST,_v:3})); }catch(_){}
-  console.log('[AUDIT] Entry added (localStorage only):', action);
+    user:window._fbName||window.currentUserName||((window._fbUser||'').split('@')[0])||'User',
+    email:window._fbUser||window.currentUserEmail||'—',
+    role:window._fbRole||window.currentUserRole||'viewer',
+    action:String(action||'ACTIVITY'),
+    detail:String(detail||''),
+    oldVal:oldVal===undefined?null:oldVal,
+    newVal:newVal===undefined?null:newVal,
+    portal:window.__qumcActivePortal||'performance',
+    page:window.curPage||'',
+    dept:window._fbDept||window.currentUserDept||''
+  };
+  ST.audit.unshift(entry);
+  ST.audit=ST.audit.slice(0,1000);
+  try{localStorage.setItem('kpi_v3',JSON.stringify(Object.assign({},ST,{_v:3})));}catch(_){}
+  try{
+    if(typeof window._appendAuditToFS==='function')window._appendAuditToFS(entry).catch(function(e){console.warn('[AUDIT] cloud write failed',e&&e.message||e);});
+    else{window.__qumcAuditPending=window.__qumcAuditPending||[];window.__qumcAuditPending.push(entry);}
+  }catch(e){console.warn('[AUDIT] queue failed',e);}
   try{
     const tab=document.getElementById('ap-auditlog');
     if(tab&&tab.classList.contains('on')&&typeof loadAuditLog==='function')setTimeout(loadAuditLog,0);
   }catch(_){}
 }
+window.addAudit=addAudit;
+window.loadAuditLog=typeof loadAuditLog==='function'?loadAuditLog:window.loadAuditLog;
 
 function populateAuditFilters(log){
   const uf=document.getElementById('auditUserFilter'), af=document.getElementById('auditActionFilter');
@@ -1166,8 +1185,8 @@ function populateAuditFilters(log){
 
 function loadAuditLog(){
   const el=document.getElementById('auditLogList');if(!el)return;
-  let log=ST.audit||[];
-  const fullLog=ST.audit||[];
+  let log=_combinedAuditLog();
+  const fullLog=log.slice();
   populateAuditFilters(fullLog);
   const uf=document.getElementById('auditUserFilter')?.value||'';
   const af=document.getElementById('auditActionFilter')?.value||'';
@@ -1181,8 +1200,8 @@ function loadAuditLog(){
     return;
   }
 
-  const AC={ADMIN_OPEN:'#0195af',CLEAR_AUDIT:'#DC2626',KPI_EDIT:'#0195af',KPI_ADD:'#16A34A',KPI_DEL:'#DC2626',GAP_EDIT:'#D97706',LOGIN:'#0F9B58',LOGOUT:'#64748B',EXPORT_EXCEL:'#7C3AED',EXPORT_REPORT:'#7C3AED',ROLE_CHANGE:'#EC4899',LOGIN_FAIL:'#DC2626',SESSION_TIMEOUT:'#B45309'};
-  const AL={ADMIN_OPEN:'Open Admin Panel',CLEAR_AUDIT:'Clear Audit Log',KPI_EDIT:'Edit KPI',KPI_ADD:'Add KPI',KPI_DEL:'Delete KPI',GAP_EDIT:'Gap Analysis',LOGIN:'Login',LOGIN_FAIL:'Failed Login',LOGOUT:'Logout',SESSION_TIMEOUT:'Session Timeout',EXPORT_EXCEL:'Export Excel',EXPORT_REPORT:'Export Report',ROLE_CHANGE:'Role Change'};
+  const AC={ADMIN_OPEN:'#0195af',CLEAR_AUDIT:'#DC2626',KPI_EDIT:'#0195af',KPI_ADD:'#16A34A',KPI_DEL:'#DC2626',GAP_EDIT:'#D97706',LOGIN:'#0F9B58',LOGOUT:'#64748B',PORTAL_OPEN:'#0EA5E9',PAGE_VIEW:'#6366F1',FILTER_CHANGE:'#8B5CF6',LANGUAGE_CHANGE:'#14B8A6',GRC_NAV:'#0891B2',REPORT_UPLOAD:'#16A34A',REPORT_DELETE:'#DC2626',COMPLIANCE_UPLOAD:'#16A34A',COMPLIANCE_DELETE:'#DC2626',EXPORT_EXCEL:'#7C3AED',EXPORT_REPORT:'#7C3AED',ROLE_CHANGE:'#EC4899',LOGIN_FAIL:'#DC2626',SESSION_TIMEOUT:'#B45309'};
+  const AL={ADMIN_OPEN:'Open Admin Panel',CLEAR_AUDIT:'Clear Audit Log',KPI_EDIT:'Edit KPI',KPI_ADD:'Add KPI',KPI_DEL:'Delete KPI',GAP_EDIT:'Gap Analysis',LOGIN:'User Login',LOGIN_FAIL:'Failed Login',LOGOUT:'User Logout',PORTAL_OPEN:'Open Portal',PAGE_VIEW:'Open Page',FILTER_CHANGE:'Change Filter',LANGUAGE_CHANGE:'Change Language',GRC_NAV:'GRC Navigation',REPORT_UPLOAD:'Upload Report',REPORT_DELETE:'Delete Report',COMPLIANCE_UPLOAD:'Upload Compliance PDF',COMPLIANCE_DELETE:'Delete Compliance PDF',SESSION_TIMEOUT:'Session Timeout',EXPORT_EXCEL:'Export Excel',EXPORT_REPORT:'Export Report',ROLE_CHANGE:'Role Change'};
 
   /* Build rows via DOM API (avoids quote-escaping issues) */
   function mkRow(e, i){
@@ -1255,42 +1274,25 @@ function loadAuditLog(){
   el.appendChild(wrap);
 }
 
-async function clearAuditLog(buttonEl){
+async function clearAuditLog(){
   if(!confirm('Clear all audit records permanently? This cannot be undone.'))return;
-
-  const btn=buttonEl||null;
-  const previous=Array.isArray(ST.audit)?ST.audit.slice():[];
-  if(btn){btn.disabled=true;btn.textContent='Clearing…';}
-
+  const previous=_combinedAuditLog();
+  ST.audit=[];window.__qumcAuditCloudLog=[];
+  try{localStorage.setItem('kpi_v3',JSON.stringify(Object.assign({},ST,{_v:3})));}catch(_){}
+  loadAuditLog();
+  toast('Clearing audit log…');
   try{
-    /* Clear the screen and local cache immediately, then remove the shared
-       Firestore audit data so it cannot return after refresh or next login. */
-    ST.audit=[];
-    sLS(ST);
-    loadAuditLog();
-
-    if(typeof window._clearAuditLogFS!=='function'){
-      throw new Error('Firestore clear function is unavailable');
-    }
-    await window._clearAuditLogFS();
-
-    /* Persist the empty local copy again after the cloud delete completes. */
-    ST.audit=[];
-    sLS(ST);
-    loadAuditLog();
-    toast('Audit log permanently cleared');
+    if(typeof window._clearAuditFromFS!=='function')throw new Error('Cloud audit service unavailable');
+    await window._clearAuditFromFS();
+    ST.audit=[];window.__qumcAuditCloudLog=[];
+    loadAuditLog();toast('Audit log permanently cleared');
   }catch(e){
-    /* Do not show a false success. Restore the records if Firestore rejected
-       the deletion, for example because of permissions or connection loss. */
-    ST.audit=previous;
-    sLS(ST);
-    loadAuditLog();
-    console.error('[AUDIT] Permanent clear failed:',e);
-    toast('Could not clear audit log permanently');
-  }finally{
-    if(btn){btn.disabled=false;btn.textContent=' Clear Log';}
+    ST.audit=previous.slice();window.__qumcAuditCloudLog=previous.slice();
+    loadAuditLog();toast('Could not clear audit log');
+    console.error('[AUDIT] permanent clear failed',e);
   }
 }
+window.clearAuditLog=clearAuditLog;
 
 /* ==========================================
    MISC
