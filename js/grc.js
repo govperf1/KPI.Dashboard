@@ -382,6 +382,25 @@
 
 
 
+
+  /* Approved Housekeeping policies supplied for the Governance policy register. */
+  var HOUSEKEEPING_POLICY_SEED=[
+    {"id":"POL-HK-01","name":"APPROVED LIST OF DISINFECTANTS","code":"QUMC-DPP-FMS/HK-01","issueDate":"2023-01-01","effectiveDate":"2023-04-01","reviewDate":"2026-01-01","status":"invalid","department":"housekeeping"},
+    {"id":"POL-HK-02","name":"CLEANING OF AMBULANCE","code":"QUMC-DPP-FMS/HK-02","issueDate":"2023-01-01","effectiveDate":"2023-04-01","reviewDate":"2026-01-01","status":"invalid","department":"housekeeping"},
+    {"id":"POL-HK-03","name":"CLEANING OF FURNITURE","code":"QUMC-DPP-FMS/HK-03","issueDate":"2023-01-01","effectiveDate":"2023-04-01","reviewDate":"2026-01-01","status":"invalid","department":"housekeeping"},
+    {"id":"POL-HK-04","name":"CLEANING OF MORTUARY","code":"QUMC-DPP-FMS/HK-04","issueDate":"2023-01-01","effectiveDate":"2023-04-01","reviewDate":"2026-01-01","status":"invalid","department":"housekeeping"},
+    {"id":"POL-HK-05","name":"CLEANING SUPPLIES: HAND SOAP, ANTISEPTICS, PAPER TOWELS, TOILET PAPER, AND OTHER SUPPLIES","code":"QUMC-DPP-FMS/HK-05","issueDate":"2023-01-01","effectiveDate":"2023-04-01","reviewDate":"2026-01-01","status":"invalid","department":"housekeeping"},
+    {"id":"POL-HK-06","name":"CLEANING OF VACANT PATIENT ROOM","code":"QUMC-DPP-FMS/HK-06","issueDate":"2023-01-01","effectiveDate":"2023-04-01","reviewDate":"2026-01-01","status":"invalid","department":"housekeeping"},
+    {"id":"POL-HK-07","name":"GENERAL HOUSEKEEPING","code":"QUMC-DPP-FMS/HK-07","issueDate":"2023-01-01","effectiveDate":"2023-04-01","reviewDate":"2026-01-01","status":"invalid","department":"housekeeping"},
+    {"id":"POL-HK-08","name":"HOUSEKEEPING COMPETENCY EVALUATION","code":"QUMC-DPP-FMS/HK-08","issueDate":"2023-01-01","effectiveDate":"2023-04-01","reviewDate":"2026-01-01","status":"invalid","department":"housekeeping"},
+    {"id":"POL-HK-09","name":"CLEANING OF ISOLATION ROOMS","code":"QUMC-DPP-FMS/HK-09","issueDate":"2023-01-01","effectiveDate":"2023-04-01","reviewDate":"2026-01-01","status":"invalid","department":"housekeeping"},
+    {"id":"POL-HK-10","name":"JANITORIAL SERVICE: CSSD","code":"QUMC-DPP-FMS/HK-10","issueDate":"2023-01-01","effectiveDate":"2023-04-01","reviewDate":"2026-01-01","status":"invalid","department":"housekeeping"},
+    {"id":"POL-HK-11","name":"MEDICAL HAZARDOUS WASTE MANAGEMENT","code":"QUMC-DPP-FMS/HK-11","issueDate":"2023-01-01","effectiveDate":"2023-04-01","reviewDate":"2026-01-01","status":"invalid","department":"housekeeping"},
+    {"id":"POL-HK-12","name":"ROOM CHECKLIST","code":"QUMC-DPP-FMS/HK-12","issueDate":"2023-01-01","effectiveDate":"2023-04-01","reviewDate":"2026-01-01","status":"invalid","department":"housekeeping"},
+    {"id":"POL-HK-13","name":"TOILET CLEANING","code":"QUMC-DPP-FMS/HK-13","issueDate":"2023-01-01","effectiveDate":"2023-04-01","reviewDate":"2026-01-01","status":"invalid","department":"housekeeping"},
+    {"id":"POL-HK-14","name":"USE OF BLOOD SPILL KIT","code":"QUMC-DPP-FMS/HK-14","issueDate":"2023-01-01","effectiveDate":"2023-04-01","reviewDate":"2026-01-01","status":"invalid","department":"housekeeping"}
+  ];
+
   /* Approved Safety policies supplied for the Governance policy register. */
   var SAFETY_POLICY_SEED=[
     {"id":"POL-SAF-11","name":"CHEMICAL SPILL POLICY","code":"QUMC-DPP-FMS/SAF-11","issueDate":"2023-01-01","effectiveDate":"2023-04-01","reviewDate":"2026-01-01","status":"invalid","department":"safety"},
@@ -440,7 +459,7 @@
       var key=normalizePlanCode(r.code);
       if(key&&!existingByCode[key])existingByCode[key]=r;else unmatched.push(r);
     });
-    var merged=MAINTENANCE_POLICY_SEED.concat(SAFETY_POLICY_SEED).map(function(seed){
+    var merged=MAINTENANCE_POLICY_SEED.concat(SAFETY_POLICY_SEED,HOUSEKEEPING_POLICY_SEED).map(function(seed){
       var key=normalizePlanCode(seed.code),old=existingByCode[key],r=copyRecord(seed);
       if(old){
         if(old.id)r.id=old.id;
