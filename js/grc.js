@@ -598,6 +598,7 @@
   function countFor(key){
     if(key==='governance')return state.policies.length+state.plans.length+state.forms.length;
     if(key==='risk')return state.risks.length+state.incidents.length+state.codes.length;
+    if(key==='compliance')return CBAHI_FMS_ROWS.length+COMPLIANCE_DOCUMENT_SEED.length+(Array.isArray(state.compliance)?state.compliance.length:0);
     if(key==='register')return countFor('governance')+countFor('risk')+state.manuals.length+state.compliance.length+state.audits.length+state.actions.length+state.documents.length;
     return Array.isArray(state[key])?state[key].length:0;
   }
@@ -1145,21 +1146,21 @@
       return'<td'+(cls?' class="'+cls+'"':'')+(rowspan>1?' rowspan="'+rowspan+'"':'')+'>'+html+'</td>';
     }
     var rows=CBAHI_FMS_ROWS.map(function(r,rowIndex){return'<tr>'+ 
-      cell(r,rowIndex,0,'',esc(r[0]||'—'))+
-      cell(r,rowIndex,1,'grc-id',esc(r[1]||'—'))+
-      cell(r,rowIndex,2,'',esc(r[2]||'—'))+
-      cell(r,rowIndex,3,'grc-id',esc(r[3]||'—'))+
-      cell(r,rowIndex,4,'',esc(r[4]||'—'))+
-      cell(r,rowIndex,5,'grc-id',esc(r[5]||'—'))+
-      cell(r,rowIndex,6,'',esc(r[6]||'—'))+
-      cell(r,rowIndex,7,'',esc(r[7]||'—'))+
-      cell(r,rowIndex,8,'','<span class="grc-cbahi-status '+cbahiStatusClass(r[8])+'">'+esc(cbahiStatusLabel(r[8]))+'</span>')+
+      cell(r,rowIndex,0,'grc-cbahi-chapter',esc(r[0]||'—'))+
+      cell(r,rowIndex,1,'grc-id grc-cbahi-standard',esc(r[1]||'—'))+
+      cell(r,rowIndex,2,'grc-cbahi-description',esc(r[2]||'—'))+
+      cell(r,rowIndex,3,'grc-id grc-cbahi-substandard',esc(r[3]||'—'))+
+      cell(r,rowIndex,4,'grc-cbahi-description',esc(r[4]||'—'))+
+      cell(r,rowIndex,5,'grc-id grc-cbahi-specific',esc(r[5]||''))+
+      cell(r,rowIndex,6,'grc-cbahi-specific-desc',esc(r[6]||''))+
+      cell(r,rowIndex,7,'grc-cbahi-department',esc(r[7]||'—'))+
+      cell(r,rowIndex,8,'grc-cbahi-status-cell','<span class="grc-cbahi-status '+cbahiStatusClass(r[8])+'">'+esc(cbahiStatusLabel(r[8]))+'</span>')+
       cell(r,rowIndex,9,'grc-cbahi-score',esc(r[9]===0?'0':r[9]||'—'))+
-      cell(r,rowIndex,10,'',esc(r[10]||'—'))+
-      cell(r,rowIndex,11,'',esc(r[11]||'—'))+
-      cell(r,rowIndex,12,'',esc(r[12]||'—'))+
-      cell(r,rowIndex,13,'',esc(r[13]||'—'))+
-      cell(r,rowIndex,14,'',esc(r[14]||'—'))+'</tr>';}).join('');
+      cell(r,rowIndex,10,'grc-cbahi-activity',esc(r[10]||'—'))+
+      cell(r,rowIndex,11,'grc-cbahi-evidence',esc(r[11]||'—'))+
+      cell(r,rowIndex,12,'grc-cbahi-gap',esc(r[12]||'—'))+
+      cell(r,rowIndex,13,'grc-cbahi-cap',esc(r[13]||'—'))+
+      cell(r,rowIndex,14,'grc-cbahi-due',esc(r[14]||'—'))+'</tr>';}).join('');
     return tableHtml('policy',heads,rows).replace('class="grc-table policy"','class="grc-table policy grc-cbahi-table"');
   }
   function cbahiAssessmentSection(){
@@ -1237,7 +1238,7 @@
   }
   function reportBackButton(){return'<div class="grc-report-back-row"><button type="button" class="grc-btn ghost" onclick="window._grcReportBack()">← '+L('backOneLevel')+'</button></div>'; }
   function reportsPage(){ensureOperationalPlanStyles();
-    var content=hero('GRC · Reporting',L('reportsTitle'),L('reportsDesc'))+reportBackButton()+reportAdminToolbar()+reportBreadcrumb();
+    var content=hero('GRC · Reporting',L('reportsTitle'),L('reportsDesc'))+(reportNav.type?reportBackButton():'')+reportAdminToolbar()+reportBreadcrumb();
     if(!reportLibraryLoaded){loadReportLibrary(false);return content+'<div class="grc-report-loading">'+L('reportsLoading')+'</div>';}
     if(reportLibraryError)return content+'<div class="grc-report-error">'+L('reportLoadError')+'<div style="margin-top:12px"><button class="grc-upload-primary" onclick="window._grcRefreshReports()">'+L('refreshReports')+'</button></div></div>';
     if(!reportNav.group)return content+reportTopCards()+reportMetricsAndCharts();
