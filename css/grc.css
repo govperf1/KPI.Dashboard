@@ -763,3 +763,34 @@ body.grc-mode{height:100%;overflow:hidden!important}
   #grcApp .grc-main{padding-top:12px!important;padding-bottom:88px!important}
   #grcApp .grc-footer{min-height:30px;height:30px}
 }
+
+/* CBAHI assessment register — visual hierarchy and easier scanning */
+#grcApp .grc-cbahi-table thead th:nth-child(1),
+#grcApp .grc-cbahi-table thead th:nth-child(2),
+#grcApp .grc-cbahi-table thead th:nth-child(3){background:#EAF3FF;color:#1E4F8A;border-bottom-color:#BFD5EE}
+#grcApp .grc-cbahi-table thead th:nth-child(4),
+#grcApp .grc-cbahi-table thead th:nth-child(5){background:#EAF9F3;color:#176B55;border-bottom-color:#BFE6D7}
+#grcApp .grc-cbahi-table thead th:nth-child(6),
+#grcApp .grc-cbahi-table thead th:nth-child(7){background:#FFF7E6;color:#8A5A13;border-bottom-color:#F0D59E}
+#grcApp .grc-cbahi-table thead th:nth-child(8),
+#grcApp .grc-cbahi-table thead th:nth-child(9),
+#grcApp .grc-cbahi-table thead th:nth-child(10){background:#F2EDFF;color:#5E3BA8;border-bottom-color:#D7C8F5}
+#grcApp .grc-cbahi-table thead th:nth-child(n+11){background:#FFF0F2;color:#8C3F4A;border-bottom-color:#EBC4CA}
+#grcApp .grc-cbahi-table tbody tr:nth-child(even) td:not([rowspan]){background:#FBFDFE}
+#grcApp .grc-cbahi-table tbody tr:hover td{background:#F0F8FB!important}
+#grcApp .grc-cbahi-table td.grc-cbahi-chapter{background:#EAF3FF!important;color:#1E4F8A;font-weight:900;text-align:center}
+#grcApp .grc-cbahi-table td.grc-cbahi-standard{background:#F3F7FD!important;color:#235A91;font-weight:900}
+#grcApp .grc-cbahi-table td.grc-cbahi-substandard{background:#EFFAF6!important;color:#176B55;font-weight:900}
+#grcApp .grc-cbahi-table td.grc-cbahi-specific{background:#FFF9EC!important;color:#7A5417;font-weight:850}
+#grcApp .grc-cbahi-table td.grc-cbahi-description,
+#grcApp .grc-cbahi-table td.grc-cbahi-specific-desc{color:#425E6C}
+#grcApp .grc-cbahi-table td.grc-cbahi-department{background:#F8F4FF!important;color:#6240A0;font-weight:800}
+#grcApp .grc-cbahi-table td.grc-cbahi-status-cell{text-align:center;background:#FCFAFF!important}
+#grcApp .grc-cbahi-table td.grc-cbahi-score{text-align:center;font-weight:950;background:#F8F4FF!important;color:#5E3BA8}
+#grcApp .grc-cbahi-table td.grc-cbahi-activity{background:#F6FBFC!important;color:#315C68}
+#grcApp .grc-cbahi-table td.grc-cbahi-evidence{background:#EFFAF6!important;color:#176B55}
+#grcApp .grc-cbahi-table td.grc-cbahi-gap{background:#FFF4F5!important;color:#9A414D}
+#grcApp .grc-cbahi-table td.grc-cbahi-cap{background:#FFF9EC!important;color:#7A5417}
+#grcApp .grc-cbahi-table td.grc-cbahi-due{background:#F5F7FA!important;color:#4D6270;white-space:nowrap}
+#grcApp .grc-cbahi-table td:empty{background:#fff!important}
+#grcApp .grc-cbahi-table tbody tr{border-bottom:1px solid #DFE8ED}
