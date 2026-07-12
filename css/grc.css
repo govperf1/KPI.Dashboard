@@ -674,3 +674,68 @@ body.grc-coming-open{overflow:hidden!important}
   #grcApp .grc-chart-card,#grcApp .grc-exec-domain,#grcApp .grc-exec-snapshot,#grcApp .grc-exec-ops-panel{box-shadow:none!important}
   #grcApp .grc-exec-risk-visuals,#grcApp .grc-exec-operations-grid{display:block}
 }
+
+/* GRC layout and visibility corrections — 2026-07-12 */
+#grcApp *,#grcApp *::before,#grcApp *::after{box-sizing:border-box}
+#grcApp .grc-main{overflow:visible}
+#grcApp .grc-section{min-width:0;clear:both}
+#grcApp .grc-section+.grc-section{margin-top:28px}
+#grcApp .grc-section-head{gap:14px;flex-wrap:wrap}
+#grcApp .grc-metric-grid,#grcApp .grc-chart-grid,#grcApp .grc-module-grid{min-width:0;width:100%}
+#grcApp .grc-metric-card,#grcApp .grc-chart-card,#grcApp .grc-card{min-width:0}
+#grcApp .grc-compliance-overview-grid{grid-template-columns:repeat(3,minmax(190px,1fr));margin-bottom:18px}
+
+/* Keep the heat map clearly separated and show its full border. */
+#grcApp .grc-heatmap-card{
+  margin-top:22px!important;
+  margin-bottom:20px!important;
+  padding:20px 20px 22px!important;
+  border:1.5px solid #CBDCE6!important;
+  box-shadow:0 10px 26px rgba(30,51,86,.075)!important;
+  overflow:auto!important;
+  isolation:isolate;
+}
+#grcApp .grc-heatmap-card:before{height:4px}
+#grcApp .grc-heat-impact-title{margin-top:4px}
+#grcApp .grc-heat-grid{margin-top:12px;min-width:760px}
+#grcApp .grc-exec-risk-heat{padding-top:4px;min-width:0}
+#grcApp .grc-exec-risk-heat>.grc-chart-card{margin-top:0!important}
+
+/* CBAHI register merged cells remain readable and vertically aligned. */
+#grcApp .grc-cbahi-table td[rowspan]{vertical-align:middle;background:#F8FBFD;border-bottom:1px solid #D9E5EC}
+#grcApp .grc-cbahi-table tbody tr:hover td[rowspan]{background:#F1F7FA}
+#grcApp .grc-cbahi-table td{max-width:320px;white-space:normal;overflow-wrap:anywhere;line-height:1.55}
+#grcApp .grc-cbahi-table th{white-space:normal;line-height:1.35;vertical-align:middle}
+#grcApp .grc-cbahi-table{border-collapse:separate;border-spacing:0}
+#grcApp .grc-table-wrap{overflow:auto;max-width:100%;border-radius:15px}
+
+/* Monthly incident status strips: enough room for Total/Open/Closed labels. */
+#grcApp .grc-monthly-strip-card{overflow:visible;min-height:260px}
+#grcApp .grc-year-strip-row{grid-template-columns:minmax(120px,170px) minmax(600px,1fr) minmax(65px,82px);gap:12px}
+#grcApp .grc-year-strip-label strong{white-space:normal;line-height:1.25}
+#grcApp .grc-incident-year-strips{overflow-x:auto;padding:3px 2px 8px}
+#grcApp .grc-year-strip-axis{grid-template-columns:minmax(120px,170px) minmax(600px,1fr) minmax(65px,82px);gap:12px}
+
+/* Modal content must not sit beneath the fixed top bar or appear clipped. */
+#grcApp~.grc-modal-backdrop,.grc-modal-backdrop{padding:72px 22px 24px;align-items:flex-start;overflow:auto}
+.grc-modal{max-height:calc(100vh - 96px);margin:auto}
+.grc-modal.wide{width:min(1120px,calc(100vw - 36px))}
+.grc-modal-head{flex:0 0 auto;position:sticky;top:0;z-index:3}
+.grc-modal-body{min-height:0;padding-bottom:24px}
+
+/* Consistent spacing and no half-hidden cards at common desktop/tablet widths. */
+@media(max-width:1180px){
+  #grcApp .grc-compliance-overview-grid{grid-template-columns:repeat(3,minmax(150px,1fr))}
+  #grcApp .grc-chart-grid{gap:16px}
+}
+@media(max-width:760px){
+  #grcApp .grc-compliance-overview-grid{grid-template-columns:1fr 1fr}
+  #grcApp .grc-compliance-overview-grid .grc-metric-card:last-child{grid-column:1/-1}
+  #grcApp .grc-heatmap-card{padding:15px!important;margin-top:18px!important}
+  .grc-modal-backdrop{padding:68px 10px 14px}
+  .grc-modal,.grc-modal.wide{width:100%;max-height:calc(100vh - 82px);border-radius:14px}
+}
+@media(max-width:430px){
+  #grcApp .grc-compliance-overview-grid{grid-template-columns:1fr}
+  #grcApp .grc-compliance-overview-grid .grc-metric-card:last-child{grid-column:auto}
+}
