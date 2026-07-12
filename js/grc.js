@@ -841,20 +841,26 @@
     return'<div class="grc-chart-grid cols-1 grc-chart-after-metrics">'+lineAreaChart(L('incidentTrendChart'),items,chartPalette.teal)+'</div>';
   }
   function incidentMonthlyTrendChartHtml(dept){
-    var incidents=filterDept(state.incidents,dept),years={},monthLabels=isAr()?['ينا','فبر','مار','أبر','ماي','يون','يول','أغس','سبت','أكت','نوف','ديس']:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    incidents.forEach(function(r){var d=parseDate(r.date);if(!d)return;var y=String(d.getFullYear());if(!years[y])years[y]=new Array(12).fill(0);years[y][d.getMonth()]++;});
-    var keys=Object.keys(years).sort(function(a,b){return Number(a)-Number(b);});
-    if(!keys.length){var current=String(new Date().getFullYear());years[current]=new Array(12).fill(0);keys=[current];}
-    var globalMax=1;keys.forEach(function(y){years[y].forEach(function(v){globalMax=Math.max(globalMax,Number(v||0));});});
-    var yearColors=[chartPalette.teal,chartPalette.blue,chartPalette.violet,chartPalette.orange,chartPalette.green,chartPalette.navy];
+    var incidents=filterDept(state.incidents,dept),monthLabels=isAr()?['ينا','فبر','مار','أبر','ماي','يون','يول','أغس','سبت','أكت','نوف','ديس']:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var series=[
+      {label:L('totalIncidents'),values:new Array(12).fill(0),color:chartPalette.teal},
+      {label:L('openIncidents'),values:new Array(12).fill(0),color:chartPalette.coral},
+      {label:L('closedIncidents'),values:new Array(12).fill(0),color:chartPalette.green}
+    ];
+    incidents.forEach(function(r){
+      var d=parseDate(r.date);if(!d)return;var m=d.getMonth();
+      series[0].values[m]++;
+      if(isClosed(r))series[2].values[m]++;else if(isOpen(r))series[1].values[m]++;
+    });
+    var globalMax=1;series.forEach(function(row){row.values.forEach(function(v){globalMax=Math.max(globalMax,Number(v||0));});});
     function rgba(hex,alpha){hex=String(hex||'#52A8A5').replace('#','');if(hex.length===3)hex=hex.split('').map(function(c){return c+c;}).join('');var n=parseInt(hex,16);return'rgba('+((n>>16)&255)+','+((n>>8)&255)+','+(n&255)+','+alpha+')';}
-    var rows=keys.map(function(y,yi){
-      var vals=years[y],total=vals.reduce(function(a,v){return a+Number(v||0);},0),base=yearColors[yi%yearColors.length];
-      var segments=vals.map(function(v,i){var value=Number(v||0),ratio=globalMax?value/globalMax:0,alpha=value?(.26+ratio*.68).toFixed(2):0;var bg=value?rgba(base,alpha):'#edf3f5';var title=monthLabels[i]+' · '+value+' '+L('incidents');return'<span class="grc-month-strip-segment '+(value?'has-value':'is-empty')+'" style="background:'+bg+'" title="'+esc(title)+'"><b>'+(value||'')+'</b></span>';}).join('');
-      return'<div class="grc-year-strip-row"><div class="grc-year-strip-label"><strong>'+y+'</strong></div><div class="grc-year-strip-track" aria-label="'+esc(y)+'">'+segments+'</div><div class="grc-year-strip-total"><strong>'+total+'</strong><span>'+L('incidents')+'</span></div></div>';
+    var rows=series.map(function(row){
+      var total=row.values.reduce(function(a,v){return a+Number(v||0);},0),base=row.color;
+      var segments=row.values.map(function(v,i){var value=Number(v||0),ratio=globalMax?value/globalMax:0,alpha=value?(.26+ratio*.68).toFixed(2):0;var bg=value?rgba(base,alpha):'#edf3f5';var title=monthLabels[i]+' · '+value+' '+L('incidents');return'<span class="grc-month-strip-segment '+(value?'has-value':'is-empty')+'" style="background:'+bg+'" title="'+esc(title)+'"><b>'+(value||'')+'</b></span>';}).join('');
+      return'<div class="grc-year-strip-row"><div class="grc-year-strip-label"><strong>'+esc(row.label)+'</strong></div><div class="grc-year-strip-track" aria-label="'+esc(row.label)+'">'+segments+'</div><div class="grc-year-strip-total"><strong>'+total+'</strong><span>'+L('incidents')+'</span></div></div>';
     }).join('');
     var axis='<div class="grc-year-strip-axis"><span></span><div>'+monthLabels.map(function(m){return'<small>'+m+'</small>';}).join('')+'</div><span></span></div>';
-    return'<div class="grc-chart-grid cols-1 grc-chart-after-metrics"><div class="grc-chart-card grc-monthly-strip-card"><div class="grc-chart-head"><div><div class="grc-chart-title"><span class="grc-chart-mark"></span>'+L('monthlyIncidentTrend')+'</div><div class="grc-chart-caption">'+L('incidentsByYear')+'</div></div><span class="grc-chart-total">'+incidents.length+'</span></div><div class="grc-incident-year-strips">'+rows+axis+'</div></div></div>';
+    return'<div class="grc-chart-grid cols-1 grc-chart-after-metrics"><div class="grc-chart-card grc-monthly-strip-card"><div class="grc-chart-head"><div><div class="grc-chart-title"><span class="grc-chart-mark"></span>'+L('monthlyIncidentTrend')+'</div><div class="grc-chart-caption">'+L('totalIncidents')+' · '+L('openIncidents')+' · '+L('closedIncidents')+'</div></div><span class="grc-chart-total">'+incidents.length+'</span></div><div class="grc-incident-year-strips">'+rows+axis+'</div></div></div>';
   }
   function codeCharts(dept){
     var codes=filterDept(state.codes,dept),real=codes.filter(function(r){return normalizeStatus(r.type)==='real';}).length,drill=codes.filter(function(r){return normalizeStatus(r.type)==='drill';}).length,success=codes.filter(function(r){return normalizeStatus(r.status)==='successful';}).length,failed=codes.filter(function(r){return normalizeStatus(r.status)==='failed';}).length;
@@ -1085,7 +1091,11 @@
       else if(s==='Not Met')status.notmet++;
       else status.na++;
     });
-    var applicable=Math.max(0,CBAHI_FMS_ROWS.length-status.na),score=CBAHI_FMS_ROWS.reduce(function(sum,r){return sum+Number(r[CBAHI_COLS.score]||0);},0),rate=applicable?Math.round((score/(applicable*2))*10000)/100:0;
+    // Not Applicable records are excluded completely from both the numerator and denominator.
+    var applicableRows=CBAHI_FMS_ROWS.filter(function(r){return String(r[CBAHI_COLS.complianceStatus]||'')!=='Not Applicable';});
+    var applicable=applicableRows.length;
+    var score=applicableRows.reduce(function(sum,r){return sum+Number(r[CBAHI_COLS.score]||0);},0);
+    var rate=applicable?Math.round((score/(applicable*2))*10000)/100:0;
     return{total:CBAHI_FMS_ROWS.length,standards:Object.keys(standards).length,fully:status.fully,partial:status.partial,notmet:status.notmet,na:status.na,rate:rate};
   }
   function cbahiAttentionItems(){
@@ -1094,8 +1104,43 @@
   }
   function cbahiTableHtml(){
     var heads=['chapter','standard','standardDescription','subStandard','subStandardDescription','specificRequirement','specificRequirementDescription','responsibleDepartment','complianceStatus','score','assessmentActivities','evidence','gapDescription','cap','dueDate'];
-    var rows=CBAHI_FMS_ROWS.map(function(r){return'<tr>'+
-      '<td>'+esc(r[0]||'—')+'</td><td class="grc-id">'+esc(r[1]||'—')+'</td><td>'+esc(r[2]||'—')+'</td><td class="grc-id">'+esc(r[3]||'—')+'</td><td>'+esc(r[4]||'—')+'</td><td class="grc-id">'+esc(r[5]||'—')+'</td><td>'+esc(r[6]||'—')+'</td><td>'+esc(r[7]||'—')+'</td><td><span class="grc-cbahi-status '+cbahiStatusClass(r[8])+'">'+esc(cbahiStatusLabel(r[8]))+'</span></td><td class="grc-cbahi-score">'+esc(r[9]===0?'0':r[9]||'—')+'</td><td>'+esc(r[10]||'—')+'</td><td>'+esc(r[11]||'—')+'</td><td>'+esc(r[12]||'—')+'</td><td>'+esc(r[13]||'—')+'</td><td>'+esc(r[14]||'—')+'</td></tr>';}).join('');
+    // Merge consecutive identical cells into one visual cell. Chapter intentionally remains row-by-row.
+    // Parent-column checks prevent unrelated blank or repeated values from being merged across groups.
+    var mergeable={1:[],2:[1],3:[1],4:[1,3],5:[1,3],6:[1,3,5],7:[1,3,5],8:[1,3,5],9:[1,3,5],10:[1,3,5],11:[1,3,5],12:[1,3,5],13:[1,3,5],14:[1,3,5]};
+    var spans=CBAHI_FMS_ROWS.map(function(){return{};});
+    Object.keys(mergeable).forEach(function(key){
+      var col=Number(key),parents=mergeable[col],i=0;
+      while(i<CBAHI_FMS_ROWS.length){
+        var value=String(CBAHI_FMS_ROWS[i][col]||'');
+        if(!value){spans[i][col]=1;i++;continue;}
+        var j=i+1;
+        while(j<CBAHI_FMS_ROWS.length&&String(CBAHI_FMS_ROWS[j][col]||'')===value&&parents.every(function(pc){return String(CBAHI_FMS_ROWS[j][pc]||'')===String(CBAHI_FMS_ROWS[i][pc]||'');}))j++;
+        spans[i][col]=j-i;
+        for(var k=i+1;k<j;k++)spans[k][col]=0;
+        i=j;
+      }
+    });
+    function cell(r,rowIndex,col,cls,html){
+      if(col!==0&&spans[rowIndex][col]===0)return'';
+      var rowspan=col===0?1:(spans[rowIndex][col]||1);
+      return'<td'+(cls?' class="'+cls+'"':'')+(rowspan>1?' rowspan="'+rowspan+'"':'')+'>'+html+'</td>';
+    }
+    var rows=CBAHI_FMS_ROWS.map(function(r,rowIndex){return'<tr>'+ 
+      cell(r,rowIndex,0,'',esc(r[0]||'—'))+
+      cell(r,rowIndex,1,'grc-id',esc(r[1]||'—'))+
+      cell(r,rowIndex,2,'',esc(r[2]||'—'))+
+      cell(r,rowIndex,3,'grc-id',esc(r[3]||'—'))+
+      cell(r,rowIndex,4,'',esc(r[4]||'—'))+
+      cell(r,rowIndex,5,'grc-id',esc(r[5]||'—'))+
+      cell(r,rowIndex,6,'',esc(r[6]||'—'))+
+      cell(r,rowIndex,7,'',esc(r[7]||'—'))+
+      cell(r,rowIndex,8,'','<span class="grc-cbahi-status '+cbahiStatusClass(r[8])+'">'+esc(cbahiStatusLabel(r[8]))+'</span>')+
+      cell(r,rowIndex,9,'grc-cbahi-score',esc(r[9]===0?'0':r[9]||'—'))+
+      cell(r,rowIndex,10,'',esc(r[10]||'—'))+
+      cell(r,rowIndex,11,'',esc(r[11]||'—'))+
+      cell(r,rowIndex,12,'',esc(r[12]||'—'))+
+      cell(r,rowIndex,13,'',esc(r[13]||'—'))+
+      cell(r,rowIndex,14,'',esc(r[14]||'—'))+'</tr>';}).join('');
     return tableHtml('policy',heads,rows).replace('class="grc-table policy"','class="grc-table policy grc-cbahi-table"');
   }
   function cbahiAssessmentSection(){
@@ -1118,7 +1163,7 @@
       cbahiTableHtml());
     return'<div class="grc-section grc-cbahi-section">'+sectionHead(L('cbahiSection'),L('cbahiSectionDesc'),s.standards+' '+L('cbahiTotalStandards'))+cards+charts+register+'</div>';
   }
-  function complianceDashboardHtml(){var totalAuthorities=COMPLIANCE_AUTHORITIES.length,totalReq=COMPLIANCE_DOCUMENT_SEED.length,available=COMPLIANCE_DOCUMENT_SEED.filter(function(d){return!!complianceFileDocument(d.id);}).length,missing=Math.max(0,totalReq-available),coverage=pct(available,totalReq);var cards='<div class="grc-metric-grid cols-5">'+metricCard(L('totalAuthorities'),totalAuthorities,'info',L('complianceAuthorities'))+metricCard(L('totalRequirements'),totalReq,'purple',L('records'))+metricCard(L('availableEvidence'),available,'good',L('available'))+metricCard(L('missingEvidence'),missing,'warn',L('attention'))+metricCard(L('evidenceCoverage'),coverage,'info',L('percentage'))+'</div>';var items=COMPLIANCE_AUTHORITIES.map(function(a){return{label:isAr()?a.ar:a.en,value:complianceDocsFor(a.id).length,color:chartPalette.teal};});return'<div class="grc-section">'+sectionHead(L('complianceDashboard'),L('complianceDesc'))+cards+'<div class="grc-chart-grid cols-1">'+barChart(L('requirementsByAuthority'),items)+'</div></div>';}
+  function complianceDashboardHtml(){var totalAuthorities=COMPLIANCE_AUTHORITIES.length,totalReq=COMPLIANCE_DOCUMENT_SEED.length,available=COMPLIANCE_DOCUMENT_SEED.filter(function(d){return!!complianceFileDocument(d.id);}).length,coverage=pct(available,totalReq);var cards='<div class="grc-metric-grid cols-3 grc-compliance-overview-grid">'+metricCard(L('totalAuthorities'),totalAuthorities,'info',L('complianceAuthorities'))+metricCard(L('totalRequirements'),totalReq,'purple',L('records'))+metricCard(L('evidenceCoverage'),coverage,'info',L('percentage'))+'</div>';var items=COMPLIANCE_AUTHORITIES.map(function(a){return{label:isAr()?a.ar:a.en,value:complianceDocsFor(a.id).length,color:chartPalette.teal};});return'<div class="grc-section">'+sectionHead(L('complianceDashboard'),L('complianceDesc'))+cards+'<div class="grc-chart-grid cols-1">'+barChart(L('requirementsByAuthority'),items)+'</div></div>';}
   function compliancePage(){
     ensureComplianceStyles();if(!complianceLibraryLoaded&&!complianceLibraryLoading)loadComplianceLibrary(false);
     var top=hero('GRC · Compliance',L('complianceTitle'),L('complianceDesc'));
