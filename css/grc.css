@@ -739,3 +739,27 @@ body.grc-coming-open{overflow:hidden!important}
   #grcApp .grc-compliance-overview-grid{grid-template-columns:1fr}
   #grcApp .grc-compliance-overview-grid .grc-metric-card:last-child{grid-column:auto}
 }
+
+
+/* GRC viewport scrolling fix — 2026-07-12 */
+body.grc-mode{height:100%;overflow:hidden!important}
+#grcApp{height:100vh;height:100dvh;min-height:0}
+#grcApp.grc-visible{display:flex!important;flex-direction:column;min-height:0}
+#grcApp .grc-topbar,#grcApp .grc-nav-wrap,#grcApp .grc-footer{flex:0 0 auto}
+#grcApp .grc-main{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  height:auto!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  overscroll-behavior-y:contain;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-gutter:stable;
+  padding-bottom:72px!important;
+}
+#grcApp .grc-page.is-active{min-height:max-content;padding-bottom:18px}
+#grcApp .grc-department-panel:last-child{margin-bottom:28px}
+@media(max-height:520px){
+  #grcApp .grc-main{padding-top:12px!important;padding-bottom:88px!important}
+  #grcApp .grc-footer{min-height:30px;height:30px}
+}
