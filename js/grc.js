@@ -58,7 +58,7 @@
       recordDetails:'Record Details',close:'Close',delete:'Delete',confirmDelete:'Delete this preview record?',cancel:'Cancel',save:'Save Record',required:'Please complete all required fields.',
       percentage:'Rate',records:'Records',clickToView:'Click to view records',year:'Year',count:'Count',noMatching:'No matching records.',filterAll:'All',filterByColumn:'Filter each column',clearFilters:'Clear Filters',complianceAuthorities:'Regulatory & Accreditation Authorities',selectAuthority:'Select an authority to view its compliance requirements and evidence register.',complianceDashboard:'Compliance Overview',totalAuthorities:'Total Authorities',totalRequirements:'Total Requirements',availableEvidence:'Available Evidence',missingEvidence:'Missing Evidence',evidenceCoverage:'Evidence Coverage Rate',requirementsByAuthority:'Requirements by Authority',authorityRecords:'Compliance Records',backToAuthorities:'Back to Authorities',reportViewerHelp:'Use the PDF toolbar to search text and move between page numbers.',backOneLevel:'Back',addExternalLink:'Add External Link',replaceExternalLink:'Replace External Link',externalLink:'External Link',externalLinkUrl:'External document URL',saveLink:'Save Link',linkSaved:'External link saved successfully.',invalidLink:'Enter a valid link beginning with https:// or http://.',openExternalLink:'Open External Link',externalLinkHelp:'The external website may block embedded viewing. Use Open External Link to view it in a new tab.',
       cbahiSection:'CBAHI FMS Compliance Assessment',cbahiSectionDesc:'Facility Management and Safety standards assessment imported from the complete CBAHI assessment tool.',cbahiTotalStandards:'Total Standards',cbahiTotalRequirements:'Total Requirements',cbahiFullyMet:'Fully Met',cbahiPartiallyMet:'Partially Met',cbahiNotMet:'Not Met',cbahiNotApplicable:'Not Applicable',cbahiComplianceRate:'Compliance Rate',cbahiStatusDistribution:'Compliance Status Distribution',cbahiAttentionByStandard:'Requirements Needing Attention by Standard',cbahiRegister:'CBAHI FMS Assessment Register',cbahiRegisterDesc:'Complete assessment records imported from the CBAHI Facility Management and Safety assessment tool.',chapter:'Chapter',standard:'Standard',standardDescription:'Standard Description',subStandard:'Sub-standard',subStandardDescription:'Sub-standard Description',specificRequirement:'Specific Requirement',specificRequirementDescription:'Specific Requirement Description',responsibleDepartment:'Responsible Department',complianceStatus:'Compliance Status',score:'Score',assessmentActivities:'Assessment Activities',evidence:'Evidence',gapDescription:'Gap Description',cap:'CAP',
-      complianceTitle:'Compliance',complianceDesc:'Regulatory requirements, evidence and corrective actions.',auditTitle:'Audit & Assurance',auditDesc:'Audit findings, recommendations and closure evidence.',actionsTitle:'Action Plans',actionsDesc:'Actions arising from risks, incidents, compliance gaps and reviews.',documentsTitle:'Documents & Records',documentsDesc:'Supporting controlled documents and historical records.',reportsTitle:'Reports',reportsDesc:'Annual and quarterly Facility Management & Safety Division reports available for direct viewing inside the platform.',uploadReport:'Upload Report',reportManager:'Report Management',reportManagerDesc:'Upload and manage PDF reports directly from the platform.',reportFamily:'Report Family',reportKind:'Document Type',reportYear:'Year',reportQuarter:'Quarter',reportTitleEn:'English Title',reportTitleAr:'Arabic Title',reportPages:'Pages (optional)',choosePdf:'Choose PDF File',pdfOnly:'PDF files only, up to 50 MB. Files are synchronized through Firestore.',uploading:'Uploading…',uploadComplete:'Report uploaded successfully.',uploadFailed:'Upload failed.',deleteReport:'Delete Report',replaceReport:'Replace Report',confirmDeleteReport:'Delete this report permanently?',refreshReports:'Refresh',reportsLoading:'Loading reports…',reportLoadError:'Reports could not be loaded from Firestore. Check the connection and try again.',facilitiesReport:'Facility Management & Safety Division Report',executiveSummary:'Executive Summary',fileTooLarge:'The PDF must be 50 MB or smaller.',invalidPdf:'Please select a valid PDF file.',storagePlanError:'The shared report service is unavailable. Check the Firestore connection.',reportsHub:'Reports Library',reportLibraryDesc:'Select the report family, type, year and quarter to open the report inside the platform.',annualReports:'Annual',quarterlyReports:'Quarterly',annualExecutiveSummary:'Annual Executive Summary',annualFmsReport:'Annual Facility Management & Safety Division Report',quarterlyExecutiveSummary:'Quarterly Executive Summary',quarterlyFmsReport:'Quarterly Facility Management & Safety Division Report',selectReportType:'Select Report Type',selectYear:'Select Year',selectQuarter:'Select Quarter',reportDocuments:'Report Documents',quarterlyDocuments:'Quarterly Reports',executiveSummaries:'Executive Summaries',annualDocuments:'Annual Reports',availableYears:'Reporting Years',reportsByYear:'Reports by Type',reportCoverage:'Report Coverage by Year',reportViewer:'Report Viewer',available:'Available',unavailable:'Not Available',openFullScreen:'Open Full Screen',noReportAvailable:'No report is available for this selection yet.',q1:'Quarter 1',q2:'Quarter 2',q3:'Quarter 3',q4:'Quarter 4',monthlyIncidentTrend:'Monthly Incident Trend by Year',pages:'pages',guidelinesLibrary:'Guidelines',guidelinesLibraryDesc:'Approved guidance resources and reference documents.',guidanceDocument:'Guidance Document',arabicGuide:'Arabic',englishGuide:'English',jciSection:'JCI FMS Compliance Assessment',jciSectionDesc:'Joint Commission International Facility Management and Safety assessment.',jciRegister:'JCI FMS Assessment Register',jciRegisterDesc:'JCI assessment register ready for future records.',
+      complianceTitle:'Compliance',complianceDesc:'Regulatory requirements, evidence and corrective actions.',auditTitle:'Audit & Assurance',auditDesc:'Audit findings, recommendations and closure evidence.',actionsTitle:'Action Plans',actionsDesc:'Actions arising from risks, incidents, compliance gaps and reviews.',documentsTitle:'Documents & Records',documentsDesc:'Supporting controlled documents and historical records.',reportsTitle:'Reports',reportsDesc:'Annual and quarterly Facility Management & Safety Division reports available for direct viewing inside the platform.',uploadReport:'Upload Report',reportManager:'Report Management',reportManagerDesc:'Upload and manage PDF reports directly from the platform.',reportFamily:'Report Family',reportKind:'Document Type',reportYear:'Year',reportQuarter:'Quarter',reportTitleEn:'English Title',reportTitleAr:'Arabic Title',reportPages:'Pages (optional)',choosePdf:'Choose PDF File',pdfOnly:'PDF files only, up to 50 MB. Files are synchronized through Firestore.',uploading:'Uploading…',uploadComplete:'Report uploaded successfully.',uploadFailed:'Upload failed.',deleteReport:'Delete Report',replaceReport:'Replace Report',confirmDeleteReport:'Delete this report permanently?',refreshReports:'Refresh',reportsLoading:'Loading reports…',reportLoadError:'Reports could not be loaded from Firestore. Check the connection and try again.',facilitiesReport:'Facility Management & Safety Division Report',executiveSummary:'Executive Summary',fileTooLarge:'The PDF must be 50 MB or smaller.',invalidPdf:'Please select a valid PDF file.',storagePlanError:'The shared report service is unavailable. Check the Firestore connection.',reportsHub:'Reports Library',reportLibraryDesc:'Select the report family, type, year and quarter to open the report inside the platform.',annualReports:'Annual',quarterlyReports:'Quarterly',annualExecutiveSummary:'Annual Executive Summary',annualFmsReport:'Annual Facility Management & Safety Division Report',quarterlyExecutiveSummary:'Quarterly Executive Summary',quarterlyFmsReport:'Quarterly Facility Management & Safety Division Report',selectReportType:'Select Report Type',selectYear:'Select Year',selectQuarter:'Select Quarter',reportDocuments:'Report Documents',quarterlyDocuments:'Quarterly Reports',executiveSummaries:'Executive Summaries',annualDocuments:'Annual Reports',availableYears:'Reporting Years',reportsByYear:'Reports by Type',reportCoverage:'Report Coverage by Year',reportViewer:'Report Viewer',available:'Available',unavailable:'Not Available',openFullScreen:'Open Full Screen',noReportAvailable:'No report is available for this selection yet.',q1:'Quarter 1',q2:'Quarter 2',q3:'Quarter 3',q4:'Quarter 4',monthlyIncidentTrend:'Monthly Incident Trend by Year',pages:'pages',guidelinesLibrary:'Facility Management and Safety Guides',guidelinesLibraryDesc:'Approved guidance resources and reference documents.',guidanceDocument:'Guideline',arabicGuide:'Arabic',englishGuide:'English',jciSection:'JCI FMS Compliance Assessment',jciSectionDesc:'Joint Commission International Facility Management and Safety assessment.',jciRegister:'JCI FMS Assessment Register',jciRegisterDesc:'JCI assessment register ready for future records.',
       comingTitle:'GRC Module',comingSub:'This module is currently under development.',comingSoon:'Coming Soon',
       authority:'Authority / Standard',requirement:'Requirement',severity:'Severity',source:'Source',progress:'Progress Rate %',title:'Title / Description',dueDate:'Due Date',
       addRequirement:'Add Requirement',addFinding:'Add Finding',addAction:'Add Action',addDocument:'Add Document',compliant:'Compliant',partial:'Partially Compliant',nonCompliant:'Non-Compliant',notApplicable:'Not Applicable',major:'Major',minor:'Minor',observation:'Observation',pendingVerification:'Pending Verification',pendingApproval:'Pending Approval'
@@ -98,7 +98,7 @@
       recordDetails:'تفاصيل السجلات',close:'إغلاق',delete:'حذف',confirmDelete:'هل تريد حذف سجل المعاينة؟',cancel:'إلغاء',save:'حفظ السجل',required:'يرجى تعبئة جميع الحقول المطلوبة.',
       percentage:'المعدل',records:'السجلات',clickToView:'اضغط لعرض السجلات',year:'السنة',count:'العدد',noMatching:'لا توجد سجلات مطابقة.',filterAll:'الكل',filterByColumn:'تصفية كل عمود',clearFilters:'مسح الفلاتر',complianceAuthorities:'الجهات التنظيمية والاعتمادية',selectAuthority:'اختر الجهة لعرض متطلبات الالتزام والأدلة الخاصة بها.',complianceDashboard:'نظرة عامة على الالتزام',totalAuthorities:'إجمالي الجهات',totalRequirements:'إجمالي المتطلبات',availableEvidence:'الأدلة المتاحة',missingEvidence:'الأدلة غير المرفوعة',evidenceCoverage:'معدل تغطية الأدلة',requirementsByAuthority:'المتطلبات حسب الجهة',authorityRecords:'سجلات الالتزام',backToAuthorities:'العودة إلى الجهات',reportViewerHelp:'استخدم شريط أدوات PDF للبحث داخل التقرير والتنقل بين أرقام الصفحات.',backOneLevel:'رجوع',addExternalLink:'إضافة رابط خارجي',replaceExternalLink:'استبدال الرابط الخارجي',externalLink:'رابط خارجي',externalLinkUrl:'رابط المستند الخارجي',saveLink:'حفظ الرابط',linkSaved:'تم حفظ الرابط الخارجي بنجاح.',invalidLink:'أدخل رابطًا صحيحًا يبدأ بـ https:// أو http://.',openExternalLink:'فتح الرابط الخارجي',externalLinkHelp:'قد يمنع الموقع الخارجي عرضه داخل المنصة. استخدم فتح الرابط الخارجي لعرضه في تبويب جديد.',
       cbahiSection:'تقييم التزام سباهي لإدارة المرافق والسلامة',cbahiSectionDesc:'تقييم معايير إدارة المرافق والسلامة المستورد من أداة التقييم الكاملة لسباهي.',cbahiTotalStandards:'إجمالي المعايير',cbahiTotalRequirements:'إجمالي المتطلبات',cbahiFullyMet:'محقق بالكامل',cbahiPartiallyMet:'محقق جزئياً',cbahiNotMet:'غير محقق',cbahiNotApplicable:'غير منطبق',cbahiComplianceRate:'معدل الالتزام',cbahiStatusDistribution:'توزيع حالات الالتزام',cbahiAttentionByStandard:'المتطلبات التي تحتاج متابعة حسب المعيار',cbahiRegister:'سجل تقييم سباهي لإدارة المرافق والسلامة',cbahiRegisterDesc:'جميع سجلات التقييم المستوردة من أداة تقييم سباهي لإدارة المرافق والسلامة.',chapter:'الفصل',standard:'المعيار',standardDescription:'وصف المعيار',subStandard:'المعيار الفرعي',subStandardDescription:'وصف المعيار الفرعي',specificRequirement:'المتطلب المحدد',specificRequirementDescription:'وصف المتطلب المحدد',responsibleDepartment:'القسم المسؤول',complianceStatus:'حالة الالتزام',score:'الدرجة',assessmentActivities:'أنشطة التقييم',evidence:'الدليل',gapDescription:'وصف الفجوة',cap:'خطة الإجراء التصحيحي',
-      complianceTitle:'الالتزام',complianceDesc:'المتطلبات النظامية والأدلة والإجراءات التصحيحية.',auditTitle:'التدقيق والتوكيد',auditDesc:'ملاحظات التدقيق والتوصيات وأدلة الإغلاق.',actionsTitle:'خطط العمل',actionsDesc:'الإجراءات الناتجة من المخاطر والحوادث وفجوات الالتزام والمراجعات.',documentsTitle:'الوثائق والسجلات',documentsDesc:'الوثائق المساندة والسجلات التاريخية المنضبطة.',reportsTitle:'التقارير',reportsDesc:'التقارير السنوية والربعية لإدارة المرافق والسلامة متاحة للقراءة المباشرة داخل المنصة.',uploadReport:'رفع تقرير',reportManager:'إدارة التقارير',reportManagerDesc:'رفع ملفات PDF وإدارتها مباشرة من المنصة.',reportFamily:'نوع التقارير',reportKind:'نوع المستند',reportYear:'السنة',reportQuarter:'الربع',reportTitleEn:'العنوان بالإنجليزية',reportTitleAr:'العنوان بالعربية',reportPages:'عدد الصفحات (اختياري)',choosePdf:'اختيار ملف PDF',pdfOnly:'ملفات PDF فقط، بحد أقصى 50 ميجابايت. تتم مزامنتها عبر Firestore.',uploading:'جاري الرفع…',uploadComplete:'تم رفع التقرير بنجاح.',uploadFailed:'تعذر رفع التقرير.',deleteReport:'حذف التقرير',replaceReport:'استبدال التقرير',confirmDeleteReport:'هل تريد حذف هذا التقرير نهائياً؟',refreshReports:'تحديث',reportsLoading:'جاري تحميل التقارير…',reportLoadError:'تعذر تحميل التقارير من Firestore. تحقق من الاتصال ثم حاول مجدداً.',facilitiesReport:'تقرير إدارة المرافق والسلامة',executiveSummary:'الملخص التنفيذي',fileTooLarge:'يجب ألا يتجاوز حجم ملف PDF ‏50 ميجابايت.',invalidPdf:'يرجى اختيار ملف PDF صحيح.',storagePlanError:'خدمة التقارير المشتركة غير متاحة. تحقق من اتصال Firestore.',reportsHub:'مكتبة التقارير',reportLibraryDesc:'اختر نوع التقارير ونوع المستند والسنة والربع لفتح التقرير داخل المنصة.',annualReports:'السنوي',quarterlyReports:'الربعي',annualExecutiveSummary:'الملخص التنفيذي السنوي',annualFmsReport:'التقرير السنوي لإدارة المرافق والسلامة',quarterlyExecutiveSummary:'الملخص التنفيذي الربعي',quarterlyFmsReport:'التقرير الربعي لإدارة المرافق والسلامة',selectReportType:'اختر نوع التقرير',selectYear:'اختر السنة',selectQuarter:'اختر الربع',reportDocuments:'إجمالي مستندات التقارير',quarterlyDocuments:'التقارير الربعية',executiveSummaries:'الملخصات التنفيذية',annualDocuments:'التقارير السنوية',availableYears:'سنوات التقارير',reportsByYear:'التقارير حسب النوع',reportCoverage:'تغطية التقارير حسب السنة',reportViewer:'عارض التقرير',available:'متاح',unavailable:'غير متاح',openFullScreen:'عرض بملء الشاشة',noReportAvailable:'لا يوجد تقرير متاح لهذا الاختيار حالياً.',q1:'الربع الأول',q2:'الربع الثاني',q3:'الربع الثالث',q4:'الربع الرابع',monthlyIncidentTrend:'الاتجاه الشهري للحوادث حسب السنة',pages:'صفحة',guidelinesLibrary:'الأدلة',guidelinesLibraryDesc:'الأدلة الإرشادية والمراجع المعتمدة.',guidanceDocument:'دليل إرشادي',arabicGuide:'عربي',englishGuide:'English',jciSection:'JCI FMS Compliance Assessment',jciSectionDesc:'تقييم متطلبات إدارة المرافق والسلامة وفق اعتماد JCI.',jciRegister:'JCI FMS Assessment Register',jciRegisterDesc:'سجل تقييم JCI جاهز لإضافة البيانات مستقبلاً.',
+      complianceTitle:'الالتزام',complianceDesc:'المتطلبات النظامية والأدلة والإجراءات التصحيحية.',auditTitle:'التدقيق والتوكيد',auditDesc:'ملاحظات التدقيق والتوصيات وأدلة الإغلاق.',actionsTitle:'خطط العمل',actionsDesc:'الإجراءات الناتجة من المخاطر والحوادث وفجوات الالتزام والمراجعات.',documentsTitle:'الوثائق والسجلات',documentsDesc:'الوثائق المساندة والسجلات التاريخية المنضبطة.',reportsTitle:'التقارير',reportsDesc:'التقارير السنوية والربعية لإدارة المرافق والسلامة متاحة للقراءة المباشرة داخل المنصة.',uploadReport:'رفع تقرير',reportManager:'إدارة التقارير',reportManagerDesc:'رفع ملفات PDF وإدارتها مباشرة من المنصة.',reportFamily:'نوع التقارير',reportKind:'نوع المستند',reportYear:'السنة',reportQuarter:'الربع',reportTitleEn:'العنوان بالإنجليزية',reportTitleAr:'العنوان بالعربية',reportPages:'عدد الصفحات (اختياري)',choosePdf:'اختيار ملف PDF',pdfOnly:'ملفات PDF فقط، بحد أقصى 50 ميجابايت. تتم مزامنتها عبر Firestore.',uploading:'جاري الرفع…',uploadComplete:'تم رفع التقرير بنجاح.',uploadFailed:'تعذر رفع التقرير.',deleteReport:'حذف التقرير',replaceReport:'استبدال التقرير',confirmDeleteReport:'هل تريد حذف هذا التقرير نهائياً؟',refreshReports:'تحديث',reportsLoading:'جاري تحميل التقارير…',reportLoadError:'تعذر تحميل التقارير من Firestore. تحقق من الاتصال ثم حاول مجدداً.',facilitiesReport:'تقرير إدارة المرافق والسلامة',executiveSummary:'الملخص التنفيذي',fileTooLarge:'يجب ألا يتجاوز حجم ملف PDF ‏50 ميجابايت.',invalidPdf:'يرجى اختيار ملف PDF صحيح.',storagePlanError:'خدمة التقارير المشتركة غير متاحة. تحقق من اتصال Firestore.',reportsHub:'مكتبة التقارير',reportLibraryDesc:'اختر نوع التقارير ونوع المستند والسنة والربع لفتح التقرير داخل المنصة.',annualReports:'السنوي',quarterlyReports:'الربعي',annualExecutiveSummary:'الملخص التنفيذي السنوي',annualFmsReport:'التقرير السنوي لإدارة المرافق والسلامة',quarterlyExecutiveSummary:'الملخص التنفيذي الربعي',quarterlyFmsReport:'التقرير الربعي لإدارة المرافق والسلامة',selectReportType:'اختر نوع التقرير',selectYear:'اختر السنة',selectQuarter:'اختر الربع',reportDocuments:'إجمالي مستندات التقارير',quarterlyDocuments:'التقارير الربعية',executiveSummaries:'الملخصات التنفيذية',annualDocuments:'التقارير السنوية',availableYears:'سنوات التقارير',reportsByYear:'التقارير حسب النوع',reportCoverage:'تغطية التقارير حسب السنة',reportViewer:'عارض التقرير',available:'متاح',unavailable:'غير متاح',openFullScreen:'عرض بملء الشاشة',noReportAvailable:'لا يوجد تقرير متاح لهذا الاختيار حالياً.',q1:'الربع الأول',q2:'الربع الثاني',q3:'الربع الثالث',q4:'الربع الرابع',monthlyIncidentTrend:'الاتجاه الشهري للحوادث حسب السنة',pages:'صفحة',guidelinesLibrary:'أدلة إدارة المرافق والسلامة',guidelinesLibraryDesc:'الأدلة الإرشادية والمراجع المعتمدة.',guidanceDocument:'دليل إرشادي',arabicGuide:'عربي',englishGuide:'English',jciSection:'JCI FMS Compliance Assessment',jciSectionDesc:'تقييم متطلبات إدارة المرافق والسلامة وفق اعتماد JCI.',jciRegister:'JCI FMS Assessment Register',jciRegisterDesc:'سجل تقييم JCI جاهز لإضافة البيانات مستقبلاً.',
       comingTitle:'قسم GRC',comingSub:'هذا القسم تحت التطوير حالياً.',comingSoon:'قريباً',
       authority:'الجهة / المعيار',requirement:'المتطلب',severity:'الخطورة',source:'المصدر',progress:'معدل الإنجاز %',title:'العنوان / الوصف',dueDate:'تاريخ الاستحقاق',
       addRequirement:'إضافة متطلب',addFinding:'إضافة ملاحظة',addAction:'إضافة إجراء',addDocument:'إضافة وثيقة',compliant:'ملتزم',partial:'ملتزم جزئياً',nonCompliant:'غير ملتزم',notApplicable:'لا ينطبق',major:'جوهري',minor:'بسيط',observation:'ملاحظة',pendingVerification:'بانتظار التحقق',pendingApproval:'بانتظار الاعتماد'
@@ -487,7 +487,7 @@
         if(old.updatedAt)r.updatedAt=old.updatedAt;
       }
       r.department=seed.department;
-      r.scope='external';
+      r.scope=String(seed.scope||'internal').toLowerCase()==='external'?'external':'internal';
       r.status=normalizeStatus(seed.status);
       seededKeys[key]=1;
       return r;
@@ -1030,15 +1030,19 @@
   }
 
   var manualNav={level:'home',language:null};
+  var FMS_ARABIC_GUIDE_URL='assets/guidelines/fms-facility-safety-guide-ar.pdf';
   function manualBackButton(){return manualNav.level==='home'?'':'<div class="grc-report-back-row"><button type="button" class="grc-btn ghost" onclick="window._grcManualBack()">← '+L('backOneLevel')+'</button></div>';}
   function manualLibraryCards(){
     if(manualNav.level==='home')return'<div class="grc-report-top-grid grc-guideline-top-grid"><button class="grc-report-card" onclick="window._grcOpenGuidanceDocument()"><span class="grc-report-card-icon">▤</span><span><h3>'+L('guidelinesLibrary')+'</h3><p>'+L('guidelinesLibraryDesc')+'</p></span><span class="grc-report-arrow">›</span></button></div>';
     if(manualNav.level==='guide')return'<div class="grc-report-type-grid"><button class="grc-report-card" onclick="window._grcOpenGuideLanguages()"><span class="grc-report-card-icon">▥</span><span><h3>'+L('guidanceDocument')+'</h3><p>'+L('guidelinesLibraryDesc')+'</p></span><span class="grc-report-arrow">›</span></button></div>';
-    return'<div class="grc-report-type-grid grc-guide-language-grid"><button class="grc-report-card"><span class="grc-report-card-icon">ع</span><span><h3>'+L('arabicGuide')+'</h3></span></button><button class="grc-report-card"><span class="grc-report-card-icon">EN</span><span><h3>'+L('englishGuide')+'</h3></span></button></div>';
+    if(manualNav.level==='viewer')return'<div class="grc-report-viewer-card"><div class="grc-report-viewer-head"><div><div class="grc-report-viewer-title">'+L('guidanceDocument')+' - '+L('arabicGuide')+'</div><div class="grc-report-viewer-meta">'+L('guidelinesLibrary')+'</div></div><div class="grc-report-viewer-actions"><button onclick="window._grcOpenArabicGuideFullScreen()">'+L('openFullScreen')+'</button></div></div><iframe class="grc-report-frame" loading="lazy" title="'+L('guidanceDocument')+'" src="'+FMS_ARABIC_GUIDE_URL+'#view=FitH"></iframe></div>';
+    return'<div class="grc-report-type-grid grc-guide-language-grid"><button class="grc-report-card" onclick="window._grcOpenArabicGuide()"><span class="grc-report-card-icon">ع</span><span><h3>'+L('arabicGuide')+'</h3></span><span class="grc-report-availability">'+L('available')+'</span></button><button class="grc-report-card" aria-disabled="true"><span class="grc-report-card-icon">EN</span><span><h3>'+L('englishGuide')+'</h3></span><span class="grc-report-availability off">'+L('unavailable')+'</span></button></div>';
   }
   window._grcOpenGuidanceDocument=function(){manualNav={level:'guide',language:null};render();};
   window._grcOpenGuideLanguages=function(){manualNav={level:'languages',language:null};render();};
-  window._grcManualBack=function(){manualNav=manualNav.level==='languages'?{level:'guide',language:null}:{level:'home',language:null};render();};
+  window._grcOpenArabicGuide=function(){manualNav={level:'viewer',language:'ar'};render();setTimeout(function(){var f=document.querySelector('.grc-report-frame[src^="'+FMS_ARABIC_GUIDE_URL+'"]');if(f)f.scrollIntoView({block:'start',behavior:'smooth'});},0);};
+  window._grcOpenArabicGuideFullScreen=function(){window.open(FMS_ARABIC_GUIDE_URL,'_blank');};
+  window._grcManualBack=function(){if(manualNav.level==='viewer')manualNav={level:'languages',language:null};else if(manualNav.level==='languages')manualNav={level:'guide',language:null};else manualNav={level:'home',language:null};render();};
   function manualsPage(){
     ensureOperationalPlanStyles();ensureGrcEnhancementStyles();
     var arr=state.manuals,expired=arr.filter(isExpired),active=arr.filter(function(r){return normalizeStatus(r.status)==='active'&&!isExpired(r);}),due=arr.filter(expiringThisYear),other=Math.max(0,arr.length-active.length-expired.length-due.length);
@@ -1247,97 +1251,75 @@
       cbahiTableHtml());
     return'<div class="grc-section grc-cbahi-section">'+sectionHead(L('cbahiSection'),L('cbahiSectionDesc'),s.standards+' '+L('cbahiTotalStandards'))+cards+charts+register+'</div>';
   }
-  function jciSummary(){
-    var status={fully:0,partial:0,notmet:0,na:0},standards={},assessed=[];
+  function normalizedJciRows(){
+    var parentDescriptions={};
     JCI_FMS_ROWS.forEach(function(r){
+      var code=String(r[3]||'').trim();
+      if(/^ME\.\d+$/.test(code))parentDescriptions[String(r[1]||'')+'|'+code]=String(r[4]||'');
+    });
+    return JCI_FMS_ROWS.map(function(source){
+      var r=source.slice(),code=String(r[3]||'').trim(),m=code.match(/^(ME\.\d+)\.(\d+)$/);
+      if(m){
+        var specificCode=code,specificDescription=r[4]||'';
+        r[3]=m[1];
+        r[4]=parentDescriptions[String(r[1]||'')+'|'+m[1]]||'';
+        r[5]=specificCode;
+        r[6]=specificDescription;
+      }
+      return r;
+    });
+  }
+  function jciSummary(){
+    var rows=normalizedJciRows(),status={fully:0,notmet:0,na:0},standards={},assessed=[];
+    rows.forEach(function(r){
       if(r[CBAHI_COLS.standard])standards[r[CBAHI_COLS.standard]]=1;
       var value=String(r[CBAHI_COLS.complianceStatus]||'');
       if(value==='Fully Met'){status.fully++;assessed.push(r);}
-      else if(value==='Partially Met'){status.partial++;assessed.push(r);}
       else if(value==='Not Met'){status.notmet++;assessed.push(r);}
       else if(value==='Not Applicable')status.na++;
     });
     var score=assessed.reduce(function(sum,r){return sum+Number(r[CBAHI_COLS.score]||0);},0);
     var rate=assessed.length?Math.round((score/(assessed.length*2))*10000)/100:0;
-    return{total:JCI_FMS_ROWS.length,standards:Object.keys(standards).length,fully:status.fully,partial:status.partial,notmet:status.notmet,na:status.na,rate:rate};
+    return{total:rows.length,standards:Object.keys(standards).length,fully:status.fully,notmet:status.notmet,na:status.na,rate:rate};
   }
   function jciAttentionRows(){
     var map={};
-    JCI_FMS_ROWS.forEach(function(r){
-      var status=String(r[CBAHI_COLS.complianceStatus]||'');
-      if(status!=='Not Met'&&status!=='Partially Met')return;
+    normalizedJciRows().forEach(function(r){
+      if(String(r[CBAHI_COLS.complianceStatus]||'')!=='Not Met')return;
       var key=String(r[CBAHI_COLS.standard]||'Other');
-      if(!map[key])map[key]={notmet:0,partial:0};
-      if(status==='Not Met')map[key].notmet++;else map[key].partial++;
+      map[key]=(map[key]||0)+1;
     });
-    return Object.keys(map).map(function(k){
-      return{label:k,total:map[k].notmet+map[k].partial,segments:[
-        {label:L('cbahiNotMet'),value:map[k].notmet,color:chartPalette.coral},
-        {label:L('cbahiPartiallyMet'),value:map[k].partial,color:chartPalette.amber}
-      ]};
-    }).sort(function(a,b){return b.total-a.total;}).slice(0,10);
+    return Object.keys(map).map(function(k){return{label:k,total:map[k],segments:[{label:L('cbahiNotMet'),value:map[k],color:chartPalette.coral}]};}).sort(function(a,b){return b.total-a.total;}).slice(0,10);
   }
   function jciTableHtml(){
+    var jciRows=normalizedJciRows();
     var heads=['chapter','standard','standardDescription','subStandard','subStandardDescription','specificRequirement','specificRequirementDescription','responsibleDepartment','complianceStatus','score','assessmentActivities','evidence','gapDescription','cap','dueDate'];
     var mergeable={1:[],2:[1],3:[1],4:[1,3],5:[1,3],6:[1,3,5],7:[1,3,5],8:[1,3,5],9:[1,3,5],10:[1,3,5],11:[1,3,5],12:[1,3,5],13:[1,3,5],14:[1,3,5]};
-    var spans=JCI_FMS_ROWS.map(function(){return{};});
+    var spans=jciRows.map(function(){return{};});
     Object.keys(mergeable).forEach(function(key){
       var col=Number(key),parents=mergeable[col],i=0;
-      while(i<JCI_FMS_ROWS.length){
-        var value=String(JCI_FMS_ROWS[i][col]||'');
+      while(i<jciRows.length){
+        var value=String(jciRows[i][col]||'');
         if(!value){spans[i][col]=1;i++;continue;}
         var j=i+1;
-        while(j<JCI_FMS_ROWS.length&&String(JCI_FMS_ROWS[j][col]||'')===value&&parents.every(function(pc){return String(JCI_FMS_ROWS[j][pc]||'')===String(JCI_FMS_ROWS[i][pc]||'');}))j++;
-        spans[i][col]=j-i;
-        for(var k=i+1;k<j;k++)spans[k][col]=0;
-        i=j;
+        while(j<jciRows.length&&String(jciRows[j][col]||'')===value&&parents.every(function(pc){return String(jciRows[j][pc]||'')===String(jciRows[i][pc]||'');}))j++;
+        spans[i][col]=j-i;for(var k=i+1;k<j;k++)spans[k][col]=0;i=j;
       }
     });
-    function cell(rowIndex,col,cls,html){
-      if(col!==0&&spans[rowIndex][col]===0)return'';
-      var rowspan=col===0?1:(spans[rowIndex][col]||1);
-      return'<td'+(cls?' class="'+cls+'"':'')+(rowspan>1?' rowspan="'+rowspan+'"':'')+'>'+html+'</td>';
-    }
-    var rows=JCI_FMS_ROWS.map(function(r,rowIndex){
-      var rawStatus=String(r[8]||'');
+    function cell(rowIndex,col,cls,html){if(col!==0&&spans[rowIndex][col]===0)return'';var rowspan=col===0?1:(spans[rowIndex][col]||1);return'<td'+(cls?' class="'+cls+'"':'')+(rowspan>1?' rowspan="'+rowspan+'"':'')+'>'+html+'</td>';}
+    var rows=jciRows.map(function(r,rowIndex){
+      var rawStatus=String(r[8]||'');if(rawStatus==='Partially Met')rawStatus='';
       var statusHtml=rawStatus?'<span class="grc-cbahi-status '+cbahiStatusClass(rawStatus)+'">'+esc(cbahiStatusLabel(rawStatus))+'</span>':'';
-      return'<tr>'+ 
-        cell(rowIndex,0,'grc-cbahi-chapter',esc(r[0]||'—'))+
-        cell(rowIndex,1,'grc-id grc-cbahi-standard',esc(r[1]||'—'))+
-        cell(rowIndex,2,'grc-cbahi-description',esc(r[2]||'—'))+
-        cell(rowIndex,3,'grc-id grc-cbahi-substandard',esc(r[3]||'—'))+
-        cell(rowIndex,4,'grc-cbahi-description',esc(r[4]||'—'))+
-        cell(rowIndex,5,'grc-id grc-cbahi-specific',esc(r[5]||''))+
-        cell(rowIndex,6,'grc-cbahi-specific-desc',esc(r[6]||''))+
-        cell(rowIndex,7,'grc-cbahi-department',esc(r[7]||'—'))+
-        cell(rowIndex,8,'grc-cbahi-status-cell',statusHtml)+
-        cell(rowIndex,9,'grc-cbahi-score',esc(r[9]===0?'0':r[9]||'—'))+
-        cell(rowIndex,10,'grc-cbahi-activity',esc(r[10]||'—'))+
-        cell(rowIndex,11,'grc-cbahi-evidence',esc(r[11]||'—'))+
-        cell(rowIndex,12,'grc-cbahi-gap',esc(r[12]||'—'))+
-        cell(rowIndex,13,'grc-cbahi-cap',esc(r[13]||'—'))+
-        cell(rowIndex,14,'grc-cbahi-due',esc(r[14]||'—'))+'</tr>';
+      return'<tr>'+cell(rowIndex,0,'grc-cbahi-chapter',esc(r[0]||'—'))+cell(rowIndex,1,'grc-id grc-cbahi-standard',esc(r[1]||'—'))+cell(rowIndex,2,'grc-cbahi-description',esc(r[2]||'—'))+cell(rowIndex,3,'grc-id grc-cbahi-substandard',esc(r[3]||''))+cell(rowIndex,4,'grc-cbahi-description',esc(r[4]||''))+cell(rowIndex,5,'grc-id grc-cbahi-specific',esc(r[5]||''))+cell(rowIndex,6,'grc-cbahi-specific-desc',esc(r[6]||''))+cell(rowIndex,7,'grc-cbahi-department',esc(r[7]||'—'))+cell(rowIndex,8,'grc-cbahi-status-cell',statusHtml)+cell(rowIndex,9,'grc-cbahi-score',esc(r[9]===0?'0':r[9]||'—'))+cell(rowIndex,10,'grc-cbahi-activity',esc(r[10]||'—'))+cell(rowIndex,11,'grc-cbahi-evidence',esc(r[11]||'—'))+cell(rowIndex,12,'grc-cbahi-gap',esc(r[12]||'—'))+cell(rowIndex,13,'grc-cbahi-cap',esc(r[13]||'—'))+cell(rowIndex,14,'grc-cbahi-due',esc(r[14]||'—'))+'</tr>';
     }).join('');
     var table=tableHtml('policy',heads,rows).replace('class="grc-table policy"','class="grc-table policy grc-cbahi-table"').replace('class="grc-table-wrap"','class="grc-table-wrap grc-cbahi-scroll-main" onscroll="this.previousElementSibling.scrollLeft=this.scrollLeft"');
     return'<div class="grc-cbahi-scroll-top" onscroll="this.nextElementSibling.scrollLeft=this.scrollLeft"><div></div></div>'+table;
   }
   function jciAssessmentSection(){
-    ensureCbahiStyles();ensureGrcEnhancementStyles();
-    var s=jciSummary();
-    var cards='<div class="grc-metric-grid cols-6">'+
-      metricCard(L('cbahiTotalRequirements'),s.total,'info',s.standards+' '+L('cbahiTotalStandards'))+
-      metricCard(L('cbahiFullyMet'),s.fully,'good',L('records'))+
-      metricCard(L('cbahiPartiallyMet'),s.partial,'warn',L('records'))+
-      metricCard(L('cbahiNotMet'),s.notmet,'bad',L('records'))+
-      metricCard(L('cbahiNotApplicable'),s.na,'neutral',L('records'))+
-      metricCard(L('cbahiComplianceRate'),s.rate+'%','purple',L('percentage'))+'</div>';
-    var statusItems=[
-      {label:L('cbahiFullyMet'),value:s.fully,color:chartPalette.green},
-      {label:L('cbahiPartiallyMet'),value:s.partial,color:chartPalette.amber},
-      {label:L('cbahiNotMet'),value:s.notmet,color:chartPalette.coral},
-      {label:L('cbahiNotApplicable'),value:s.na,color:chartPalette.slate}
-    ];
-    var charts='<div class="grc-chart-grid cols-2">'+verticalBarChart(L('cbahiStatusDistribution'),statusItems)+stackedBarChart(L('cbahiAttentionByStandard'),jciAttentionRows(),[{label:L('cbahiNotMet'),color:chartPalette.coral},{label:L('cbahiPartiallyMet'),color:chartPalette.amber}])+'</div>';
+    ensureCbahiStyles();ensureGrcEnhancementStyles();var s=jciSummary();
+    var cards='<div class="grc-metric-grid cols-5">'+metricCard(L('cbahiTotalRequirements'),s.total,'info',s.standards+' '+L('cbahiTotalStandards'))+metricCard(L('cbahiFullyMet'),s.fully,'good',L('records'))+metricCard(L('cbahiNotMet'),s.notmet,'bad',L('records'))+metricCard(L('cbahiNotApplicable'),s.na,'neutral',L('records'))+metricCard(L('cbahiComplianceRate'),s.rate+'%','purple',L('percentage'))+'</div>';
+    var statusItems=[{label:L('cbahiFullyMet'),value:s.fully,color:chartPalette.green},{label:L('cbahiNotMet'),value:s.notmet,color:chartPalette.coral},{label:L('cbahiNotApplicable'),value:s.na,color:chartPalette.slate}];
+    var charts='<div class="grc-chart-grid cols-2">'+verticalBarChart(L('cbahiStatusDistribution'),statusItems)+stackedBarChart(L('cbahiAttentionByStandard'),jciAttentionRows(),[{label:L('cbahiNotMet'),color:chartPalette.coral}])+'</div>';
     return'<div class="grc-section grc-cbahi-section grc-jci-section">'+sectionHead(L('jciSection'),L('jciSectionDesc'),s.standards+' '+L('cbahiTotalStandards'))+cards+charts+registerBlock('policy',L('jciRegister'),L('jciRegisterDesc'),'',jciTableHtml())+'</div>';
   }
   function complianceDashboardHtml(){var totalAuthorities=COMPLIANCE_AUTHORITIES.length,totalReq=COMPLIANCE_DOCUMENT_SEED.length;var cards='<div class="grc-metric-grid cols-2 grc-compliance-overview-grid">'+metricCard(L('totalAuthorities'),totalAuthorities,'info',L('complianceAuthorities'))+metricCard(L('totalRequirements'),totalReq,'purple',L('records'))+'</div>';var items=COMPLIANCE_AUTHORITIES.map(function(a){return{label:isAr()?a.ar:a.en,value:complianceDocsFor(a.id).length,color:chartPalette.teal};});return'<div class="grc-section">'+sectionHead(L('complianceDashboard'),L('complianceDesc'))+cards+'<div class="grc-chart-grid cols-1">'+barChart(L('requirementsByAuthority'),items)+'</div></div>';}
