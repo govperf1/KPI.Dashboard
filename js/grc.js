@@ -1053,22 +1053,33 @@
   function ensureExecutiveExtensionStyles(){
     if(document.getElementById('grcExecutiveExtensionStyles'))return;var st=document.createElement('style');st.id='grcExecutiveExtensionStyles';st.textContent='.grc-exec-domain{margin-top:28px}.grc-exec-clickable-cards .grc-metric-card{cursor:pointer}.grc-executive-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.grc-executive-summary-grid button{border:1px solid #dbe6ee;background:#fff;border-radius:16px;padding:20px;text-align:start;box-shadow:0 8px 24px rgba(15,42,55,.06);cursor:pointer}.grc-executive-summary-grid strong{display:block;font-size:25px;color:#123746;margin-bottom:5px}.grc-executive-summary-grid span{font-weight:700;color:#607784}@media(max-width:1000px){.grc-executive-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.grc-executive-summary-grid{grid-template-columns:1fr}}.grc-assessment-readonly.is-required:empty{min-height:28px;border:1px solid #dc2626;border-radius:7px;background:#fff5f5}';document.head.appendChild(st);
   }
-  function executivePage(){
-    ensureOperationalPlanStyles();ensureGrcEnhancementStyles();ensureExecutiveExtensionStyles();
-    if(!reportLibraryLoaded&&!reportLibraryLoading)loadReportLibrary(false);
-    return hero('GRC · Executive Command',L('executiveTitle'),L('executiveDesc'))+
-      governanceModules('executive')+
-      '<div class="grc-divider"></div>'+
-      '<section class="grc-exec-snapshot">'+sectionHead(L('executiveSnapshot'),L('executiveSnapshotDesc'),'FMS')+executiveSnapshotCards()+'</section>'+
-      '<section class="grc-exec-domain governance-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">01</span><h2>'+L('governanceOverview')+'</h2><p>'+L('governanceDesc')+'</p></div><span class="grc-exec-domain-badge">'+countFor('governance')+' '+L('records')+'</span></div>'+governanceOverview('allFms',false,true)+'</section>'+
-      '<section class="grc-exec-domain risk-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">02</span><h2>'+L('riskOverview')+'</h2><p>'+L('riskDesc')+'</p></div><span class="grc-exec-domain-badge">'+countFor('risk')+' '+L('records')+'</span></div>'+riskOverview('allFms',false,true)+'</section>'+
-      '<section class="grc-exec-domain compliance-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">03</span><h2>'+(isAr()?'نظرة الالتزام الإجمالية':'Overall Compliance Overview')+'</h2><p>'+L('complianceDesc')+'</p></div></div>'+executiveOverallCompliance()+'</section>'+
-      '<section class="grc-exec-domain cbahi-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">04</span><h2>CBAHI FMS Compliance Assessment</h2><p>'+L('cbahiSectionDesc')+'</p></div></div>'+executiveCbahiOverview()+'</section>'+
-      '<section class="grc-exec-domain jci-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">05</span><h2>JCI FMS Compliance Assessment</h2><p>'+L('jciSectionDesc')+'</p></div></div>'+executiveJciOverview()+'</section>'+
-      '<section class="grc-exec-domain reports-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">06</span><h2>'+(isAr()?'نظرة عامة على التقارير':'Reports Overview')+'</h2><p>'+L('reportsDesc')+'</p></div></div>'+executiveReportsOverview()+'</section>'+
-      '<section class="grc-exec-domain manuals-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">07</span><h2>'+(isAr()?'نظرة عامة على الأدلة':'Manuals Overview')+'</h2><p>'+L('guidelinesLibraryDesc')+'</p></div></div>'+executiveManualsOverview()+'</section>'+
-      '<section class="grc-exec-domain summary-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">08</span><h2>'+(isAr()?'الملخص التنفيذي':'Executive Summary')+'</h2><p>'+(isAr()?'ملخص موحد لأهم مؤشرات الحوكمة والمخاطر والالتزام والمحتوى.':'A consolidated summary of governance, risk, compliance and document indicators.')+'</p></div></div>'+executiveSummaryPanel()+'</section>';
+  function safeExecutiveBlock(name,render){
+    try{return render()||'';}catch(err){
+      try{console.error('[GRC Executive] '+name,err);}catch(_e){}
+      return'';
+    }
   }
+  function executivePage(){
+    try{ensureOperationalPlanStyles();}catch(e){try{console.error('[GRC Executive] operational styles',e);}catch(_e){}}
+    try{ensureGrcEnhancementStyles();}catch(e){try{console.error('[GRC Executive] enhancement styles',e);}catch(_e){}}
+    try{ensureExecutiveExtensionStyles();}catch(e){try{console.error('[GRC Executive] extension styles',e);}catch(_e){}}
+    try{if(!reportLibraryLoaded&&!reportLibraryLoading)loadReportLibrary(false);}catch(e){try{console.error('[GRC Executive] report library',e);}catch(_e){}}
+    var html='';
+    html+=safeExecutiveBlock('hero',function(){return hero('GRC · Executive Command',L('executiveTitle'),L('executiveDesc'));});
+    html+=safeExecutiveBlock('modules',function(){return governanceModules('executive');});
+    html+='<div class="grc-divider"></div>';
+    html+=safeExecutiveBlock('snapshot',function(){return'<section class="grc-exec-snapshot">'+sectionHead(L('executiveSnapshot'),L('executiveSnapshotDesc'),'FMS')+executiveSnapshotCards()+'</section>';});
+    html+=safeExecutiveBlock('governance',function(){return'<section class="grc-exec-domain governance-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">01</span><h2>'+L('governanceOverview')+'</h2><p>'+L('governanceDesc')+'</p></div><span class="grc-exec-domain-badge">'+countFor('governance')+' '+L('records')+'</span></div>'+governanceOverview('allFms',false,true)+'</section>';});
+    html+=safeExecutiveBlock('risk',function(){return'<section class="grc-exec-domain risk-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">02</span><h2>'+L('riskOverview')+'</h2><p>'+L('riskDesc')+'</p></div><span class="grc-exec-domain-badge">'+countFor('risk')+' '+L('records')+'</span></div>'+riskOverview('allFms',false,true)+'</section>';});
+    html+=safeExecutiveBlock('overall compliance',function(){return'<section class="grc-exec-domain compliance-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">03</span><h2>'+(isAr()?'نظرة الالتزام الإجمالية':'Overall Compliance Overview')+'</h2><p>'+L('complianceDesc')+'</p></div></div>'+executiveOverallCompliance()+'</section>';});
+    html+=safeExecutiveBlock('CBAHI',function(){return'<section class="grc-exec-domain cbahi-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">04</span><h2>CBAHI FMS Compliance Assessment</h2><p>'+L('cbahiSectionDesc')+'</p></div></div>'+executiveCbahiOverview()+'</section>';});
+    html+=safeExecutiveBlock('JCI',function(){return'<section class="grc-exec-domain jci-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">05</span><h2>JCI FMS Compliance Assessment</h2><p>'+L('jciSectionDesc')+'</p></div></div>'+executiveJciOverview()+'</section>';});
+    html+=safeExecutiveBlock('reports',function(){return'<section class="grc-exec-domain reports-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">06</span><h2>'+(isAr()?'نظرة عامة على التقارير':'Reports Overview')+'</h2><p>'+L('reportsDesc')+'</p></div></div>'+executiveReportsOverview()+'</section>';});
+    html+=safeExecutiveBlock('manuals',function(){return'<section class="grc-exec-domain manuals-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">07</span><h2>'+(isAr()?'نظرة عامة على الأدلة':'Manuals Overview')+'</h2><p>'+L('guidelinesLibraryDesc')+'</p></div></div>'+executiveManualsOverview()+'</section>';});
+    html+=safeExecutiveBlock('summary',function(){return'<section class="grc-exec-domain summary-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">08</span><h2>'+(isAr()?'الملخص التنفيذي':'Executive Summary')+'</h2><p>'+(isAr()?'ملخص موحد لأهم مؤشرات الحوكمة والمخاطر والالتزام والمحتوى.':'A consolidated summary of governance, risk, compliance and document indicators.')+'</p></div></div>'+executiveSummaryPanel()+'</section>';});
+    return html;
+  }
+
   function governanceModules(context,dept){
     var isDept=context==='department';
     var orgAction=isDept?"window._grcOpenOrgStructure('"+dept+"')":"window._grcOpenOrgStructure()";
