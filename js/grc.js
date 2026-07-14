@@ -993,14 +993,81 @@
       metricCard(L('failedCodeRate'),pct(failed,success+failed),'purple',L('codes'),'window._grcOpenMetric(\'codes\',\'failedRate\',\'allFms\')')+
       '</div>';
   }
+  function executiveComplianceSummary(){
+    var c=cbahiSummary(),j=jciSummary();
+    var cApplicable=Math.max(0,c.total-c.na),jApplicable=Math.max(0,j.total-j.na),den=(cApplicable+jApplicable)*2;
+    var score=(c.rate/100)*(cApplicable*2)+(j.rate/100)*(jApplicable*2);
+    return{total:c.total+j.total,fully:c.fully+j.fully,partial:c.partial,notmet:c.notmet+j.notmet,na:c.na+j.na,rate:den?Math.round((score/den)*10000)/100:0};
+  }
+  function executiveComplianceCards(s,includePartial){
+    return'<div class="grc-metric-grid '+(includePartial?'cols-6':'cols-5')+' grc-exec-clickable-cards">'+
+      metricCard(L('cbahiTotalRequirements'),s.total,'info',L('records'),'window._grcSwitch(\'compliance\')')+
+      metricCard(L('cbahiFullyMet'),s.fully,'good',L('records'),'window._grcSwitch(\'compliance\')')+
+      (includePartial?metricCard(L('cbahiPartiallyMet'),s.partial,'warn',L('records'),'window._grcSwitch(\'compliance\')'):'')+
+      metricCard(L('cbahiNotMet'),s.notmet,'bad',L('records'),'window._grcSwitch(\'compliance\')')+
+      metricCard(L('cbahiNotApplicable'),s.na,'neutral',L('records'),'window._grcSwitch(\'compliance\')')+
+      metricCard(L('cbahiComplianceRate'),s.rate+'%','purple',L('percentage'),'window._grcSwitch(\'compliance\')')+'</div>';
+  }
+  function executiveOverallCompliance(){
+    var s=executiveComplianceSummary();
+    var status=[{label:L('cbahiFullyMet'),value:s.fully,color:chartPalette.green},{label:L('cbahiPartiallyMet'),value:s.partial,color:chartPalette.amber},{label:L('cbahiNotMet'),value:s.notmet,color:chartPalette.coral},{label:L('cbahiNotApplicable'),value:s.na,color:chartPalette.slate}];
+    return executiveComplianceCards(s,true)+'<div class="grc-chart-grid cols-2">'+verticalBarChart(isAr()?'حالة الالتزام الإجمالية':'Overall Compliance Status',status)+verticalBarChart(isAr()?'معدل الالتزام حسب الاعتماد':'Compliance Rate by Accreditation',[{label:'CBAHI',value:cbahiSummary().rate,color:chartPalette.teal},{label:'JCI',value:jciSummary().rate,color:chartPalette.navy}])+'</div>';
+  }
+  function executiveCbahiOverview(){
+    var s=cbahiSummary(),status=[{label:L('cbahiFullyMet'),value:s.fully,color:chartPalette.green},{label:L('cbahiPartiallyMet'),value:s.partial,color:chartPalette.amber},{label:L('cbahiNotMet'),value:s.notmet,color:chartPalette.coral},{label:L('cbahiNotApplicable'),value:s.na,color:chartPalette.slate}];
+    return executiveComplianceCards(s,true)+'<div class="grc-chart-grid cols-2">'+verticalBarChart(L('cbahiStatusDistribution'),status)+stackedBarChart(L('cbahiAttentionByStandard'),cbahiAttentionRows(),[{label:L('cbahiNotMet'),color:chartPalette.coral},{label:L('cbahiPartiallyMet'),color:chartPalette.amber}])+'</div>';
+  }
+  function executiveJciOverview(){
+    var s=jciSummary(),status=[{label:L('cbahiFullyMet'),value:s.fully,color:chartPalette.green},{label:L('cbahiNotMet'),value:s.notmet,color:chartPalette.coral},{label:L('cbahiNotApplicable'),value:s.na,color:chartPalette.slate}];
+    return executiveComplianceCards(s,false)+'<div class="grc-chart-grid cols-2">'+verticalBarChart(L('cbahiStatusDistribution'),status)+stackedBarChart(L('cbahiAttentionByStandard'),jciAttentionRows(),[{label:L('cbahiNotMet'),color:chartPalette.coral}])+'</div>';
+  }
+  function executiveReportStats(){
+    var rows=[],now=new Date(),current=now.getFullYear(),completedQuarter=Math.max(0,Math.ceil((now.getMonth()+1)/3)-1);
+    function has(type,year,q){return REPORT_LIBRARY.some(function(r){return (r.group==='annual'||r.group==='quarterly')&&r.type===type&&Number(r.year)===year&&Number(r.quarter||0)===Number(q||0);});}
+    for(var y=2024;y<=current;y++){
+      if(y<current){rows.push(has('annualExecutive',y,null));rows.push(has('annualReport',y,null));}
+      var last=y<current?4:completedQuarter;
+      for(var q=1;q<=last;q++){rows.push(has('quarterlyExecutive',y,q));rows.push(has('quarterlyReport',y,q));}
+    }
+    return{total:rows.length,available:rows.filter(Boolean).length,unavailable:rows.filter(function(v){return!v;}).length};
+  }
+  function executiveReportsOverview(){
+    var s=executiveReportStats();
+    return'<div class="grc-metric-grid cols-3 grc-exec-clickable-cards">'+metricCard(isAr()?'إجمالي التقارير':'Total Reports',s.total,'info',L('records'),'window._grcSwitch(\'reports\')')+metricCard(L('available'),s.available,'good',L('reportsTitle'),'window._grcSwitch(\'reports\')')+metricCard(L('unavailable'),s.unavailable,'bad',L('reportsTitle'),'window._grcSwitch(\'reports\')')+'</div><div class="grc-chart-grid cols-1">'+verticalBarChart(isAr()?'توفر التقارير':'Reports Availability',[{label:L('available'),value:s.available,color:chartPalette.green},{label:L('unavailable'),value:s.unavailable,color:chartPalette.coral}])+'</div>';
+  }
+  function executiveManualStats(){
+    var guides=guideRecords(),ar=guides.filter(function(r){return String(r.language).toLowerCase()==='ar';}).length,en=guides.filter(function(r){return String(r.language).toLowerCase()==='en';}).length;
+    return{total:guides.length,arabic:ar,english:en,available:guides.filter(function(r){return normalizeStatus(r.status||'active')!=='invalid';}).length};
+  }
+  function executiveManualsOverview(){
+    var s=executiveManualStats();
+    return'<div class="grc-metric-grid cols-4 grc-exec-clickable-cards">'+metricCard(isAr()?'إجمالي الأدلة':'Total Manuals',s.total,'info',L('records'),'window._grcSwitch(\'manuals\')')+metricCard(L('arabicGuide'),s.arabic,'purple',L('guidelinesLibrary'),'window._grcSwitch(\'manuals\')')+metricCard(L('englishGuide'),s.english,'info',L('guidelinesLibrary'),'window._grcSwitch(\'manuals\')')+metricCard(L('available'),s.available,'good',L('guidelinesLibrary'),'window._grcSwitch(\'manuals\')')+'</div><div class="grc-chart-grid cols-1">'+verticalBarChart(isAr()?'توفر الأدلة':'Manual Availability',[{label:L('arabicGuide'),value:s.arabic,color:chartPalette.teal},{label:L('englishGuide'),value:s.english,color:chartPalette.blue}])+'</div>';
+  }
+  function executiveSummaryPanel(){
+    var compliance=executiveComplianceSummary(),reports=executiveReportStats(),manuals=executiveManualStats();
+    var items=[
+      [L('policies'),(state.policies||[]).length,'window._grcSwitch(\'governance\')'],[L('plans'),(state.plans||[]).length,'window._grcSwitch(\'governance\')'],[L('forms'),(state.forms||[]).length,'window._grcSwitch(\'governance\')'],[L('risks'),(state.risks||[]).length,'window._grcSwitch(\'risk\')'],[L('incidents'),(state.incidents||[]).length,'window._grcSwitch(\'risk\')'],[L('cbahiComplianceRate'),compliance.rate+'%','window._grcSwitch(\'compliance\')'],[L('reportsTitle'),reports.total,'window._grcSwitch(\'reports\')'],[L('guidelinesLibrary'),manuals.total,'window._grcSwitch(\'manuals\')']
+    ];
+    return'<div class="grc-executive-summary-grid">'+items.map(function(x){return'<button type="button" onclick="'+x[2]+'"><strong>'+esc(x[1])+'</strong><span>'+esc(x[0])+'</span></button>';}).join('')+'</div>';
+  }
+  function ensureExecutiveExtensionStyles(){
+    if(document.getElementById('grcExecutiveExtensionStyles'))return;var st=document.createElement('style');st.id='grcExecutiveExtensionStyles';st.textContent='.grc-exec-domain{margin-top:28px}.grc-exec-clickable-cards .grc-metric-card{cursor:pointer}.grc-executive-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.grc-executive-summary-grid button{border:1px solid #dbe6ee;background:#fff;border-radius:16px;padding:20px;text-align:start;box-shadow:0 8px 24px rgba(15,42,55,.06);cursor:pointer}.grc-executive-summary-grid strong{display:block;font-size:25px;color:#123746;margin-bottom:5px}.grc-executive-summary-grid span{font-weight:700;color:#607784}@media(max-width:1000px){.grc-executive-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.grc-executive-summary-grid{grid-template-columns:1fr}}.grc-assessment-readonly.is-required:empty{min-height:28px;border:1px solid #dc2626;border-radius:7px;background:#fff5f5}';document.head.appendChild(st);
+  }
   function executivePage(){
-    ensureOperationalPlanStyles();ensureGrcEnhancementStyles();
+    ensureOperationalPlanStyles();ensureGrcEnhancementStyles();ensureExecutiveExtensionStyles();
+    if(!reportLibraryLoaded&&!reportLibraryLoading)loadReportLibrary(false);
     return hero('GRC · Executive Command',L('executiveTitle'),L('executiveDesc'))+
       governanceModules('executive')+
       '<div class="grc-divider"></div>'+
       '<section class="grc-exec-snapshot">'+sectionHead(L('executiveSnapshot'),L('executiveSnapshotDesc'),'FMS')+executiveSnapshotCards()+'</section>'+
       '<section class="grc-exec-domain governance-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">01</span><h2>'+L('governanceOverview')+'</h2><p>'+L('governanceDesc')+'</p></div><span class="grc-exec-domain-badge">'+countFor('governance')+' '+L('records')+'</span></div>'+governanceOverview('allFms',false,true)+'</section>'+
-      '<section class="grc-exec-domain risk-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">02</span><h2>'+L('riskOverview')+'</h2><p>'+L('riskDesc')+'</p></div><span class="grc-exec-domain-badge">'+countFor('risk')+' '+L('records')+'</span></div>'+riskOverview('allFms',false,true)+'</section>';
+      '<section class="grc-exec-domain risk-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">02</span><h2>'+L('riskOverview')+'</h2><p>'+L('riskDesc')+'</p></div><span class="grc-exec-domain-badge">'+countFor('risk')+' '+L('records')+'</span></div>'+riskOverview('allFms',false,true)+'</section>'+
+      '<section class="grc-exec-domain compliance-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">03</span><h2>'+(isAr()?'نظرة الالتزام الإجمالية':'Overall Compliance Overview')+'</h2><p>'+L('complianceDesc')+'</p></div></div>'+executiveOverallCompliance()+'</section>'+
+      '<section class="grc-exec-domain cbahi-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">04</span><h2>CBAHI FMS Compliance Assessment</h2><p>'+L('cbahiSectionDesc')+'</p></div></div>'+executiveCbahiOverview()+'</section>'+
+      '<section class="grc-exec-domain jci-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">05</span><h2>JCI FMS Compliance Assessment</h2><p>'+L('jciSectionDesc')+'</p></div></div>'+executiveJciOverview()+'</section>'+
+      '<section class="grc-exec-domain reports-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">06</span><h2>'+(isAr()?'نظرة عامة على التقارير':'Reports Overview')+'</h2><p>'+L('reportsDesc')+'</p></div></div>'+executiveReportsOverview()+'</section>'+
+      '<section class="grc-exec-domain manuals-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">07</span><h2>'+(isAr()?'نظرة عامة على الأدلة':'Manuals Overview')+'</h2><p>'+L('guidelinesLibraryDesc')+'</p></div></div>'+executiveManualsOverview()+'</section>'+
+      '<section class="grc-exec-domain summary-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">08</span><h2>'+(isAr()?'الملخص التنفيذي':'Executive Summary')+'</h2><p>'+(isAr()?'ملخص موحد لأهم مؤشرات الحوكمة والمخاطر والالتزام والمحتوى.':'A consolidated summary of governance, risk, compliance and document indicators.')+'</p></div></div>'+executiveSummaryPanel()+'</section>';
   }
   function governanceModules(context,dept){
     var isDept=context==='department';
@@ -1189,6 +1256,11 @@
   function requirementStartsWithD(r){return /^D(?:\s|\b)/.test(String(r[6]||r[4]||'').trim());}
   function highlightLeadingD(value){var text=String(value||'');return /^D(?:\s|\b)/.test(text.trim())?'<span class="grc-jci-leading-d">D</span>'+esc(text.trim().slice(1)):esc(text);}
   function assessmentStatusEditor(kind,rowIndex,value){return'<span class="grc-cbahi-status '+cbahiStatusClass(value)+'">'+esc(cbahiStatusLabel(value))+'</span>';}
+  // Assessment tables are view-only. Add/Edit actions open the controlled modal.
+  function assessmentTextEditor(kind,rowIndex,col,value,required,placeholder){
+    var text=String(value==null?'':value);
+    return '<div class="grc-assessment-readonly '+(required&&!text.trim()?'is-required':'')+'" title="'+esc(required&&!text.trim()?placeholder:'')+'">'+(text?esc(text):'')+'</div>';
+  }
   function cbahiStatusLabel(status){
     var map={'Fully Met':'cbahiFullyMet','Partially Met':'cbahiPartiallyMet','Not Met':'cbahiNotMet','Not Applicable':'cbahiNotApplicable'};
     return L(map[status]||'cbahiNotApplicable');
