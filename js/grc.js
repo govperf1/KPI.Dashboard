@@ -1266,6 +1266,7 @@
   function saveAssessmentEdit(kind,rowIndex,col,value){if(normalizedRole()!=='super_admin')return;if(!assessmentEdits[kind])assessmentEdits[kind]={};if(!assessmentEdits[kind][rowIndex])assessmentEdits[kind][rowIndex]={};assessmentEdits[kind][rowIndex][col]=value;if(Number(col)===8)assessmentEdits[kind][rowIndex][9]=value==='Fully Met'?2:(value==='Partially Met'?1:0);try{localStorage.setItem(ASSESSMENT_EDIT_KEY,JSON.stringify(assessmentEdits));}catch(e){}render();}
   function requirementStartsWithD(r){return /^D(?:\s|\b)/.test(String(r[6]||r[4]||'').trim());}
   function highlightLeadingD(value){var text=String(value||'');return /^D(?:\s|\b)/.test(text.trim())?'<span class="grc-jci-leading-d">D</span>'+esc(text.trim().slice(1)):esc(text);}
+  function cbahiStatusClass(status){var s=String(status||'').trim();if(s==='Fully Met')return'fully-met';if(s==='Partially Met')return'partially-met';if(s==='Not Met')return'not-met';if(s==='Not Applicable')return'not-applicable';return'not-applicable';}
   function assessmentStatusEditor(kind,rowIndex,value){return'<span class="grc-cbahi-status '+cbahiStatusClass(value)+'">'+esc(cbahiStatusLabel(value))+'</span>';}
   // Assessment tables are view-only. Add/Edit actions open the controlled modal.
   function assessmentTextEditor(kind,rowIndex,col,value,required,placeholder){
