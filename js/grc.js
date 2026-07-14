@@ -710,7 +710,7 @@
       '<div class="grc-user"><div class="grc-user-avatar">'+esc((currentName()[0]||'S').toUpperCase())+'</div><div><div class="grc-user-name">'+esc(currentName())+'</div><div class="grc-user-role">'+esc(roleText())+'</div></div></div>'+(normalizedRole()==='super_admin'?'<div class="grc-super-actions"><button onclick="window._grcOpenAdminAddHub()">＋ '+(isAr()?'إضافة':'Add')+'</button><button onclick="window._grcOpenAdminEditHub()">✎ '+(isAr()?'تعديل':'Edit')+'</button><button onclick="window._grcSwitch(\'reports\')">▤ '+L('reportsTitle')+'</button><button onclick="window._grcSwitch(\'manuals\')">▥ '+(isAr()?'الدليل':'Manual')+'</button></div>':'')+
       '<button class="grc-top-btn grc-back" onclick="window._exitGRC()">← '+L('back')+'</button></header>'+
       '<div class="grc-nav-wrap"><nav class="grc-nav">'+modules.map(function(x){var c=x.count?countFor(x.count):null;return'<button class="grc-tab '+(activeTab===x.id?'is-active':'')+'" onclick="window._grcSwitch(\''+x.id+'\')"><span class="grc-tab-icon">'+x.icon+'</span><span>'+L(x.id)+'</span>'+(c!==null?'<span class="grc-tab-count">'+c+'</span>':'')+'</button>';}).join('')+'</nav></div>'+
-      '<main class="grc-main">'+modules.map(function(x){return'<section id="grc-page-'+x.id+'" class="grc-page '+(activeTab===x.id?'is-active':'')+'">'+pageHtml(x.id)+'</section>';}).join('')+'</main>'+
+      '<main class="grc-main"><section id="grc-page-'+activeTab+'" class="grc-page is-active">'+pageHtml(activeTab)+'</section></main>'+
       '<footer class="grc-footer"><div class="grc-footer-left"><button class="footer-back-glass grc-footer-back" onclick="window._exitGRC()" type="button" title="Back to Portal Selection"><span>'+(isAr()?'رجوع':'← Back')+'</span></button><span><strong>QUMC GRC Workspace</strong> · '+L('draftWorkspace')+' · '+L('localNote')+'</span></div><span class="grc-live"><i></i> Super Admin Preview · © 2026 QUMC</span></footer>';
   }
   function enhanceRegisterFilters(){
@@ -738,7 +738,7 @@
       }
     });
   }
-  function render(){if(!app||!app.classList.contains('grc-visible'))return;app.setAttribute('dir',isAr()?'rtl':'ltr');app.innerHTML=shellHtml();setTimeout(enhanceRegisterFilters,0);if(activeTab==='reports'||activeTab==='compliance'||activeTab==='manuals')setTimeout(mountReportViewer,0);}
+  function render(){if(!app||!app.classList.contains('grc-visible'))return;app.setAttribute('dir',isAr()?'rtl':'ltr');try{app.innerHTML=shellHtml();}catch(err){try{console.error('[GRC Render]',err);}catch(_e){}app.innerHTML='<main class="grc-main"><section class="grc-page is-active"><div class="grc-section"><div class="grc-section-title">GRC</div><div class="grc-section-sub">'+esc(String(err&&err.message||err))+'</div></div></section></main>';return;}setTimeout(enhanceRegisterFilters,0);if(activeTab==='reports'||activeTab==='compliance'||activeTab==='manuals')setTimeout(mountReportViewer,0);}
 
   function hero(eye,title,desc,actions){return'<div class="grc-hero"><div class="grc-hero-row"><div><div class="grc-eyebrow">'+eye+'</div><h1>'+title+'</h1><p>'+desc+'</p></div><div class="grc-hero-actions">'+(actions||'')+'</div></div></div>';}
   function sectionHead(title,sub,badgeText){return'<div class="grc-section-head"><div><div class="grc-section-title">'+title+'</div><div class="grc-section-sub">'+(sub||'')+'</div></div>'+(badgeText?'<span class="grc-section-badge">'+badgeText+'</span>':'')+'</div>';}
