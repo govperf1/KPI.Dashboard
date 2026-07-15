@@ -621,7 +621,18 @@
     catch(_){return applyRiskRegisterSeed(defaultState());}
   }
   var INITIATIVE_SEED=[{"id":"INIT-001","nameAr":"مركز بلاغات إدارة المرافق (FMS)","nameEn":"Facility Management Reporting Center (FMS)","department":"allFms","status":"proposed","team":[]},{"id":"INIT-002","nameAr":"مبادرة اكتمال الكادر التشغيلي","nameEn":"Operational Workforce Completion Initiative","department":"housekeeping","status":"proposed","team":[]},{"id":"INIT-003","nameAr":"مبادرة تعزيز جودة النظافة عبر رمز الاستجابة السريعة","nameEn":"Housekeeping Quality Enhancement via QR Code","department":"housekeeping","status":"proposed","team":[]},{"id":"INIT-004","nameAr":"مبادرة يوم الجودة الإداري الشهري","nameEn":"Monthly Administrative Quality Day Initiative","department":"housekeeping","status":"proposed","team":[]},{"id":"INIT-005","nameAr":"مبادرة تطوير التقارير الربعية لتجربة المريض","nameEn":"Patient Experience Quarterly Reports Development Initiative","department":"housekeeping","status":"proposed","team":[]},{"id":"INIT-006","nameAr":"مبادرة تصميم خريطة توجيه للمراجعين داخل المدينة الطبية","nameEn":"Medical City Wayfinding Map Initiative","department":"projects","status":"selected","team":[{"name":"م. مشاري الصعب","roleAr":"قائد الفريق","roleEn":"Team Leader"},{"name":"م. إبراهيم الصقيهي","roleAr":"عضو الفريق","roleEn":"Team Member"}]},{"id":"INIT-007","nameAr":"مبادرة تصميم حزام حمل لاسطوانات الغازات الطبية","nameEn":"Medical Gas Cylinder Carrying Belt Initiative","department":"maintenance","status":"selected","team":[{"name":"م. عبدالله الزوين","roleAr":"قائد الفريق","roleEn":"Team Leader"}]},{"id":"INIT-008","nameAr":"مبادرة إنشاء محطة غسيل عيون متنقلة","nameEn":"Mobile Eyewash Station Initiative","department":"housekeeping","status":"selected","team":[{"name":"م. عبدالله الزوين","roleAr":"قائد الفريق","roleEn":"Team Leader"},{"name":"م. عبدالوهاب الشتوي","roleAr":"عضو الفريق","roleEn":"Team Member"}]},{"id":"INIT-009","nameAr":"مبادرة تهوية الغرف المغلقة","nameEn":"Closed Rooms Ventilation Initiative","department":"maintenance","status":"proposed","team":[]},{"id":"INIT-010","nameAr":"مبادرة قياس مستوى الضجيج داخل منشآت المدينة الطبية","nameEn":"Medical City Noise Level Monitoring Initiative","department":"safety","status":"selected","team":[{"name":"أ. رغد المشيقح","roleAr":"قائد الفريق","roleEn":"Team Leader"},{"name":"أ. لطيفة الحربي","roleAr":"عضو الفريق","roleEn":"Team Member"}]}];
+  var PROJECT_MANAGEMENT_INCIDENT_SEED=[{"id":"PMD-01","date":"2024-01-01","category":"Safety Hazard","contributingFactors":"Human error","investigationRequired":"no","department":"projects","responsibleDept":"projects","status":"closed"},{"id":"PMD-02","date":"2025-01-01","category":"Safety Hazard","contributingFactors":"Human error","investigationRequired":"no","department":"projects","responsibleDept":"projects","status":"closed"}];
   var state=loadState();
+  state.incidents=Array.isArray(state.incidents)?state.incidents:[];
+  PROJECT_MANAGEMENT_INCIDENT_SEED.forEach(function(seed){
+    var existing=state.incidents.find(function(r){return String(r.id||'')===seed.id;});
+    if(existing){
+      Object.keys(seed).forEach(function(key){existing[key]=seed[key];});
+    }else{
+      state.incidents.push(JSON.parse(JSON.stringify(seed)));
+    }
+  });
+
   state.initiatives=INITIATIVE_SEED.map(function(r){return JSON.parse(JSON.stringify(r));});
   try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}
   function saveState(){state.version=STATE_VERSION;state.updatedAt=new Date().toISOString();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}render();}
