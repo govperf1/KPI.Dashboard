@@ -1856,7 +1856,28 @@
       var lastQuarter=y<current?4:completedQuarter;
       for(var q=1;q<=lastQuarter;q++){add('quarterlyExecutive','quarterly',y,q);add('quarterlyReport','quarterly',y,q);}
     }
-    REPORT_LIBRARY.forEach(function(r){if((r.group!=='annual'&&r.group!=='quarterly')||Number(r.year)<2026)return;var exists=expected.some(function(x){return String(x.type)===String(r.type)&&Number(x.year)===Number(r.year)&&Number(x.quarter||0)===Number(r.quarter||0);});if(!exists){var titles=defaultReportTitles(r.group,r.type.indexOf('Executive')>=0?'executive':'report',r.year,r.quarter);expected.push({record:r,type:r.type,group:r.group,year:r.year,quarter:r.quarter||null,titleEn:r.titleEn||titles.en,titleAr:r.titleAr||titles.ar,code:r.code&&!/^RPT-FMS-/.test(r.code)?r.code:reportFallbackCode(r),available:true});}});
+    REPORT_LIBRARY.forEach(function(r){
+      if(r.group!=='annual'&&r.group!=='quarterly')return;
+      var exists=expected.some(function(x){
+        return String(x.type)===String(r.type)&&Number(x.year)===Number(r.year)&&Number(x.quarter||0)===Number(r.quarter||0);
+      });
+      // Before 2026, include only reports that actually have an uploaded file.
+      // From 2026 onward, completed missing periods are generated above as Not Available.
+      if(!exists){
+        var titles=defaultReportTitles(r.group,r.type.indexOf('Executive')>=0?'executive':'report',r.year,r.quarter);
+        expected.push({
+          record:r,
+          type:r.type,
+          group:r.group,
+          year:r.year,
+          quarter:r.quarter||null,
+          titleEn:r.titleEn||titles.en,
+          titleAr:r.titleAr||titles.ar,
+          code:r.code&&!/^RPT-FMS-/.test(r.code)?r.code:reportFallbackCode(r),
+          available:true
+        });
+      }
+    });
     expected.sort(function(a,b){return b.year-a.year||Number(b.quarter||0)-Number(a.quarter||0)||String(a.type).localeCompare(String(b.type));});
     var rows=expected.map(function(x){var status=x.available?'available':'unavailable';return'<tr><td class="grc-id">'+esc(x.code)+'</td><td>'+esc(isAr()?x.titleAr:x.titleEn)+'</td><td>'+esc(x.group==='annual'?L('annualReports'):L('quarterlyReports'))+'</td><td>'+esc(x.group==='annual'?String(x.year):String(x.year)+' · '+L('q'+Number(x.quarter)))+'</td><td><span class="grc-report-availability '+(x.available?'':'off')+'">'+L(status)+'</span></td></tr>';}).join('');
     return tableHtml('policy',['reportCode','reportName','reportFamily','reportPeriod','reportStatus'],rows);
