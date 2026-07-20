@@ -2481,21 +2481,70 @@ function pageHtml(id){if(id==='executive')return executivePage();if(id==='govern
   function nextId(prefix,collection){var max=0;(state[collection]||[]).forEach(function(r){var m=String(r.id||'').match(/(\d+)$/);if(m)max=Math.max(max,Number(m[1]));});return prefix+'-'+String(max+1).padStart(3,'0');}
 
   var GRC_REGISTER_CRUD_MAP=[
-    {match:['Policy Register','سجل السياسات'],collection:'policies',type:'policy'},
-    {match:['Plan Register','سجل الخطط'],collection:'plans',type:'plan'},
-    {match:['Approved Forms Register','سجل النماذج المعتمدة'],collection:'forms',type:'form'},
+    {match:['Policy Register','Policies Register','سجل السياسات'],collection:'policies',type:'policy'},
+    {match:['Plan Register','Plans Register','سجل الخطط'],collection:'plans',type:'plan'},
+    {match:['Approved Forms Register','Forms Register','سجل النماذج المعتمدة','سجل النماذج'],collection:'forms',type:'form'},
     {match:['Risk Register','سجل المخاطر'],collection:'risks',type:'risk'},
     {match:['Incident Register','سجل الحوادث'],collection:'incidents',type:'incident'},
-    {match:['Emergency Code Register','سجل أكواد الطوارئ'],collection:'codes',type:'code'},
-    {match:['Manuals & Guidelines Register','سجل الأدلة والإرشادات'],collection:'manuals',type:'manual'},
-    {match:['Compliance','الالتزام'],collection:'compliance',type:'compliance'},
+    {match:['Emergency Code Register','Emergency Codes Register','سجل أكواد الطوارئ'],collection:'codes',type:'code'},
+    {match:['Manuals & Guidelines Register','Guides Register','Manual Register','سجل الأدلة والإرشادات','سجل الأدلة'],special:'guide'},
+    {match:['Reports Register','Report Register','سجل التقارير'],special:'report'},
+    {match:['CBAHI FMS Division Assessment','CBAHI FMS Assessment','CBAHI Assessment','تقييم سباهي'],special:'cbahi'},
+    {match:['JCI FMS Division Assessment','JCI FMS Assessment','JCI Assessment','تقييم JCI'],special:'jci'},
+    {match:['Compliance Register','سجل الالتزام'],collection:'compliance',type:'compliance'},
     {match:['Audit & Assurance','التدقيق والتوكيد'],collection:'audits',type:'audit'},
     {match:['Action Plans','خطط العمل'],collection:'actions',type:'action'},
     {match:['Documents & Records','الوثائق والسجلات'],collection:'documents',type:'document'},
-    {match:['Selected Initiatives Register','سجل المبادرات المختارة'],collection:'initiatives',type:'initiative'}
+    {match:['Selected Initiatives Register','Initiatives Register','سجل المبادرات المختارة','سجل المبادرات'],collection:'initiatives',type:'initiative'}
   ];
-  function crudMapForTitle(title){title=String(title||'').trim();return GRC_REGISTER_CRUD_MAP.find(function(m){return m.match.some(function(x){return title.indexOf(x)>=0;});})||null;}
-  function enhanceAllRegisterCrud(){if(!app||!isGrcAdmin())return;var blocks=app.querySelectorAll('.grc-register-block');Array.prototype.forEach.call(blocks,function(block){if(block.dataset.crudReady==='1')return;var titleEl=block.querySelector('.grc-register-title,.grc-section-title,h3,h4');if(!titleEl)return;var map=crudMapForTitle(titleEl.textContent);if(!map)return;var head=titleEl.parentElement;var actions=head&&head.querySelector('.grc-register-actions,.grc-section-actions');if(!actions){actions=document.createElement('div');actions.className='grc-register-actions grc-inline-crud-actions';head.appendChild(actions);}actions.innerHTML='<button type="button" class="grc-btn primary" onclick="window._grcOpenForm(\''+map.type+'\')">＋ '+(isAr()?'إضافة':'Add')+'</button><button type="button" class="grc-btn ghost" onclick="window._grcOpenRegisterCrud(\''+map.collection+'\',\''+map.type+'\',\'edit\')">✎ '+(isAr()?'تعديل':'Edit')+'</button><button type="button" class="grc-btn danger" onclick="window._grcOpenRegisterCrud(\''+map.collection+'\',\''+map.type+'\',\'delete\')">⌫ '+(isAr()?'حذف':'Delete')+'</button>';block.dataset.crudReady='1';});}
+  function crudMapForTitle(title){
+    title=String(title||'').replace(/\s+/g,' ').trim();
+    return GRC_REGISTER_CRUD_MAP.find(function(m){return m.match.some(function(x){return title.indexOf(x)>=0;});})||null;
+  }
+  function registerCrudButtons(map){
+    var add='',edit='',del='';
+    if(map.special==='cbahi'||map.special==='jci'){
+      add="window._grcOpenAssessmentModal('"+map.special+"','add')";
+      edit="window._grcOpenAssessmentModal('"+map.special+"','edit')";
+      del="window._grcOpenAssessmentModal('"+map.special+"','delete')";
+    }else if(map.special==='report'){
+      add="window._grcOpenReportUpload()";
+      edit="window._grcOpenAdminControl('reports','edit','report')";
+      del="window._grcOpenAdminControl('reports','delete','report')";
+    }else if(map.special==='guide'){
+      add="window._grcOpenGuideUpload()";
+      edit="window._grcOpenAdminControl('manuals','edit','guide')";
+      del="window._grcOpenAdminControl('manuals','delete','guide')";
+    }else{
+      add="window._grcOpenForm('"+map.type+"')";
+      edit="window._grcOpenRegisterCrud('"+map.collection+"','"+map.type+"','edit')";
+      del="window._grcOpenRegisterCrud('"+map.collection+"','"+map.type+"','delete')";
+    }
+    return '<button type="button" class="grc-btn primary" onclick="'+add+'">＋ '+(isAr()?'إضافة':'Add')+'</button>'+
+      '<button type="button" class="grc-btn ghost" onclick="'+edit+'">✎ '+(isAr()?'تعديل':'Edit')+'</button>'+
+      '<button type="button" class="grc-btn danger" onclick="'+del+'">⌫ '+(isAr()?'حذف':'Delete')+'</button>';
+  }
+  function enhanceAllRegisterCrud(){
+    if(!app||!isGrcAdmin())return;
+    var candidates=app.querySelectorAll('.grc-register-block,.grc-section,.grc-card,.grc-table-card');
+    Array.prototype.forEach.call(candidates,function(block){
+      if(!block.querySelector('table'))return;
+      var titleEl=block.querySelector('.grc-register-title,.grc-section-title,.grc-card-title,h2,h3,h4,h5');
+      if(!titleEl)return;
+      var map=crudMapForTitle(titleEl.textContent);
+      if(!map)return;
+      var head=titleEl.closest('.grc-register-head,.grc-section-head,.grc-card-head,header')||titleEl.parentElement;
+      if(!head)return;
+      var actions=head.querySelector('.grc-register-actions,.grc-section-actions,.grc-inline-crud-actions');
+      if(!actions){
+        actions=document.createElement('div');
+        actions.className='grc-register-actions grc-inline-crud-actions';
+        head.appendChild(actions);
+      }
+      actions.innerHTML=registerCrudButtons(map);
+      block.dataset.crudReady='1';
+    });
+  }
   function genericRecordLabel(r){return [recordName(r),r.code,r.id].filter(Boolean).join(' · ');}
   window._grcOpenRegisterCrud=function(collection,type,action){if(!isGrcAdmin())return;var records=(state[collection]||[]).slice();if(!records.length){alert(L('noRecords'));return;}var old=document.getElementById('_grcRegisterCrudModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcRegisterCrudModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(action==='delete'?(isAr()?'حذف سجل':'Delete Record'):(isAr()?'تعديل سجل':'Edit Record'))+'</div><div class="grc-modal-sub">'+(isAr()?'اختر السجل المطلوب':'Select the record')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcRegisterCrudModal\').remove()">×</button></div><div class="grc-modal-body"><label class="grc-field"><span>'+(isAr()?'السجل':'Record')+'</span><select id="_grcCrudRecordSelect">'+records.map(function(r){return'<option value="'+esc(r.id)+'">'+esc(genericRecordLabel(r))+'</option>';}).join('')+'</select></label><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcRegisterCrudModal\').remove()">'+L('cancel')+'</button><button type="button" class="'+(action==='delete'?'grc-btn danger':'grc-primary-btn')+'" onclick="window._grcConfirmRegisterCrud(\''+collection+'\',\''+type+'\',\''+action+'\')">'+(action==='delete'?L('delete'):(isAr()?'فتح للتعديل':'Open Edit'))+'</button></div></div></div>';document.body.appendChild(ov);};
   window._grcConfirmRegisterCrud=function(collection,type,action){var sel=document.getElementById('_grcCrudRecordSelect'),id=sel&&sel.value;if(!id)return;if(action==='delete'){if(window.confirm(L('confirmDelete'))){state[collection]=(state[collection]||[]).filter(function(r){return String(r.id)!==String(id);});document.getElementById('_grcRegisterCrudModal').remove();saveState();}return;}var record=(state[collection]||[]).find(function(r){return String(r.id)===String(id);});document.getElementById('_grcRegisterCrudModal').remove();window._grcOpenEditRecord(collection,type,record);};
@@ -2535,7 +2584,7 @@ function pageHtml(id){if(id==='executive')return executivePage();if(id==='govern
   };
 
   
-  (function(){if(document.getElementById('_grcCrudV39Styles'))return;var st=document.createElement('style');st.id='_grcCrudV39Styles';st.textContent='.grc-inline-crud-actions{display:flex!important;gap:8px!important;align-items:center!important;flex-wrap:wrap!important;margin-inline-start:auto!important}.grc-register-block>header,.grc-register-head{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:14px!important}.grc-inline-crud-actions .grc-btn{min-width:78px}.grc-inline-crud-actions .danger{background:#fff0f1!important;color:#b42332!important;border:1px solid #e6a2aa!important}';document.head.appendChild(st);})();
+  (function(){if(document.getElementById('_grcCrudV39Styles'))return;var st=document.createElement('style');st.id='_grcCrudV39Styles';st.textContent='.grc-inline-crud-actions{display:flex!important;gap:8px!important;align-items:center!important;flex-wrap:wrap!important;margin-inline-start:auto!important}.grc-register-block>header,.grc-register-head,.grc-section-head,.grc-card-head{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:14px!important}.grc-inline-crud-actions .grc-btn{min-width:78px}.grc-inline-crud-actions .danger{background:#fff0f1!important;color:#b42332!important;border:1px solid #e6a2aa!important}.grc-emergency-subtype-chart{display:flex!important;justify-content:center!important}.grc-emergency-subtype-chart .grc-chart-card{width:min(360px,100%)!important;max-width:360px!important;padding:12px!important}.grc-emergency-subtype-chart .grc-donut-layout{grid-template-columns:150px minmax(0,1fr)!important;gap:10px!important}.grc-emergency-subtype-chart .grc-donut-svg-wrap{width:145px!important;height:145px!important;margin:auto!important}.grc-emergency-subtype-chart .grc-donut-svg{width:145px!important;height:145px!important}.grc-emergency-subtype-chart .grc-chart-head{margin-bottom:8px!important}.grc-emergency-subtype-chart .grc-legend{font-size:9px!important;gap:6px!important}@media(max-width:620px){.grc-emergency-subtype-chart .grc-donut-layout{grid-template-columns:1fr!important}.grc-emergency-subtype-chart .grc-chart-card{max-width:300px!important}}';document.head.appendChild(st);})();
 
   document.addEventListener('DOMContentLoaded',function(){ensureApp();startSharedStateSync();});
 })();
