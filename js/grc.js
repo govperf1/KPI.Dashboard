@@ -15,7 +15,7 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__='20260720-full-project-register-crud-v40';
+  window.__QUMC_GRC_BUILD__='20260721-jci-register-search-v41';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
   var STATE_VERSION=11;
@@ -111,7 +111,6 @@
     {id:'risk',icon:'◇',count:'risk'},
     {id:'register',icon:'▤',count:'register'},
     {id:'compliance',icon:'✓',count:'compliance'},
-    {id:'audit',icon:'◎',count:'audits'},
     {id:'actions',icon:'→',count:'actions'},
     {id:'documents',icon:'▣',count:'documents'},
     {id:'reports',icon:'▥'},
@@ -1507,8 +1506,6 @@
   function registerPage(){
     return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+governanceRegistersBoard()+riskRegistersBoard()+
       '<section class="grc-registers-board">'+sectionHead(L('assuranceRegisterGroup'),L('registerDesc'))+
-      registerBlock('policy',L('complianceTitle'),L('allDepartments'),addBtn('compliance',L('addRequirement')),tableHtml('policy',['id','requirement','authority','department','owner','dueDate','status'],(state.compliance||[]).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.authority||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td>'+badge(r.status)+'</td></tr>';}).join('')))+
-      registerBlock('incident',L('auditTitle'),L('allDepartments'),addBtn('audit',L('addFinding')),tableHtml('incident',['id','title','severity','department','owner','dueDate','status'],(state.audits||[]).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+badge(r.severity)+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td>'+badge(r.status)+'</td></tr>';}).join('')))+
       registerBlock('plan',L('actionsTitle'),L('allDepartments'),addBtn('action',L('addAction')),tableHtml('plan',['id','title','source','department','owner','dueDate','progress','status'],(state.actions||[]).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.source||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td><div style="display:flex;align-items:center;gap:7px"><div class="grc-progress"><span style="width:'+Math.max(0,Math.min(100,Number(r.progress||0)))+'%"></span></div><b>'+Number(r.progress||0)+'%</b></div></td><td>'+badge(r.status)+'</td></tr>';}).join('')))+
       registerBlock('form',L('documentsTitle'),L('allDepartments'),addBtn('document',L('addDocument')),tableHtml('form',['id','title','category','department','owner','reviewDate','status'],(state.documents||[]).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.category||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.reviewDate)+'</td><td>'+badge(r.status)+'</td></tr>';}).join('')))+
       registerBlock('policy',L('manualRegister'),L('allDepartments'),addBtn('manual',L('addManual')),manualTable())+
@@ -1763,7 +1760,6 @@
   function cbahiEsrSummary(){
     var rows=cbahiEsrRows(),status={fully:0,partial:0,notmet:0,na:0},standards={};
     rows.forEach(function(r){
-      if(r[CBAHI_COLS.standard])standards[r[CBAHI_COLS.standard]]=1;
       var value=String(r[CBAHI_COLS.complianceStatus]||'').trim();
       if(value==='Fully Met')status.fully++;
       else if(value==='Partially Met')status.partial++;
@@ -1853,10 +1849,19 @@
       }
       return r;
     });
-    return assessmentRows('jci',normalized);
+    var rows=assessmentRows('jci',normalized).map(function(r,index){
+      var out=r.slice();
+      if(String(out[1]||'').trim()==='FMS.01.00')out[1]='FMS Division.01.00';
+      if(index===0&&String(out[CBAHI_COLS.complianceStatus]||'').trim()==='Not Applicable'){
+        out[CBAHI_COLS.complianceStatus]='';out[CBAHI_COLS.score]='';
+      }
+      return out;
+    });
+    return rows;
   }
   function jciSummary(){
     var rows=normalizedJciRows(),status={fully:0,notmet:0,na:0},standards={},applicable=[];
+    rows.forEach(function(r){if(r[CBAHI_COLS.standard])standards[r[CBAHI_COLS.standard]]=1;});
     var assessedRows=rows.filter(function(r){
       var value=String(r[CBAHI_COLS.complianceStatus]||'').trim();
       return ['Fully Met','Not Met','Not Applicable'].indexOf(value)>=0;
@@ -2166,8 +2171,15 @@
           var key=ids.join(',');
           if(found[key])return;
           found[key]=true;
-          var rects=ids.map(function(idx){return spans[idx].getBoundingClientRect();}),
-            left=Math.min.apply(null,rects.map(function(r){return r.left;})),
+          var rects;
+          if(ids.length===1){
+            var target=spans[ids[0]],raw=String(target.textContent||''),term=String(state.query||''),at=raw.toLocaleLowerCase().indexOf(term.toLocaleLowerCase());
+            if(at>=0&&target.firstChild){
+              var range=document.createRange();range.setStart(target.firstChild,at);range.setEnd(target.firstChild,Math.min(raw.length,at+term.length));rects=Array.prototype.slice.call(range.getClientRects());
+            }
+          }
+          if(!rects||!rects.length)rects=ids.map(function(idx){return spans[idx].getBoundingClientRect();});
+          var left=Math.min.apply(null,rects.map(function(r){return r.left;})),
             top=Math.min.apply(null,rects.map(function(r){return r.top;})),
             right=Math.max.apply(null,rects.map(function(r){return r.right;})),
             bottom=Math.max.apply(null,rects.map(function(r){return r.bottom;})),
@@ -2386,7 +2398,7 @@
 
     function ensureGrcAdminFloatingButton(){var old=document.getElementById('_grcAdminFloatingBtn');if(!isGrcAdmin()){if(old)old.remove();return;}if(old){old.style.display='block';return;}var b=document.createElement('button');b.id='_grcAdminFloatingBtn';b.type='button';b.className='grc-admin-floating-btn';b.innerHTML='⚙ '+(isAr()?'لوحة تحكم GRC':'GRC Admin Control Panel');b.onclick=window._grcOpenAdminControlPanel;document.body.appendChild(b);}setInterval(function(){try{if(app&&app.classList.contains('grc-visible'))ensureGrcAdminFloatingButton();}catch(_e){}},1200);
 
-function pageHtml(id){if(id==='executive')return executivePage();if(id==='governance')return governancePage();if(id==='risk')return riskPage();if(id==='register')return registerPage();if(id==='manuals')return manualsPage();if(id==='compliance')return compliancePage();if(id==='audit')return auditPage();if(id==='actions')return actionsPage();if(id==='documents')return documentsPage();return reportsPage();}
+function pageHtml(id){if(id==='executive')return executivePage();if(id==='governance')return governancePage();if(id==='risk')return riskPage();if(id==='register')return registerPage();if(id==='manuals')return manualsPage();if(id==='compliance')return compliancePage();if(id==='actions')return actionsPage();if(id==='documents')return documentsPage();return reportsPage();}
 
   function ensureOrgViewerStyles(){
     if(document.getElementById('_grcOrgViewerStyles'))return;
@@ -2511,7 +2523,7 @@ function pageHtml(id){if(id==='executive')return executivePage();if(id==='govern
     if(type==='manual')return{title:L('addManual'),collection:'manuals',prefix:'MAN',fields:field('name',L('manualName'),'text',null,true,true)+field('category',L('category'),'text',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('reviewDate',L('reviewDate'),'date')+field('status',L('status'),'select',statusOptions(type),true,false,'active')};
     if(type==='risk')return{title:L('addRisk'),collection:'risks',prefix:'RSK',fields:field('riskIdentified',L('riskIdentified'),'textarea',null,true,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('riskCategory',L('riskCategory'),'select',[['operational',L('operational')],['facility',L('facility')],['safetyRisk',L('safetyRisk')],['complianceRisk',L('complianceRisk')],['contractor',L('contractor')],['emergencyPreparedness',L('emergencyPreparedness')]],true)+field('likelihood',L('likelihood'),'select',[[1,'1'],[2,'2'],[3,'3'],[4,'4'],[5,'5']],true,false,1)+field('impact',L('impact'),'select',[[1,'1'],[2,'2'],[3,'3'],[4,'4'],[5,'5']],true,false,1)+field('controlType',L('controlType'),'select',[['preventive',L('preventive')],['detective',L('detective')],['corrective',L('corrective')],['directive',L('directive')],['noControl',L('noControl')]],true)+field('actionStatus',L('actionStatus'),'select',statusOptions(type),true,false,'open')};
     if(type==='incident')return{title:L('addIncident'),collection:'incidents',prefix:'INC',fields:field('date',L('date'),'date',null,true)+field('category',L('category'),'text',null,true)+field('contributingFactors',L('contributingFactors'),'textarea',null,true,true)+field('investigationRequired',L('investigationRequired'),'select',[['yes',L('yes')],['no',L('no')]],true)+field('status',L('status'),'select',statusOptions(type),true,false,'open')+field('department',L('responsibleDept'),'select',deptOptions(),true,false,d)};
-    if(type==='code')return{title:L('addCode'),collection:'codes',prefix:'COD',fields:field('department',L('department'),'select',deptOptions(),true,false,d)+field('status',L('status'),'select',[['successful',L('successful')],['failed',L('failed')],['open',L('open')],['closed',L('closed')]],true)+field('type',L('type'),'select',[['real',L('real')],['drill',L('drill')]],true)+field('date',L('date'),'datetime-local',null,true)+field('location',L('location'),'text',null,true)+field('closeDateTime',L('closeDateTime'),'datetime-local')};
+    if(type==='code')return{title:L('addCode'),collection:'codes',prefix:'COD',fields:field('codeType',L('emergencyCodeType'),'select',[['brown',isAr()?'الكود البني':'Brown Code'],['orange',isAr()?'الكود البرتقالي':'Orange Code'],['red',isAr()?'الكود الأحمر':'Red Code'],['blue',isAr()?'الكود الأزرق':'Blue Code'],['yellow',isAr()?'الكود الأصفر':'Yellow Code'],['pink',isAr()?'الكود الوردي':'Pink Code']],true)+field('subtype',L('codeSubtype'),'select',[['electrical',isAr()?'انقطاع الكهرباء':'Electrical power supply failure'],['water',isAr()?'انقطاع المياه':'Water supply failure'],['medicalGas',isAr()?'تعطل الغازات الطبية':'Medical gas failure'],['elevators',isAr()?'المصاعد':'Elevators'],['chemicalSpill',isAr()?'انسكاب كيميائي':'Chemical spill'],['biologicalSpill',isAr()?'انسكاب بيولوجي':'Biological spill'],['other',L('other')]],false)+field('type',L('eventType'),'select',[['real',L('real')],['drill',L('drill')]],true)+field('status',L('status'),'select',[['successful',L('successful')],['failed',L('failed')],['open',L('open')],['closed',L('closed')]],true)+field('date',L('date'),'datetime-local',null,true)+field('location',L('location'),'text',null,true)+field('closeDateTime',L('closeDateTime'),'datetime-local')+field('department',L('department'),'select',deptOptions(),true,false,d)};
     if(type==='compliance')return{title:L('addRequirement'),collection:'compliance',prefix:'CMP',fields:field('requirement',L('requirement'),'textarea',null,true,true)+field('authority',L('authority'),'text',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('dueDate',L('dueDate'),'date')+field('status',L('status'),'select',[['underReview',L('underReview')],['compliant',L('compliant')],['partial',L('partial')],['nonCompliant',L('nonCompliant')],['notApplicable',L('notApplicable')]],true)};
     if(type==='audit')return{title:L('addFinding'),collection:'audits',prefix:'AUD',fields:field('finding',L('title'),'textarea',null,true,true)+field('severity',L('severity'),'select',[['observation',L('observation')],['minor',L('minor')],['medium',L('medium')],['major',L('major')],['critical',L('critical')]],true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('dueDate',L('dueDate'),'date')+field('status',L('status'),'select',statusOptions(type),true,false,'open')};
     if(type==='action')return{title:L('addAction'),collection:'actions',prefix:'ACT',fields:field('description',L('title'),'textarea',null,true,true)+field('source',L('source'),'text',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('dueDate',L('dueDate'),'date')+field('progress',L('progress'),'number',null,false)+field('status',L('status'),'select',statusOptions(type),true,false,'open')};
@@ -2531,8 +2543,6 @@ function pageHtml(id){if(id==='executive')return executivePage();if(id==='govern
     {match:['Reports Register','Report Register','سجل التقارير'],special:'report'},
     {match:['CBAHI FMS Division Assessment','CBAHI FMS Assessment','CBAHI Assessment','تقييم سباهي'],special:'cbahi'},
     {match:['JCI FMS Division Assessment','JCI FMS Assessment','JCI Assessment','تقييم JCI'],special:'jci'},
-    {match:['Compliance Register','سجل الالتزام'],collection:'compliance',type:'compliance'},
-    {match:['Audit & Assurance','التدقيق والتوكيد'],collection:'audits',type:'audit'},
     {match:['Action Plans','خطط العمل'],collection:'actions',type:'action'},
     {match:['Documents & Records','الوثائق والسجلات'],collection:'documents',type:'document'},
     {match:['Selected Initiatives Register','Initiatives Register','سجل المبادرات المختارة','سجل المبادرات'],collection:'initiatives',type:'initiative'}
@@ -2588,7 +2598,20 @@ function pageHtml(id){if(id==='executive')return executivePage();if(id==='govern
   function genericRecordLabel(r){return [recordName(r),r.code,r.id].filter(Boolean).join(' · ');}
   window._grcOpenRegisterCrud=function(collection,type,action){if(!isGrcAdmin())return;var records=(state[collection]||[]).slice();if(!records.length){alert(L('noRecords'));return;}var old=document.getElementById('_grcRegisterCrudModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcRegisterCrudModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(action==='delete'?(isAr()?'حذف سجل':'Delete Record'):(isAr()?'تعديل سجل':'Edit Record'))+'</div><div class="grc-modal-sub">'+(isAr()?'اختر السجل المطلوب':'Select the record')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcRegisterCrudModal\').remove()">×</button></div><div class="grc-modal-body"><label class="grc-field"><span>'+(isAr()?'السجل':'Record')+'</span><select id="_grcCrudRecordSelect">'+records.map(function(r){return'<option value="'+esc(r.id)+'">'+esc(genericRecordLabel(r))+'</option>';}).join('')+'</select></label><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcRegisterCrudModal\').remove()">'+L('cancel')+'</button><button type="button" class="'+(action==='delete'?'grc-btn danger':'grc-primary-btn')+'" onclick="window._grcConfirmRegisterCrud(\''+collection+'\',\''+type+'\',\''+action+'\')">'+(action==='delete'?L('delete'):(isAr()?'فتح للتعديل':'Open Edit'))+'</button></div></div></div>';document.body.appendChild(ov);};
   window._grcConfirmRegisterCrud=function(collection,type,action){var sel=document.getElementById('_grcCrudRecordSelect'),id=sel&&sel.value;if(!id)return;if(action==='delete'){if(window.confirm(L('confirmDelete'))){state[collection]=(state[collection]||[]).filter(function(r){return String(r.id)!==String(id);});document.getElementById('_grcRegisterCrudModal').remove();saveState();}return;}var record=(state[collection]||[]).find(function(r){return String(r.id)===String(id);});document.getElementById('_grcRegisterCrudModal').remove();window._grcOpenEditRecord(collection,type,record);};
-  window._grcOpenEditRecord=function(collection,type,record){if(!record)return;var spec=formSpec(type,record.department),old=document.getElementById('_grcFormModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcFormModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(isAr()?'تعديل السجل':'Edit Record')+'</div><div class="grc-modal-sub">'+esc(genericRecordLabel(record))+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcFormModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcEditForm"><div class="grc-form-grid">'+spec.fields+'</div><div id="_grcFormErr"></div><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcFormModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-primary-btn">'+L('save')+'</button></div></form></div>';document.body.appendChild(ov);var form=document.getElementById('_grcEditForm');Object.keys(record).forEach(function(k){var el=form.elements[k];if(el)el.value=record[k]==null?'':record[k];});form.addEventListener('submit',function(e){e.preventDefault();var ok=true;Array.prototype.forEach.call(form.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);if(miss)ok=false;});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(form),updated=Object.assign({},record,{updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){updated[k]=v;});if(updated.likelihood!==undefined)updated.likelihood=Number(updated.likelihood);if(updated.impact!==undefined)updated.impact=Number(updated.impact);if(updated.progress!==undefined)updated.progress=Number(updated.progress||0);state[collection]=(state[collection]||[]).map(function(r){return String(r.id)===String(record.id)?updated:r;});ov.remove();saveState();});};
+  window._grcOpenEditRecord=function(collection,type,record){if(!record)return;var spec=formSpec(type,record.department),old=document.getElementById('_grcFormModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcFormModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(isAr()?'تعديل السجل':'Edit Record')+'</div><div class="grc-modal-sub">'+esc(genericRecordLabel(record))+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcFormModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcEditForm"><div class="grc-form-grid">'+spec.fields+'</div><div id="_grcFormErr"></div><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcFormModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-primary-btn">'+L('save')+'</button></div></form></div>';document.body.appendChild(ov);var form=document.getElementById('_grcEditForm');
+    var grid=form.querySelector('.grc-form-grid');
+    Object.keys(record).forEach(function(k){
+      if(['id','createdAt','createdBy','updatedAt','updatedBy'].indexOf(k)>=0||form.elements[k]||record[k]&&typeof record[k]==='object')return;
+      var label=(I18N[lang]&&I18N[lang][k])||k.replace(/([A-Z])/g,' $1').replace(/^./,function(x){return x.toUpperCase();});
+      var options=null,inputType='text';
+      if(k==='department')options=deptOptions();
+      else if(k==='status'||k==='actionStatus'||k==='executionStatus')options=statusOptions(type);
+      else if(k==='type'&&type==='code')options=[['real',L('real')],['drill',L('drill')]];
+      else if(/Date|date|At$/.test(k))inputType='date';
+      else if(/description|gap|cap|evidence|requirement|finding|remarks/i.test(k))inputType='textarea';
+      grid.insertAdjacentHTML('beforeend',field(k,label,options?'select':inputType,options,false,inputType==='textarea'));
+    });
+    Object.keys(record).forEach(function(k){var el=form.elements[k];if(el)el.value=record[k]==null?'':record[k];});form.addEventListener('submit',function(e){e.preventDefault();var ok=true;Array.prototype.forEach.call(form.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);if(miss)ok=false;});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(form),updated=Object.assign({},record,{updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){updated[k]=v;});if(updated.likelihood!==undefined)updated.likelihood=Number(updated.likelihood);if(updated.impact!==undefined)updated.impact=Number(updated.impact);if(updated.progress!==undefined)updated.progress=Number(updated.progress||0);state[collection]=(state[collection]||[]).map(function(r){return String(r.id)===String(record.id)?updated:r;});ov.remove();saveState();});};
 
   window._grcOpenHeatCell=function(dept,likelihood,impact){
     var records=filterDept(state.risks,dept).filter(function(r){return Number(r.likelihood)===Number(likelihood)&&Number(r.impact)===Number(impact);}),old=document.getElementById('_grcDetailModal');if(old)old.remove();
