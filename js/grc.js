@@ -818,6 +818,27 @@
     }
     return'<div class="grc-chart-card grc-donut-card">'+chartHeader(title,total,centerLabel||L('records'))+'<div class="grc-donut-layout"><div class="grc-donut-svg-wrap"><svg class="grc-donut-svg" viewBox="0 0 '+size+' '+size+'" role="img" aria-labelledby="'+id+'"><title id="'+id+'">'+esc(title)+'</title><circle cx="72" cy="72" r="'+r+'" fill="none" stroke="#EDF2F6" stroke-width="15"></circle>'+rings+'</svg><div class="grc-donut-center"><strong>'+total+'</strong><span>'+esc(centerLabel||L('records'))+'</span></div></div>'+chartLegend(items,total)+'</div></div>';
   }
+  function emergencyOutcomeDonut(title,success,failed){
+    success=Number(success||0);failed=Number(failed||0);
+    var total=success+failed,size=112,r=39,circ=2*Math.PI*r,cursor=0,id='grcEmergencyDonut'+(++chartSeq);
+    var successColor='#2F9E6F',failedColor='#D94A57',rings='';
+    [{value:success,color:successColor},{value:failed,color:failedColor}].forEach(function(x){
+      if(!total||!x.value)return;
+      var raw=x.value/total*circ,gap=Math.min(3,raw*.18),len=Math.max(0,raw-gap);
+      rings+='<circle cx="56" cy="56" r="'+r+'" fill="none" stroke="'+x.color+'" stroke-width="12" stroke-linecap="round" stroke-dasharray="'+len+' '+(circ-len)+'" stroke-dashoffset="'+(-cursor)+'" transform="rotate(-90 56 56)"></circle>';
+      cursor+=raw;
+    });
+    var successPct=total?Math.round(success/total*100):0,failedPct=total?Math.round(failed/total*100):0;
+    return'<div class="grc-emergency-outcome-card">'+
+      '<div class="grc-emergency-outcome-title">'+esc(title)+'</div>'+
+      '<div class="grc-emergency-outcome-body"><div class="grc-emergency-outcome-donut">'+
+        '<svg viewBox="0 0 '+size+' '+size+'" role="img" aria-labelledby="'+id+'"><title id="'+id+'">'+esc(title)+'</title><circle cx="56" cy="56" r="'+r+'" fill="none" stroke="#EAF0F3" stroke-width="12"></circle>'+rings+'</svg>'+
+        '<div class="grc-emergency-outcome-center"><strong>'+total+'</strong><span>'+esc(L('records'))+'</span></div></div>'+
+      '<div class="grc-emergency-outcome-legend">'+
+        '<div><i style="background:'+successColor+'"></i><span>'+esc(L('successfulCodes'))+'</span><b>'+successPct+'%</b><small>'+success+'</small></div>'+
+        '<div><i style="background:'+failedColor+'"></i><span>'+esc(L('failedCodes'))+'</span><b>'+failedPct+'%</b><small>'+failed+'</small></div>'+
+      '</div></div></div>';
+  }
   function barChart(title,items){
     var max=Math.max.apply(null,[1].concat(items.map(function(x){return Number(x.value||0);}))),total=items.reduce(function(a,x){return a+Number(x.value||0);},0);
     return'<div class="grc-chart-card grc-horizontal-card">'+chartHeader(title,total,L('records'))+'<div class="grc-bar-list">'+items.map(function(x,i){var v=Number(x.value||0),w=Math.round(v/max*100);return'<div class="grc-bar-row"><div class="grc-bar-head"><span><em>'+(i+1)+'</em>'+esc(x.label)+'</span><b>'+v+'</b></div><div class="grc-bar-track"><span style="width:'+w+'%;--bar-color:'+x.color+'"></span></div></div>';}).join('')+'</div></div>';
@@ -1060,7 +1081,7 @@
           chartTitle=title+' · '+(isAr()?'نتيجة الكود':'Code Outcome');
         return'<article class="grc-emergency-type-panel"><h4>'+esc(title)+'</h4>'+
           emergencyMetricCards(values,title,'')+
-          '<div class="grc-emergency-subtype-chart">'+donutChart(chartTitle,chartItems,L('records'))+'</div></article>';
+          '<div class="grc-emergency-subtype-chart">'+emergencyOutcomeDonut(chartTitle,values.success,values.failed)+'</div></article>';
       }).join('')+'</div></section>';
     document.body.appendChild(modal);
   };
@@ -2650,4 +2671,29 @@ function pageHtml(id){if(id==='executive')return executivePage();if(id==='govern
   (function(){if(document.getElementById('_grcCrudV39Styles'))return;var st=document.createElement('style');st.id='_grcCrudV39Styles';st.textContent='.grc-register-titlebar{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:14px!important;flex-wrap:wrap!important}.grc-register-titlebar .grc-inline-crud-actions{margin-inline-start:auto!important}.grc-inline-crud-actions{display:flex!important;gap:8px!important;align-items:center!important;flex-wrap:wrap!important;margin-inline-start:auto!important}.grc-register-block>header,.grc-register-head,.grc-section-head,.grc-card-head{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:14px!important}.grc-inline-crud-actions .grc-btn{min-width:78px}.grc-inline-crud-actions .danger{background:#fff0f1!important;color:#b42332!important;border:1px solid #e6a2aa!important}.grc-emergency-subtype-chart{display:flex!important;justify-content:center!important}.grc-emergency-subtype-chart .grc-chart-card{width:min(300px,100%)!important;max-width:300px!important;padding:12px!important}.grc-emergency-subtype-chart .grc-donut-layout{grid-template-columns:118px minmax(0,1fr)!important;gap:10px!important}.grc-emergency-subtype-chart .grc-donut-svg-wrap{width:112px!important;height:112px!important;margin:auto!important}.grc-emergency-subtype-chart .grc-donut-svg{width:112px!important;height:112px!important}.grc-emergency-subtype-chart .grc-chart-head{margin-bottom:8px!important}.grc-emergency-subtype-chart .grc-legend{font-size:9px!important;gap:6px!important}@media(max-width:620px){.grc-emergency-subtype-chart .grc-donut-layout{grid-template-columns:1fr!important}.grc-emergency-subtype-chart .grc-chart-card{max-width:300px!important}}';document.head.appendChild(st);})();
 
   document.addEventListener('DOMContentLoaded',function(){ensureApp();startSharedStateSync();});
+})();
+
+(function(){
+  if(document.getElementById('_grcEmergencyOutcomeV42'))return;
+  var st=document.createElement('style');
+  st.id='_grcEmergencyOutcomeV42';
+  st.textContent=`
+.grc-emergency-subtype-chart{display:flex!important;justify-content:center!important;margin-top:14px!important}
+.grc-emergency-outcome-card{width:min(320px,100%)!important;border:1px solid #dce7eb!important;border-radius:15px!important;background:#fff!important;padding:13px 14px!important;box-sizing:border-box!important}
+.grc-emergency-outcome-title{font-size:11px!important;font-weight:900!important;color:#173f55!important;text-align:center!important;margin-bottom:11px!important;line-height:1.35!important}
+.grc-emergency-outcome-body{display:grid!important;grid-template-columns:112px minmax(0,1fr)!important;gap:14px!important;align-items:center!important}
+.grc-emergency-outcome-donut{position:relative!important;width:112px!important;height:112px!important}
+.grc-emergency-outcome-donut svg{display:block!important;width:112px!important;height:112px!important}
+.grc-emergency-outcome-center{position:absolute!important;inset:0!important;display:grid!important;place-content:center!important;text-align:center!important;pointer-events:none!important}
+.grc-emergency-outcome-center strong{font-size:20px!important;line-height:1!important;color:#173f55!important}
+.grc-emergency-outcome-center span{font-size:8px!important;color:#718895!important;margin-top:3px!important}
+.grc-emergency-outcome-legend{display:grid!important;gap:8px!important;min-width:0!important}
+.grc-emergency-outcome-legend>div{display:grid!important;grid-template-columns:10px minmax(0,1fr) auto!important;grid-template-areas:"dot label pct" "dot count pct"!important;column-gap:7px!important;align-items:center!important;padding:7px 8px!important;border:1px solid #e4ecef!important;border-radius:10px!important;background:#fafcfd!important}
+.grc-emergency-outcome-legend i{grid-area:dot!important;width:9px!important;height:9px!important;border-radius:50%!important}
+.grc-emergency-outcome-legend span{grid-area:label!important;font-size:9px!important;font-weight:850!important;color:#294f61!important;white-space:normal!important;line-height:1.25!important}
+.grc-emergency-outcome-legend b{grid-area:pct!important;font-size:14px!important;color:#173f55!important}
+.grc-emergency-outcome-legend small{grid-area:count!important;font-size:8px!important;color:#7a909b!important}
+@media(max-width:520px){.grc-emergency-outcome-body{grid-template-columns:1fr!important}.grc-emergency-outcome-donut{margin:auto!important}.grc-emergency-outcome-card{max-width:260px!important}}
+`;
+  document.head.appendChild(st);
 })();
