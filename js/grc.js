@@ -15,7 +15,7 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__='20260721-register-forms-codes-assessment-search-v43';
+  window.__QUMC_GRC_BUILD__='20260721-pdf-search-highlight-fix-v44';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
   var STATE_VERSION=11;
@@ -2219,20 +2219,20 @@
   function _grcHighlightPdf(state){if(!state.el)return;state.el.querySelectorAll('.grc-pdf-page-holder').forEach(function(holder){_grcHighlightPdfPage(state,holder);});}
   async function _grcBuildPdfMatches(state,query){
     state.matches=[];
-    var q=_grcNormalizeSearchText(query),letter=/[0-9A-Za-z\u0600-\u06FF]/;
+    var q=_grcNormalizeSearchText(query);
     if(!q)return;
     for(var p=1;p<=state.pdf.numPages;p++){
-      var pg=await state.pdf.getPage(p),tc=await pg.getTextContent(),count=0;
-      tc.items.forEach(function(item){
-        var hay=_grcNormalizeSearchText(String(item.str||'')),from=0;
-        while((from=hay.indexOf(q,from))>=0){
-          var before=from?hay.charAt(from-1):'',after=hay.charAt(from+q.length)||'';
-          if(!letter.test(before)&&!letter.test(after))count++;
-          from+=Math.max(1,q.length);
-        }
-      });
-      state.textCache[p]=tc.items.map(function(x){return x.str;}).join(' ');
-      for(var i=0;i<count;i++)state.matches.push({page:p,occurrence:i});
+      var pg=await state.pdf.getPage(p),
+          tc=await pg.getTextContent(),
+          pageText=tc.items.map(function(x){return String(x.str||'');}).join(' '),
+          hay=_grcNormalizeSearchText(pageText),
+          from=0,
+          occurrence=0;
+      state.textCache[p]=pageText;
+      while((from=hay.indexOf(q,from))>=0){
+        state.matches.push({page:p,occurrence:occurrence++});
+        from+=Math.max(1,q.length);
+      }
     }
   }
   function _grcUpdatePdfCount(state){var el=document.getElementById('_grcPdfCount_'+String(state.library)+'_'+String(state.id));if(el)el.textContent=state.matches.length?((state.matchIndex+1)+' / '+state.matches.length):'0 / 0';}
