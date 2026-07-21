@@ -15,7 +15,7 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__='20260721-jci-register-search-v41';
+  window.__QUMC_GRC_BUILD__='20260721-register-forms-codes-assessment-search-v43';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
   var STATE_VERSION=11;
@@ -653,12 +653,25 @@
   }
   state.initiatives=normalizeInitiativePeople(INITIATIVE_SEED);
   try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}
-  function saveState(){state.version=STATE_VERSION;state.updatedAt=new Date().toISOString();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}render();queueSharedStateSave();}
+  function grcViewportPosition(){
+    var main=app&&app.querySelector('.grc-main');
+    return{main:main?main.scrollTop:0,winX:window.scrollX||0,winY:window.scrollY||0};
+  }
+  function renderAtSamePosition(position){
+    position=position||grcViewportPosition();
+    render();
+    requestAnimationFrame(function(){
+      var main=app&&app.querySelector('.grc-main');
+      if(main)main.scrollTop=Number(position.main)||0;
+      window.scrollTo(Number(position.winX)||0,Number(position.winY)||0);
+    });
+  }
+  function saveState(){var position=grcViewportPosition();state.version=STATE_VERSION;state.updatedAt=new Date().toISOString();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}renderAtSamePosition(position);queueSharedStateSave();}
 
   var GRC_SHARED_STATE_DOC='grc_workspace_shared_state_v1',grcStateUnsub=null,grcStateSaveTimer=null,grcApplyingRemote=false;
   function grcSharedStateRef(b){return b.fs.doc(b.db,'kpi_dashboard',GRC_SHARED_STATE_DOC);}
   function cleanSharedState(value){var out={};['policies','plans','forms','manuals','risks','incidents','codes','compliance','audits','actions','documents','initiatives'].forEach(function(k){out[k]=Array.isArray(value&&value[k])?value[k]:[];});out.initiatives=normalizeInitiativePeople(out.initiatives);out.version=STATE_VERSION;out.updatedAt=value&&value.updatedAt||new Date().toISOString();return out;}
-  function startSharedStateSync(){if(grcStateUnsub)return;ensureReportBackend().then(function(b){if(!b.auth.currentUser)return;grcStateUnsub=b.fs.onSnapshot(grcSharedStateRef(b),function(snap){if(!snap.exists()){queueSharedStateSave(true);return;}var remote=cleanSharedState(snap.data());grcApplyingRemote=true;Object.keys(remote).forEach(function(k){state[k]=remote[k];});try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}grcApplyingRemote=false;render();},function(err){console.error('[GRC Shared State] live sync failed',err);});}).catch(function(err){console.error('[GRC Shared State] init failed',err);});}
+  function startSharedStateSync(){if(grcStateUnsub)return;ensureReportBackend().then(function(b){if(!b.auth.currentUser)return;grcStateUnsub=b.fs.onSnapshot(grcSharedStateRef(b),function(snap){if(!snap.exists()){queueSharedStateSave(true);return;}var remote=cleanSharedState(snap.data());grcApplyingRemote=true;Object.keys(remote).forEach(function(k){state[k]=remote[k];});try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}grcApplyingRemote=false;renderAtSamePosition(grcViewportPosition());},function(err){console.error('[GRC Shared State] live sync failed',err);});}).catch(function(err){console.error('[GRC Shared State] init failed',err);});}
   function queueSharedStateSave(immediate){if(grcApplyingRemote)return;clearTimeout(grcStateSaveTimer);grcStateSaveTimer=setTimeout(function(){ensureReportBackend().then(function(b){if(!b.auth.currentUser)return;return b.fs.setDoc(grcSharedStateRef(b),Object.assign(cleanSharedState(state),{updatedAt:b.fs.serverTimestamp(),updatedBy:window._fbUser||b.auth.currentUser.email||''}),{merge:false});}).catch(function(err){console.error('[GRC Shared State] save failed',err);});},immediate?0:180);}
 
 
@@ -2166,74 +2179,60 @@
   function _grcHighlightPdfPage(state,holder){
     if(!holder)return;
     var stage=holder.querySelector('.grc-pdf-page-stage'),
-      layer=holder.querySelector('.grc-pdf-text-layer'),
-      q=_grcCompactPdfText(state.query),
+      qRaw=String(state.query||'').trim(),
+      q=_grcNormalizeSearchText(qRaw),
       pageNo=Number(holder.getAttribute('data-page')),
       isCurrent=state.matchIndex>=0&&state.matches[state.matchIndex]&&state.matches[state.matchIndex].page===pageNo,
       spans=Array.prototype.slice.call(holder.querySelectorAll('.grc-pdf-text-layer span'));
     if(stage)stage.querySelectorAll('.grc-pdf-word-hit').forEach(function(x){x.remove();});
-    spans.forEach(function(sp){sp.classList.remove('grc-pdf-hit','grc-pdf-hit-current');});
-    if(q&&spans.length&&stage&&layer){
-      var normal=spans.map(function(_,i){return i;}),
-        reversed=normal.slice().reverse(),
-        variants=[
-          _grcPdfVariantStream(spans,normal,false),
-          _grcPdfVariantStream(spans,reversed,false),
-          _grcPdfVariantStream(spans,normal,true),
-          _grcPdfVariantStream(spans,reversed,true)
-        ],
-        found={},stageRect=stage.getBoundingClientRect();
-      variants.forEach(function(v){
-        _grcFindPdfOccurrences(v.text,q).forEach(function(range){
-          var ids=[];
-          for(var j=range[0];j<range[1];j++)if(v.map[j]>=0&&ids.indexOf(v.map[j])<0)ids.push(v.map[j]);
-          ids.sort(function(a,b){return a-b;});
-          if(!ids.length)return;
-          var key=ids.join(',');
-          if(found[key])return;
-          found[key]=true;
-          var rects;
-          if(ids.length===1){
-            var target=spans[ids[0]],raw=String(target.textContent||''),term=String(state.query||''),at=raw.toLocaleLowerCase().indexOf(term.toLocaleLowerCase());
-            if(at>=0&&target.firstChild){
-              var range=document.createRange();range.setStart(target.firstChild,at);range.setEnd(target.firstChild,Math.min(raw.length,at+term.length));rects=Array.prototype.slice.call(range.getClientRects());
-            }
+    if(!q||!stage)return;
+    var stageRect=stage.getBoundingClientRect(),hitNo=0;
+    spans.forEach(function(sp){
+      var raw=String(sp.textContent||''),normalized=_grcNormalizeSearchText(raw),from=0;
+      while((from=normalized.indexOf(q,from))>=0){
+        var before=from?normalized.charAt(from-1):'',after=normalized.charAt(from+q.length)||'',
+          letter=/[0-9A-Za-z\u0600-\u06FF]/,
+          exactBoundary=!letter.test(before)&&!letter.test(after);
+        if(exactBoundary){
+          var rects=[],directAt=raw.toLocaleLowerCase().indexOf(qRaw.toLocaleLowerCase());
+          if(directAt>=0&&sp.firstChild){
+            try{var rg=document.createRange();rg.setStart(sp.firstChild,directAt);rg.setEnd(sp.firstChild,Math.min(raw.length,directAt+qRaw.length));rects=Array.prototype.slice.call(rg.getClientRects());}catch(_){}
           }
-          if(!rects||!rects.length)rects=ids.map(function(idx){return spans[idx].getBoundingClientRect();});
-          var left=Math.min.apply(null,rects.map(function(r){return r.left;})),
-            top=Math.min.apply(null,rects.map(function(r){return r.top;})),
-            right=Math.max.apply(null,rects.map(function(r){return r.right;})),
-            bottom=Math.max.apply(null,rects.map(function(r){return r.bottom;})),
-            hit=document.createElement('div');
-          hit.className='grc-pdf-word-hit'+(isCurrent?' current':'');
-          hit.style.left=(left-stageRect.left-2)+'px';
-          hit.style.top=(top-stageRect.top-1)+'px';
-          hit.style.width=Math.max(4,right-left+4)+'px';
-          hit.style.height=Math.max(6,bottom-top+2)+'px';
-          stage.appendChild(hit);
-        });
-      });
-    }
-    holder.classList.toggle('grc-pdf-page-has-hit',q&&state.matches.some(function(m){return m.page===pageNo;}));
-    holder.classList.toggle('grc-pdf-page-current-hit',isCurrent);
+          if(!rects.length)rects=[sp.getBoundingClientRect()];
+          rects.forEach(function(rect){
+            var hit=document.createElement('div');
+            hit.className='grc-pdf-word-hit'+(isCurrent&&hitNo===0?' current':'');
+            hit.style.left=(rect.left-stageRect.left-1)+'px';
+            hit.style.top=(rect.top-stageRect.top)+'px';
+            hit.style.width=Math.max(3,rect.width+2)+'px';
+            hit.style.height=Math.max(5,rect.height)+'px';
+            stage.appendChild(hit);
+          });
+          hitNo++;
+        }
+        from+=Math.max(1,q.length);
+      }
+    });
+    holder.classList.toggle('grc-pdf-page-has-hit',hitNo>0);
+    holder.classList.toggle('grc-pdf-page-current-hit',isCurrent&&hitNo>0);
   }
   function _grcHighlightPdf(state){if(!state.el)return;state.el.querySelectorAll('.grc-pdf-page-holder').forEach(function(holder){_grcHighlightPdfPage(state,holder);});}
   async function _grcBuildPdfMatches(state,query){
     state.matches=[];
-    var q=_grcCompactPdfText(query);
+    var q=_grcNormalizeSearchText(query),letter=/[0-9A-Za-z\u0600-\u06FF]/;
     if(!q)return;
     for(var p=1;p<=state.pdf.numPages;p++){
-      var pg=await state.pdf.getPage(p),tc=await pg.getTextContent(),
-        items=tc.items.map(function(x){return String(x.str||'');}),
-        variants=_grcPdfSearchVariants(items),
-        best=0;
-      variants.forEach(function(parts){
-        var hay=parts.map(_grcCompactPdfText).join(''),
-          count=_grcFindPdfOccurrences(hay,q).length;
-        if(count>best)best=count;
+      var pg=await state.pdf.getPage(p),tc=await pg.getTextContent(),count=0;
+      tc.items.forEach(function(item){
+        var hay=_grcNormalizeSearchText(String(item.str||'')),from=0;
+        while((from=hay.indexOf(q,from))>=0){
+          var before=from?hay.charAt(from-1):'',after=hay.charAt(from+q.length)||'';
+          if(!letter.test(before)&&!letter.test(after))count++;
+          from+=Math.max(1,q.length);
+        }
       });
-      state.textCache[p]=items.join(' ');
-      for(var i=0;i<best;i++)state.matches.push({page:p,occurrence:i});
+      state.textCache[p]=tc.items.map(function(x){return x.str;}).join(' ');
+      for(var i=0;i<count;i++)state.matches.push({page:p,occurrence:i});
     }
   }
   function _grcUpdatePdfCount(state){var el=document.getElementById('_grcPdfCount_'+String(state.library)+'_'+String(state.id));if(el)el.textContent=state.matches.length?((state.matchIndex+1)+' / '+state.matches.length):'0 / 0';}
@@ -2255,10 +2254,10 @@
   function _grcAssessmentPersist(){try{localStorage.setItem(ASSESSMENT_EDIT_KEY,JSON.stringify(assessmentEdits));}catch(e){}}
   function _grcAssessmentModalRow(kind,index){var base=kind==='cbahi'?CBAHI_FMS_ROWS:JCI_FMS_ROWS,rows=assessmentRows(kind,base);return rows[Number(index)]||null;}
   window._grcOpenAssessmentModal=function(kind,action,selectedIndex){
-    if(!isGrcAdmin())return;kind=kind==='jci'?'jci':'cbahi';action=action==='edit'?'edit':'add';var rows=assessmentRows(kind,kind==='cbahi'?CBAHI_FMS_ROWS:JCI_FMS_ROWS),index=selectedIndex!==undefined&&selectedIndex!==null&&selectedIndex!==''?Number(selectedIndex):0;
+    if(!isGrcAdmin())return;kind=kind==='jci'?'jci':'cbahi';action=action==='delete'?'delete':(action==='edit'?'edit':'add');var rows=assessmentRows(kind,kind==='cbahi'?CBAHI_FMS_ROWS:JCI_FMS_ROWS),index=selectedIndex!==undefined&&selectedIndex!==null&&selectedIndex!==''?Number(selectedIndex):0;
     var old=document.getElementById('_grcAssessmentModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcAssessmentModal';ov.className='grc-modal-backdrop';
-    var picker=(action==='edit'||action==='delete')?'<div class="grc-report-upload-field full"><label>'+(isAr()?'اختر المتطلب المراد تعديله':'Select requirement to edit')+'</label><select id="_grcAssessmentPicker">'+rows.map(function(r,i){var code=kind==='cbahi'?String(r[5]||r[3]||r[1]||''):String(r[3]||r[1]||'');var desc=kind==='cbahi'?String(r[6]||r[4]||r[2]||''):String(r[4]||r[2]||'');return'<option value="'+i+'" '+(i===index?'selected':'')+'>'+esc((code||('#'+(i+1)))+' — '+desc.slice(0,110))+'</option>';}).join('')+'</select></div>':'';
-    ov.innerHTML='<div class="grc-modal wide grc-assessment-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(action==='add'?L('assessmentAdd'):(action==='delete'?L('delete'):L('assessmentEdit')))+' · '+kind.toUpperCase()+'</div><div class="grc-modal-sub">'+(isAr()?'جميع الحقول تظهر هنا، وعند التعديل تنعكس بيانات السجل المختار تلقائياً.':'All fields are shown here; edit mode automatically loads the selected record.')+'</div></div><button class="grc-modal-close" type="button" onclick="document.getElementById(\'_grcAssessmentModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcAssessmentForm" data-assessment-kind="'+kind+'"><div class="grc-report-upload-grid">'+picker+'<div id="_grcAssessmentFields" class="grc-assessment-form-grid full"></div></div><div class="grc-upload-status" id="_grcAssessmentStatus"></div><div class="grc-modal-actions"><button type="button" class="grc-btn ghost" onclick="document.getElementById(\'_grcAssessmentModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-btn primary">'+(isAr()?'حفظ':'Save')+'</button></div></form></div>';document.body.appendChild(ov);
+    var picker=(action==='edit'||action==='delete')?'<div class="grc-report-upload-field full"><label>'+(action==='delete'?(isAr()?'اختر المتطلب المراد حذفه':'Select requirement to delete'):(isAr()?'اختر المتطلب المراد تعديله':'Select requirement to edit'))+'</label><select id="_grcAssessmentPicker">'+rows.map(function(r,i){var code=kind==='cbahi'?String(r[5]||r[3]||r[1]||''):String(r[3]||r[1]||'');var desc=kind==='cbahi'?String(r[6]||r[4]||r[2]||''):String(r[4]||r[2]||'');return'<option value="'+i+'" '+(i===index?'selected':'')+'>'+esc((code||('#'+(i+1)))+' — '+desc.slice(0,110))+'</option>';}).join('')+'</select></div>':'';
+    ov.innerHTML='<div class="grc-modal wide grc-assessment-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(action==='add'?L('assessmentAdd'):(action==='delete'?L('delete'):L('assessmentEdit')))+' · '+kind.toUpperCase()+'</div><div class="grc-modal-sub">'+(isAr()?'جميع الحقول تظهر هنا، وعند التعديل تنعكس بيانات السجل المختار تلقائياً.':'All fields are shown here; edit mode automatically loads the selected record.')+'</div></div><button class="grc-modal-close" type="button" onclick="document.getElementById(\'_grcAssessmentModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcAssessmentForm" data-assessment-kind="'+kind+'"><div class="grc-report-upload-grid">'+picker+'<div id="_grcAssessmentFields" class="grc-assessment-form-grid full"></div></div><div class="grc-upload-status" id="_grcAssessmentStatus"></div><div class="grc-modal-actions"><button type="button" class="grc-btn ghost" onclick="document.getElementById(\'_grcAssessmentModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-btn '+(action==='delete'?'danger':'primary')+'">'+(action==='delete'?L('delete'):(isAr()?'حفظ':'Save'))+'</button></div></form></div>';document.body.appendChild(ov);
     function renderFields(){var row=(action==='edit'||action==='delete')?(_grcAssessmentModalRow(kind,index)||[]):[],defs=_grcAssessmentFieldDefs(kind),box=document.getElementById('_grcAssessmentFields');box.innerHTML=defs.map(function(d){
         var col=d[0],label=L(d[1]),type=d[2],value=String(row[col]==null?'':row[col]),
           requiredCols=kind==='jci'?[0,1,2,3,4]:[0,1,2,3,4,7],
@@ -2548,14 +2547,76 @@ function pageHtml(id){if(id==='executive')return executivePage();if(id==='govern
     if(type==='compliance')return{title:L('addRequirement'),collection:'compliance',prefix:'CMP',fields:field('requirement',L('requirement'),'textarea',null,true,true)+field('authority',L('authority'),'text',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('dueDate',L('dueDate'),'date')+field('status',L('status'),'select',[['underReview',L('underReview')],['compliant',L('compliant')],['partial',L('partial')],['nonCompliant',L('nonCompliant')],['notApplicable',L('notApplicable')]],true)};
     if(type==='audit')return{title:L('addFinding'),collection:'audits',prefix:'AUD',fields:field('finding',L('title'),'textarea',null,true,true)+field('severity',L('severity'),'select',[['observation',L('observation')],['minor',L('minor')],['medium',L('medium')],['major',L('major')],['critical',L('critical')]],true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('dueDate',L('dueDate'),'date')+field('status',L('status'),'select',statusOptions(type),true,false,'open')};
     if(type==='action')return{title:L('addAction'),collection:'actions',prefix:'ACT',fields:field('description',L('title'),'textarea',null,true,true)+field('source',L('source'),'text',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('dueDate',L('dueDate'),'date')+field('progress',L('progress'),'number',null,false)+field('status',L('status'),'select',statusOptions(type),true,false,'open')};
-    if(type==='initiative')return{title:isAr()?'إضافة مبادرة':'Add Initiative',collection:'initiatives',prefix:'INI',fields:field('nameAr',isAr()?'الاسم العربي':'Arabic Name','text',null,true,true)+field('nameEn',isAr()?'الاسم الإنجليزي':'English Name','text',null,true)+field('status',L('status'),'select',[['proposed',isAr()?'مقترحة':'Proposed'],['selected',isAr()?'مختارة':'Selected']],true)+field('executionStatus',isAr()?'حالة التنفيذ':'Execution Status','select',[['planned',L('planned')],['inProgress',L('inProgress')],['completed',L('completed')]],true)+field('progress',L('progress'),'number')};
+    if(type==='initiative'){
+      var genders=[['male',isAr()?'ذكر':'Male'],['female',isAr()?'أنثى':'Female']];
+      var people=
+        field('leaderName',isAr()?'اسم قائد الفريق':'Team Leader Name','text',null,false,true)+
+        field('leaderGender',isAr()?'جنس قائد الفريق':'Leader Gender','select',genders,false)+
+        field('leaderDepartment',isAr()?'قسم قائد الفريق':'Leader Department','select',deptOptions(),false)+
+        field('member1Name',isAr()?'اسم العضو الأول':'Member 1 Name','text')+
+        field('member1Gender',isAr()?'جنس العضو الأول':'Member 1 Gender','select',genders,false)+
+        field('member1Department',isAr()?'قسم العضو الأول':'Member 1 Department','select',deptOptions(),false)+
+        field('member2Name',isAr()?'اسم العضو الثاني':'Member 2 Name','text')+
+        field('member2Gender',isAr()?'جنس العضو الثاني':'Member 2 Gender','select',genders,false)+
+        field('member2Department',isAr()?'قسم العضو الثاني':'Member 2 Department','select',deptOptions(),false)+
+        field('member3Name',isAr()?'اسم العضو الثالث':'Member 3 Name','text')+
+        field('member3Gender',isAr()?'جنس العضو الثالث':'Member 3 Gender','select',genders,false)+
+        field('member3Department',isAr()?'قسم العضو الثالث':'Member 3 Department','select',deptOptions(),false)+
+        field('member4Name',isAr()?'اسم العضو الرابع':'Member 4 Name','text')+
+        field('member4Gender',isAr()?'جنس العضو الرابع':'Member 4 Gender','select',genders,false)+
+        field('member4Department',isAr()?'قسم العضو الرابع':'Member 4 Department','select',deptOptions(),false)+
+        field('member5Name',isAr()?'اسم العضو الخامس':'Member 5 Name','text')+
+        field('member5Gender',isAr()?'جنس العضو الخامس':'Member 5 Gender','select',genders,false)+
+        field('member5Department',isAr()?'قسم العضو الخامس':'Member 5 Department','select',deptOptions(),false);
+      return{title:isAr()?'إضافة مبادرة':'Add Initiative',collection:'initiatives',prefix:'INIT',fields:
+        field('nameAr',isAr()?'الاسم العربي':'Arabic Name','text',null,true,true)+
+        field('nameEn',isAr()?'الاسم الإنجليزي':'English Name','text',null,true)+
+        field('department',L('department'),'select',deptOptions(),true)+
+        field('status',L('status'),'select',[['proposed',isAr()?'مقترحة':'Proposed'],['selected',isAr()?'مختارة':'Selected']],true)+
+        field('executionStatus',isAr()?'حالة التنفيذ':'Execution Status','select',[['planned',L('planned')],['in_progress',L('inProgress')],['completed',L('completed')]],true)+
+        field('progress',L('progress'),'number')+people};
+    }
     return{title:L('addDocument'),collection:'documents',prefix:'DOC',fields:field('title',L('title'),'text',null,true,true)+field('category',L('category'),'text',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('reviewDate',L('reviewDate'),'date')+field('status',L('status'),'select',statusOptions('document'),true,false,'active')};
   }
   function nextId(prefix,collection){var max=0;(state[collection]||[]).forEach(function(r){var m=String(r.id||'').match(/(\d+)$/);if(m)max=Math.max(max,Number(m[1]));});return prefix+'-'+String(max+1).padStart(3,'0');}
+  function nextRecordCode(spec,obj){
+    var records=(state[spec.collection]||[]).filter(function(r){
+      if(obj.department&&String(r.department||'')!==String(obj.department))return false;
+      if(obj.scope&&String(r.scope||'')!==String(obj.scope))return false;
+      return true;
+    }),best=null,max=-1,width=2,prefix='';
+    records.forEach(function(r){
+      var value=String(r.id||r.code||''),m=value.match(/^(.*?)(\d+)\s*$/);
+      if(!m)return;
+      var n=Number(m[2]);
+      if(n>max){max=n;best=value;prefix=m[1];width=m[2].length;}
+    });
+    if(best)return prefix+String(max+1).padStart(width,'0');
+    var deptPrefix={safety:'SAF ',maintenance:'MNT ',housekeeping:'HK ',laundry:'LND ',projects:'PMD ',division:'FMS '}[obj.department]||'';
+    if(spec.collection==='risks'&&deptPrefix)return deptPrefix+'01';
+    return nextId(spec.prefix,spec.collection);
+  }
+  function initiativeTeamFromForm(form){
+    var team=[],push=function(name,gender,department,leader){
+      name=String(name||'').trim();if(!name)return;
+      team.push({name:name,roleAr:leader?'قائد الفريق':'عضو الفريق',roleEn:leader?'Team Leader':'Team Member',gender:String(gender||''),department:String(department||'')});
+    };
+    push(form.elements.leaderName&&form.elements.leaderName.value,form.elements.leaderGender&&form.elements.leaderGender.value,form.elements.leaderDepartment&&form.elements.leaderDepartment.value,true);
+    for(var i=1;i<=5;i++)push(form.elements['member'+i+'Name']&&form.elements['member'+i+'Name'].value,form.elements['member'+i+'Gender']&&form.elements['member'+i+'Gender'].value,form.elements['member'+i+'Department']&&form.elements['member'+i+'Department'].value,false);
+    return team;
+  }
+  window._grcPrepareInitiativeForm=function(form,record){
+    if(!form)return;var team=record&&Array.isArray(record.team)?record.team:[],leader=team.find(function(p){return String(p.roleEn||'').toLowerCase().indexOf('leader')>=0||String(p.roleAr||'').indexOf('قائد')>=0;}),members=team.filter(function(p){return p!==leader;});
+    function set(name,value){if(form.elements[name])form.elements[name].value=value==null?'':value;}
+    if(leader){set('leaderName',leader.name);set('leaderGender',leader.gender);set('leaderDepartment',leader.department);}
+    members.slice(0,5).forEach(function(p,i){var n=i+1;set('member'+n+'Name',p.name);set('member'+n+'Gender',p.gender);set('member'+n+'Department',p.department);});
+  };
 
   var GRC_REGISTER_CRUD_MAP=[
     {match:['Policy Register','Policies Register','سجل السياسات'],collection:'policies',type:'policy'},
     {match:['Plan Register','Plans Register','سجل الخطط'],collection:'plans',type:'plan'},
+    {match:['Internal Forms','النماذج الداخلية'],collection:'forms',type:'form',scope:'internal'},
+    {match:['External Forms','النماذج الخارجية'],collection:'forms',type:'form',scope:'external'},
     {match:['Approved Forms Register','Forms Register','سجل النماذج المعتمدة','سجل النماذج'],collection:'forms',type:'form'},
     {match:['Risk Register','سجل المخاطر'],collection:'risks',type:'risk'},
     {match:['Incident Register','سجل الحوادث'],collection:'incidents',type:'incident'},
@@ -2587,9 +2648,10 @@ function pageHtml(id){if(id==='executive')return executivePage();if(id==='govern
       edit="window._grcOpenAdminControl('manuals','edit','guide')";
       del="window._grcOpenAdminControl('manuals','delete','guide')";
     }else{
-      add="window._grcOpenForm('"+map.type+"')";
-      edit="window._grcOpenRegisterCrud('"+map.collection+"','"+map.type+"','edit')";
-      del="window._grcOpenRegisterCrud('"+map.collection+"','"+map.type+"','delete')";
+      var scopeArg=map.scope?(",'"+map.scope+"'"):"";
+      add="window._grcOpenForm('"+map.type+"',null"+scopeArg+")";
+      edit="window._grcOpenRegisterCrud('"+map.collection+"','"+map.type+"','edit'"+scopeArg+")";
+      del="window._grcOpenRegisterCrud('"+map.collection+"','"+map.type+"','delete'"+scopeArg+")";
     }
     return '<button type="button" class="grc-btn primary" onclick="'+add+'">＋ '+(isAr()?'إضافة':'Add')+'</button>'+
       '<button type="button" class="grc-btn ghost" onclick="'+edit+'">✎ '+(isAr()?'تعديل':'Edit')+'</button>'+
@@ -2617,7 +2679,7 @@ function pageHtml(id){if(id==='executive')return executivePage();if(id==='govern
     });
   }
   function genericRecordLabel(r){return [recordName(r),r.code,r.id].filter(Boolean).join(' · ');}
-  window._grcOpenRegisterCrud=function(collection,type,action){if(!isGrcAdmin())return;var records=(state[collection]||[]).slice();if(!records.length){alert(L('noRecords'));return;}var old=document.getElementById('_grcRegisterCrudModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcRegisterCrudModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(action==='delete'?(isAr()?'حذف سجل':'Delete Record'):(isAr()?'تعديل سجل':'Edit Record'))+'</div><div class="grc-modal-sub">'+(isAr()?'اختر السجل المطلوب':'Select the record')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcRegisterCrudModal\').remove()">×</button></div><div class="grc-modal-body"><label class="grc-field"><span>'+(isAr()?'السجل':'Record')+'</span><select id="_grcCrudRecordSelect">'+records.map(function(r){return'<option value="'+esc(r.id)+'">'+esc(genericRecordLabel(r))+'</option>';}).join('')+'</select></label><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcRegisterCrudModal\').remove()">'+L('cancel')+'</button><button type="button" class="'+(action==='delete'?'grc-btn danger':'grc-primary-btn')+'" onclick="window._grcConfirmRegisterCrud(\''+collection+'\',\''+type+'\',\''+action+'\')">'+(action==='delete'?L('delete'):(isAr()?'فتح للتعديل':'Open Edit'))+'</button></div></div></div>';document.body.appendChild(ov);};
+  window._grcOpenRegisterCrud=function(collection,type,action,scope){if(!isGrcAdmin())return;var records=(state[collection]||[]).slice();if(scope)records=records.filter(function(r){return String(r.scope||'')===String(scope);});if(!records.length){alert(L('noRecords'));return;}var old=document.getElementById('_grcRegisterCrudModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcRegisterCrudModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(action==='delete'?(isAr()?'حذف سجل':'Delete Record'):(isAr()?'تعديل سجل':'Edit Record'))+'</div><div class="grc-modal-sub">'+(isAr()?'اختر السجل المطلوب':'Select the record')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcRegisterCrudModal\').remove()">×</button></div><div class="grc-modal-body"><label class="grc-field"><span>'+(isAr()?'السجل':'Record')+'</span><select id="_grcCrudRecordSelect">'+records.map(function(r){return'<option value="'+esc(r.id)+'">'+esc(genericRecordLabel(r))+'</option>';}).join('')+'</select></label><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcRegisterCrudModal\').remove()">'+L('cancel')+'</button><button type="button" class="'+(action==='delete'?'grc-btn danger':'grc-primary-btn')+'" onclick="window._grcConfirmRegisterCrud(\''+collection+'\',\''+type+'\',\''+action+'\')">'+(action==='delete'?L('delete'):(isAr()?'فتح للتعديل':'Open Edit'))+'</button></div></div></div>';document.body.appendChild(ov);};
   window._grcConfirmRegisterCrud=function(collection,type,action){var sel=document.getElementById('_grcCrudRecordSelect'),id=sel&&sel.value;if(!id)return;if(action==='delete'){if(window.confirm(L('confirmDelete'))){state[collection]=(state[collection]||[]).filter(function(r){return String(r.id)!==String(id);});document.getElementById('_grcRegisterCrudModal').remove();saveState();}return;}var record=(state[collection]||[]).find(function(r){return String(r.id)===String(id);});document.getElementById('_grcRegisterCrudModal').remove();window._grcOpenEditRecord(collection,type,record);};
   window._grcOpenEditRecord=function(collection,type,record){if(!record)return;var spec=formSpec(type,record.department),old=document.getElementById('_grcFormModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcFormModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(isAr()?'تعديل السجل':'Edit Record')+'</div><div class="grc-modal-sub">'+esc(genericRecordLabel(record))+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcFormModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcEditForm"><div class="grc-form-grid">'+spec.fields+'</div><div id="_grcFormErr"></div><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcFormModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-primary-btn">'+L('save')+'</button></div></form></div>';document.body.appendChild(ov);var form=document.getElementById('_grcEditForm');
     var grid=form.querySelector('.grc-form-grid');
@@ -2632,7 +2694,7 @@ function pageHtml(id){if(id==='executive')return executivePage();if(id==='govern
       else if(/description|gap|cap|evidence|requirement|finding|remarks/i.test(k))inputType='textarea';
       grid.insertAdjacentHTML('beforeend',field(k,label,options?'select':inputType,options,false,inputType==='textarea'));
     });
-    Object.keys(record).forEach(function(k){var el=form.elements[k];if(el)el.value=record[k]==null?'':record[k];});form.addEventListener('submit',function(e){e.preventDefault();var ok=true;Array.prototype.forEach.call(form.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);if(miss)ok=false;});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(form),updated=Object.assign({},record,{updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){updated[k]=v;});if(updated.likelihood!==undefined)updated.likelihood=Number(updated.likelihood);if(updated.impact!==undefined)updated.impact=Number(updated.impact);if(updated.progress!==undefined)updated.progress=Number(updated.progress||0);state[collection]=(state[collection]||[]).map(function(r){return String(r.id)===String(record.id)?updated:r;});ov.remove();saveState();});};
+    Object.keys(record).forEach(function(k){var el=form.elements[k];if(el)el.value=record[k]==null?'':record[k];});if(type==='initiative')window._grcPrepareInitiativeForm(form,record);form.addEventListener('submit',function(e){e.preventDefault();var ok=true;Array.prototype.forEach.call(form.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);if(miss)ok=false;});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(form),updated=Object.assign({},record,{updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){if(!/^(leader|member\d)(Name|Gender|Department)$/.test(k))updated[k]=v;});if(type==='initiative')updated.team=initiativeTeamFromForm(form);if(updated.likelihood!==undefined)updated.likelihood=Number(updated.likelihood);if(updated.impact!==undefined)updated.impact=Number(updated.impact);if(updated.progress!==undefined)updated.progress=Number(updated.progress||0);state[collection]=(state[collection]||[]).map(function(r){return String(r.id)===String(record.id)?updated:r;});ov.remove();saveState();});};
 
   window._grcOpenHeatCell=function(dept,likelihood,impact){
     var records=filterDept(state.risks,dept).filter(function(r){return Number(r.likelihood)===Number(likelihood)&&Number(r.impact)===Number(impact);}),old=document.getElementById('_grcDetailModal');if(old)old.remove();
@@ -2642,12 +2704,15 @@ function pageHtml(id){if(id==='executive')return executivePage();if(id==='govern
     document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
   };
 
-  window._grcOpenForm=function(type,deptOverride){
+  window._grcOpenForm=function(type,deptOverride,scopeOverride){
     if(!isGrcAdmin())return;
     var spec=formSpec(type,deptOverride),old=document.getElementById('_grcFormModal');if(old)old.remove();
     var ov=document.createElement('div');ov.id='_grcFormModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+spec.title+'</div><div class="grc-modal-sub">'+L('draftWorkspace')+' · '+L('localNote')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcFormModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcForm"><div class="grc-form-grid">'+spec.fields+'</div><div id="_grcFormErr" style="font-size:9px;color:#b83232;font-weight:800;margin-top:10px"></div><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcFormModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-primary-btn">'+L('save')+'</button></div></form></div>';
     document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
-    document.getElementById('_grcForm').addEventListener('submit',function(e){e.preventDefault();var ok=true,first=null;Array.prototype.forEach.call(e.target.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);var wrap=el.closest('.grc-field,.grc-report-upload-field');if(wrap)wrap.classList.toggle('required-missing',miss);if(miss){ok=false;if(!first)first=el;}});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(e.target),obj={id:nextId(spec.prefix,spec.collection),createdAt:new Date().toISOString(),createdBy:currentName()};fd.forEach(function(v,k){obj[k]=v;});if(obj.likelihood!==undefined)obj.likelihood=Number(obj.likelihood);if(obj.impact!==undefined)obj.impact=Number(obj.impact);if(obj.progress!==undefined)obj.progress=Number(obj.progress||0);state[spec.collection].push(obj);ov.remove();saveState();});
+    var openedForm=document.getElementById('_grcForm');
+    if(type==='form'&&scopeOverride&&openedForm&&openedForm.elements.scope)openedForm.elements.scope.value=scopeOverride;
+    if(type==='initiative'&&openedForm)window._grcPrepareInitiativeForm(openedForm,null);
+    document.getElementById('_grcForm').addEventListener('submit',function(e){e.preventDefault();var ok=true,first=null;Array.prototype.forEach.call(e.target.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);var wrap=el.closest('.grc-field,.grc-report-upload-field');if(wrap)wrap.classList.toggle('required-missing',miss);if(miss){ok=false;if(!first)first=el;}});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(e.target),obj={createdAt:new Date().toISOString(),createdBy:currentName()};fd.forEach(function(v,k){if(!/^(leader|member\d)(Name|Gender|Department)$/.test(k))obj[k]=v;});obj.id=nextRecordCode(spec,obj);if(!obj.code)obj.code=obj.id;if(type==='initiative')obj.team=initiativeTeamFromForm(e.target);if(obj.likelihood!==undefined)obj.likelihood=Number(obj.likelihood);if(obj.impact!==undefined)obj.impact=Number(obj.impact);if(obj.progress!==undefined)obj.progress=Number(obj.progress||0);state[spec.collection].push(obj);ov.remove();saveState();});
   };
 
   window._grcDelete=function(collection,id){if(!isGrcAdmin())return;if(!window.confirm(L('confirmDelete')))return;state[collection]=(state[collection]||[]).filter(function(r){return String(r.id)!==String(id);});saveState();};
