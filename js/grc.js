@@ -15,7 +15,7 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__='20260721-pdf-arabic-unicode-search-fix-v46';
+  window.__QUMC_GRC_BUILD__='20260721-pdf-single-word-highlight-v47';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
   var STATE_VERSION=11;
@@ -2159,12 +2159,30 @@
       revRows.map(reverseText)
     ];
   }
+  function _grcPdfSpanChars(span,reverseChars){
+    var raw=String(span&&span.textContent||''),parts=[],offset=0;
+    Array.from(raw).forEach(function(ch){
+      var start=offset;offset+=ch.length;
+      parts.push({ch:ch,start:start,end:offset});
+    });
+    if(reverseChars)parts.reverse();
+    var chars=[],map=[];
+    parts.forEach(function(part){
+      var normalized=_grcNormalizeSearchText(part.ch).replace(/\s+/g,'');
+      Array.from(normalized).forEach(function(ch){
+        chars.push(ch);map.push({start:part.start,end:part.end});
+      });
+    });
+    return{text:chars.join(''),map:map};
+  }
   function _grcPdfVariantStream(spans,order,reverseChars){
     var text='',map=[];
     order.forEach(function(idx){
-      var raw=String(spans[idx].textContent||''),
-        part=_grcCompactPdfText(reverseChars?Array.from(raw).reverse().join(''):raw);
-      for(var c=0;c<part.length;c++){text+=part[c];map.push(idx);}
+      var part=_grcPdfSpanChars(spans[idx],reverseChars);
+      for(var c=0;c<part.text.length;c++){
+        text+=part.text[c];
+        map.push({span:idx,start:part.map[c].start,end:part.map[c].end});
+      }
     });
     return{text:text,map:map};
   }
@@ -2176,6 +2194,37 @@
     }
     return out;
   }
+  function _grcPdfOccurrenceRect(spans,stream,range,stageRect){
+    var bySpan={};
+    for(var p=range[0];p<range[1];p++){
+      var ref=stream.map[p];
+      if(!ref)continue;
+      var item=bySpan[ref.span]||(bySpan[ref.span]={start:ref.start,end:ref.end});
+      item.start=Math.min(item.start,ref.start);
+      item.end=Math.max(item.end,ref.end);
+    }
+    var rects=[];
+    Object.keys(bySpan).forEach(function(key){
+      var idx=Number(key),sp=spans[idx],node=sp&&sp.firstChild,part=bySpan[key];
+      if(!sp)return;
+      if(node&&node.nodeType===3){
+        try{
+          var length=String(node.nodeValue||'').length,
+            rg=document.createRange();
+          rg.setStart(node,Math.max(0,Math.min(length,part.start)));
+          rg.setEnd(node,Math.max(0,Math.min(length,part.end)));
+          Array.prototype.slice.call(rg.getClientRects()).forEach(function(r){if(r.width>0&&r.height>0)rects.push(r);});
+        }catch(_){}
+      }
+      if(!rects.length){var fallback=sp.getBoundingClientRect();if(fallback.width>0&&fallback.height>0)rects.push(fallback);}
+    });
+    if(!rects.length)return null;
+    var left=Math.min.apply(null,rects.map(function(r){return r.left;})),
+      top=Math.min.apply(null,rects.map(function(r){return r.top;})),
+      right=Math.max.apply(null,rects.map(function(r){return r.right;})),
+      bottom=Math.max.apply(null,rects.map(function(r){return r.bottom;}));
+    return{left:left-stageRect.left-1,top:top-stageRect.top,width:Math.max(3,right-left+2),height:Math.max(5,bottom-top)};
+  }
   function _grcHighlightPdfPage(state,holder){
     if(!holder)return;
     var stage=holder.querySelector('.grc-pdf-page-stage'),
@@ -2183,7 +2232,8 @@
       q=_grcCompactPdfText(qRaw),
       qReverse=Array.from(q).reverse().join(''),
       pageNo=Number(holder.getAttribute('data-page')),
-      isCurrent=state.matchIndex>=0&&state.matches[state.matchIndex]&&state.matches[state.matchIndex].page===pageNo,
+      currentMatch=state.matchIndex>=0&&state.matches[state.matchIndex],
+      currentOccurrence=currentMatch&&currentMatch.page===pageNo?Number(currentMatch.occurrence):-1,
       spans=Array.prototype.slice.call(holder.querySelectorAll('.grc-pdf-text-layer span'));
     if(stage)stage.querySelectorAll('.grc-pdf-word-hit').forEach(function(x){x.remove();});
     if(!q||!stage||!spans.length)return;
@@ -2201,32 +2251,27 @@
       var stream=_grcPdfVariantStream(spans,orders[oi].order,orders[oi].reverseChars);
       for(var ni=0;ni<needles.length;ni++){
         var found=_grcFindPdfOccurrences(stream.text,needles[ni]);
-        if(found.length){selected={stream:stream,ranges:found,needle:needles[ni]};break outer;}
+        if(found.length){selected={stream:stream,ranges:found};break outer;}
       }
     }
 
     var hitNo=0;
     if(selected){
       selected.ranges.forEach(function(range){
-        var involved=[],seen={};
-        for(var p=range[0];p<range[1];p++){
-          var idx=selected.stream.map[p];
-          if(idx!==undefined&&!seen[idx]){seen[idx]=1;involved.push(idx);}
-        }
-        involved.forEach(function(idx){
-          var sp=spans[idx],rect=sp.getBoundingClientRect(),hit=document.createElement('div');
-          hit.className='grc-pdf-word-hit'+(isCurrent&&hitNo===0?' current':'');
-          hit.style.left=(rect.left-stageRect.left-1)+'px';
-          hit.style.top=(rect.top-stageRect.top)+'px';
-          hit.style.width=Math.max(3,rect.width+2)+'px';
-          hit.style.height=Math.max(5,rect.height)+'px';
-          stage.appendChild(hit);
-        });
+        var box=_grcPdfOccurrenceRect(spans,selected.stream,range,stageRect);
+        if(!box)return;
+        var hit=document.createElement('div');
+        hit.className='grc-pdf-word-hit'+(hitNo===currentOccurrence?' current':'');
+        hit.style.left=box.left+'px';
+        hit.style.top=box.top+'px';
+        hit.style.width=box.width+'px';
+        hit.style.height=box.height+'px';
+        stage.appendChild(hit);
         hitNo++;
       });
     }
     holder.classList.toggle('grc-pdf-page-has-hit',hitNo>0);
-    holder.classList.toggle('grc-pdf-page-current-hit',isCurrent&&hitNo>0);
+    holder.classList.toggle('grc-pdf-page-current-hit',currentOccurrence>=0&&hitNo>0);
   }
   function _grcHighlightPdf(state){if(!state.el)return;state.el.querySelectorAll('.grc-pdf-page-holder').forEach(function(holder){_grcHighlightPdfPage(state,holder);});}
   async function _grcBuildPdfMatches(state,query){
