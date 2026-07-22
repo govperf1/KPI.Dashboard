@@ -15,7 +15,7 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__='20260721-esr-codes-expiry-v48';
+  window.__QUMC_GRC_BUILD__='20260722-esr-chapter-risk-categories-v49';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
   var STATE_VERSION=11;
@@ -1726,7 +1726,7 @@
   }
   function cleanAssessmentRowCodes(row){
     var out=(row||[]).slice();
-    [1,3,5].forEach(function(col){out[col]=cleanAssessmentCode(out[col]);});
+    [0,1,3,5].forEach(function(col){out[col]=cleanAssessmentCode(out[col]);});
     return out;
   }
   function requirementStartsWithD(r){return /^D(?:\s|\b)/.test(String(r[6]||r[4]||'').trim());}
@@ -1791,13 +1791,13 @@
       var rowspan=spans[rowIndex][col]||1;
       return'<td'+(cls?' class="'+cls+'"':'')+(rowspan>1?' rowspan="'+rowspan+'"':'')+'>'+html+'</td>';
     }
-    var rows=cbahiRows.map(function(r,rowIndex){var notMet=String(r[8]||'')==='Not Met',evidenceRequired=requirementStartsWithD(r),isEsr=[9,21,22,23,24,32].indexOf(cbahiStandardNumber(r[1]))>=0,esrClass=isEsr?' grc-cbahi-esr-code':'';return'<tr>'+ 
+    var rows=cbahiRows.map(function(r,rowIndex){var notMet=String(r[8]||'')==='Not Met',evidenceRequired=requirementStartsWithD(r),isEsr=[9,21,22,23,24,32].indexOf(cbahiStandardNumber(r[1]))>=0,esrClass=isEsr?' grc-cbahi-esr-code':'',specificCode=cleanAssessmentCode(r[5]),specificEsrClass=isEsr&&specificCode?' grc-cbahi-esr-code':'';return'<tr>'+ 
       cell(r,rowIndex,0,'grc-cbahi-chapter',esc(r[0]||'—'))+
       cell(r,rowIndex,1,'grc-id grc-cbahi-standard'+esrClass,esc(cleanAssessmentCode(r[1])||'—'))+
       cell(r,rowIndex,2,'grc-cbahi-description',esc(r[2]||'—'))+
       cell(r,rowIndex,3,'grc-id grc-cbahi-substandard'+esrClass,esc(cleanAssessmentCode(r[3])||'—'))+
       cell(r,rowIndex,4,'grc-cbahi-description',esc(r[4]||'—'))+
-      cell(r,rowIndex,5,'grc-id grc-cbahi-specific'+esrClass,esc(cleanAssessmentCode(r[5])||''))+
+      cell(r,rowIndex,5,'grc-id grc-cbahi-specific'+specificEsrClass,esc(specificCode||''))+
       cell(r,rowIndex,6,'grc-cbahi-specific-desc',esc(r[6]||''))+
       cell(r,rowIndex,7,'grc-cbahi-department',esc(r[7]||'—'))+
       cell(r,rowIndex,8,'grc-cbahi-status-cell',assessmentStatusEditor('cbahi',rowIndex,r[8]))+
@@ -1952,7 +1952,7 @@
   }
   function jciTableHtml(){
     var sourceRows=normalizedJciRows();
-    var jciRows=sourceRows.map(function(r){return['FMS Division',String(r[0]||''),r[1],r[2],r[3],r[4],r[5],r[6],r[7],r[8],r[9],r[10],r[11],r[12],r[13],r[14]];});
+    var jciRows=sourceRows.map(function(r){return[cleanAssessmentCode('FMS Division'),String(r[0]||''),r[1],r[2],r[3],r[4],r[5],r[6],r[7],r[8],r[9],r[10],r[11],r[12],r[13],r[14]];});
     var heads=['chapter','domain','standard','standardDescription','subStandard','subStandardDescription','specificRequirement','specificRequirementDescription','responsibleDepartment','complianceStatus','score','assessmentActivities','evidence','gapDescription','cap','dueDate'];
     var mergeable={0:[],1:[0],2:[0,1],3:[0,1,2],4:[0,1,2],5:[0,1,2,4],6:[0,1,2,4],7:[0,1,2,4,6],8:[0,1,2,4,6]};
     var spans=jciRows.map(function(){return{};});
@@ -2585,7 +2585,7 @@ function pageHtml(id){if(id==='executive')return executivePage();if(id==='govern
     if(type==='plan')return{title:L('addPlan'),collection:'plans',prefix:'PLN',fields:field('name',L('name'),'text',null,true,true)+field('issueDate',L('issueDate'),'date',null,true)+field('effectiveDate',L('effectiveDate'),'date',null,true)+field('reviewDate',L('reviewDate'),'date',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('status',L('status'),'select',statusOptions(type),true,false,'active')};
     if(type==='form')return{title:L('addForm'),collection:'forms',prefix:'FRM',fields:field('name',L('name'),'text',null,true,true)+field('scope',L('formScope'),'select',[['internal',L('internalForms')],['external',L('externalForms')]],true,false,'internal')+field('issueDate',L('issueDate'),'date')+field('effectiveDate',L('effectiveDate'),'date')+field('reviewDate',L('reviewDate'),'date')+field('department',L('department'),'select',deptOptions(),true,false,d)+field('status',L('status'),'select',statusOptions(type),true,false,'active')};
     if(type==='manual')return{title:L('addManual'),collection:'manuals',prefix:'MAN',fields:field('name',L('manualName'),'text',null,true,true)+field('category',L('category'),'text',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('reviewDate',L('reviewDate'),'date')+field('status',L('status'),'select',statusOptions(type),true,false,'active')};
-    if(type==='risk')return{title:L('addRisk'),collection:'risks',prefix:'RSK',fields:field('riskIdentified',L('riskIdentified'),'textarea',null,true,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('riskCategory',L('riskCategory'),'select',[['operational',L('operational')],['facility',L('facility')],['safetyRisk',L('safetyRisk')],['complianceRisk',L('complianceRisk')],['contractor',L('contractor')],['emergencyPreparedness',L('emergencyPreparedness')]],true)+field('likelihood',L('likelihood'),'select',[[1,'1'],[2,'2'],[3,'3'],[4,'4'],[5,'5']],true,false,1)+field('impact',L('impact'),'select',[[1,'1'],[2,'2'],[3,'3'],[4,'4'],[5,'5']],true,false,1)+field('controlType',L('controlType'),'select',[['preventive',L('preventive')],['detective',L('detective')],['corrective',L('corrective')],['directive',L('directive')],['noControl',L('noControl')]],true)+field('actionStatus',L('actionStatus'),'select',statusOptions(type),true,false,'open')};
+    if(type==='risk')return{title:L('addRisk'),collection:'risks',prefix:'RSK',fields:field('riskIdentified',L('riskIdentified'),'textarea',null,true,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('riskCategory',L('riskCategory'),'select',[['Operational','Operational'],['Clinical / Patient Safety','Clinical / Patient Safety'],['Strategic','Strategic'],['Financial','Financial'],['Human Capital','Human Capital'],['Legal / Regulatory','Legal / Regulatory'],['Technological','Technological'],['Hazard / Environmental','Hazard / Environmental']],true)+field('likelihood',L('likelihood'),'select',[[1,'1'],[2,'2'],[3,'3'],[4,'4'],[5,'5']],true,false,1)+field('impact',L('impact'),'select',[[1,'1'],[2,'2'],[3,'3'],[4,'4'],[5,'5']],true,false,1)+field('controlType',L('controlType'),'select',[['preventive',L('preventive')],['detective',L('detective')],['corrective',L('corrective')],['directive',L('directive')],['noControl',L('noControl')]],true)+field('actionStatus',L('actionStatus'),'select',statusOptions(type),true,false,'open')};
     if(type==='incident')return{title:L('addIncident'),collection:'incidents',prefix:'INC',fields:field('date',L('date'),'date',null,true)+field('category',L('category'),'text',null,true)+field('contributingFactors',L('contributingFactors'),'textarea',null,true,true)+field('investigationRequired',L('investigationRequired'),'select',[['yes',L('yes')],['no',L('no')]],true)+field('status',L('status'),'select',statusOptions(type),true,false,'open')+field('department',L('responsibleDept'),'select',deptOptions(),true,false,d)};
     if(type==='code')return{title:L('addCode'),collection:'codes',prefix:'COD',fields:field('codeType',L('emergencyCodeType'),'select',[['brown',isAr()?'الكود البني':'Brown Code'],['orange',isAr()?'الكود البرتقالي':'Orange Code'],['red',isAr()?'الكود الأحمر':'Red Code'],['blue',isAr()?'الكود الأزرق':'Blue Code'],['yellow',isAr()?'الكود الأصفر':'Yellow Code'],['pink',isAr()?'الكود الوردي':'Pink Code']],true)+field('subtype',L('codeSubtype'),'select',[['electrical',isAr()?'انقطاع الكهرباء':'Electrical power supply failure'],['water',isAr()?'انقطاع المياه':'Water supply failure'],['medicalGas',isAr()?'تعطل الغازات الطبية':'Medical gas failure'],['elevators',isAr()?'المصاعد':'Elevators'],['chemicalSpill',isAr()?'انسكاب كيميائي':'Chemical spill'],['biologicalSpill',isAr()?'انسكاب بيولوجي':'Biological spill'],['other',L('other')]],false)+field('type',L('eventType'),'select',[['real',L('real')],['drill',L('drill')]],true)+field('status',L('status'),'select',[['successful',L('successful')],['failed',L('failed')],['open',L('open')],['closed',L('closed')]],true)+field('date',L('date'),'datetime-local',null,true)+field('location',L('location'),'text',null,true)+field('closeDateTime',L('closeDateTime'),'datetime-local')+field('department',L('department'),'select',deptOptions(),true,false,d)};
     if(type==='compliance')return{title:L('addRequirement'),collection:'compliance',prefix:'CMP',fields:field('requirement',L('requirement'),'textarea',null,true,true)+field('authority',L('authority'),'text',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('dueDate',L('dueDate'),'date')+field('status',L('status'),'select',[['underReview',L('underReview')],['compliant',L('compliant')],['partial',L('partial')],['nonCompliant',L('nonCompliant')],['notApplicable',L('notApplicable')]],true)};
