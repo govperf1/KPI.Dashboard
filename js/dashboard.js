@@ -22,13 +22,6 @@
      translations.js (renderCurrent -- called by drilldept)
    =========================================================== */
 
-
-/* Safe bilingual helpers. KPI names always come from the KPI record itself;
-   they are never passed through the general UI translation layer. */
-function _perfUi(en,ar){return (typeof lang!=='undefined'&&lang==='ar')?ar:en;}
-function _perfKpiName(k){if(!k)return '';return (typeof lang!=='undefined'&&lang==='ar')?(k.nameAr||k.nameEn||k.id||''):(k.nameEn||k.nameAr||k.id||'');}
-function _perfDeptName(d){var dm=(typeof DM!=='undefined'&&DM[d])||{};return (typeof lang!=='undefined'&&lang==='ar')?(dm.ar||dm.en||d):(dm.en||dm.ar||d);}
-
 /* -- Charts engine -- */
 /* ── CHARTS ── */
 function dch(id){if(CH[id]){try{CH[id].destroy()}catch(e){}delete CH[id];}}
@@ -171,14 +164,14 @@ function renderExec(){
   const _missK2=evaluated.filter(k=>ok(k)===false);
   const _wK2=_missK2.reduce((a,k)=>{const v=qv(k);if(v===null)return a;const g=k.target-v;return(!a||g>a.g)?{k,g}:a;},null);
   const _bigGapStr=_wK2?(_wK2.g.toFixed(1)+'%'):'—';
-  const _bigGapName=_wK2?_perfKpiName(_wK2.k).slice(0,28):'';
+  const _bigGapName=_wK2?_wK2.k.nameEn.slice(0,28):'';
   const _dS2=Object.keys(DM).map(d=>{const dk2=evaluated.filter(k=>k.dept===d);return{d,miss:dk2.filter(k=>ok(k)===false).length,total:dk2.length};}).filter(x=>x.total>0).sort((a,b)=>b.miss-a.miss);
   const _wD2=_dS2[0];
   const _dC2={maintenance:'#0195af',safety:'#F87171',housekeeping:'#15803D',projects:'#FCD34D'};
   const _wDColor=_wD2?(_dC2[_wD2.d]||'#fff'):'#15803D';
   const _wDName=_wD2&&_wD2.miss>0?DM[_wD2.d][lang==='ar'?'ar':'en']:t('all_good');
-  const _wDSub=_wD2&&_wD2.miss>0?(lang==='ar'?(_wD2.miss+' لم تحقق الهدف من أصل '+_wD2.total):(_wD2.miss+' missed of '+_wD2.total)):'';
-  const _wText=_wD2&&_wD2.miss>0?_perfDeptName(_wD2.d):t('all_depts_ok');
+  const _wDSub=_wD2&&_wD2.miss>0?(_wD2.miss+' missed of '+_wD2.total):'';
+  const _wText=_wD2&&_wD2.miss>0?(DM[_wD2.d]?DM[_wD2.d].en:'—'):t('all_depts_ok');
   const _annYoyKs=allK().filter(k=>k.yr===2026&&k.yoy!==undefined&&k.yoy!==null);
   const _annualYoy=_annYoyKs.length?(+( _annYoyKs.map(k=>{const v=qv(k);return v!==null?v-k.yoy:null;}).filter(v=>v!==null).reduce((a,b)=>a+b,0)/_annYoyKs.length).toFixed(1)):null;
 
@@ -195,13 +188,13 @@ function renderExec(){
         <div style="width:38px;height:38px;border-radius:10px;background:#F1F5F9;display:flex;align-items:center;justify-content:center">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
         </div>
-        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">${_perfUi('Total','الإجمالي')}</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">Total</span>
       </div>
       <div style="font-size:46px;font-weight:900;color:#152538;font-family:var(--mono);line-height:1;margin-bottom:4px">${total}</div>
-      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">${_perfUi('KPI Indicators','مؤشرات الأداء')}</div>
+      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">KPI Indicators</div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #F0F4F8">
-        <span style="font-size:10px;color:#0195af;font-weight:700">${_perfUi('View all →','عرض الكل ←')}</span>
-        <span style="font-size:9.5px;color:#94A3B8">${lang==='ar'?'تم تقييم '+evaluated.length:evaluated.length+' evaluated'}</span>
+        <span style="font-size:10px;color:#0195af;font-weight:700">View all →</span>
+        <span style="font-size:9.5px;color:#94A3B8">${evaluated.length} evaluated</span>
       </div>
     </div>
 
@@ -218,7 +211,7 @@ function renderExec(){
       <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">${t('kpis_on_target')}</div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #F0F4F8">
         <span style="font-size:13px;font-weight:900;color:#16A34A;font-family:var(--mono)">${total?+(nOk/total*100).toFixed(1):0}%</span>
-        <span style="font-size:8.5px;font-weight:700;padding:2px 10px;border-radius:12px;background:#DCFCE7;color:#16A34A">${_perfUi('Success rate','معدل تحقيق الهدف')}</span>
+        <span style="font-size:8.5px;font-weight:700;padding:2px 10px;border-radius:12px;background:#DCFCE7;color:#16A34A">Success rate</span>
       </div>
     </div>
 
@@ -229,13 +222,13 @@ function renderExec(){
         <div style="width:38px;height:38px;border-radius:50%;background:#DC2626;display:flex;align-items:center;justify-content:center">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </div>
-        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">${_perfUi('Missed','لم يحقق الهدف')}</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">Missed</span>
       </div>
       <div style="font-size:46px;font-weight:900;color:#DC2626;font-family:var(--mono);line-height:1;margin-bottom:4px">${miss}</div>
-      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">${_perfUi('Below target','أقل من الهدف')}</div>
+      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">Below target</div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #F0F4F8">
         <span style="font-size:13px;font-weight:900;color:#DC2626;font-family:var(--mono)">${total?+(miss/total*100).toFixed(1):0}%</span>
-        <span style="font-size:8.5px;font-weight:700;padding:2px 10px;border-radius:12px;background:#FEE2E2;color:#DC2626">${_perfUi('Gap rate','معدل عدم تحقيق الهدف')}</span>
+        <span style="font-size:8.5px;font-weight:700;padding:2px 10px;border-radius:12px;background:#FEE2E2;color:#DC2626">Gap rate</span>
       </div>
     </div>
 
@@ -246,10 +239,10 @@ function renderExec(){
         <div style="width:38px;height:38px;border-radius:10px;background:#EFF6FF;display:flex;align-items:center;justify-content:center">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
         </div>
-        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">${lang==='ar'?'مقارنة ربع السنة الحالية بالسنة الماضية':'YoY '+yoyQuarterLabel}</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">YoY ${yoyQuarterLabel}</span>
       </div>
       <div style="font-size:36px;font-weight:900;color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'};font-family:var(--mono);line-height:1;margin-bottom:4px">${yoyDelta===null?'—':(parseFloat(yoyDelta)>0?'▲ ':'▼ ')+Math.abs(parseFloat(yoyDelta||0))+'%'}</div>
-      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">${lang==='ar'?(yoyQuarterLabel+' الحالي مقابل '+yoyQuarterLabel+' من السنة الماضية'):(yoyQuarterLabel+' vs prior year '+yoyQuarterLabel)}</div>
+      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">${yoyQuarterLabel} vs prior year ${yoyQuarterLabel}</div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #F0F4F8">
         <span style="font-size:8.5px;font-weight:700;padding:2px 10px;border-radius:12px;background:${yoyDelta===null?'#F1F5F9':parseFloat(yoyDelta)>=0?'#DCFCE7':'#FEE2E2'};color:${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}">${yoyDelta===null?t('no_data'):parseFloat(yoyDelta)>=0?t('improved'):t('declined')}</span>
         <svg width="44" height="22" viewBox="0 0 44 22" fill="none"><polyline points="2,16 12,9 22,12 32,6 42,9" stroke="${yoyDelta===null?'#94A3B8':parseFloat(yoyDelta)>=0?'#16A34A':'#DC2626'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
@@ -263,12 +256,12 @@ function renderExec(){
         <div style="width:38px;height:38px;border-radius:10px;background:#FFF7ED;display:flex;align-items:center;justify-content:center">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         </div>
-        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">${_perfUi('Annual YoY','المقارنة السنوية')}</span>
+        <span style="font-size:9px;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.09em">Annual YoY</span>
       </div>
       <div style="font-size:36px;font-weight:900;color:${_annualYoy===null?'#94A3B8':_annualYoy>=0?'#16A34A':'#DC2626'};font-family:var(--mono);line-height:1;margin-bottom:4px">${_annualYoy===null?'—':(_annualYoy>0?'▲ ':'▼ ')+Math.abs(_annualYoy)+'%'}</div>
-      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">${_perfUi('Annual avg vs prior year','متوسط الأداء الحالي مقارنة بالسنة الماضية')}</div>
+      <div style="font-size:11px;font-weight:600;color:#64748B;margin-bottom:12px">Annual avg vs prior year</div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:10px;border-top:1px solid #F0F4F8">
-        <span style="font-size:8.5px;font-weight:700;padding:2px 10px;border-radius:12px;background:${_annualYoy===null?'#F1F5F9':_annualYoy>=0?'#DCFCE7':'#FEE2E2'};color:${_annualYoy===null?'#94A3B8':_annualYoy>=0?'#16A34A':'#DC2626'}">${_annualYoy===null?t('no_data'):_annualYoy>=0?t('improved'):t('declined')}</span>
+        <span style="font-size:8.5px;font-weight:700;padding:2px 10px;border-radius:12px;background:${_annualYoy===null?'#F1F5F9':_annualYoy>=0?'#DCFCE7':'#FEE2E2'};color:${_annualYoy===null?'#94A3B8':_annualYoy>=0?'#16A34A':'#DC2626'}">${_annualYoy===null?'No data':_annualYoy>=0?'Improved':'Declined'}</span>
         <svg width="44" height="22" viewBox="0 0 44 22" fill="none"><polyline points="2,11 10,14 20,9 30,15 42,12" stroke="${_annualYoy===null?'#94A3B8':_annualYoy>=0?'#16A34A':'#DC2626'}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
       </div>
     </div>
@@ -287,9 +280,9 @@ function renderExec(){
           <div style="width:36px;height:36px;border-radius:50%;border:2px solid rgba(1,149,175,.50);display:flex;align-items:center;justify-content:center">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2" stroke-linecap="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
           </div>
-          <div style="font-size:10px;font-weight:800;color:#fff;letter-spacing:.08em;text-transform:uppercase">${lang==='ar'?'الملخص التنفيذي':'Executive Intelligence<br>Summary'}</div>
+          <div style="font-size:10px;font-weight:800;color:#fff;letter-spacing:.08em;text-transform:uppercase">Executive Intelligence<br>Summary</div>
         </div>
-        <div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.50);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${_perfUi('Overall Status:','الحالة العامة:')}</div>
+        <div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.50);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Overall Status:</div>
         <div id="eis_status" style="font-size:13px;font-weight:900;letter-spacing:.04em;margin-bottom:8px">—</div>
         <div id="eis_desc" style="font-size:10px;color:rgba(255,255,255,.55);line-height:1.6">—</div>
       </div>
@@ -298,7 +291,7 @@ function renderExec(){
       <div style="padding:16px 20px;text-align:center">
         <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:6px">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg>
-          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em" data-en="Critical Escalations" data-ar="المؤشرات التي تحتاج إلى تصعيد">Critical Escalations</div>
+          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em" data-en="Critical Escalations" data-ar="تصعيدات حرجة">Critical Escalations</div>
         </div>
         <div id="eis_crit" style="font-size:36px;font-weight:900;color:#F87171;font-family:var(--mono);line-height:1;margin-bottom:4px">—</div>
         <div id="eis_crit_sub" style="font-size:9px;color:rgba(255,255,255,.40);margin-bottom:8px">—</div>
@@ -309,18 +302,18 @@ function renderExec(){
       <div style="padding:16px 20px;text-align:center">
         <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:6px">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em">${_perfUi('Biggest Gap (KPI)','أكبر فجوة')}</div>
+          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em">Biggest Gap (KPI)</div>
         </div>
         <div id="eis_gap" style="font-size:36px;font-weight:900;color:#F87171;font-family:var(--mono);line-height:1;margin-bottom:4px">—</div>
         <div id="eis_gap_sub" style="font-size:9px;color:rgba(255,255,255,.40);margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;margin-left:auto;margin-right:auto">—</div>
-        <div style="display:inline-block;font-size:8px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(220,38,38,.25);color:#F87171">${_perfUi('Performance gap','فجوة الأداء')}</div>
+        <div style="display:inline-block;font-size:8px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(220,38,38,.25);color:#F87171">Performance gap</div>
       </div>
       <div style="width:1px;height:60px;background:rgba(255,255,255,.10)"></div>
       <!-- Stat 3: Priority Department -->
       <div style="padding:16px 20px;text-align:center">
         <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:6px">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em">${_perfUi('Priority Department','القسم ذو الأولوية')}</div>
+          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em">Priority Department</div>
         </div>
         <div id="eis_dept" style="font-size:22px;font-weight:900;color:#FBBF24;line-height:1;margin-bottom:4px">—</div>
         <div id="eis_dept_sub" style="font-size:9px;color:rgba(255,255,255,.40);margin-bottom:8px">—</div>
@@ -334,7 +327,7 @@ function renderExec(){
           <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em" data-en="Gap Analysis Open" data-ar="فجوات قيد المعالجة">Gap Analysis Open</div>
         </div>
         <div id="eis_actions" style="font-size:36px;font-weight:900;color:#0195af;font-family:var(--mono);line-height:1;margin-bottom:4px">—</div>
-        <div style="font-size:9px;color:rgba(255,255,255,.40);margin-bottom:8px">${_perfUi('Missed KPIs without gap analysis','مؤشرات لم تحقق الهدف ولم يُوثق لها تحليل فجوة')}</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.40);margin-bottom:8px">Missed KPIs without gap analysis</div>
         <div id="eis_actions_badge" style="display:inline-block;font-size:8px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(1,149,175,.25);color:#0195af">—</div>
       </div>
       <div style="width:1px;height:60px;background:rgba(255,255,255,.10)"></div>
@@ -362,11 +355,11 @@ function renderExec(){
       <div style="padding:16px 20px;text-align:center">
         <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:6px">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em">${_perfUi('At-Risk KPIs (Next Qtr)','مؤشرات معرضة للخطر في الربع القادم')}</div>
+          <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em">At-Risk KPIs (Next Qtr)</div>
         </div>
         <div id="eis_atrisk" style="font-size:36px;font-weight:900;color:#a78bfa;font-family:var(--mono);line-height:1;margin-bottom:4px">—</div>
-        <div style="font-size:9px;color:rgba(255,255,255,.40);margin-bottom:8px">${_perfUi('KPIs at risk of missing target','مؤشرات قد لا تحقق الهدف في الربع القادم')}</div>
-        <div style="display:inline-block;font-size:8px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(167,139,250,.20);color:#a78bfa">${_perfUi('Monitor closely','تحتاج متابعة دقيقة')}</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.40);margin-bottom:8px">KPIs at risk of missing target</div>
+        <div style="display:inline-block;font-size:8px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(167,139,250,.20);color:#a78bfa">Monitor closely</div>
       </div>
     </div>
 
@@ -432,25 +425,25 @@ function renderExec(){
         <div style="width:32px;height:32px;border-radius:8px;background:rgba(1,149,175,.10);display:flex;align-items:center;justify-content:center">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></svg>
         </div>
-        <span style="font-size:14px;font-weight:800;color:#152538">${_perfUi('Executive Intelligence','الملخص التنفيذي')}</span>
+        <span style="font-size:14px;font-weight:800;color:#152538">Executive Intelligence</span>
       </div>
-      <span id="ei_updated" style="font-size:10px;color:#94A3B8">${_perfUi('Last Updated: —','آخر تحديث: —')}</span>
+      <span id="ei_updated" style="font-size:10px;color:#94A3B8">Last Updated: —</span>
     </div>
     <!-- Body: 3 columns -->
     <div style="display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:0">
       <!-- Summary -->
       <div style="padding:18px 20px;border-right:1px solid #F0F4F8">
-        <div style="font-size:9px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">${_perfUi('Summary','الملخص')}</div>
+        <div style="font-size:9px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Summary</div>
         <div id="ei_summary" style="font-size:11.5px;color:#334155;line-height:1.75">—</div>
       </div>
       <!-- Critical Risks -->
       <div style="padding:18px 20px;border-right:1px solid #F0F4F8">
-        <div style="font-size:9px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">${_perfUi('Critical Risks','المخاطر الحرجة')}</div>
+        <div style="font-size:9px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Critical Risks</div>
         <div id="ei_risks" style="display:flex;flex-direction:column;gap:8px">—</div>
       </div>
       <!-- Recommendations -->
       <div style="padding:18px 20px">
-        <div style="font-size:9px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">${_perfUi('Recommendations','التوصيات')}</div>
+        <div style="font-size:9px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Recommendations</div>
         <div id="ei_recs" style="display:flex;flex-direction:column;gap:10px">—</div>
       </div>
     </div>
@@ -462,7 +455,7 @@ function renderExec(){
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#FBBF24" stroke-width="2" stroke-linecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         </div>
         <div>
-          <div style="font-size:9px;font-weight:800;color:#D97706;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${_perfUi('Top Risk','أعلى خطر')}</div>
+          <div style="font-size:9px;font-weight:800;color:#D97706;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Top Risk</div>
           <div id="ei_card_toprisk" style="font-size:10.5px;color:#334155;line-height:1.65">—</div>
         </div>
       </div>
@@ -472,7 +465,7 @@ function renderExec(){
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         </div>
         <div>
-          <div style="font-size:9px;font-weight:800;color:#0195af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${_perfUi('Recommended Action','الإجراء الموصى به')}</div>
+          <div style="font-size:9px;font-weight:800;color:#0195af;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Recommended Action</div>
           <div id="ei_card_action" style="font-size:10.5px;color:#334155;line-height:1.65">—</div>
         </div>
       </div>
@@ -481,14 +474,14 @@ function renderExec(){
     <div style="border-top:1px solid #F0F4F8">
       <div style="padding:12px 20px;display:flex;align-items:center;gap:8px;border-bottom:1px solid #F0F4F8">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2"><path d="M3 12a9 9 0 1 0 18 0 9 9 0 0 0-18 0M12 8v4M12 16h.01"/></svg>
-        <span style="font-size:10px;font-weight:800;color:#DC2626;text-transform:uppercase;letter-spacing:.06em">${_perfUi('Repeat Misses','الإخفاقات المتكررة')}</span>
+        <span style="font-size:10px;font-weight:800;color:#DC2626;text-transform:uppercase;letter-spacing:.06em">Repeat Misses</span>
       </div>
       <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;padding:8px 20px;background:#F8FAFC;border-bottom:1px solid #F0F4F8">
-        <span style="font-size:8px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em">${_perfUi('KPI','اسم المؤشر')}</span>
-        <span style="font-size:8px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em">${_perfUi('Department','القسم')}</span>
-        <span style="font-size:8px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em">${_perfUi('Risk Tier','تصنيف الخطر')}</span>
-        <span style="font-size:8px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em">${_perfUi('Trend','الاتجاه')}</span>
-        <span style="font-size:8px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em">${_perfUi('Last Result','آخر نتيجة')}</span>
+        <span style="font-size:8px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em">KPI</span>
+        <span style="font-size:8px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em">Department</span>
+        <span style="font-size:8px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em">Risk Tier</span>
+        <span style="font-size:8px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em">Trend</span>
+        <span style="font-size:8px;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em">Last Result</span>
       </div>
       <div id="ei_repeats">—</div>
     </div>
@@ -516,7 +509,8 @@ function renderExec(){
     if(_ei_sum){
       const _pct2=_ksi.filter(k=>ok(k)!==null).length?Math.round(_met2.length/_ksi.filter(k=>ok(k)!==null).length*100):0;
       const _bigG=[..._miss2].sort((a,b)=>(b.target-(qv(b)||0))-(a.target-(qv(a)||0)))[0];
-      _ei_sum.innerHTML=lang==='ar'?('حققت الإدارة <strong style="color:'+(_pct2>=80?'#16A34A':_pct2>=60?'#D97706':'#DC2626')+'">'+_pct2+'%</strong>. '+(_bigG?'ويظهر المؤشر <strong data-kpi-name="1" style="color:#152538">'+_perfKpiName(_bigG)+'</strong> أكبر فجوة عن الهدف.':'جميع المؤشرات التي تم تقييمها تحقق أهدافها.')):('Division achieved <strong style="color:'+(_pct2>=80?'#16A34A':_pct2>=60?'#D97706':'#DC2626')+'">'+_pct2+'%</strong>. '+(_bigG?'KPI <strong data-kpi-name="1" style="color:#152538">'+_perfKpiName(_bigG)+'</strong> shows the highest gap from target.':'All evaluated KPIs are on track.'));
+      _ei_sum.innerHTML='Division achieved <strong style="color:'+(_pct2>=80?'#16A34A':_pct2>=60?'#D97706':'#DC2626')+'">'+_pct2+'%</strong>. '
+        +(_bigG?'KPI <strong style="color:#152538">'+(lang==='ar'?_bigG.nameAr:_bigG.nameEn)+'</strong> shows the highest gap from target.':'All evaluated KPIs are on track.');
     }
 
     /* Critical Risks */
@@ -533,11 +527,11 @@ function renderExec(){
               +'<span style="font-size:8px;font-weight:700;padding:1px 6px;border-radius:4px;background:rgba(220,38,38,.15);color:#DC2626">T'+(k.tier||3)+'</span>'
               +(rc>=2?'<span style="font-size:8px;font-weight:700;padding:1px 6px;border-radius:4px;background:rgba(217,119,6,.15);color:#D97706">+'+rc+'x</span>':'')
             +'</div>'
-            +'<div data-kpi-name="1" style="font-size:10px;color:#334155;font-weight:600">'+_perfKpiName(k)+'</div>'
+            +'<div style="font-size:10px;color:#334155;font-weight:600">'+(lang==='ar'?k.nameAr:k.nameEn)+'</div>'
             +'<div style="font-size:9px;color:#64748B;margin-top:3px">'+(v!==null?v.toFixed(1)+'%':' — ')+' / '+(k.op==='='?'=':'≥')+k.target+'%'+(gap?' — <span style="color:#DC2626;font-weight:700">Gap: '+gap+'%</span>':'')+'</div>'
           +'</div>';
         }).join('');
-      }else _ei_risks.innerHTML='<div style="font-size:11px;color:#16A34A;font-weight:700">'+_perfUi('✓ No critical risks identified','✓ لا توجد مخاطر حرجة')+'</div>';
+      }else _ei_risks.innerHTML='<div style="font-size:11px;color:#16A34A;font-weight:700">✓ No critical risks identified</div>';
     }
 
     /* Recommendations */
@@ -545,11 +539,11 @@ function renderExec(){
     if(_ei_recs){
       const recs=[];
       const _t1miss=_miss2.filter(k=>(k.tier||3)===1);
-      if(_t1miss.length)recs.push({title:_perfUi('Immediate: Address Tier 1 KPIs','إجراء فوري: معالجة مؤشرات المستوى الأول'),sub:_perfUi('Requires executive escalation','تتطلب تصعيداً تنفيذياً'),ok:false});
-      if(_miss2.filter(k=>getRepeat(k)>=2).length>=2){var _chronicCount=_miss2.filter(k=>getRepeat(k)>=2).length;recs.push({title:lang==='ar'?('ضعف أداء متكرر في '+_chronicCount+' مؤشرات'):('Chronic underperformance in '+_chronicCount+' KPIs'),sub:_perfUi('Root cause analysis required','يتطلب تحليل السبب الجذري'),ok:false});}
+      if(_t1miss.length)recs.push({title:'Immediate: Address Tier 1 KPIs',sub:'Requires executive escalation',ok:false});
+      if(_miss2.filter(k=>getRepeat(k)>=2).length>=2)recs.push({title:'Chronic underperformance in '+_miss2.filter(k=>getRepeat(k)>=2).length+' KPIs',sub:'Root cause analysis required',ok:false});
       const _nogap=_miss2.filter(k=>!((ST.gaps||{})[k.id]||{}).gapEn);
-      if(_nogap.length)recs.push({title:_perfUi('Gap analysis incomplete','تحليل الفجوات غير مكتمل'),sub:_perfUi('Enter root causes & actions for all Missed KPIs','أدخل الأسباب الجذرية والإجراءات لجميع المؤشرات التي لم تحقق الهدف'),ok:false});
-      if(!recs.length)recs.push({title:_perfUi('Performance on track','الأداء في المسار'),'sub':_perfUi('Continue monitoring quarterly results','الاستمرار في متابعة النتائج الربعية'),ok:true});
+      if(_nogap.length)recs.push({title:'Gap analysis incomplete',sub:'Enter root causes & actions for all Missed KPIs',ok:false});
+      if(!recs.length)recs.push({title:'Performance on track','sub':'Continue monitoring quarterly results',ok:true});
       _ei_recs.innerHTML=recs.map(r=>'<div style="display:flex;align-items:flex-start;gap:10px">'
         +'<div style="width:20px;height:20px;border-radius:50%;background:'+(r.ok?'rgba(22,163,74,.12)':'rgba(220,38,38,.10)')+';display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px">'
           +'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="'+(r.ok?'#16A34A':'#DC2626')+'" stroke-width="3" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>'
@@ -575,14 +569,14 @@ function renderExec(){
           var resCol=v!==null&&v<(k.target||90)?'#DC2626':'#16A34A';
           return '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;padding:10px 20px;border-bottom:1px solid #F0F4F8;align-items:center">'
             +'<div><div style="font-size:10px;font-weight:800;color:'+(dm.color||'#152538')+';font-family:var(--mono);margin-bottom:2px">'+k.id+'</div>'
-            +'<div data-kpi-name="1" style="font-size:10px;color:#334155">'+_perfKpiName(k)+'</div></div>'
+            +'<div style="font-size:10px;color:#334155">'+(lang==='ar'?k.nameAr:k.nameEn)+'</div></div>'
             +'<div style="font-size:10px;color:#475569">'+deptName+'</div>'
             +'<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:'+tierBg+';color:'+tierCol+'">T'+tier+'</span>'
             +'<span style="font-size:14px;font-weight:900;color:'+trendCol+'">'+trendArr+'</span>'
             +'<span style="font-size:11px;font-weight:900;color:'+resCol+';font-family:var(--mono)">'+vStr+'</span>'
           +'</div>';
         }).join('');
-      }else _ei_rep.innerHTML='<div style="padding:16px 20px;font-size:11px;color:#16A34A;font-weight:700">'+_perfUi('✓ No repeat misses detected','✓ لا توجد إخفاقات متكررة')+'</div>';
+      }else _ei_rep.innerHTML='<div style="padding:16px 20px;font-size:11px;color:#16A34A;font-weight:700">✓ No repeat misses detected</div>';
     }
 
     /* Top Risk + Recommended Action in Intel Card */
@@ -594,9 +588,9 @@ function renderExec(){
       let _wDept2=null,_wPct2=101;
       _depts2.forEach(d=>{const _dk=_iksi2.filter(k=>k.dept===d&&ok(k)!==null);if(!_dk.length)return;const _dp=Math.round(_dk.filter(k=>ok(k)===true).length/_dk.length*100);if(_dp<_wPct2){_wPct2=_dp;_wDept2=d;}});
       const _tr2=document.getElementById('ei_card_toprisk');
-      if(_tr2)_tr2.textContent=_bigGap2?(lang==='ar'?('المؤشر "'+_perfKpiName(_bigGap2)+'" أقل من الهدف بمقدار '+(qv(_bigGap2)!=null?(_bigGap2.target-qv(_bigGap2)).toFixed(1)+'%':'—')+'.'):('KPI "'+_perfKpiName(_bigGap2)+'" is underperforming by '+(qv(_bigGap2)!=null?(_bigGap2.target-qv(_bigGap2)).toFixed(1)+'%':'—')+' below target.')):_perfUi('All KPIs are meeting their targets.','جميع المؤشرات تحقق أهدافها.');
+      if(_tr2)_tr2.textContent=_bigGap2?('KPI "'+(_bigGap2.nameEn||_bigGap2.id)+'" is underperforming by '+(qv(_bigGap2)!=null?(_bigGap2.target-qv(_bigGap2)).toFixed(1)+'%':'—')+' below target.'):'All KPIs are meeting their targets.';
       const _ra2=document.getElementById('ei_card_action');
-      if(_ra2)_ra2.textContent=(_wDept2&&_bigGap2)?(lang==='ar'?('مراجعة خطة تعافي قسم '+_perfDeptName(_wDept2)+' ومعالجة تحليل فجوة المؤشر "'+_perfKpiName(_bigGap2)+'" قبل الربع القادم.'):('Review '+_perfDeptName(_wDept2)+' department recovery plan and address "'+_perfKpiName(_bigGap2)+'" gap analysis before next quarter.')):_perfUi('Continue monitoring KPI performance.','الاستمرار في متابعة أداء المؤشرات.');
+      if(_ra2)_ra2.textContent=(_wDept2&&_bigGap2)?('Review '+DM[_wDept2].en+' department recovery plan and address "'+ (_bigGap2.nameEn||_bigGap2.id)+'" gap analysis before next quarter.'):'Continue monitoring KPI performance.';
     }catch(e2){console.error('TopRisk:',e2);}
     }catch(_eic){console.error('Intel Card error:',_eic);}
     /* ── Populate Executive Intelligence Summary ── */
@@ -623,7 +617,7 @@ function renderExec(){
       } else {
         _st.innerHTML=tText('needs_improvement');_st.style.color='#FBBF24';
       }
-      _sd.textContent=_miss.length?(lang==='ar'?('يتطلب '+_miss.length+' من المؤشرات التي لم تحقق الهدف متابعة فورية لتحقيق الأهداف السنوية.'):('Immediate focus required on '+_miss.length+' missed KPI'+(_miss.length===1?'':'s')+' to meet annual targets.')):(lang==='ar'?('أداء الإدارة الحالي '+_pct+'%.'):('Division performing at '+_pct+'% achievement rate.'));
+      _sd.textContent=_miss.length?'Immediate focus required on '+_miss.length+' missed KPI'+(_miss.length===1?'':'s')+' to meet annual targets.':'Division performing at '+_pct+'% achievement rate.';
     }
 
     /* Critical Escalations */
@@ -643,7 +637,7 @@ function renderExec(){
     let _worstDept=null,_worstPct=100;
     _depts.forEach(d=>{const _dk=_ks.filter(k=>k.dept===d&&ok(k)!==null);if(!_dk.length)return;const _dp=Math.round(_dk.filter(k=>ok(k)===true).length/_dk.length*100);if(_dp<_worstPct){_worstPct=_dp;_worstDept=d;}});
     const _de=document.getElementById('eis_dept');const _ds=document.getElementById('eis_dept_sub');const _db=document.getElementById('eis_dept_badge');
-    if(_de){if(_worstDept){_de.textContent=_perfDeptName(_worstDept);_de.style.color=_worstPct<60?'#F87171':'#FBBF24';if(_ds)_ds.textContent=tText('performance_label')+' '+_worstPct+'%';if(_db){_db.textContent=_worstPct<60?tText('needs_recovery'):tText('needs_improvement_lower');_db.style.background=_worstPct<60?'rgba(220,38,38,.25)':'rgba(217,119,6,.25)';_db.style.color=_worstPct<60?'#F87171':'#FBBF24';}}else{_de.textContent='—';}}
+    if(_de){if(_worstDept){_de.textContent=DM[_worstDept].en;_de.style.color=_worstPct<60?'#F87171':'#FBBF24';if(_ds)_ds.textContent=tText('performance_label')+' '+_worstPct+'%';if(_db){_db.textContent=_worstPct<60?tText('needs_recovery'):tText('needs_improvement_lower');_db.style.background=_worstPct<60?'rgba(220,38,38,.25)':'rgba(217,119,6,.25)';_db.style.color=_worstPct<60?'#F87171':'#FBBF24';}}else{_de.textContent='—';}}
 
     /* Gap Analysis Open — missed KPIs without documented gap */
     /* Gap Analysis Open: فقط KPIs عندها Gap مدخل + action لا يزال in-progress */
@@ -656,7 +650,7 @@ function renderExec(){
     });
     const _openAct=_gapsMissed.length;
     const _ae=document.getElementById('eis_actions');if(_ae){_ae.textContent=_openAct;_ae.style.color=_openAct>0?'#FBBF24':'#15803D';}
-    const _ab=document.getElementById('eis_actions_badge');if(_ab){_ab.textContent=_openAct===0?tText('all_documented'):_openAct===1?(lang==='ar'?'1 قيد المعالجة':'1 pending'):(lang==='ar'?(_openAct+' قيد المعالجة'):(_openAct+' pending'));_ab.style.color=_openAct>0?'#FBBF24':'#15803D';_ab.style.background=_openAct>0?'rgba(217,119,6,.25)':'rgba(22,163,74,.20)';}
+    const _ab=document.getElementById('eis_actions_badge');if(_ab){_ab.textContent=_openAct===0?'All documented':_openAct===1?'1 pending':''+_openAct+' pending';_ab.style.color=_openAct>0?'#FBBF24':'#15803D';_ab.style.background=_openAct>0?'rgba(217,119,6,.25)':'rgba(22,163,74,.20)';}
 
     /* Forecast YE — dynamic, no hardcoded years */
     let _fcRes={exec:null,byDept:{},currentYear:null};try{if(typeof calcForecastYE==='function')_fcRes=calcForecastYE({scope:'organization'});}catch(_fce){console.warn('[Forecast]',_fce);}
@@ -666,7 +660,7 @@ function renderExec(){
     const _fe=document.getElementById('eis_forecast');
     if(_fe){
       _fe.textContent=_forecastTxt;_fe.style.color=_fcColor;
-      _fe.style.cursor='pointer';_fe.title=_perfUi('Click for department breakdown','اضغط لعرض تفاصيل الأقسام');
+      _fe.style.cursor='pointer';_fe.title='Click for department breakdown';
       _fe.onclick=function(){if(typeof _showForecastDrilldown==='function')_showForecastDrilldown(_fcRes);};
     }
     const _curPerfEl=document.getElementById('eis_current_perf');
@@ -687,7 +681,7 @@ function renderExec(){
     }
     const _fb=document.getElementById('eis_forecast_badge');
     if(_fb&&_fcVal!==null){_fb.innerHTML=tText(_fcVal>=80?'likely_to_meet_target':_fcVal>=60?'moderate_risk':'at_risk_label');_fb.style.color=_fcColor;_fb.style.background=_fcVal>=80?'rgba(22,163,74,.20)':_fcVal>=60?'rgba(1,149,175,.25)':'rgba(217,119,6,.25)';}
-    else if(_fb&&_fcVal===null){_fb.innerHTML=tText('no_data');_fb.style.color='#64748B';_fb.style.background='rgba(100,116,139,.20)';}
+    else if(_fb&&_fcVal===null){_fb.innerHTML='Insufficient data';_fb.style.color='#64748B';_fb.style.background='rgba(100,116,139,.20)';}
 
     /* At-Risk KPIs */
     const _atRisk=_ks.filter(k=>{const v=qv(k);return v!==null&&v<k.target&&(k.target-v)<=8;}).length+_pend.length;
@@ -695,13 +689,13 @@ function renderExec(){
 
     /* Top Risk */
     const _tr=document.getElementById('eis_toprisk');
-    if(_tr&&_gapK){const _gv2=qv(_gapK);_tr.textContent=lang==='ar'?('المؤشر "'+_perfKpiName(_gapK)+'" أقل من الهدف بمقدار '+(_gv2!=null?(_gapK.target-_gv2).toFixed(1)+'%':'—')+' ويسهم في فجوة الأداء العامة.'):(_perfKpiName(_gapK)+' is underperforming by '+(_gv2!=null?(_gapK.target-_gv2).toFixed(1)+'%':'—')+' and contributing significantly to the overall performance gap.');}
+    if(_tr&&_gapK){const _gv2=qv(_gapK);_tr.textContent=(_gapK.nameEn||_gapK.id)+' is underperforming by '+(_gv2!=null?(_gapK.target-_gv2).toFixed(1)+'%':'—')+' and contributing significantly to the overall performance gap.';}
     else if(_tr)_tr.textContent=tText('all_kpis_meeting_targets');
 
     /* Recommended Action */
     const _ra=document.getElementById('eis_action');
-    if(_ra&&_worstDept&&_gapK)_ra.textContent=lang==='ar'?('مراجعة خطة تعافي قسم '+_perfDeptName(_worstDept)+' وإجراءات المؤشر "'+_perfKpiName(_gapK)+'" قبل إغلاق الربع القادم لتحسين الإنجاز السنوي.'):('Review '+_perfDeptName(_worstDept)+' recovery plan and '+_perfKpiName(_gapK)+' actions before next quarter closure to improve annual achievement.');
-    else if(_ra)_ra.textContent=_perfUi('Continue monitoring KPI performance and maintain current achievement levels.','الاستمرار في متابعة أداء المؤشرات والمحافظة على مستويات الإنجاز الحالية.');
+    if(_ra&&_worstDept&&_gapK)_ra.textContent=tText('review_label')+' '+DM[_worstDept].en+' recovery plan and '+_gapK.nameEn+' actions before next quarter closure to improve annual achievement.';
+    else if(_ra)_ra.textContent='Continue monitoring KPI performance and maintain current achievement levels.';
 
     }catch(_eis){console.error('EIS error:',_eis);}
     /* Render individual KPI cards */
@@ -720,8 +714,8 @@ function renderExec(){
         _misD.push(_bKs.filter(k=>(!_showAll||k.yr===yr)&&k[q]!==null&&k[q]<k.target).length);
       });});
       if(_labels.length)CH['cBar']=mkChart('cBar',{type:'bar',data:{labels:_labels,datasets:[
-        {label:_perfUi('Met','محقق الهدف'),data:_metD,backgroundColor:'rgba(22,163,74,.65)',borderRadius:3,stack:'s'},
-        {label:_perfUi('Missed','لم يحقق الهدف'),data:_misD,backgroundColor:'rgba(220,38,38,.60)',borderRadius:3,stack:'s'}
+        {label:'Met',data:_metD,backgroundColor:'rgba(22,163,74,.65)',borderRadius:3,stack:'s'},
+        {label:'Missed',data:_misD,backgroundColor:'rgba(220,38,38,.60)',borderRadius:3,stack:'s'}
       ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{font:{size:9},boxWidth:10,padding:8,color:'#475569'}}},scales:{y:{stacked:true,ticks:{stepSize:1,font:{size:9}},grid:{color:'rgba(20,35,80,.06)'}},x:{stacked:true,ticks:{font:{size:9}},grid:{display:false}}}}});
     });
     /* Quarterly Trend by Dept — updated to Q1'26 */
@@ -953,7 +947,7 @@ function renderExecKpiCards(ks){
           +'<span class="'+(a===null?'pill-pend':met?'pill-ok':'pill-miss')+'" style="font-size:9px;margin-left:auto">'+(a===null?'\u2014':met?'\u2713 Met':'\u2715 Missed')+'</span>'
         +'</div>'
         /* KPI name — flex:1 pushes everything below to bottom */
-        +'<div style="font-size:11.5px;font-weight:700;color:var(--t1);line-height:1.38;margin-top:8px;flex:1">'+_perfKpiName(k)+'</div>'
+        +'<div style="font-size:11.5px;font-weight:700;color:var(--t1);line-height:1.38;margin-top:8px;flex:1">'+(lang==='ar'?k.nameAr:k.nameEn)+'</div>'
         /* percentage — clickable */
         +'<div onclick="window._showKpiDetail(\''+k.id+'\')" title="Click for details"'
           +' style="font-size:34px;font-weight:900;color:'+acC+';font-family:var(--mono);line-height:1;margin-top:8px;cursor:pointer;flex-shrink:0"'
@@ -1291,7 +1285,7 @@ function renderRAG(ks){
         ${isMissed?`onclick="openGap('${k.id}')"`:''}
         ${isMissed?`onmouseover="this.style.background='rgba(220,38,38,.04)'" onmouseout="this.style.background='transparent'"`:''}>
         <div style="padding:0 4px"><div style="font-size:9px;font-family:var(--mono);font-weight:700;color:var(--teal)">${k.id}</div>${rc>=2?`<span class="repeat-b" style="margin-top:2px">\u21a9${rc}</span>`:''}</div>
-        <div style="font-size:10.5px;color:var(--t2);padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_perfKpiName(k)}</div>
+        <div style="font-size:10.5px;color:var(--t2);padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${lang==='ar'?k.nameAr:k.nameEn}</div>
         <div style="font-size:9px;color:${DM[k.dept].color};padding:0 4px;font-weight:600">${DM[k.dept].abbr}</div>
         <div style="font-size:9.5px;font-family:var(--mono);color:var(--t3);padding:0 4px">${k.op==='='?'=':'\u2265'}${k.target}%</div>
         ${['q1','q2','q3','q4'].map(q=>{const v2=k[q];const b=pb(v2,k);const _qMissed=(b===1);return`<div ${_qMissed?`onclick="event.stopPropagation();openGapQuarter('${k.id}','${q}')" title="View gap details for ${q.toUpperCase()}"`:''} style="font-size:9.5px;font-family:var(--mono);padding:2px 4px;border-radius:3px;background:${BC[b]};color:${b===3?'#1a1200':'#fff'};text-align:center${_qMissed?';cursor:pointer;text-decoration:underline dotted':''}">${v2!==null?v2.toFixed(0)+'%':'\u2014'}</div>`;}).join('')}
@@ -1562,7 +1556,7 @@ function renderDept(){
             +'<span style="font-size:8px;font-weight:700;padding:2px 6px;border-radius:4px;background:'+(tier===1?'rgba(220,38,38,.10)':tier===2?'rgba(217,119,6,.10)':'rgba(1,149,175,.10)')+';color:'+(tier===1?'#DC2626':tier===2?'#D97706':TEAL)+'">T'+tier+'</span>'
             +'<span style="margin-left:auto;font-size:9px;font-weight:700;padding:2px 8px;border-radius:12px;background:'+(isMet?'#ECFDF5':isMiss?'#FEF2F2':'#F8FAFC')+';color:'+(isMet?'#16A34A':isMiss?'#DC2626':'#94A3B8')+'">'+(isMet?(lang==='ar'?'✓ محقق':'\u2713 Met'):isMiss?(lang==='ar'?'✗ غير محقق':'\u2717 Missed'):'\u23f3')+'</span>'
           +'</div>'
-          +'<div style="font-size:11.5px;font-weight:700;color:#152538;line-height:1.3">'+_perfKpiName(k)+'</div>'
+          +'<div style="font-size:11.5px;font-weight:700;color:#152538;line-height:1.3">'+(lang==='ar'?k.nameAr:k.nameEn)+'</div>'
         +'</div>'
       +'</div>'
       +'<div style="display:grid;grid-template-columns:repeat(4,1fr);border-bottom:1px solid #F0F4F8">'
@@ -1740,7 +1734,7 @@ function renderRegistry(){
       tbl+=`<div style="display:grid;grid-template-columns:${cols};gap:2px;padding:5px 0;border-bottom:1px solid var(--border);align-items:center;${isMissed?'cursor:pointer;':'cursor:default;'}" ${isMissed?`onclick="openGap('${k.id}')"`:''} ${isMissed?`onmouseover="this.style.background='rgba(220,38,38,.04)'" onmouseout="this.style.background='transparent'"`:''}>
         <div style="padding:0 4px"><div style="font-size:9px;font-family:var(--mono);font-weight:700;color:var(--teal)">${k.id}</div>${rc>=2?`<span class="repeat-b" style="margin-top:2px">↩${rc}</span>`:''}</div>
         <div style="font-size:9px;font-weight:700;color:var(--t3);padding:0 4px;text-align:center;font-family:var(--mono)">${k.yr}</div>
-        <div style="font-size:10.5px;color:var(--t2);padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${_perfKpiName(k)}</div>
+        <div style="font-size:10.5px;color:var(--t2);padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${lang==='ar'?k.nameAr:k.nameEn}</div>
         <div style="font-size:9px;color:${DM[k.dept].color};padding:0 4px;font-weight:600">${DM[k.dept].abbr}</div>
         <div style="font-size:9.5px;font-family:var(--mono);color:var(--t3);padding:0 4px">${k.op==='='?'=':'≥'}${k.target}%</div>
         ${['q1','q2','q3','q4'].map(q=>{const v2=k[q];const b=pb(v2,k);const _qMissed=(b===1);return`<div ${_qMissed?`onclick="event.stopPropagation();openGapQuarter('${k.id}','${q}')" title="View gap details for ${q.toUpperCase()}"`:''} style="font-size:9.5px;font-family:var(--mono);padding:2px 4px;border-radius:3px;background:${BC[b]};color:${b===3?'#1a1200':'#fff'};text-align:center${_qMissed?';cursor:pointer;text-decoration:underline dotted':''}">${v2!==null?v2.toFixed(0)+'%':'\u2014'}</div>`;}).join('')}
@@ -1784,7 +1778,7 @@ function renderAcc(){
   <div class="ch">↩ ${lang==='ar'?'الإخفاق المتكرر — مؤشرات الخطر المزمن':'Repeat Miss Alert — Chronic Underperformance'}</div>
   <div class="cb sc" style="padding:4px 11px 11px">
     ${!repKpis.length?`<div class="empty-s"><div class="empty-ico"></div><div class="empty-txt">${lang==='ar'?'لا توجد مؤشرات بإخفاق متكرر':'No repeat miss KPIs detected'}</div></div>`:
-    `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px">${repKpis.map(k=>{const rc=getRepeat(k),v=qv(k);return`<div style="background:rgba(251,146,60,.08);border:1px solid rgba(251,146,60,.2);border-radius:6px;padding:10px"><div style="display:flex;gap:4px;align-items:center;margin-bottom:5px"><span class="repeat-b">↩ ${rc}x</span><span style="font-size:9.5px;font-family:var(--mono);font-weight:700;color:var(--teal)">${k.id}</span><span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span></div><div style="font-size:11px;color:var(--t2);line-height:1.4;margin-bottom:5px">${_perfKpiName(k)}</div><div style="font-size:9px;color:#DC2626">${lang==='ar'?`إخفاق ${rc} أرباع متتالية — يستلزم مراجعة جذرية.`:`Missed ${rc} consecutive quarters — systematic review required.`}</div></div>`;}).join('')}</div>`}
+    `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px">${repKpis.map(k=>{const rc=getRepeat(k),v=qv(k);return`<div style="background:rgba(251,146,60,.08);border:1px solid rgba(251,146,60,.2);border-radius:6px;padding:10px"><div style="display:flex;gap:4px;align-items:center;margin-bottom:5px"><span class="repeat-b">↩ ${rc}x</span><span style="font-size:9.5px;font-family:var(--mono);font-weight:700;color:var(--teal)">${k.id}</span><span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span></div><div style="font-size:11px;color:var(--t2);line-height:1.4;margin-bottom:5px">${lang==='ar'?k.nameAr:k.nameEn}</div><div style="font-size:9px;color:#DC2626">${lang==='ar'?`إخفاق ${rc} أرباع متتالية — يستلزم مراجعة جذرية.`:`Missed ${rc} consecutive quarters — systematic review required.`}</div></div>`;}).join('')}</div>`}
   </div>
 </div>`;
 }
@@ -1823,7 +1817,7 @@ function accTable(ks){
     const pt={'critical':lang==='ar'?'حرجة':'Critical','high':lang==='ar'?'عالية':'High','medium':lang==='ar'?'متوسطة':'Medium'};
     const overdue=ac.dueDate&&new Date(ac.dueDate)<new Date();
     h+=`<tr>
-      <td><div style="font-size:10px;font-family:var(--mono);font-weight:700;color:var(--teal)">${k.id}</div><div style="font-size:9.5px;color:var(--t3);margin-top:1px">${_perfKpiName(k)}</div></td>
+      <td><div style="font-size:10px;font-family:var(--mono);font-weight:700;color:var(--teal)">${k.id}</div><div style="font-size:9.5px;color:var(--t3);margin-top:1px">${lang==='ar'?k.nameAr:k.nameEn}</div></td>
       <td style="color:var(--red);font-family:var(--mono);font-weight:700">${gap}%</td>
       <td><span class="tier-b ${(k.tier||3)===1?'t1':(k.tier||3)===2?'t2b':'t3b'}">T${k.tier||3}</span></td>
       <td>${rc>=2?`<span class="repeat-b">↩${rc}x</span>`:rc===1?`<span style="font-size:9px;color:var(--amber)">1x</span>`:'\u2014'}</td>

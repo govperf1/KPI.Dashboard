@@ -71,7 +71,7 @@ var TR = {
   'needs_attention': { en: 'Needs Attention', ar: 'يحتاج انتباهاً' },
   'all_good': { en: 'All Good', ar: 'كل المؤشرات جيدة' },
   'all_depts_ok': { en: 'All Depts OK', ar: 'جميع الأقسام مستوفية' },
-  'kpis_on_target': { en: 'KPIs on target', ar: 'المؤشرات المحققة للأهداف' },
+  'kpis_on_target': { en: 'KPIs on target', ar: 'المؤشرات محققة للأهداف' },
   'met_label': { en: 'Met', ar: 'محقق الهدف' },
   'improved': { en: 'Improved', ar: 'تحسّن' },
   'declined': { en: 'Declined', ar: 'انخفض' },
@@ -81,7 +81,7 @@ var TR = {
   'likely_to_meet_target': { en: 'Likely to meet target', ar: 'متوقع تحقيق الهدف' },
   'moderate_risk': { en: 'Moderate risk', ar: 'خطر متوسط' },
   'at_risk_label': { en: 'At risk', ar: 'في خطر' },
-  'q1_vs_prior_year': { en: 'Q1 vs prior year Q1', ar: 'مقارنة ربع السنة الحالية بالسنة الماضية' },
+  'q1_vs_prior_year': { en: 'Q1 vs prior year Q1', ar: 'الربع الأول مقارنةً بالسابق' },
   'detailed_kpi_performance_cards': { en: 'DETAILED KPI PERFORMANCE CARDS', ar: 'بطاقات أداء المؤشرات التفصيلية' },
   'executive_intelligence': { en: 'Executive Intelligence', ar: 'الملخص التنفيذي' },
   'dept_performance': { en: 'Department Performance', ar: 'أداء الأقسام' },
@@ -154,15 +154,10 @@ function t(key) {
 window.t = t;
 
 function tText(key) {
-  var _l=(typeof lang!=='undefined'?lang:'en');
   if (typeof ST !== 'undefined' && ST.textEdits && ST.textEdits[key]) {
-    var _edited=ST.textEdits[key][_l];
-    if(_edited!==undefined && _edited!==null && String(_edited).trim()!=='') return _edited;
+    var _l=(typeof lang!=='undefined'?lang:'en'); return (ST.textEdits[key][_l]!==undefined && ST.textEdits[key][_l]!==null && ST.textEdits[key][_l]!=='' ) ? ST.textEdits[key][_l] : key;
   }
-  if (TR[key]) {
-    var _base=TR[key][_l];
-    if(_base!==undefined && _base!==null && String(_base).trim()!=='') return _base;
-  }
+  if (TR[key]) { var _l2=(typeof lang!=='undefined'?lang:'en'); return (TR[key][_l2]!==undefined && TR[key][_l2]!==null && TR[key][_l2]!=='' ) ? TR[key][_l2] : key; }
   return key;
 }
 window.tText = tText;
@@ -266,18 +261,6 @@ function _applyDashboardTextEdits(){
       return (v !== undefined && v !== null && String(v).trim() !== '') ? String(v) : null;
     }
     function isLeaf(el){for(var i=0;i<el.childNodes.length;i++) if(el.childNodes[i].nodeType===1) return false; return true;}
-    var _kpiNameSet={};
-    try{
-      if(typeof allK==='function') (allK()||[]).forEach(function(k){
-        [k&&k.nameEn,k&&k.nameAr].forEach(function(n){var x=String(n||'').replace(/\s+/g,' ').trim();if(x)_kpiNameSet[x]=1;});
-      });
-    }catch(_kpiSetErr){}
-    function isKpiNameElement(el){
-      if(!el) return false;
-      if(el.closest&&el.closest('.kpi-name,[data-kpi-name],[data-kpi-id]')) return true;
-      var tx=String(el.textContent||'').replace(/\s+/g,' ').trim();
-      return !!_kpiNameSet[tx];
-    }
     function domKey(el){
       if(typeof window._saDomKey==='function') return window._saDomKey(el);
       var parts=[], n=el;
@@ -299,7 +282,7 @@ function _applyDashboardTextEdits(){
     containers.forEach(function(container){
       container.querySelectorAll('*').forEach(function(el){
         if(skipTags[el.tagName]) return;
-        if(!isLeaf(el) || isKpiNameElement(el)) return;
+        if(!isLeaf(el)) return;
         var v=wanted(domKey(el));
         if(v!==null && el.textContent!==v) el.textContent=v;
       });
@@ -373,202 +356,124 @@ window.renderCurrent = renderCurrent;
 if (typeof resetFilters === 'function') window.resetFilters = resetFilters;
 
 /* ==========================================================
-   SAFE ARABIC UI POLISH — Arabic mode only.
-   Exact-label translation only: never performs substring replacement,
-   never rewrites KPI names, and never replaces a parent element's children.
+   FINAL QUMC FIX — Arabic-only UI translation sweep
+   Does not touch English mode, form values, inputs, or KPI name fields.
+   ========================================================== */
+(function(){
+  var MAP={
+    'Executive Command':'لوحة القيادة التنفيذية','Departments':'عرض الأقسام','KPI Register':'سجل المؤشرات','Accountability':'المساءلة والمتابعة','Reports':'التقارير','Dashboard':'لوحة القيادة',
+    'Dept':'القسم','Department':'القسم','Status':'الحالة','All':'الكل','Met':'محقق الهدف','Missed':'لم يحقق الهدف','Pending':'قيد المتابعة','Reset':'إعادة الضبط','↺ Reset':'↺ إعادة الضبط',
+    'Total':'الإجمالي','KPI Indicators':'مؤشرات الأداء','View all →':'عرض الكل ←','evaluated':'تم تقييمها','Target achieved':'محقق الهدف','Need attention':'بحاجة إلى متابعة','Critical':'حرج','Tier 1 escalations':'تصعيدات المستوى الأول',
+    'Current Performance':'الأداء الحالي','Forecast YE':'التوقع السنوي','Selected period average':'متوسط الفترة المحددة','Expected year-end':'التوقع لنهاية السنة','Department Forecasts':'توقعات الأقسام','Overall Executive Forecast':'التوقع التنفيذي العام',
+    'KPI':'المؤشر','KPI Name':'اسم المؤشر','Code':'الرمز','Target':'الهدف','Result':'النتيجة','Achievement':'نسبة أداء القسم','Avg':'المتوسط','Average':'المتوسط','YoY':'المقارنة بالسنة الماضية','Risk':'تصنيف الخطر','Risk Tier':'تصنيف الخطر','Trend':'الاتجاه','Last Result':'آخر نتيجة','Owner':'المسؤول','KPI Owner':'مسؤول المؤشر',
+    'Target:':'الهدف:','Result:':'النتيجة:','Performance':'الأداء','Filters':'الفلاتر','Overview':'نظرة عامة','Executive Intelligence':'الملخص التنفيذي','Department Performance':'أداء الأقسام','Detailed KPI Performance Cards':'بطاقات أداء المؤشرات التفصيلية','DETAILED KPI PERFORMANCE CARDS':'بطاقات أداء المؤشرات التفصيلية',
+    'Repeat Misses':'الإخفاقات المتكررة','Last Updated':'آخر تحديث','Top Risk':'أعلى خطر','Recommended Action':'الإجراء الموصى به','Critical Escalations':'المؤشرات التي تحتاج إلى تصعيد','Gap Analysis Open':'تحليل فجوات مفتوح','At-Risk KPIs':'مؤشرات قد تتعرض لخطر عدم تحقيق الهدف','Priority Department':'القسم ذو الأولوية','Biggest Gap':'أكبر فجوة (اسم المؤشر)',
+    'ON TRACK':'في المسار','CRITICAL ATTENTION REQUIRED':'يتطلب انتباهاً عاجلاً','ATTENTION REQUIRED':'مطلوب الانتباه','NEEDS IMPROVEMENT':'يحتاج تحسيناً','All documented':'موثق بالكامل','Insufficient data':'بيانات غير كافية',
+    'All KPIs':'جميع المؤشرات','No data':'لا توجد بيانات','No important notifications.':'لا توجد إشعارات مهمة.','Loading notifications…':'جاري تحميل الإشعارات…','Close':'إغلاق','Notification':'إشعار'
+  };
+  function txt(n){return (n&&n.nodeValue||'').replace(/\s+/g,' ').trim();}
+  function skipEl(el){
+    if(!el) return true;
+    var tag=(el.tagName||'').toLowerCase();
+    if(['script','style','textarea','input','select','option','canvas','svg'].indexOf(tag)>=0) return true;
+    if(el.closest&&el.closest('.kpi-name,[data-kpi-name],.rpt-ep,#aiMsgs,#aiInp')) return true;
+    return false;
+  }
+  function apply(root){
+    if(typeof lang==='undefined'||lang!=='ar') return;
+    root=root||document.body; if(!root) return;
+    document.querySelectorAll('[data-ar]').forEach(function(el){
+      if(skipEl(el)) return;
+      var ar=el.getAttribute('data-ar'); if(ar) el.textContent=ar;
+    });
+    var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:function(n){return skipEl(n.parentElement)?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;}});
+    var nodes=[],n; while((n=walker.nextNode())) nodes.push(n);
+    nodes.forEach(function(node){
+      var raw=node.nodeValue, clean=txt(node); if(!clean) return;
+      if(MAP[clean]){ node.nodeValue=raw.replace(clean,MAP[clean]); return; }
+      var out=raw;
+      Object.keys(MAP).sort(function(a,b){return b.length-a.length;}).forEach(function(k){
+        if(k.length<4) return;
+        out=out.replace(new RegExp(k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g'),MAP[k]);
+      });
+      node.nodeValue=out;
+    });
+    document.documentElement.setAttribute('dir','rtl');
+  }
+  window.qumcApplyArabicUI=apply;
+  var old=window.renderCurrent;
+  if(typeof old==='function'){
+    window.renderCurrent=function(){var r=old.apply(this,arguments);setTimeout(function(){apply(document.body);},100);return r;};
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){apply(document.body);},200);});else setTimeout(function(){apply(document.body);},200);
+})();
+
+
+/* ==========================================================
+   QUMC ARABIC POLISH — Arabic mode only. English is untouched.
+   - Translates static dashboard labels, chart titles, header actions.
+   - Does not translate form inputs or KPI name editable fields.
    ========================================================== */
 (function(){
   var AR_MAP={
-    'Executive Command':'لوحة القيادة التنفيذية',
-    'Departments':'الأقسام',
-    'Department':'القسم',
-    'KPI Register':'سجل المؤشرات',
-    'Accountability':'المساءلة والمتابعة',
-    'Reports':'التقارير',
-    'Dashboard':'لوحة القيادة',
-    'Excel':'إكسل',
-    'Report':'التقرير',
-    'Export':'تصدير',
-    'Export ▾':'تصدير ▾',
-    'Select Page to Export':'اختر الصفحة للتصدير',
-    'All Pages':'كل الصفحات',
-    'Export to PDF':'تصدير إلى PDF',
-    'Page to Export':'الصفحة المراد تصديرها',
-    'Download PDF':'تحميل PDF',
-    'Cancel':'إلغاء',
-    'Year':'السنة',
-    'Quarters':'الأرباع',
-    'Dept':'القسم',
-    'Status':'الحالة',
-    'All':'الكل',
-    'Met':'محقق الهدف',
-    'MISSED':'لم يحقق الهدف',
-    'Missed':'لم يحقق الهدف',
-    'Pending':'قيد المتابعة',
-    'Reset':'إعادة الضبط',
-    '↺ Reset':'↺ إعادة الضبط',
-    'Total':'الإجمالي',
-    'TOTAL':'الإجمالي',
-    'KPI Indicators':'مؤشرات الأداء',
-    'KPIs':'مؤشرات',
-    'View all →':'عرض الكل ←',
-    'evaluated':'تم تقييمها',
-    'Success rate':'معدل تحقيق الهدف',
-    'Below target':'أقل من الهدف',
-    'Gap rate':'معدل عدم تحقيق الهدف',
-    'No data':'لا توجد بيانات',
-    'Improved':'تحسّن',
-    'Declined':'انخفض',
-    'Annual YoY':'المقارنة السنوية',
-    'Annual avg vs prior year':'متوسط الأداء الحالي مقارنة بالسنة الماضية',
-    'Executive Intelligence':'الملخص التنفيذي',
-    'Executive Intelligence Summary':'الملخص التنفيذي',
-    'Overall Status:':'الحالة العامة:',
-    'Critical Escalations':'المؤشرات التي تحتاج إلى تصعيد',
-    'Biggest Gap (KPI)':'أكبر فجوة',
-    'Biggest Gap':'أكبر فجوة',
-    'Performance gap':'فجوة الأداء',
-    'Priority Department':'القسم ذو الأولوية',
-    'Gap Analysis Open':'فجوات قيد المعالجة',
-    'Missed KPIs without gap analysis':'مؤشرات لم تحقق الهدف ولم يُوثق لها تحليل فجوة',
-    'Current Performance':'الأداء الحالي',
-    'Selected period average':'متوسط الفترة المحددة',
-    'Forecast YE':'التوقع السنوي',
-    'At-Risk KPIs (Next Qtr)':'مؤشرات معرضة للخطر في الربع القادم',
-    'KPIs at risk of missing target':'مؤشرات قد لا تحقق الهدف في الربع القادم',
-    'Monitor closely':'تحتاج متابعة دقيقة',
-    'Quarterly Achievement':'الإنجاز الربعي',
-    'Quarterly Trend by Department':'الاتجاه الربعي حسب القسم',
-    'Risk Tiers':'تصنيف المخاطر',
-    'KPI Trend Analysis':'تحليل اتجاه المؤشرات',
-    'Detailed KPI Performance Cards':'بطاقات أداء المؤشرات التفصيلية',
-    'DETAILED KPI PERFORMANCE CARDS':'بطاقات أداء المؤشرات التفصيلية',
-    'Summary':'الملخص',
-    'Critical Risks':'المخاطر الحرجة',
-    'Recommendations':'التوصيات',
-    'Last Updated':'آخر تحديث',
-    'Top Risk':'أعلى خطر',
-    'Recommended Action':'الإجراء الموصى به',
-    'Repeat Misses':'الإخفاقات المتكررة',
-    'KPI':'اسم المؤشر',
-    'KPI Name':'اسم المؤشر',
-    'Code':'الرمز',
-    'Target':'الهدف',
-    'Result':'النتيجة',
-    'Achievement':'نسبة أداء القسم',
-    'Avg':'المتوسط',
-    'Average':'المتوسط',
-    'YoY':'المقارنة بالسنة الماضية',
-    'Risk':'تصنيف الخطر',
-    'Risk Tier':'تصنيف الخطر',
-    'Trend':'الاتجاه',
-    'Last Result':'آخر نتيجة',
-    'Owner':'المسؤول',
-    'KPI Owner':'مسؤول المؤشر',
-    'KPI Achievement vs Target':'تحقيق المؤشرات مقابل الهدف',
-    'KPI ACHIEVEMENT VS TARGET':'تحقيق المؤشرات مقابل الهدف',
-    'KPI Trends':'اتجاهات المؤشرات',
-    'KPI TRENDS':'اتجاهات المؤشرات',
-    'ON TRACK':'في المسار',
-    'CRITICAL ATTENTION REQUIRED':'يتطلب انتباهاً عاجلاً',
-    'ATTENTION REQUIRED':'مطلوب الانتباه',
-    'NEEDS IMPROVEMENT':'يحتاج تحسيناً',
-    'All documented':'موثق بالكامل',
-    'Insufficient data':'بيانات غير كافية',
-    'No important notifications.':'لا توجد إشعارات مهمة.',
-    'Loading notifications…':'جاري تحميل الإشعارات…',
-    'Close':'إغلاق',
-    'Notification':'إشعار',
-    'Maintenance':'الصيانة',
-    'Safety':'السلامة',
-    'Housekeeping':'النظافة',
-    'Project Management':'إدارة المشاريع',
-    'Projects':'إدارة المشاريع',
-    'Responsible Person':'الشخص المسؤول',
-    'Action':'الإجراء',
-    'Priority':'الأولوية',
-    'Due Date':'تاريخ الاستحقاق',
-    'Root Cause':'السبب الجذري',
-    'Corrective Action':'الإجراء التصحيحي',
-    'Open':'مفتوح',
-    'In Prog':'جاري',
-    'Done':'مكتمل',
-    'Details':'تفاصيل'
+
+    'MISSED':'لم يحقق الهدف','غير محقق':'لم يحقق الهدف','المحقق':'نسبة أداء القسم','محقق':'محقق الهدف',
+    'Patient Safety':'سلامة المرضى','سلامة المريض':'سلامة المرضى',
+    'Forecast Q2\'26':'توقع الربع القادم Q2\'26','Forecast Q3\'26':'توقع الربع القادم Q3\'26','Forecast Q4\'26':'توقع الربع القادم Q4\'26',
+    'Forecast Q1\'27':'توقع الربع القادم Q1\'27',
+    'Risk Tiers':'تصنيف المخاطر','🎯 مستويات المخاطر':'🎯 تصنيف المخاطر','المخاطر':'تصنيف الخطر','مخاطر':'تصنيف الخطر',
+    'Executive Intelligence Summary':'الملخص التنفيذي','التحليل التنفيذيالملخص':'الملخص التنفيذي',
+    'Missed KPIs without gap analysis':'مؤشرات لم تحقق الهدف بدون تحليل فجوات','مؤشرات غير محقق بدون تحليل فجوات':'مؤشرات لم تحقق الهدف بدون تحليل فجوات',
+    '» View Gap Analysis':'استعراض تحليل الفجوات','View Gap Analysis':'استعراض تحليل الفجوات',
+    'KPI':'اسم المؤشر','المؤشر':'اسم المؤشر',
+    'KPIs at risk of missing target':'مؤشرات قد تتعرض لخطر عدم تحقيق الهدف','At-Risk KPIs (Next Qtr)':'مؤشرات معرضة للخطر الربع القادم',
+    'المقارنة السنوية':'المقارنة بالسنة الماضية','Critical Escalations':'المؤشرات التي تحتاج إلى تصعيد','تصعيدات حرجة':'المؤشرات التي تحتاج إلى تصعيد',
+    'بلاغ مشكلة':'إبلاغ عن مشكلة',
+    'Housekeeping':'النظافة','خدمات النظافة':'النظافة','خدمات الفندقة والنظافة':'النظافة',
+    'Executive Command':'لوحة القيادة التنفيذية','Executive Intelligence':'الملخص التنفيذي','Departments':'الأقسام','Department':'القسم','KPI Register':'سجل المؤشرات','Accountability':'المساءلة والمتابعة','Reports':'التقارير','Dashboard':'لوحة القيادة',
+    'Excel':'إكسل','Report':'التقرير','Export':'تصدير','Export ▾':'تصدير ▾','Select Page to Export':'اختر الصفحة للتصدير','All Pages':'كل الصفحات','Export to PDF':'تصدير إلى PDF','Page to Export':'الصفحة المراد تصديرها','Download PDF':'تحميل PDF','Cancel':'إلغاء',
+    'Year':'السنة','Quarters':'الأرباع','Dept':'القسم','Status':'الحالة','All':'الكل','Met':'محقق الهدف','Missed':'لم يحقق الهدف','Pending':'قيد المتابعة','Reset':'إعادة الضبط','↺ Reset':'↺ إعادة الضبط',
+    'Total':'الإجمالي','TOTAL':'الإجمالي','KPI Indicators':'مؤشرات الأداء','KPIs':'مؤشرات','View all →':'عرض الكل ←','evaluated':'تم تقييمها','evaluated 22':'تم تقييمها 22',
+    'Current Performance':'الأداء الحالي','Forecast YE':'التوقع السنوي','Selected period average':'متوسط الفترة المحددة','Expected year-end':'التوقع لنهاية السنة','Department Forecasts':'توقعات الأقسام','Overall Executive Forecast':'التوقع التنفيذي العام',
+    'Annual avg vs prior year':'المتوسط السنوي مقارنة بالسنة السابقة','Annual Average vs Prior Year':'المتوسط السنوي مقارنة بالسنة السابقة','Below target':'أقل من الهدف','Success rate':'معدل النجاح','Gap rate':'معدل الفجوة',
+    'KPI':'المؤشر','KPI Name':'اسم المؤشر','Code':'الرمز','Target':'الهدف','Result':'النتيجة','Achievement':'نسبة أداء القسم','Avg':'المتوسط','Average':'المتوسط','YoY':'المقارنة بالسنة الماضية','Risk':'تصنيف الخطر','Risk Tier':'تصنيف الخطر','Trend':'الاتجاه','Last Result':'آخر نتيجة','Owner':'المسؤول','KPI Owner':'مسؤول المؤشر',
+    'KPI Achievement vs Target':'تحقيق المؤشرات مقابل الهدف','KPI ACHIEVEMENT VS TARGET':'تحقيق المؤشرات مقابل الهدف','KPI Trends':'اتجاهات المؤشرات','KPI TRENDS':'اتجاهات المؤشرات','KPI Trend Analysis':'تحليل اتجاه المؤشرات','Quarterly Achievement':'الإنجاز الربعي','Quarterly Trend by Department':'الاتجاه الربعي حسب القسم','Risk Tiers':'تصنيف المخاطر',
+    'Detailed KPI Performance Cards':'بطاقات أداء المؤشرات التفصيلية','DETAILED KPI PERFORMANCE CARDS':'بطاقات أداء المؤشرات التفصيلية','Summary':'الملخص التنفيذي','Critical Risks':'المخاطر الحرجة','Recommendations':'التوصيات','Last Updated':'آخر تحديث',
+    'Target achieved':'محقق الهدف','Need attention':'بحاجة إلى متابعة','Critical':'حرج','Tier 1 escalations':'تصعيدات المستوى الأول','At-Risk KPIs':'مؤشرات قد تتعرض لخطر عدم تحقيق الهدف','Priority Department':'القسم ذو الأولوية','Biggest Gap':'أكبر فجوة (اسم المؤشر)','Repeat Misses':'الإخفاقات المتكررة',
+    'ON TRACK':'في المسار','CRITICAL ATTENTION REQUIRED':'يتطلب انتباهاً عاجلاً','ATTENTION REQUIRED':'مطلوب الانتباه','NEEDS IMPROVEMENT':'يحتاج تحسيناً','All documented':'موثق بالكامل','Insufficient data':'بيانات غير كافية','No data':'لا توجد بيانات',
+    'Maintenance':'الصيانة','Safety':'السلامة','Project Management':'إدارة المشاريع','Projects':'إدارة المشاريع',
+    'Preventive Maintenance Compliance':'معدل الالتزام بالصيانة الوقائية','Corrective Maintenance Resolution Rate':'معدل إغلاق طلبات الصيانة التصحيحية',
+    'Fire Safety Compliance':'معدل الالتزام بالسلامة من الحريق','Emergency Drill Compliance':'معدل الالتزام بتمارين الطوارئ','Hazardous Waste Segregation Rate':'معدل الفصل الصحيح للنفايات الطبية الخطرة','Emergency Request Response Time':'زمن الاستجابة للطلبات الطارئة','Hygiene Standards Compliance':'معدل الالتزام بمعايير النظافة','Laundry Turnaround Time Compliance':'الالتزام بوقت دورة الغسيل','Schedule Performance Index':'مؤشر أداء الجدول الزمني',
+    'Responsible Person':'الشخص المسؤول','Action':'الإجراء','Priority':'الأولوية','Due Date':'تاريخ الاستحقاق','Root Cause':'السبب الجذري','Corrective Action':'الإجراء التصحيحي','Open':'مفتوح','In Prog':'جاري','Done':'مكتمل','Details':'تفاصيل'
   };
-
-  function clean(v){return String(v==null?'':v).replace(/\s+/g,' ').trim();}
-  function exactTranslate(raw){
-    var text=String(raw==null?'':raw), key=clean(text), translated=AR_MAP[key];
-    if(!translated) return text;
-    var lead=(text.match(/^\s*/)||[''])[0], trail=(text.match(/\s*$/)||[''])[0];
-    return lead+translated+trail;
-  }
-  window.qumcAr=exactTranslate;
-
+  function escRe(s){return String(s).replace(/[.*+?^${}()|[\]\\]/g,'\\$&');}
+  window.qumcAr=function(s){
+    if(s==null)return s; var out=String(s);
+    if(AR_MAP[out.trim()]) return AR_MAP[out.trim()];
+    Object.keys(AR_MAP).sort(function(a,b){return b.length-a.length;}).forEach(function(k){ if(k.length>2) out=out.replace(new RegExp(escRe(k),'g'),AR_MAP[k]); });
+    return out;
+  };
   function skip(el){
-    if(!el)return true;
-    var tag=(el.tagName||'').toLowerCase();
+    if(!el)return true; var tag=(el.tagName||'').toLowerCase();
     if(['script','style','textarea','input','select','option','canvas','svg','path'].indexOf(tag)>=0)return true;
-    if(el.closest&&el.closest('.kpi-name,[data-kpi-name],[data-kpi-id],.rpt-ep,#aiMsgs,#aiInp,[contenteditable="true"]'))return true;
+    if(el.closest&&el.closest('.kpi-name,[data-kpi-name],.rpt-ep,#aiMsgs,#aiInp,[contenteditable="true"]'))return true;
     return false;
   }
-
   function apply(root){
-    if(typeof lang==='undefined'||lang!=='ar')return;
-    root=root||document.body;if(!root)return;
-    try{
-      document.documentElement.lang='ar';
-      document.documentElement.dir='rtl';
-      var rt=document.getElementById('root');if(rt){rt.lang='ar';rt.dir='rtl';}
-    }catch(_dirErr){}
-
-    root.querySelectorAll('[data-ar]').forEach(function(el){
-      if(skip(el))return;
-      var ar=el.getAttribute('data-ar');
-      if(ar!==null&&ar!=='')el.textContent=ar;
-    });
-
-    var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:function(n){
-      return skip(n.parentElement)?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;
-    }});
-    var nodes=[],n;while((n=walker.nextNode()))nodes.push(n);
-    nodes.forEach(function(node){
-      var after=exactTranslate(node.nodeValue);
-      if(after!==node.nodeValue)node.nodeValue=after;
-    });
-
-    var deptF=document.getElementById('deptF');
-    if(deptF){Array.prototype.forEach.call(deptF.options,function(o){if(o.value==='housekeeping')o.textContent='النظافة';});}
+    if(typeof lang==='undefined'||lang!=='ar')return; root=root||document.body; if(!root)return;
+    try{document.documentElement.dir='rtl'; var rt=document.getElementById('root'); if(rt)rt.dir='rtl';}catch(_){ }
+    root.querySelectorAll('[data-ar]').forEach(function(el){ if(skip(el))return; var ar=el.getAttribute('data-ar'); if(ar)el.textContent=ar; });
+    var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:function(n){return skip(n.parentElement)?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;}});
+    var arr=[],n; while((n=walker.nextNode()))arr.push(n);
+    arr.forEach(function(node){ var before=node.nodeValue; var after=window.qumcAr(before); if(after!==before)node.nodeValue=after; });
+    // Header action buttons and export menu, without touching English mode.
+    document.querySelectorAll('button,.export-menu-item,.tab span,.ch,.ch-r').forEach(function(el){ if(skip(el))return; var before=el.textContent; var after=window.qumcAr(before); if(after!==before)el.textContent=after; });
+    var deptF=document.getElementById('deptF'); if(deptF){ Array.prototype.forEach.call(deptF.options,function(o){ if(o.value==='housekeeping')o.textContent='النظافة'; }); }
   }
   window.qumcApplyArabicUI=apply;
-
-  var priorApply=window.applyDOMTranslations;
-  window.applyDOMTranslations=function(){
-    var r=priorApply?priorApply.apply(this,arguments):undefined;
-    setTimeout(function(){apply(document.body);},0);
-    return r;
-  };
-
-  var priorRender=window.renderCurrent;
-  if(typeof priorRender==='function'){
-    window.renderCurrent=function(){
-      var r=priorRender.apply(this,arguments);
-      setTimeout(function(){apply(document.body);},0);
-      setTimeout(function(){apply(document.body);},120);
-      return r;
-    };
-  }
-
-  var priorToggle=window.toggleLang;
-  if(typeof priorToggle==='function'){
-    window.toggleLang=function(){
-      var r=priorToggle.apply(this,arguments);
-      setTimeout(function(){apply(document.body);},0);
-      setTimeout(function(){apply(document.body);},160);
-      return r;
-    };
-  }
-
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){apply(document.body);},250);});
-  else setTimeout(function(){apply(document.body);},250);
+  var prev=window.applyDOMTranslations;
+  window.applyDOMTranslations=function(){ if(prev)prev.apply(this,arguments); setTimeout(function(){apply(document.body);},0); setTimeout(function(){apply(document.body);},100); };
+  var oldToggle=window.toggleLang;
+  if(typeof oldToggle==='function')window.toggleLang=function(){ var r=oldToggle.apply(this,arguments); setTimeout(function(){apply(document.body);},80); setTimeout(function(){apply(document.body);},350); return r; };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){setTimeout(function(){apply(document.body);},300);}); else setTimeout(function(){apply(document.body);},300);
 })();
