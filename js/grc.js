@@ -15,7 +15,7 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__='20260722-advisory-center-v50';
+  window.__QUMC_GRC_BUILD__='20260722-advisory-center-code-dedupe-v51';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
   var STATE_VERSION=11;
@@ -376,7 +376,7 @@
 
   /* Approved Maintenance policies supplied for the Governance policy register. */
   var MAINTENANCE_POLICY_SEED=[
-    {"id":"POL-MNT-05","name":"ELECTRICAL SUPPLY DISTRIBUTION SYSTEM","code":"QUMC-DPP-FMS Division/MNT-05","issueDate":"2024-11-01","effectiveDate":"2025-02-01","reviewDate":"2027-11-01","status":"valid","department":"maintenance"},
+    {"id":"POL-MNT-05","name":"ELECTRICAL SUPPLY DISTRIBUTION SYSTEM","code":"QUMC-DPP-FMS/MNT-05","issueDate":"2024-11-01","effectiveDate":"2025-02-01","reviewDate":"2027-11-01","status":"valid","department":"maintenance"},
     {"id":"POL-MNT-07","name":"HEATING, VENTILATION & AIR CONDITIONING SYSTEMS (HVAC)","code":"QUMC-DPP-FMS Division/MNT-07","issueDate":"2024-11-01","effectiveDate":"2025-02-01","reviewDate":"2027-11-01","status":"valid","department":"maintenance"},
     {"id":"POL-MNT-08","name":"SEWAGE HANDLING AND DISPOSAL POLICY","code":"QUMC-PPG-FMS Division/MINT-08","issueDate":"2024-01-01","effectiveDate":"2024-04-01","reviewDate":"2027-01-01","status":"valid","department":"maintenance"},
     {"id":"POL-MNT-03","name":"COMPRESSED GAS CYLINDER SAFE HANDLING, USE AND STORAGE","code":"QUMC-DPP-FMS Division/MNT-03","issueDate":"2024-11-01","effectiveDate":"2025-02-01","reviewDate":"2027-11-01","status":"valid","department":"maintenance"},
@@ -472,6 +472,90 @@
     return'';
   }
   function normalizePlanCode(v){return String(v||'').toUpperCase().replace(/\s+/g,'').replace(/-+/g,'-');}
+
+  /* GRC_CODE_REPAIR_START
+     Normalize only the FMS code segment for comparison. Text, names and department
+     labels are never passed through this function. The stored-code repair below is
+     intentionally limited to the approved MNT-05 policy code. */
+  var GRC_TARGET_POLICY_CODE='QUMC-DPP-FMS/MNT-05';
+  var GRC_TARGET_POLICY_KEY=normalizePlanCode(GRC_TARGET_POLICY_CODE);
+  function normalizeFmsCodeForComparison(v){
+    return String(v==null?'':v).trim().replace(/(\bFMS)\s+Division(?=\/)/ig,'$1');
+  }
+  function governanceCodeKey(v){
+    var raw=String(v==null?'':v);
+    var normalized=normalizeFmsCodeForComparison(raw);
+    var normalizedKey=normalizePlanCode(normalized);
+    return normalizedKey===GRC_TARGET_POLICY_KEY?GRC_TARGET_POLICY_KEY:normalizePlanCode(raw);
+  }
+  function isTargetPolicyCode(v){return governanceCodeKey(v)===GRC_TARGET_POLICY_KEY;}
+  function canonicalTargetPolicyCode(v){return isTargetPolicyCode(v)?GRC_TARGET_POLICY_CODE:String(v==null?'':v).trim();}
+  function meaningfulRecordValue(v){
+    if(v===undefined||v===null)return false;
+    if(typeof v==='string')return v.trim()!=='';
+    if(Array.isArray(v))return v.length>0;
+    if(typeof v==='object')return Object.keys(v).length>0;
+    return true;
+  }
+  function recordTimestamp(r){
+    var fields=['updatedAt','modifiedAt','lastUpdatedAt','createdAt'];
+    for(var i=0;i<fields.length;i++){
+      var raw=r&&r[fields[i]];
+      if(!raw)continue;
+      var t=Date.parse(raw&&raw.toDate?raw.toDate():raw);
+      if(isFinite(t))return t;
+    }
+    return 0;
+  }
+  function recordCompleteness(r){
+    return Object.keys(r||{}).reduce(function(total,key){
+      return total+(meaningfulRecordValue(r[key])?1:0);
+    },0);
+  }
+  function mergeDuplicateGovernanceRecords(records){
+    var ordered=(records||[]).map(copyRecord).sort(function(a,b){
+      var ta=recordTimestamp(a),tb=recordTimestamp(b);
+      if(ta!==tb)return ta-tb;
+      return recordCompleteness(a)-recordCompleteness(b);
+    });
+    var merged={};
+    ordered.forEach(function(record){
+      Object.keys(record||{}).forEach(function(key){
+        var value=record[key];
+        if(meaningfulRecordValue(value)||!Object.prototype.hasOwnProperty.call(merged,key))merged[key]=value;
+      });
+    });
+    var created=ordered.map(function(r){return r.createdAt;}).filter(Boolean).sort();
+    var updated=ordered.map(function(r){return r.updatedAt;}).filter(Boolean).sort();
+    if(created.length)merged.createdAt=created[0];
+    if(updated.length)merged.updatedAt=updated[updated.length-1];
+    merged.code=GRC_TARGET_POLICY_CODE;
+    return merged;
+  }
+  function repairTargetPolicyRecords(records){
+    var source=Array.isArray(records)?records:[],matches=[],firstIndex=-1,out=[];
+    source.forEach(function(record,index){
+      if(record&&isTargetPolicyCode(record.code)){
+        if(firstIndex<0)firstIndex=index;
+        matches.push(record);
+      }else out.push(record);
+    });
+    if(!matches.length)return source.slice();
+    var merged=mergeDuplicateGovernanceRecords(matches);
+    var insertAt=Math.min(firstIndex,out.length);
+    out.splice(insertAt,0,merged);
+    return out;
+  }
+  function repairGovernanceCodeState(value){
+    var target=value&&typeof value==='object'?value:defaultState();
+    target.policies=repairTargetPolicyRecords(target.policies);
+    return target;
+  }
+  function needsGovernanceCodeRepair(raw,clean){
+    try{return JSON.stringify(Array.isArray(raw&&raw.policies)?raw.policies:[])!==JSON.stringify(Array.isArray(clean&&clean.policies)?clean.policies:[]);}
+    catch(_){return true;}
+  }
+  /* GRC_CODE_REPAIR_END */
   function applySafetyFormSeed(s){
     s=s||defaultState();
     var seeds=SAFETY_FORM_SEED.concat(HOUSEKEEPING_FORM_SEED,PROJECTS_FORM_SEED,MAINTENANCE_FORM_SEED,INTERNAL_FORM_SEED),seededKeys={},existingByKey={},unmatched=[];
@@ -500,27 +584,32 @@
   }
 
   function applyMaintenancePolicySeed(s){
-    s=s||defaultState();
+    s=repairGovernanceCodeState(s||defaultState());
     var seededCodes={},existingByCode={},unmatched=[];
     (s.policies||[]).forEach(function(r){
-      var key=normalizePlanCode(r.code);
+      var key=governanceCodeKey(r.code);
       if(key&&!existingByCode[key])existingByCode[key]=r;else unmatched.push(r);
     });
     var merged=MAINTENANCE_POLICY_SEED.concat(SAFETY_POLICY_SEED,HOUSEKEEPING_POLICY_SEED).map(function(seed){
-      var key=normalizePlanCode(seed.code),old=existingByCode[key],r=copyRecord(seed);
+      var key=governanceCodeKey(seed.code),old=existingByCode[key],r=copyRecord(seed);
       if(old){
-        if(old.id)r.id=old.id;
-        if(old.createdAt)r.createdAt=old.createdAt;
-        if(old.createdBy)r.createdBy=old.createdBy;
-        if(old.updatedAt)r.updatedAt=old.updatedAt;
+        if(key===GRC_TARGET_POLICY_KEY){
+          r=mergeDuplicateGovernanceRecords([r,old]);
+        }else{
+          if(old.id)r.id=old.id;
+          if(old.createdAt)r.createdAt=old.createdAt;
+          if(old.createdBy)r.createdBy=old.createdBy;
+          if(old.updatedAt)r.updatedAt=old.updatedAt;
+        }
       }
+      if(key===GRC_TARGET_POLICY_KEY)r.code=GRC_TARGET_POLICY_CODE;
       r.department=seed.department||'maintenance';
-      r.status=normalizeStatus(seed.status);
+      r.status=normalizeStatus(r.status||seed.status);
       seededCodes[key]=1;
       return r;
     });
     Object.keys(existingByCode).forEach(function(key){if(!seededCodes[key])unmatched.push(existingByCode[key]);});
-    s.policies=merged.concat(unmatched.filter(function(r){return !seededCodes[normalizePlanCode(r.code)];}));
+    s.policies=repairTargetPolicyRecords(merged.concat(unmatched.filter(function(r){return !seededCodes[governanceCodeKey(r.code)];})));
     return applySafetyFormSeed(s);
   }
 
@@ -574,7 +663,7 @@
   }
   function migrateState(raw){
     var s=defaultState();
-    if(!raw||typeof raw!=='object')return applyRiskRegisterSeed(s);
+    if(!raw||typeof raw!=='object')return applyRiskRegisterSeed(repairGovernanceCodeState(s));
     ['policies','plans','forms','manuals','risks','incidents','codes','compliance','audits','actions','documents'].forEach(function(k){if(Array.isArray(raw[k]))s[k]=raw[k].map(copyRecord);});
 
     /* Migrate the first GRC preview document catalog into the new registers. */
@@ -609,7 +698,7 @@
     s.forms=s.forms.map(function(r){r.scope=String(r.scope||r.formScope||'internal').toLowerCase()==='external'?'external':'internal';return r;});
     s.risks=s.risks.map(function(r){if(r.department==='governanceDept')r.department='division';return r;});
     s.version=STATE_VERSION;s.updatedAt=raw.updatedAt||new Date().toISOString();
-    return applyRiskRegisterSeed(s);
+    return applyRiskRegisterSeed(repairGovernanceCodeState(s));
   }
   function hasId(arr,id){return arr.some(function(r){return String(r.id)===String(id);});}
   function departmentFromOwner(owner){
@@ -653,6 +742,7 @@
     });
   }
   state.initiatives=normalizeInitiativePeople(INITIATIVE_SEED);
+  state=repairGovernanceCodeState(state);
   try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}
   function grcViewportPosition(){
     var main=app&&app.querySelector('.grc-main');
@@ -667,12 +757,12 @@
       window.scrollTo(Number(position.winX)||0,Number(position.winY)||0);
     });
   }
-  function saveState(){var position=grcViewportPosition();applyAutomaticExpiry();state.version=STATE_VERSION;state.updatedAt=new Date().toISOString();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}renderAtSamePosition(position);queueSharedStateSave();}
+  function saveState(){var position=grcViewportPosition();applyAutomaticExpiry();state=repairGovernanceCodeState(state);state.version=STATE_VERSION;state.updatedAt=new Date().toISOString();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}renderAtSamePosition(position);queueSharedStateSave();}
 
   var GRC_SHARED_STATE_DOC='grc_workspace_shared_state_v1',grcStateUnsub=null,grcStateSaveTimer=null,grcApplyingRemote=false;
   function grcSharedStateRef(b){return b.fs.doc(b.db,'kpi_dashboard',GRC_SHARED_STATE_DOC);}
-  function cleanSharedState(value){var out={};['policies','plans','forms','manuals','risks','incidents','codes','compliance','audits','actions','documents','initiatives'].forEach(function(k){out[k]=Array.isArray(value&&value[k])?value[k]:[];});out.initiatives=normalizeInitiativePeople(out.initiatives);out.version=STATE_VERSION;out.updatedAt=value&&value.updatedAt||new Date().toISOString();return out;}
-  function startSharedStateSync(){if(grcStateUnsub)return;ensureReportBackend().then(function(b){if(!b.auth.currentUser)return;grcStateUnsub=b.fs.onSnapshot(grcSharedStateRef(b),function(snap){if(!snap.exists()){queueSharedStateSave(true);return;}var remote=cleanSharedState(snap.data());grcApplyingRemote=true;Object.keys(remote).forEach(function(k){state[k]=remote[k];});try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}grcApplyingRemote=false;renderAtSamePosition(grcViewportPosition());},function(err){console.error('[GRC Shared State] live sync failed',err);});}).catch(function(err){console.error('[GRC Shared State] init failed',err);});}
+  function cleanSharedState(value){var out={};['policies','plans','forms','manuals','risks','incidents','codes','compliance','audits','actions','documents','initiatives'].forEach(function(k){out[k]=Array.isArray(value&&value[k])?value[k].map(copyRecord):[];});out=repairGovernanceCodeState(out);out.initiatives=normalizeInitiativePeople(out.initiatives);out.version=STATE_VERSION;out.updatedAt=value&&value.updatedAt||new Date().toISOString();return out;}
+  function startSharedStateSync(){if(grcStateUnsub)return;ensureReportBackend().then(function(b){if(!b.auth.currentUser)return;grcStateUnsub=b.fs.onSnapshot(grcSharedStateRef(b),function(snap){if(!snap.exists()){queueSharedStateSave(true);return;}var raw=snap.data(),remote=cleanSharedState(raw),repairNeeded=needsGovernanceCodeRepair(raw,remote);grcApplyingRemote=true;Object.keys(remote).forEach(function(k){state[k]=remote[k];});state=repairGovernanceCodeState(state);try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}grcApplyingRemote=false;renderAtSamePosition(grcViewportPosition());if(repairNeeded)queueSharedStateSave(true);},function(err){console.error('[GRC Shared State] live sync failed',err);});}).catch(function(err){console.error('[GRC Shared State] init failed',err);});}
   function queueSharedStateSave(immediate){if(grcApplyingRemote)return;clearTimeout(grcStateSaveTimer);grcStateSaveTimer=setTimeout(function(){ensureReportBackend().then(function(b){if(!b.auth.currentUser)return;return b.fs.setDoc(grcSharedStateRef(b),Object.assign(cleanSharedState(state),{updatedAt:b.fs.serverTimestamp(),updatedBy:window._fbUser||b.auth.currentUser.email||''}),{merge:false});}).catch(function(err){console.error('[GRC Shared State] save failed',err);});},immediate?0:180);}
 
 
@@ -714,6 +804,7 @@
   }
   function normalizeRecordBeforeSave(type,obj){
     obj=obj||{};
+    if(obj.code!==undefined)obj.code=canonicalTargetPolicyCode(obj.code);
     var d=recordExpiryDate(obj);
     if(d&&d<today())obj.status='expired';
     if(type==='form'&&!obj.status)obj.status='valid';
