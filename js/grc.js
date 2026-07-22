@@ -15,7 +15,7 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__='20260722-advisory-center-code-dedupe-v51';
+  window.__QUMC_GRC_BUILD__='20260722-advisory-center-code-dedupe-v52';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
   var STATE_VERSION=11;
@@ -900,7 +900,7 @@
       }
     });
   }
-  function render(){applyAutomaticExpiry();ensureGrcAdminFloatingButton();if(!app||!app.classList.contains('grc-visible'))return;app.setAttribute('dir',isAr()?'rtl':'ltr');try{app.innerHTML=shellHtml();}catch(err){try{console.error('[GRC Render]',err);}catch(_e){}app.innerHTML='<main class="grc-main"><section class="grc-page is-active"><div class="grc-section"><div class="grc-section-title">GRC</div><div class="grc-section-sub">'+esc(String(err&&err.message||err))+'</div></div></section></main>';return;}setTimeout(enhanceRegisterFilters,0);setTimeout(enhanceAllRegisterCrud,0);setTimeout(ensureGrcAdminFloatingButton,0);startSharedStateSync();if(activeTab==='reports'||activeTab==='compliance'||activeTab==='manuals')setTimeout(mountReportViewer,0);if(activeTab==='advisory'&&typeof window._grcAdvisoryMount==='function')setTimeout(window._grcAdvisoryMount,0);}
+  function render(){var _repairBefore='';try{_repairBefore=JSON.stringify(state&&state.policies||[]);}catch(_e){}state=repairGovernanceCodeState(state);try{if(_repairBefore!==JSON.stringify(state&&state.policies||[])){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));queueSharedStateSave(true);}}catch(_e2){}applyAutomaticExpiry();ensureGrcAdminFloatingButton();if(!app||!app.classList.contains('grc-visible'))return;app.setAttribute('dir',isAr()?'rtl':'ltr');try{app.innerHTML=shellHtml();}catch(err){try{console.error('[GRC Render]',err);}catch(_e){}app.innerHTML='<main class="grc-main"><section class="grc-page is-active"><div class="grc-section"><div class="grc-section-title">GRC</div><div class="grc-section-sub">'+esc(String(err&&err.message||err))+'</div></div></section></main>';return;}setTimeout(enhanceRegisterFilters,0);setTimeout(enhanceAllRegisterCrud,0);setTimeout(ensureGrcAdminFloatingButton,0);startSharedStateSync();if(activeTab==='reports'||activeTab==='compliance'||activeTab==='manuals')setTimeout(mountReportViewer,0);if(activeTab==='advisory'&&typeof window._grcAdvisoryMount==='function')setTimeout(window._grcAdvisoryMount,0);}
 
   function hero(eye,title,desc,actions){return'<div class="grc-hero"><div class="grc-hero-row"><div><div class="grc-eyebrow">'+eye+'</div><h1>'+title+'</h1><p>'+desc+'</p></div><div class="grc-hero-actions">'+(actions||'')+'</div></div></div>';}
   function sectionHead(title,sub,badgeText){return'<div class="grc-section-head"><div><div class="grc-section-title">'+title+'</div><div class="grc-section-sub">'+(sub||'')+'</div></div>'+(badgeText?'<span class="grc-section-badge">'+badgeText+'</span>':'')+'</div>';}
