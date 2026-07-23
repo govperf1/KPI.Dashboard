@@ -1,6 +1,6 @@
 /* ======================================================================
-   QUMC Advisory Center — GRC
-   Build: 2026-07-23 v2
+   QUMC Review & Guidance Center — Performance + GRC
+   Build: 2026-07-23 v55
    English-only service page shared by Performance and GRC. Two request types only.
    ====================================================================== */
 :is(#grcApp,#performanceAdvisoryRoot) .adv-shell{display:flex;flex-direction:column;gap:18px}
@@ -22,15 +22,28 @@
 :is(#grcApp,#performanceAdvisoryRoot)[dir="rtl"] .adv-sa-pill{right:auto;left:12px}
 :is(#grcApp,#performanceAdvisoryRoot) .adv-view{display:none}
 :is(#grcApp,#performanceAdvisoryRoot) .adv-view.is-active{display:block}
-:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-grid{display:grid;grid-template-columns:repeat(6,minmax(125px,1fr));gap:13px}
-:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card{position:relative;min-height:132px;border:1px solid #e1e9ee;border-radius:15px;background:#fff;padding:14px 15px;box-shadow:0 5px 16px rgba(15,42,57,.05);cursor:pointer;transition:.18s ease;overflow:hidden}
-:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--adv-tone,#60a5fa)}
-:is(#grcApp,#performanceAdvisoryRoot)[dir="rtl"] .adv-metric-card:before{left:auto;right:0}
-:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card:hover{transform:translateY(-2px);box-shadow:0 10px 23px rgba(15,42,57,.09)}
-:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card.is-active{border-color:#1aa6b3;outline:3px solid rgba(26,166,179,.10)}
-:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-label{font-size:9px;font-weight:850;color:#617784;min-height:25px}
-:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-value{font-size:29px;font-family:Consolas,"Courier New",monospace;font-weight:950;color:#173f55;margin:10px 0 5px}
-:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-sub{font-size:8px;color:#8a9ba5;line-height:1.35}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-grid{display:grid;grid-template-columns:repeat(5,minmax(145px,1fr));gap:14px}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card{min-height:146px;padding:15px 16px 13px;border-radius:16px;border:1px solid #E2E8F0;box-shadow:0 6px 18px rgba(15,23,42,.055);display:flex;flex-direction:column;background:#fff;position:relative;overflow:hidden;cursor:pointer;text-align:left;font:inherit;color:inherit;transition:.18s}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:16px 0 0 16px;background:#60A5FA}
+:is(#grcApp,#performanceAdvisoryRoot)[dir="rtl"] .adv-metric-card:before{left:auto;right:0;border-radius:0 16px 16px 0}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card:after{content:"";position:absolute;width:112px;height:112px;border-radius:50%;right:-42px;top:-48px;background:rgba(100,116,139,.045);pointer-events:none}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card:hover{transform:translateY(-3px);border-color:#CBD5E1;box-shadow:0 13px 28px rgba(15,23,42,.105)}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card.is-active{border-color:#1AA6B3;outline:3px solid rgba(26,166,179,.10)}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card.info:before{background:#60A5FA}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card.good:before{background:#34D399}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card.warn:before{background:#FBBF24}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card.bad:before{background:#F87171}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card.purple:before{background:#A78BFA}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card .grc-metric-top{display:flex;align-items:center;justify-content:space-between;position:relative;z-index:1}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card .grc-metric-icon{width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:15px;font-weight:950;background:#EFF6FF;color:#2563EB}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card.good .grc-metric-icon{background:#ECFDF5;color:#15803D}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card.warn .grc-metric-icon{background:#FFFBEB;color:#B45309}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card.purple .grc-metric-icon{background:#F5F3FF;color:#7C3AED}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card .grc-metric-value{font-size:36px;line-height:1;font-weight:950;color:#152538;margin:12px 0 5px;font-family:Consolas,"Courier New",monospace;letter-spacing:-1.1px;position:relative;z-index:1}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card .grc-metric-label{min-height:30px;font-size:10.5px;font-weight:750;color:#52657A;line-height:1.35;position:relative;z-index:1}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card .grc-metric-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:9px;border-top:1px solid #F0F4F8;position:relative;z-index:1}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card .grc-metric-sub{font-size:8.3px;color:#8494A6;margin:0;line-height:1.25}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-card .grc-metric-arrow{font-size:15px;font-weight:900;color:#94A3B8}
 :is(#grcApp,#performanceAdvisoryRoot) .adv-card{background:#fff;border:1px solid #dce6eb;border-radius:16px;padding:16px;box-shadow:0 5px 18px rgba(17,52,70,.045)}
 :is(#grcApp,#performanceAdvisoryRoot) .adv-grid-2{display:grid;grid-template-columns:1.1fr .9fr;gap:14px}
 :is(#grcApp,#performanceAdvisoryRoot) .adv-card-title{font-size:11px;font-weight:900;color:#173f55;margin:0 0 13px}
