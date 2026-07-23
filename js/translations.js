@@ -325,13 +325,14 @@ function switchTab(id, el) {
   document.querySelectorAll('.tab').forEach(function(tab) { tab.classList.remove('on'); });
   document.querySelectorAll('.page').forEach(function(pg) { pg.classList.remove('on'); });
   if (el) el.classList.add('on');
+  document.body.classList.toggle('performance-advisory-mode', id === 'advisory');
   var page = document.getElementById('page-' + id);
   if (page) page.classList.add('on');
   window.curPage = id;
   if (typeof curPage !== 'undefined') curPage = id;
   if (typeof renderCurrent === 'function') renderCurrent();
   if (typeof updateChips === 'function') updateChips();
-  try{if(window._fbUser&&typeof addAudit==='function'){var names={exec:'Executive Command',dept:'Departments',registry:'KPI Register',accountability:'Accountability'};addAudit('PAGE_VIEW','Opened page: '+(names[id]||id));}}catch(_){}
+  try{if(window._fbUser&&typeof addAudit==='function'){var names={exec:'Executive Command',dept:'Departments',registry:'KPI Register',accountability:'Accountability',advisory:'Advisory Center'};addAudit('PAGE_VIEW','Opened page: '+(names[id]||id));}}catch(_){}
 }
 window.switchTab = switchTab;
 
@@ -343,6 +344,7 @@ function renderCurrent() {
     else if (cur === 'dept') { if (typeof renderDept === 'function') renderDept(); }
     else if (cur === 'registry') { if (typeof renderRegistry === 'function') renderRegistry(); }
     else if (cur === 'accountability') { if (typeof renderAcc === 'function') renderAcc(); }
+    else if (cur === 'advisory') { if (typeof window._performanceAdvisoryMount === 'function') window._performanceAdvisoryMount(); }
     else if (cur === 'report') { if (typeof renderReport === 'function') renderReport(); }
     if (typeof _applyDashboardTextEditsSoon === 'function') _applyDashboardTextEditsSoon();
     else if (typeof _applyDashboardTextEdits === 'function') _applyDashboardTextEdits();

@@ -386,7 +386,7 @@ window._selectPortal=async portal=>{
 
 
     /* ══════════════════════════════════════════════════════
-       advisory_requests: GRC Advisory Center
+       advisory_requests: Performance + GRC Advisory Center
        - Full records: advisory_requests (requester + Admin/SA)
        - Sanitized analytics: advisory_public (all authenticated users)
        - File chunks: advisory_attachments
@@ -400,9 +400,10 @@ window._selectPortal=async portal=>{
     function _advPublicShape(r){
       r=r||{};
       return {
-        code:String(r.code||''),serviceType:String(r.serviceType||'consultation'),requestType:String(r.requestType||''),
+        code:String(r.code||''),platform:String(r.platform||'grc'),serviceType:'consultation',requestType:String(r.requestType||''),
         requestTypeLabel:String(r.requestTypeLabel||''),category:String(r.category||''),
-        sessionTopic:r.serviceType==='session'?'Consultation Session':'',departmentKey:String(r.departmentKey||''),
+        relatedType:String(r.relatedType||''),relatedItems:Array.isArray(r.relatedItems)?r.relatedItems.map(function(x){return {type:String(x&&x.type||''),id:String(x&&x.id||''),code:String(x&&x.code||''),name:String(x&&x.name||'')};}):[],
+        relatedNewText:String(r.relatedNewText||''),departmentKey:String(r.departmentKey||''),
         departmentCode:String(r.departmentCode||''),gender:String(r.gender||''),priority:String(r.priority||'Normal'),
         status:String(r.status||'under_review'),createdAt:r.createdAt||serverTimestamp(),updatedAt:r.updatedAt||serverTimestamp(),
         firstRespondedAt:r.firstRespondedAt||null,respondedAt:r.respondedAt||null,responseMinutes:r.responseMinutes==null?null:Number(r.responseMinutes),
@@ -456,9 +457,10 @@ window._selectPortal=async portal=>{
       const base={
         userName:String(window._fbName||window.currentUserName||_advEmail().split('@')[0]||'User'),userEmail:_advEmail(),
         departmentKey:String(payload.departmentKey||window._fbDept||''),departmentCode:deptCode,gender:String(payload.gender||''),priority:String(payload.priority||'Normal'),
-        serviceType:String(payload.serviceType||'consultation'),requestType:String(payload.requestType||''),requestTypeLabel:String(payload.requestTypeLabel||''),
-        category:String(payload.category||''),title:String(payload.title||''),details:String(payload.details||''),
-        sessionTopic:String(payload.sessionTopic||''),participants:String(payload.participants||''),preferredDuration:String(payload.preferredDuration||''),suitableDays:String(payload.suitableDays||''),
+        platform:String(payload.platform||'grc'),serviceType:'consultation',requestType:String(payload.requestType||''),requestTypeLabel:String(payload.requestTypeLabel||''),
+        category:String(payload.category||''),relatedType:String(payload.relatedType||''),
+        relatedItems:Array.isArray(payload.relatedItems)?payload.relatedItems.map(function(x){return {type:String(x&&x.type||''),id:String(x&&x.id||''),code:String(x&&x.code||''),name:String(x&&x.name||'')};}):[],
+        relatedNewText:String(payload.relatedNewText||''),title:String(payload.title||''),details:String(payload.details||''),
         status:'under_review',messages:[],attachments:[],attachmentCount:0,firstRespondedAt:null,respondedAt:null,responseMinutes:null,
         completedAt:null,closedAt:null,rating:null,ratingAt:null,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:_advIso(),updatedBy:_advEmail()
       };
@@ -492,7 +494,7 @@ window._selectPortal=async portal=>{
       data=data||{};const current=await _advAuthorizedRequest(requestId,true),requestRef=doc(db,'advisory_requests',requestId),publicRef=doc(db,'advisory_public',requestId),nowIso=_advIso();
       const updates={updatedAt:serverTimestamp(),updatedBy:_advEmail()},publicUpdates={updatedAt:serverTimestamp()},messageAttachments=[];
       if(file){const meta=await _advUploadFile(requestId,file,_advEmail());messageAttachments.push(meta);updates.attachments=arrayUnion(meta);updates.attachmentCount=Number(current.attachmentCount||0)+1;publicUpdates.attachmentCount=updates.attachmentCount;}
-      const firstResponseActions=['respond','request_info','schedule_session'];
+      const firstResponseActions=['respond','request_info'];
       if(firstResponseActions.includes(action)&&!current.firstRespondedAt){
         const created=_advTsMs(current.createdAt)||Date.now(),mins=Math.max(0,Math.round((Date.now()-created)/60000));
         updates.firstRespondedAt=serverTimestamp();updates.responseMinutes=mins;publicUpdates.firstRespondedAt=serverTimestamp();publicUpdates.responseMinutes=mins;
@@ -500,7 +502,6 @@ window._selectPortal=async portal=>{
       let status=current.status,messageText=String(data.text||'').trim();
       if(action==='respond'){status='responded';updates.respondedAt=serverTimestamp();publicUpdates.respondedAt=serverTimestamp();}
       else if(action==='request_info')status='awaiting_requester_information';
-      else if(action==='schedule_session'){status='scheduled_session';updates.confirmedSessionDate=String(data.sessionDate||'');updates.confirmedSessionDuration=String(data.sessionDuration||'');}
       else if(action==='close'){if(current.status!=='completed')throw new Error('Only completed requests can be closed.');status='closed';updates.closedAt=serverTimestamp();publicUpdates.closedAt=serverTimestamp();}
       else if(action==='duplicate')status='duplicate';
       else if(action==='out_of_scope')status='out_of_scope';
