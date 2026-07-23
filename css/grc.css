@@ -794,3 +794,54 @@ body.grc-mode{height:100%;overflow:hidden!important}
 #grcApp .grc-cbahi-table td.grc-cbahi-due{background:#F5F7FA!important;color:#4D6270;white-space:nowrap}
 #grcApp .grc-cbahi-table td:empty{background:#fff!important}
 #grcApp .grc-cbahi-table tbody tr{border-bottom:1px solid #DFE8ED}
+
+/* ======================================================================
+   GRC navigation exports + isolated portal chrome — 2026-07-23 v53
+   ====================================================================== */
+body.grc-mode > .topbar,
+body.grc-mode > .filter-strip,
+body.grc-mode > .tabnav,
+body.grc-mode > .dashwrap,
+body.grc-mode > .footbar{display:none!important}
+#grcApp .grc-nav-wrap{display:flex;align-items:stretch;gap:12px;padding-inline-end:16px}
+#grcApp .grc-nav{flex:1;min-width:0}
+#grcApp .grc-export-actions{display:flex;align-items:center;gap:6px;flex:0 0 auto;padding:7px 0}
+#grcApp .grc-export-btn{height:36px;border:1px solid #D7E2EA;border-radius:9px;background:#fff;color:#315568;padding:0 11px;font-size:9px;font-weight:900;display:flex;align-items:center;gap:6px;cursor:pointer;box-shadow:0 2px 8px rgba(21,37,56,.045);white-space:nowrap}
+#grcApp .grc-export-btn:hover{border-color:#83C5CE;background:#F4FAFB;color:#087E8C}
+#grcApp .grc-export-btn.excel{color:#157347}.grc-export-btn.report{color:#B42332}.grc-export-btn.export{color:#1E3E6A}
+#grcApp .grc-export-menu-wrap{position:relative}
+#grcApp .grc-export-menu{display:none;position:absolute;top:42px;right:0;z-index:80;width:230px;max-height:420px;overflow:auto;padding:7px;background:#fff;border:1px solid #D7E2EA;border-radius:13px;box-shadow:0 18px 46px rgba(15,35,55,.20)}
+#grcApp[dir="rtl"] .grc-export-menu{right:auto;left:0}
+#grcApp .grc-export-menu.is-open{display:block}
+#grcApp .grc-export-menu button{width:100%;border:0;background:transparent;color:#315568;text-align:left;padding:9px 10px;border-radius:8px;font:inherit;font-size:9px;font-weight:800;cursor:pointer}
+#grcApp[dir="rtl"] .grc-export-menu button{text-align:right}
+#grcApp .grc-export-menu button:hover{background:#EEF8FA;color:#087E8C}
+#grcApp .grc-export-sep{height:1px;background:#E6EDF1;margin:5px 2px}
+.grc-export-overlay{position:fixed;inset:0;z-index:2147483650;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(5,20,31,.68);backdrop-filter:blur(5px)}
+.grc-export-dialog{width:min(900px,96vw);max-height:92vh;overflow:auto;background:#fff;border-radius:20px;box-shadow:0 28px 90px rgba(0,0,0,.34);color:#17384A;font-family:Arial,"Segoe UI",sans-serif}
+.grc-export-dialog-head{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:flex-start;gap:15px;padding:17px 20px;background:#152538;color:#fff;border-bottom:3px solid #00A3C4}
+.grc-export-dialog-head h2{font-size:15px;margin:0}.grc-export-dialog-head p{font-size:9px;color:#C7D5DF;margin:5px 0 0}.grc-export-dialog-head button{width:34px;height:34px;border:1px solid rgba(255,255,255,.24);border-radius:9px;background:rgba(255,255,255,.1);color:#fff;font-size:18px;cursor:pointer}
+.grc-export-dialog-body{padding:18px 20px}.grc-export-section{border:1px solid #DCE6EC;border-radius:14px;padding:14px;margin-bottom:13px;background:#FBFDFE}.grc-export-section h3{font-size:11px;margin:0 0 10px;color:#17384A}.grc-export-check-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.grc-export-check{display:flex;gap:8px;align-items:flex-start;padding:9px;border:1px solid #E2EAEE;border-radius:9px;background:#fff;font-size:9px;line-height:1.45;cursor:pointer}.grc-export-check input{margin-top:2px}.grc-export-record-list{max-height:210px;overflow:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.grc-export-actions-row{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}.grc-export-actions-row button{border:0;border-radius:10px;padding:10px 15px;font-size:9px;font-weight:900;cursor:pointer}.grc-export-cancel{background:#EDF2F5;color:#526B78}.grc-export-confirm{background:linear-gradient(135deg,#147F8D,#1AA6B3);color:#fff}
+#grcPrintHost{display:none}
+@media(max-width:1050px){#grcApp .grc-nav-wrap{display:block;padding:0 8px}#grcApp .grc-export-actions{justify-content:flex-end;border-top:1px solid #EDF2F5}.grc-export-check-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.grc-export-check-grid,.grc-export-record-list{grid-template-columns:1fr}#grcApp .grc-export-btn span{display:none}}
+@media print{
+  body.grc-printing *{visibility:hidden!important}
+  body.grc-printing #grcPrintHost,body.grc-printing #grcPrintHost *{visibility:visible!important}
+  body.grc-printing #grcPrintHost{display:block!important;position:absolute;inset:0 auto auto 0;width:100%;background:#fff;color:#152538;padding:0!important}
+  body.grc-printing #grcApp{display:none!important}
+  #grcPrintHost .grc-print-header{display:flex;align-items:center;gap:18px;padding:18px 22px;border-bottom:4px solid #00A3C4;background:#152538;color:#fff}
+  #grcPrintHost .grc-print-header img{width:78px;height:58px;object-fit:contain;background:#fff;border-radius:8px;padding:4px}
+  #grcPrintHost .grc-print-header h1{font-size:20px;margin:0 0 4px}#grcPrintHost .grc-print-header p{font-size:10px;margin:0;color:#D4E0E8}
+  #grcPrintHost .grc-print-meta{padding:9px 22px;background:#EFF5F8;border-bottom:1px solid #D6E2EE;font-size:9px;color:#52657A}
+  #grcPrintHost .grc-print-body{padding:18px 22px}
+  #grcPrintHost .grc-print-section{break-inside:avoid;margin:0 0 20px}
+  #grcPrintHost .grc-print-number{display:inline-grid;place-items:center;width:25px;height:25px;border-radius:8px;background:#00A3C4;color:#fff;font-weight:900;margin-right:7px}
+  #grcPrintHost .grc-section,#grcPrintHost .grc-card,#grcPrintHost .grc-metric-card,#grcPrintHost .grc-chart-card,#grcPrintHost .grc-department-panel{box-shadow:none!important;break-inside:avoid!important}
+  #grcPrintHost button,#grcPrintHost input,#grcPrintHost select,#grcPrintHost textarea,#grcPrintHost .grc-hero-actions,#grcPrintHost .adv-module-grid,#grcPrintHost .adv-filters{display:none!important}
+  #grcPrintHost .grc-table-wrap,#grcPrintHost .adv-table-wrap{overflow:visible!important}
+  #grcPrintHost table{min-width:0!important;width:100%!important;font-size:7px!important}
+  @page{size:A4 landscape;margin:10mm}
+}
+
+body.grc-export-open #_grcAdminFloatingBtn{display:none!important}

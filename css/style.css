@@ -2561,3 +2561,9 @@ body.modal-mode .filter-strip{
 @media(max-width:900px){
   .nav-export-combined .nav-tab-group .tab{min-width:112px!important;padding:0 14px!important;font-size:10.5px!important;}
 }
+
+/* Performance Advisory Center — hide KPI-only filters while this page is active */
+body.performance-advisory-mode .filter-strip{display:none!important}
+body.performance-advisory-mode .dashwrap{padding-top:0}
+body.performance-advisory-mode #page-advisory{background:linear-gradient(180deg,#F4F7FA,#EEF3F7);min-height:calc(100vh - 180px)}
+body.grc-mode .topbar,body.grc-mode .filter-strip,body.grc-mode .tabnav,body.grc-mode .dashwrap,body.grc-mode .footbar{display:none!important}
