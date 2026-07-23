@@ -332,7 +332,7 @@ function switchTab(id, el) {
   if (typeof curPage !== 'undefined') curPage = id;
   if (typeof renderCurrent === 'function') renderCurrent();
   if (typeof updateChips === 'function') updateChips();
-  try{if(window._fbUser&&typeof addAudit==='function'){var names={exec:'Executive Command',dept:'Departments',registry:'KPI Register',accountability:'Accountability',advisory:'Advisory Center'};addAudit('PAGE_VIEW','Opened page: '+(names[id]||id));}}catch(_){}
+  try{if(window._fbUser&&typeof addAudit==='function'){var names={exec:'Executive Command',dept:'Departments',registry:'KPI Register',accountability:'Accountability',advisory:'Review & Guidance Center'};addAudit('PAGE_VIEW','Opened page: '+(names[id]||id));}}catch(_){}
 }
 window.switchTab = switchTab;
 
