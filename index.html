@@ -11,11 +11,11 @@
   <link crossorigin href="https://fonts.gstatic.com" rel="preconnect">
 
   <!-- ═══ Stylesheets ═══ -->
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=20260723-advisory-v3">
   <link rel="stylesheet" href="css/admin.css">
   <link rel="stylesheet" href="css/reports.css">
-  <link rel="stylesheet" href="css/grc.css?v=20260709-cbahi-assessment-v36">
-  <link rel="stylesheet" href="css/advisory.css?v=20260722-advisory-v1">
+  <link rel="stylesheet" href="css/grc.css?v=20260723-grc-export-v54">
+  <link rel="stylesheet" href="css/advisory.css?v=20260723-advisory-v3">
 </head>
 <body>
 
@@ -248,10 +248,11 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <div class="tab" onclick="switchTab('dept',this)"> <span data-ar="الأقسام" data-en="Departments">Departments</span></div>
 <div class="tab" onclick="switchTab('registry',this)"> <span data-ar="سجل المؤشرات" data-en="KPI Register">KPI Register</span></div>
 <div class="tab" onclick="switchTab('accountability',this)"> <span data-ar="المساءلة والمتابعة" data-en="Accountability">Accountability</span> <span class="tab-badge" id="accBadge" style="display:none">0</span></div>
+<div class="tab" onclick="switchTab('advisory',this)"> <span data-ar="Advisory Center" data-en="Advisory Center">Advisory Center</span></div>
 </div>
 <div class="nav-export-group" aria-label="Export actions">
 <button class="nav-export-btn nav-export-excel" onclick="exportExcel()" type="button">📊 <span data-ar="Excel" data-en="Excel">Excel</span></button>
-<button class="nav-export-btn nav-export-report" onclick="document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));var rp=document.getElementById('page-report');if(rp){rp.classList.add('on');}if(typeof renderReport==='function')renderReport();" type="button">📄 <span data-ar="التقرير" data-en="Report">Report</span></button>
+<button class="nav-export-btn nav-export-report" onclick="document.body.classList.remove('performance-advisory-mode');document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));var rp=document.getElementById('page-report');if(rp){rp.classList.add('on');}if(typeof renderReport==='function')renderReport();" type="button">📄 <span data-ar="التقرير" data-en="Report">Report</span></button>
 <div class="nav-export-menu-wrap">
 <button class="nav-export-btn nav-export-pdf" onclick="toggleExportMenu(event)" type="button">↗ <span data-ar="تصدير" data-en="Export">Export</span> ▾</button>
 <div id="exportMenuDrop" class="nav-export-menu" style="display:none">
@@ -272,6 +273,7 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <div class="page" id="page-dept"><div class="gg" id="deptGrid"></div></div>
 <div class="page" id="page-registry"><div class="gg" id="registryGrid"></div></div>
 <div class="page" id="page-accountability"><div class="gg" id="accGrid"></div></div>
+<div class="page" id="page-advisory"><div id="performanceAdvisoryRoot"></div></div>
 <div class="page" id="page-report" style="padding:0;margin:0;background:transparent"></div>
 </div>
 <!-- ═══ FOOTER — QUMC Institutional Footer ═══════════ -->
@@ -775,18 +777,19 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
      ═══════════════════════════════════════════════════════ -->
 
 <!-- Firebase module (ES import syntax — must be type=module) -->
-<script type="module" src="js/firebase.js?v=20260722-advisory-v1"></script>
+<script type="module" src="js/firebase.js?v=20260723-advisory-v3"></script>
 
 <!-- Application modules (loaded in dependency order) -->
 <script src="js/kpi.js?v=20260709-shared-audit-v1"></script>
-<script src="js/translations.js?v=20260709-shared-audit-v1"></script>
+<script src="js/translations.js?v=20260723-advisory-v3"></script>
 <script src="js/dashboard.js?v=20260705-yoy-latest-quarter"></script>
 <script src="js/reports.js?v=20260624-ar-full-polish-v2"></script>
 <script src="js/admin.js?v=20260623-emergency-loadfix-v1"></script>
 <script src="js/notifications.js?v=20260709-shared-audit-v1"></script>
 <script src="js/auth.js?v=20260623-emergency-loadfix-v1"></script>
-<script src="js/grc.js?v=20260722-code-dedupe-v52"></script>
-<script src="js/advisory.js?v=20260722-advisory-v1"></script>
+<script src="js/grc.js?v=20260723-grc-export-v54"></script>
+<script src="js/grc-export.js?v=20260723-grc-export-v2"></script>
+<script src="js/advisory.js?v=20260723-advisory-v3"></script>
 
 <!-- ── Password reset (type=module — Firebase imports required) ── -->
 <script id="qumc_reset_registered_only_patch" type="module">
