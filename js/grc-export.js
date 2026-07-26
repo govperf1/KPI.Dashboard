@@ -1,6 +1,6 @@
 /* ======================================================================
    QUMC GRC — Excel / Report / Page Export
-   Build: 2026-07-23 v55
+   Build: 2026-07-23 v57
    ====================================================================== */
 (function(){
   'use strict';
@@ -91,11 +91,21 @@
     function filtered(key){return(data[key]||[]).filter(function(r){return deptMatch(r,depts);});}
     if(id==='governance'){
       governanceTypes=governanceTypes&&governanceTypes.length?governanceTypes:['policies','plans','forms'];
-      columns=['Record Type','Code','Name','Department','Issue Date','Effective Date','Review Date','Status','Scope'];
-      if(governanceTypes.indexOf('policies')>=0)filtered('policies').forEach(function(r){rows.push(['Policy',r.code||r.id,r.nameEn||r.name||r.title,r.department,r.issueDate,r.effectiveDate,r.reviewDate,r.status,'']);});
-      if(governanceTypes.indexOf('plans')>=0)filtered('plans').forEach(function(r){rows.push(['Plan',r.code||r.id,r.nameEn||r.name||r.title,r.department,r.issueDate,r.effectiveDate,r.reviewDate,r.status,'']);});
-      if(governanceTypes.indexOf('forms')>=0)filtered('forms').forEach(function(r){rows.push(['Form',r.code||r.id,r.nameEn||r.name||r.title,r.department,r.issueDate,r.effectiveDate,r.reviewDate,r.status,r.scope]);});
-      return{title:'Governance',columns:columns,rows:rows};
+      var selectedDepartments=depts&&depts.length?depts:DEPTS.map(function(d){return d[0];});
+      var groupDefs=[
+        {key:'policies',title:'Policies',columns:['Code','Policy Name','Issue Date','Effective Date','Review Date','Status'],row:function(r){return[r.code||r.id,r.nameEn||r.name||r.title,r.issueDate,r.effectiveDate||r.startDate,r.reviewDate||r.expiryDate,r.status];}},
+        {key:'forms',title:'Forms',columns:['Code','Form Name','Scope','Status'],row:function(r){return[r.code||r.id,r.nameEn||r.name||r.title,r.scope||r.formScope||'',r.status];}},
+        {key:'plans',title:'Plans',columns:['Code','Plan Name','Issue Date','Effective Date','Review Date','Status'],row:function(r){return[r.code||r.id,r.nameEn||r.name||r.title,r.issueDate,r.effectiveDate||r.startDate,r.reviewDate||r.expiryDate,r.status];}}
+      ];
+      var sections=selectedDepartments.map(function(deptId){
+        var meta=DEPTS.find(function(d){return d[0]===deptId;}),departmentTitle=meta?meta[1]:deptId;
+        var tables=groupDefs.filter(function(g){return governanceTypes.indexOf(g.key)>=0;}).map(function(g){
+          var records=(data[g.key]||[]).filter(function(r){return deptMatch(r,[deptId]);});
+          return{title:g.title,columns:g.columns,rows:records.map(g.row)};
+        });
+        return{department:deptId,title:departmentTitle,tables:tables};
+      });
+      return{title:'Governance',kind:'governance',sections:sections,columns:[],rows:[]};
     }
     if(id==='risk'){
       columns=['Record Type','Code','Description','Department','Category','Likelihood','Impact','Score','Level','Status'];
@@ -152,21 +162,60 @@
   function departmentText(depts){return depts.length?depts.map(function(d){var x=DEPTS.find(function(z){return z[0]===d;});return x?x[1]:d;}).join(', '):'All';}
   function downloadBlob(blob,name){var url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},1800);}
 
+  function departmentArgb(id){
+    return{ safety:'FFC95B58',maintenance:'FF5475B8',housekeeping:'FF3C9A82',laundry:'FFB77B35',projects:'FF8B62B4'}[id]||'FF2B6E7F';
+  }
+  function semanticStyle(value,column){
+    var text=String(value==null?'':value).trim().toLowerCase(),col=String(column||'').toLowerCase();
+    var palette=null;
+    if(/expired|invalid|failed|not met|non.?compliant|critical/.test(text))palette={fill:'FFFDE7E9',font:'FFB42332'};
+    else if(/valid|active|completed|closed|successful|fully met|compliant|done/.test(text))palette={fill:'FFE4F5EC',font:'FF18794E'};
+    else if(/open|in progress|under review|pending|partial|high/.test(text))palette={fill:'FFFFF2D5',font:'FF9A6700'};
+    else if(/medium|planned|draft|not applicable/.test(text))palette={fill:'FFEAF3FB',font:'FF246B9A'};
+    else if(/low/.test(text))palette={fill:'FFEAF7EF',font:'FF2D7A4F'};
+    if(!palette&&/(status|level|priority|scope)/.test(col)&&text)palette={fill:'FFF1F5F8',font:'FF405A6A'};
+    return palette;
+  }
+  function borderStyle(){return{top:{style:'thin',color:{argb:'FFDCE6EC'}},bottom:{style:'thin',color:{argb:'FFDCE6EC'}},left:{style:'thin',color:{argb:'FFDCE6EC'}},right:{style:'thin',color:{argb:'FFDCE6EC'}}};}
+  function styleTableHeader(row,color){
+    row.height=25;row.eachCell(function(c){c.fill={type:'pattern',pattern:'solid',fgColor:{argb:color||'FF00A3C4'}};c.font={name:'Calibri',size:10,bold:true,color:{argb:'FFFFFFFF'}};c.alignment={horizontal:'center',vertical:'middle',wrapText:true};c.border=borderStyle();});
+  }
+  function styleDataRow(row,columns,index){
+    row.eachCell(function(c,col){c.font={name:'Calibri',size:9,color:{argb:'FF243B53'}};c.alignment={vertical:'middle',wrapText:true};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:index%2?'FFF8FAFC':'FFFFFFFF'}};c.border=borderStyle();var sem=semanticStyle(c.value,columns[col-1]);if(sem){c.fill={type:'pattern',pattern:'solid',fgColor:{argb:sem.fill}};c.font={name:'Calibri',size:9,bold:true,color:{argb:sem.font}};c.alignment={horizontal:'center',vertical:'middle',wrapText:true};}});
+  }
+  function addWorkbookHeader(ws,title,depts,cols,logoId){
+    ws.mergeCells(1,1,1,cols);ws.getCell(1,1).value='QUMC — Governance, Risk & Compliance';ws.getCell(1,1).font={name:'Calibri',size:15,bold:true,color:{argb:'FFFFFFFF'}};ws.getCell(1,1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF152538'}};ws.getCell(1,1).alignment={horizontal:'center',vertical:'middle'};ws.getRow(1).height=30;
+    ws.mergeCells(2,1,2,cols);ws.getCell(2,1).value=title+' · Facility Management & Safety Division';ws.getCell(2,1).font={name:'Calibri',size:11,bold:true,color:{argb:'FF007A96'}};ws.getCell(2,1).alignment={horizontal:'center'};
+    ws.mergeCells(3,1,3,cols);ws.getCell(3,1).value='Departments: '+departmentText(depts)+' · Generated: '+new Date().toLocaleString('en-GB');ws.getCell(3,1).font={name:'Calibri',size:9,color:{argb:'FF64748B'}};ws.getCell(3,1).alignment={horizontal:'center'};
+    ws.mergeCells(4,1,4,cols);ws.getCell(4,1).value='Status colors: Green = valid / active / completed · Amber = open / pending / in progress · Red = expired / invalid / failed · Blue = informational';ws.getCell(4,1).font={name:'Calibri',size:8,italic:true,color:{argb:'FF52657A'}};ws.getCell(4,1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF3F7FA'}};ws.getCell(4,1).alignment={horizontal:'center',vertical:'middle',wrapText:true};ws.getRow(4).height=24;
+    if(logoId!=null)ws.addImage(logoId,{tl:{col:.15,row:.1},ext:{width:88,height:48}});
+  }
+  function setColumnWidths(ws,tables){
+    var maxCols=0,widths=[];(tables||[]).forEach(function(table){maxCols=Math.max(maxCols,table.columns.length);table.columns.forEach(function(name,i){widths[i]=Math.max(widths[i]||12,String(name||'').length+2);});(table.rows||[]).slice(0,150).forEach(function(row){row.forEach(function(v,i){widths[i]=Math.max(widths[i]||12,String(simpleValue(v)||'').length+2);});});});
+    for(var i=0;i<maxCols;i++)ws.getColumn(i+1).width=Math.min(44,widths[i]||14);
+  }
   async function buildExcelJs(sets,depts){
     var wb=new ExcelJS.Workbook();wb.creator='QUMC GRC Workspace';wb.created=new Date();
     var logo=logoBase64(),logoId=null;if(logo){try{logoId=wb.addImage({base64:logo,extension:logo.indexOf('png')>=0?'png':'jpeg'});}catch(_){}}
     sets.forEach(function(set){
-      var name=(set.title||'Worksheet').replace(/[\\\/?*\[\]:]/g,' ').slice(0,31),ws=wb.addWorksheet(name,{views:[{showGridLines:false,state:'frozen',ySplit:5}]});
-      var cols=Math.max(2,set.columns.length);
-      ws.mergeCells(1,1,1,cols);ws.getCell(1,1).value='QUMC — Governance, Risk & Compliance';ws.getCell(1,1).font={name:'Calibri',size:15,bold:true,color:{argb:'FFFFFFFF'}};ws.getCell(1,1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF152538'}};ws.getCell(1,1).alignment={horizontal:'center',vertical:'middle'};ws.getRow(1).height=30;
-      ws.mergeCells(2,1,2,cols);ws.getCell(2,1).value=set.title+' · Facility Management & Safety Division';ws.getCell(2,1).font={name:'Calibri',size:11,bold:true,color:{argb:'FF007A96'}};ws.getCell(2,1).alignment={horizontal:'center'};
-      ws.mergeCells(3,1,3,cols);ws.getCell(3,1).value='Departments: '+departmentText(depts)+' · Generated: '+new Date().toLocaleString('en-GB');ws.getCell(3,1).font={name:'Calibri',size:9,color:{argb:'FF64748B'}};ws.getCell(3,1).alignment={horizontal:'center'};
-      if(logoId!=null)ws.addImage(logoId,{tl:{col:.15,row:.1},ext:{width:88,height:48}});
-      ws.addRow([]);var hr=ws.addRow(set.columns);hr.height=26;
-      hr.eachCell(function(c){c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF00A3C4'}};c.font={name:'Calibri',size:10,bold:true,color:{argb:'FFFFFFFF'}};c.alignment={horizontal:'center',vertical:'middle',wrapText:true};c.border={top:{style:'thin',color:{argb:'FFD6E2EE'}},bottom:{style:'thin',color:{argb:'FFD6E2EE'}},left:{style:'thin',color:{argb:'FFD6E2EE'}},right:{style:'thin',color:{argb:'FFD6E2EE'}}};});
-      (set.rows.length?set.rows:[['No matching records']]).forEach(function(a,i){var r=ws.addRow(a.map(simpleValue));r.eachCell(function(c){c.font={name:'Calibri',size:9,color:{argb:'FF243B53'}};c.alignment={vertical:'middle',wrapText:true};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:i%2?'FFF8FAFC':'FFFFFFFF'}};c.border={bottom:{style:'hair',color:{argb:'FFE2E8F0'}}};});});
-      ws.columns.forEach(function(c,i){var max=12;[set.columns].concat(set.rows.slice(0,100)).forEach(function(a){max=Math.max(max,String(a[i]||'').length+2);});c.width=Math.min(42,max);});
-      ws.autoFilter={from:{row:5,column:1},to:{row:5,column:set.columns.length}};
+      var name=(set.title||'Worksheet').replace(/[\\\/?*\[\]:]/g,' ').slice(0,31),ws=wb.addWorksheet(name,{views:[{showGridLines:false,state:'frozen',ySplit:4}]});
+      if(set.kind==='governance'){
+        var maxCols=6;addWorkbookHeader(ws,set.title,depts,maxCols,logoId);var rowNo=6,allTables=[];
+        (set.sections||[]).forEach(function(section){
+          ws.mergeCells(rowNo,1,rowNo,maxCols);var deptCell=ws.getCell(rowNo,1);deptCell.value=section.title;deptCell.fill={type:'pattern',pattern:'solid',fgColor:{argb:departmentArgb(section.department)}};deptCell.font={name:'Calibri',size:12,bold:true,color:{argb:'FFFFFFFF'}};deptCell.alignment={horizontal:'left',vertical:'middle'};ws.getRow(rowNo).height=27;rowNo++;
+          (section.tables||[]).forEach(function(table){
+            allTables.push(table);ws.mergeCells(rowNo,1,rowNo,maxCols);var titleCell=ws.getCell(rowNo,1);titleCell.value=table.title;titleCell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF294B5F'}};titleCell.font={name:'Calibri',size:10,bold:true,color:{argb:'FFFFFFFF'}};titleCell.alignment={horizontal:'left',vertical:'middle'};rowNo++;
+            var header=ws.getRow(rowNo);table.columns.forEach(function(c,i){header.getCell(i+1).value=c;});styleTableHeader(header,'FF00A3C4');rowNo++;
+            var rows=table.rows&&table.rows.length?table.rows:[['No matching records']];rows.forEach(function(values,i){var row=ws.getRow(rowNo);values.forEach(function(v,col){row.getCell(col+1).value=simpleValue(v);});styleDataRow(row,table.columns,i);rowNo++;});
+            rowNo++;
+          });
+          rowNo++;
+        });
+        setColumnWidths(ws,allTables);return;
+      }
+      var cols=Math.max(2,set.columns.length);addWorkbookHeader(ws,set.title,depts,cols,logoId);var hr=ws.addRow(set.columns);styleTableHeader(hr,'FF00A3C4');
+      (set.rows.length?set.rows:[['No matching records']]).forEach(function(a,i){var r=ws.addRow(a.map(simpleValue));styleDataRow(r,set.columns,i);});
+      setColumnWidths(ws,[set]);ws.autoFilter={from:{row:5,column:1},to:{row:5,column:set.columns.length}};
     });
     var buf=await wb.xlsx.writeBuffer();
     downloadBlob(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),'QUMC_GRC_Export_'+new Date().toISOString().slice(0,10)+'.xlsx');
@@ -175,8 +224,11 @@
     if(!window.XLSX)throw new Error('Excel libraries are unavailable. Check the internet connection and reload the page.');
     var wb=XLSX.utils.book_new();
     sets.forEach(function(set){
-      var rows=[['QUMC — Governance, Risk & Compliance'],[set.title+' · Facility Management & Safety Division'],['Departments: '+departmentText(depts)+' · Generated: '+new Date().toLocaleString('en-GB')],[],set.columns].concat(set.rows.length?set.rows:[['No matching records']]);
-      var ws=XLSX.utils.aoa_to_sheet(rows);ws['!cols']=set.columns.map(function(_,i){var max=12;rows.slice(4,105).forEach(function(r){max=Math.max(max,String(r[i]||'').length+2);});return{wch:Math.min(42,max)};});
+      var rows=[['QUMC — Governance, Risk & Compliance'],[set.title+' · Facility Management & Safety Division'],['Departments: '+departmentText(depts)+' · Generated: '+new Date().toLocaleString('en-GB')],['Status colors are applied when ExcelJS is available.'],[]];
+      if(set.kind==='governance'){
+        (set.sections||[]).forEach(function(section){rows.push([section.title]);(section.tables||[]).forEach(function(table){rows.push([table.title]);rows.push(table.columns);Array.prototype.push.apply(rows,table.rows&&table.rows.length?table.rows:[['No matching records']]);rows.push([]);});rows.push([]);});
+      }else{rows.push(set.columns);Array.prototype.push.apply(rows,set.rows.length?set.rows:[['No matching records']]);}
+      var ws=XLSX.utils.aoa_to_sheet(rows),maxCols=Math.max.apply(null,rows.map(function(r){return r.length;}));ws['!cols']=new Array(maxCols).fill(0).map(function(_,i){var max=12;rows.slice(4,180).forEach(function(r){max=Math.max(max,String(r[i]||'').length+2);});return{wch:Math.min(44,max)};});
       var name=(set.title||'Worksheet').replace(/[\\\/?*\[\]:]/g,' ').slice(0,31);XLSX.utils.book_append_sheet(wb,ws,name);
     });
     XLSX.writeFile(wb,'QUMC_GRC_Export_'+new Date().toISOString().slice(0,10)+'.xlsx');
