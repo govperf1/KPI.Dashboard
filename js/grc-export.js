@@ -247,18 +247,45 @@
     overlay('GRC Executive Command Report','Select the Executive Command sections to include. Governance is the first report section; the introductory Executive Overview and Governance Tools are intentionally excluded.','<div class="grc-export-section"><h3>Report Sections</h3><div class="grc-export-check-grid">'+opts+'</div></div>','Build Report','window._grcGenerateReport()');
   };
   function numberSubsections(node,mainNo){
-    var n=0,seen=[];
-    Array.prototype.slice.call(node.querySelectorAll('.grc-section-title,.grc-card-title,.grc-chart-title,.grc-register-titlebar strong,h3,h4')).forEach(function(h){
-      if(h.closest('.grc-exec-domain-head'))return;
-      var text=(h.textContent||'').trim();if(!text||/^\d+(?:\.\d+)*[.\s]/.test(text)||seen.indexOf(text)>=0)return;
-      seen.push(text);n++;h.textContent=mainNo+'.'+n+' '+text;
+    var n=0;
+    var selectors=[
+      '.grc-section-title',
+      '.grc-card-title',
+      '.grc-register-titlebar strong',
+      '.grc-exec-ops-head h3',
+      '.grc-code-subtype-block>h5',
+      '.grc-code-overall>h5'
+    ].join(',');
+    Array.prototype.slice.call(node.querySelectorAll(selectors)).forEach(function(h){
+      if(h.closest('.grc-exec-domain-head,.grc-chart-card,.grc-metric-card,.grc-table-wrap,thead,tbody'))return;
+      if(h.classList.contains('grc-report-numbered-title'))return;
+      var text=(h.textContent||'').replace(/^\s*\d+(?:\.\d+)+[.\s-]*/,'').trim();if(!text)return;
+      n++;
+      h.textContent='';
+      h.classList.add('grc-report-numbered-title');
+      var no=document.createElement('span');no.className='grc-report-subnumber';no.textContent=mainNo+'.'+n;
+      var label=document.createElement('span');label.className='grc-report-subtitle-text';label.textContent=text;
+      h.appendChild(no);h.appendChild(label);
+    });
+  }
+  function prepareReportCharts(node){
+    Array.prototype.slice.call(node.querySelectorAll('.grc-chart-grid')).forEach(function(grid){
+      var cards=Array.prototype.slice.call(grid.children).filter(function(x){return x.classList&&x.classList.contains('grc-chart-card');});
+      grid.classList.add('grc-report-chart-grid');
+      if(cards.length>1)grid.classList.add('grc-report-chart-grid-multi');
+      cards.forEach(function(card){
+        card.classList.add('grc-report-chart-card');
+        if(card.matches('.grc-heatmap-card,.grc-monthly-strip-card,.grc-initiative-progress-card'))card.classList.add('grc-report-chart-wide');
+        else card.classList.add('grc-report-chart-compact');
+      });
     });
   }
   function prepareReportDomain(part,index){
     var node=part.node.cloneNode(true),head=node.querySelector('.grc-exec-domain-head'),kick=head&&head.querySelector('.grc-exec-domain-kicker'),title=head&&head.querySelector('h2');
-    if(kick)kick.textContent=String(index).padStart(2,'0');
+    if(kick)kick.textContent=String(index);
     if(title)title.textContent=index+'. '+part.title;
     numberSubsections(node,index);
+    prepareReportCharts(node);
     node.classList.add('grc-report-domain');
     return node;
   }
@@ -277,45 +304,80 @@
     body.appendChild(footer);doc.appendChild(body);
     var reportStyle=document.createElement('style');reportStyle.textContent=`
       #rptDocument>#grcApp,#rptDocument #grcApp{display:block!important;position:static!important;inset:auto!important;z-index:auto!important;width:100%!important;max-width:none!important;height:auto!important;min-height:0!important;overflow:visible!important;background:#fff!important;color:#152538!important}
-      #rptDocument #grcApp .grc-report-domain{margin:0 0 18px!important;padding:14px 14px 10px!important;border-radius:14px!important;box-shadow:none!important;break-inside:auto!important;page-break-inside:auto!important}
-      #rptDocument #grcApp .grc-exec-domain-head{margin:0 0 12px!important;padding:0 0 10px!important;break-after:avoid!important;page-break-after:avoid!important}
-      #rptDocument #grcApp .grc-exec-domain-head h2{font-size:15px!important;line-height:1.25!important}
-      #rptDocument #grcApp .grc-exec-domain-head p{font-size:8px!important;margin-top:3px!important}
-      #rptDocument #grcApp .grc-exec-domain-kicker{width:28px!important;height:28px!important;font-size:9px!important}
-      #rptDocument #grcApp .grc-section{margin:10px 0 14px!important;padding-bottom:0!important}
-      #rptDocument #grcApp .grc-section-head{margin-bottom:9px!important}
-      #rptDocument #grcApp .grc-section-title{font-size:11px!important}
-      #rptDocument #grcApp .grc-section-sub{font-size:7.5px!important}
-      #rptDocument #grcApp .grc-metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px!important;margin:8px 0 10px!important}
+      #rptDocument #grcApp .grc-report-domain{position:relative;margin:0 0 14px!important;padding:12px 12px 9px!important;border:1px solid #dce7ed!important;border-top:3px solid #1598a2!important;border-radius:12px!important;background:#fff!important;box-shadow:none!important;break-inside:auto!important;page-break-inside:auto!important}
+      #rptDocument #grcApp .grc-report-domain:not(:first-child){margin-top:14px!important}
+      #rptDocument #grcApp .grc-exec-domain-head{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px!important;margin:0 0 10px!important;padding:0 0 9px!important;border-bottom:1px solid #dce7ed!important;break-after:avoid!important;page-break-after:avoid!important}
+      #rptDocument #grcApp .grc-exec-domain-head>div{display:grid!important;grid-template-columns:28px minmax(0,1fr)!important;column-gap:9px!important;align-items:center!important}
+      #rptDocument #grcApp .grc-exec-domain-head h2{grid-column:2!important;margin:0!important;font-size:15px!important;line-height:1.2!important;color:#153e53!important}
+      #rptDocument #grcApp .grc-exec-domain-head p{grid-column:2!important;margin:2px 0 0!important;font-size:7.4px!important;line-height:1.35!important;color:#6c8390!important}
+      #rptDocument #grcApp .grc-exec-domain-kicker{grid-row:1/3!important;width:28px!important;height:28px!important;border-radius:9px!important;font-size:10px!important;display:grid!important;place-items:center!important;background:#e7f6f7!important;color:#0e7180!important}
+      #rptDocument #grcApp .grc-exec-domain-badge{font-size:7px!important;padding:4px 7px!important}
+      #rptDocument #grcApp .grc-section{margin:8px 0 11px!important;padding:0!important;break-inside:auto!important;page-break-inside:auto!important}
+      #rptDocument #grcApp .grc-section-head{margin:0 0 7px!important;padding:0 0 5px!important;border-bottom:1px solid #e7eef2!important;break-after:avoid!important;page-break-after:avoid!important}
+      #rptDocument #grcApp .grc-report-numbered-title{display:flex!important;align-items:center!important;gap:7px!important;margin:0!important;font-size:10.2px!important;line-height:1.25!important;color:#173f55!important}
+      #rptDocument #grcApp .grc-report-subnumber{display:inline-flex!important;align-items:center!important;justify-content:center!important;min-width:28px!important;height:20px!important;padding:0 6px!important;border-radius:7px!important;background:#173f55!important;color:#fff!important;font-size:7.5px!important;font-weight:900!important;letter-spacing:.02em!important}
+      #rptDocument #grcApp .grc-report-subtitle-text{font-weight:900!important}
+      #rptDocument #grcApp .grc-section-sub{font-size:7px!important;margin-top:2px!important;line-height:1.3!important}
+      #rptDocument #grcApp .grc-metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:7px!important;margin:7px 0 8px!important;align-items:stretch!important}
+      #rptDocument #grcApp .grc-metric-grid.cols-1{grid-template-columns:minmax(0,1fr)!important}
+      #rptDocument #grcApp .grc-metric-grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))!important}
       #rptDocument #grcApp .grc-metric-grid.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))!important}
       #rptDocument #grcApp .grc-metric-grid.cols-5{grid-template-columns:repeat(5,minmax(0,1fr))!important}
       #rptDocument #grcApp .grc-metric-grid.cols-6{grid-template-columns:repeat(3,minmax(0,1fr))!important}
       #rptDocument #grcApp .grc-metric-grid.cols-7{grid-template-columns:repeat(4,minmax(0,1fr))!important}
-      #rptDocument #grcApp .grc-metric-card{min-height:88px!important;padding:10px 11px 9px!important;border-radius:11px!important;box-shadow:none!important;break-inside:avoid!important;page-break-inside:avoid!important}
-      #rptDocument #grcApp .grc-metric-icon{width:25px!important;height:25px!important;font-size:12px!important}
-      #rptDocument #grcApp .grc-metric-label{font-size:7.8px!important;min-height:18px!important}
-      #rptDocument #grcApp .grc-metric-value{font-size:20px!important;margin-top:3px!important}
-      #rptDocument #grcApp .grc-metric-sub,#rptDocument #grcApp .grc-metric-foot{font-size:6.8px!important;margin-top:3px!important}
-      #rptDocument #grcApp .grc-chart-grid,#rptDocument #grcApp .grc-chart-grid.cols-2,#rptDocument #grcApp .grc-chart-grid.cols-3{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important;margin:9px 0 12px!important}
-      #rptDocument #grcApp .grc-chart-grid.cols-1{grid-template-columns:minmax(0,1fr)!important}
-      #rptDocument #grcApp .grc-chart-card{min-height:135px!important;height:auto!important;padding:10px 11px!important;border-radius:11px!important;box-shadow:none!important;overflow:hidden!important;break-inside:avoid!important;page-break-inside:avoid!important}
-      #rptDocument #grcApp .grc-chart-title{font-size:7.5px!important;margin-bottom:8px!important}
-      #rptDocument #grcApp svg{max-height:118px!important;width:100%!important}
-      #rptDocument #grcApp .grc-vertical-bars{height:118px!important}
-      #rptDocument #grcApp .grc-vbar-item{min-width:36px!important;grid-template-rows:15px 1fr 24px!important}
-      #rptDocument #grcApp .grc-initiative-sections{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+      #rptDocument #grcApp .grc-metric-card{min-height:72px!important;height:auto!important;padding:8px 9px 7px!important;border-radius:9px!important;box-shadow:none!important;break-inside:avoid!important;page-break-inside:avoid!important}
+      #rptDocument #grcApp .grc-metric-icon{width:22px!important;height:22px!important;font-size:10px!important}
+      #rptDocument #grcApp .grc-metric-label{font-size:7.1px!important;line-height:1.2!important;min-height:16px!important}
+      #rptDocument #grcApp .grc-metric-value{font-size:17px!important;line-height:1.05!important;margin-top:2px!important}
+      #rptDocument #grcApp .grc-metric-sub,#rptDocument #grcApp .grc-metric-foot{font-size:6px!important;line-height:1.2!important;margin-top:2px!important}
+      #rptDocument #grcApp .grc-report-chart-grid{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:7px!important;margin:7px 0 9px!important;align-items:start!important;break-inside:auto!important;page-break-inside:auto!important}
+      #rptDocument #grcApp .grc-report-chart-grid.grc-report-chart-grid-multi{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+      #rptDocument #grcApp .grc-report-chart-card{width:100%!important;min-width:0!important;min-height:0!important;height:auto!important;margin:0!important;padding:8px 9px!important;border-radius:9px!important;box-shadow:none!important;overflow:hidden!important;break-inside:avoid!important;page-break-inside:avoid!important}
+      #rptDocument #grcApp .grc-report-chart-wide{grid-column:1/-1!important}
+      #rptDocument #grcApp .grc-chart-head{margin:0 0 6px!important;min-height:0!important}
+      #rptDocument #grcApp .grc-chart-title{font-size:7.2px!important;line-height:1.25!important;margin:0!important}
+      #rptDocument #grcApp .grc-chart-caption{font-size:5.9px!important;line-height:1.2!important;margin-top:1px!important}
+      #rptDocument #grcApp .grc-chart-total{font-size:7px!important;padding:3px 6px!important}
+      #rptDocument #grcApp .grc-donut-layout{display:grid!important;grid-template-columns:94px minmax(0,1fr)!important;gap:8px!important;align-items:center!important;min-height:96px!important}
+      #rptDocument #grcApp .grc-donut-svg-wrap{width:88px!important;height:88px!important;margin:auto!important}
+      #rptDocument #grcApp .grc-donut-svg{width:88px!important;height:88px!important;max-height:88px!important}
+      #rptDocument #grcApp .grc-donut-center strong{font-size:15px!important}
+      #rptDocument #grcApp .grc-donut-center span{font-size:5.7px!important}
+      #rptDocument #grcApp .grc-legend{gap:4px!important;font-size:6.2px!important;line-height:1.2!important}
+      #rptDocument #grcApp .grc-bar-list,#rptDocument #grcApp .grc-stacked-list{display:grid!important;gap:5px!important}
+      #rptDocument #grcApp .grc-bar-row,#rptDocument #grcApp .grc-stacked-row{gap:3px!important}
+      #rptDocument #grcApp .grc-bar-head,#rptDocument #grcApp .grc-stacked-head{font-size:6.2px!important;line-height:1.2!important}
+      #rptDocument #grcApp .grc-bar-track,#rptDocument #grcApp .grc-stacked-track{height:7px!important}
+      #rptDocument #grcApp .grc-vertical-bars{height:105px!important;gap:5px!important}
+      #rptDocument #grcApp .grc-vbar-item{min-width:28px!important;grid-template-rows:13px 1fr 20px!important}
+      #rptDocument #grcApp .grc-vbar-value,#rptDocument #grcApp .grc-vbar-label{font-size:5.8px!important;line-height:1.1!important}
+      #rptDocument #grcApp .grc-line-wrap{height:126px!important;min-height:126px!important}
+      #rptDocument #grcApp .grc-line-wrap svg{width:100%!important;height:126px!important;max-height:126px!important}
+      #rptDocument #grcApp .grc-heatmap-card{padding:9px!important}
+      #rptDocument #grcApp .grc-heat-grid{gap:2px!important;max-width:420px!important;margin:0 auto!important}
+      #rptDocument #grcApp .grc-heat-cell{min-height:27px!important;font-size:5.8px!important}
+      #rptDocument #grcApp .grc-monthly-strip-card{min-height:0!important}
+      #rptDocument #grcApp .grc-incident-year-strips{gap:6px!important}
+      #rptDocument #grcApp .grc-year-strip{min-height:0!important;padding:6px!important}
+      #rptDocument #grcApp .grc-initiative-progress-list{gap:6px!important;margin-top:6px!important}
+      #rptDocument #grcApp .grc-initiative-progress-head{margin-bottom:3px!important;font-size:6.3px!important}
+      #rptDocument #grcApp .grc-initiative-progress-track{height:7px!important}
+      #rptDocument #grcApp .grc-form-scope-grid,#rptDocument #grcApp .grc-initiative-sections{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;align-items:start!important}
+      #rptDocument #grcApp .grc-form-scope-panel,#rptDocument #grcApp .grc-exec-ops-panel{padding:9px!important;border-radius:9px!important;box-shadow:none!important;break-inside:auto!important;page-break-inside:auto!important}
+      #rptDocument #grcApp .grc-exec-ops-head{margin-bottom:7px!important;padding-bottom:5px!important;border-bottom:1px solid #e7eef2!important;break-after:avoid!important}
+      #rptDocument #grcApp .grc-exec-ops-head p{font-size:6.3px!important;margin-top:2px!important}
       #rptDocument #grcApp .grc-initiative-equal-cards{grid-template-columns:repeat(3,minmax(0,1fr))!important}
-      #rptDocument #grcApp .grc-department-panel{margin:0 0 10px!important;box-shadow:none!important;break-inside:auto!important;page-break-inside:auto!important}
-      #rptDocument #grcApp .grc-department-header{padding:9px 11px!important}
-      #rptDocument #grcApp .grc-department-body{padding:10px 11px 12px!important}
-      #rptDocument #grcApp .grc-table-wrap{overflow:visible!important;max-height:none!important;border-radius:0 0 10px 10px!important}
-      #rptDocument #grcApp table{min-width:0!important;width:100%!important;table-layout:fixed!important;font-size:6.5px!important}
-      #rptDocument #grcApp th{font-size:6.2px!important;padding:5px 4px!important;white-space:normal!important}
-      #rptDocument #grcApp td{font-size:6.2px!important;padding:5px 4px!important;white-space:normal!important;word-break:break-word!important}
+      #rptDocument #grcApp .grc-department-panel{margin:0 0 8px!important;box-shadow:none!important;break-inside:auto!important;page-break-inside:auto!important}
+      #rptDocument #grcApp .grc-department-header{padding:7px 9px!important}
+      #rptDocument #grcApp .grc-department-body{padding:8px 9px 9px!important}
+      #rptDocument #grcApp .grc-table-wrap{overflow:visible!important;max-height:none!important;border-radius:0 0 8px 8px!important}
+      #rptDocument #grcApp table{min-width:0!important;width:100%!important;table-layout:fixed!important;font-size:6px!important}
+      #rptDocument #grcApp th{font-size:5.8px!important;padding:4px 3px!important;white-space:normal!important;line-height:1.2!important}
+      #rptDocument #grcApp td{font-size:5.8px!important;padding:4px 3px!important;white-space:normal!important;word-break:break-word!important;line-height:1.25!important}
       #rptDocument #grcApp tr{break-inside:avoid!important;page-break-inside:avoid!important}
-      #rptDocument #grcApp .grc-register-block{margin-top:10px!important}
-      #rptDocument #grcApp .grc-register-titlebar{padding:8px 10px!important}
-      #rptDocument .grc-report-footer{margin-top:20px;background:#152538;border-radius:10px;padding:14px 22px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;break-inside:avoid;page-break-inside:avoid}
+      #rptDocument #grcApp .grc-register-block{margin-top:7px!important}
+      #rptDocument #grcApp .grc-register-titlebar{padding:6px 8px!important}
+      #rptDocument .grc-report-footer{margin-top:16px;background:#152538;border-radius:9px;padding:12px 18px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;break-inside:avoid;page-break-inside:avoid}
       #rptDocument #grcApp button,#rptDocument #grcApp input,#rptDocument #grcApp select,#rptDocument #grcApp textarea{display:none!important}
     `;doc.appendChild(reportStyle);return doc;
   }
@@ -329,38 +391,51 @@
 
   window._grcToggleExportMenu=function(e){if(e)e.stopPropagation();var m=document.getElementById('grcExportMenu');if(m)m.classList.toggle('is-open');};
   document.addEventListener('click',function(e){var m=document.getElementById('grcExportMenu');if(m&&!e.target.closest('.grc-export-menu-wrap'))m.classList.remove('is-open');});
+  var _grcExportReturnPage='';
   function cleanupPageExport(){
     var st=document.getElementById('kpi-print-override');if(st)st.remove();
     var stage=document.getElementById('grcExportPrintStage');if(stage)stage.remove();
     document.documentElement.classList.remove('grc-page-export-only');document.body.classList.remove('grc-page-export-only');
+    if(_grcExportReturnPage&&typeof window._grcSwitch==='function'){
+      var back=_grcExportReturnPage;_grcExportReturnPage='';
+      try{window._grcSwitch(back);}catch(_e){}
+    }
   }
   async function renderAllPagesForExport(ids){
-    var current=(document.querySelector('#grcApp .grc-page.is-active')||{}).id||'',stage=document.createElement('div');stage.id='grcExportPrintStage';stage.className='grc-export-stage';
+    var current=(document.querySelector('#grcApp .grc-page.is-active')||{}).id||'';
+    _grcExportReturnPage=current.replace(/^grc-page-/,'');
+    var main=document.querySelector('#grcApp .grc-main'),stage=document.createElement('div');
+    stage.id='grcExportPrintStage';stage.className='grc-export-stage';
     for(var i=0;i<ids.length;i++){
       if(typeof window._grcSwitch==='function')window._grcSwitch(ids[i]);
-      await new Promise(function(r){setTimeout(r,360);});
+      await new Promise(function(r){setTimeout(r,420);});
       var live=document.getElementById('grc-page-'+ids[i]);if(!live)continue;
-      var clone=cleanPrintNode(cloneRenderedNode(live));clone.classList.add('grc-export-page-print');clone.style.pageBreakBefore=i?'always':'auto';stage.appendChild(clone);
+      var clone=cloneRenderedNode(live);clone.classList.add('grc-export-page-print','is-active');clone.style.pageBreakBefore=i?'always':'auto';stage.appendChild(clone);
     }
-    var app=document.getElementById('grcApp');if(app)app.appendChild(stage);
-    if(current&&typeof window._grcSwitch==='function')window._grcSwitch(current.replace(/^grc-page-/,''));
+    if(main)main.appendChild(stage);
     return stage;
   }
-  function singlePageExportCss(id){return '@media print{html,body{margin:0!important;padding:0!important;background:#fff!important;overflow:visible!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}body>*:not(#grcApp){display:none!important}#grcApp{display:block!important;position:static!important;inset:auto!important;width:100%!important;height:auto!important;min-height:0!important;overflow:visible!important;background:#fff!important}#grcApp>.grc-topbar,#grcApp>.grc-nav-wrap,#grcApp>.grc-footer{display:none!important}#grcApp .grc-main{display:block!important;overflow:visible!important;width:100%!important;max-width:none!important;height:auto!important;min-height:0!important;padding:0!important;margin:0!important}#grcApp .grc-page{display:none!important;visibility:hidden!important}#grcApp #grc-page-'+id+'{display:block!important;visibility:visible!important;width:100%!important;max-width:none!important;margin:0!important;padding:0!important;overflow:visible!important}#grcApp .grc-hero-actions,#grcApp button,#grcApp input,#grcApp select,#grcApp textarea,#grcApp .grc-inline-crud-actions,#grcApp .grc-filter-row,#grcApp .grc-table-filterbar,#grcApp .grc-report-adminbar,#grcApp .grc-pdf-search{display:none!important}#grcApp .grc-card,#grcApp .grc-metric-card,#grcApp .grc-chart-card,#grcApp .grc-department-panel,#grcApp .grc-exec-domain{box-shadow:none!important}#grcApp .grc-table-wrap{overflow:visible!important;max-height:none!important}#grcApp table{width:100%!important} @page{size:landscape;margin:10mm}}';}
-  function allPagesExportCss(){return '@media print{html,body{margin:0!important;padding:0!important;background:#fff!important;overflow:visible!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}body>*:not(#grcApp){display:none!important}#grcApp{display:block!important;position:static!important;inset:auto!important;width:100%!important;height:auto!important;min-height:0!important;overflow:visible!important;background:#fff!important}#grcApp>*:not(#grcExportPrintStage){display:none!important}#grcExportPrintStage{display:block!important;width:100%!important;overflow:visible!important}#grcExportPrintStage .grc-export-page-print{display:block!important;visibility:visible!important;width:100%!important;max-width:none!important;margin:0!important;padding:0!important;overflow:visible!important}#grcExportPrintStage .grc-hero-actions,#grcExportPrintStage button,#grcExportPrintStage input,#grcExportPrintStage select,#grcExportPrintStage textarea,#grcExportPrintStage .grc-inline-crud-actions,#grcExportPrintStage .grc-filter-row,#grcExportPrintStage .grc-table-filterbar,#grcExportPrintStage .grc-report-adminbar,#grcExportPrintStage .grc-pdf-search{display:none!important}#grcExportPrintStage .grc-card,#grcExportPrintStage .grc-metric-card,#grcExportPrintStage .grc-chart-card,#grcExportPrintStage .grc-department-panel,#grcExportPrintStage .grc-exec-domain{box-shadow:none!important}#grcExportPrintStage .grc-table-wrap{overflow:visible!important;max-height:none!important}#grcExportPrintStage table{width:100%!important}@page{size:landscape;margin:10mm}}';}
+  function allPagesExportCss(){return '@media print{#grcApp .grc-main>.grc-page{display:none!important}#grcExportPrintStage{display:block!important;width:100%!important}#grcExportPrintStage>.grc-page{display:block!important;visibility:visible!important;width:100%!important;max-width:1480px!important;margin:0 auto!important;padding-bottom:18px!important}#grcExportPrintStage>.grc-page+ .grc-page{break-before:page!important;page-break-before:always!important}#grcExportPrintStage .grc-hero-actions,#grcExportPrintStage .grc-admin-actions,#grcExportPrintStage .grc-inline-crud-actions,#grcExportPrintStage .grc-filter-row,#grcExportPrintStage .grc-table-filterbar,#grcExportPrintStage .grc-report-adminbar,#grcExportPrintStage .grc-pdf-search,#grcExportPrintStage button,#grcExportPrintStage input,#grcExportPrintStage select,#grcExportPrintStage textarea{display:none!important}#grcExportPrintStage .grc-table-wrap{overflow:visible!important;max-height:none!important}@page{size:landscape;margin:10mm}}';}
   window._grcExportPage=async function(id){
     var menu=document.getElementById('grcExportMenu');if(menu)menu.classList.remove('is-open');cleanupPageExport();
     var mods=modules(),ids=id==='all'?mods.map(function(x){return x.id;}):[id];
+    var current=(document.querySelector('#grcApp .grc-page.is-active')||{}).id||'';
+    _grcExportReturnPage=current.replace(/^grc-page-/,'');
     if(id==='all'){
       var stage=await renderAllPagesForExport(ids);if(!stage||!stage.children.length){cleanupPageExport();alert('The selected pages could not be prepared for export.');return;}
+      var st=document.createElement('style');st.id='kpi-print-override';st.textContent=allPagesExportCss();document.head.appendChild(st);
     }else{
-      if(typeof window._grcSwitch==='function')window._grcSwitch(id);await new Promise(function(r){setTimeout(r,650);});
-      if(!document.getElementById('grc-page-'+id)){alert('The selected page could not be prepared for export.');return;}
+      if(typeof window._grcSwitch==='function')window._grcSwitch(id);
+      await new Promise(function(r){setTimeout(r,650);});
+      if(!document.getElementById('grc-page-'+id)){cleanupPageExport();alert('The selected page could not be prepared for export.');return;}
+      /* No replacement layout is created for a single page. The actual live GRC
+         page is printed with the same @media print rules used by browser Print. */
     }
-    var st=document.createElement('style');st.id='kpi-print-override';st.textContent=id==='all'?allPagesExportCss():singlePageExportCss(id);document.head.appendChild(st);
     document.documentElement.classList.add('grc-page-export-only');document.body.classList.add('grc-page-export-only');
-    await new Promise(function(r){setTimeout(r,180);});window.print();setTimeout(cleanupPageExport,3000);
+    await new Promise(function(r){setTimeout(r,220);});
+    window.print();
+    setTimeout(cleanupPageExport,3000);
     if(typeof window.addAudit==='function')window.addAudit('GRC_PAGE_EXPORT','Exported GRC page: '+id);
   };
-  window.addEventListener('afterprint',function(){if(document.getElementById('kpi-print-override')||document.getElementById('grcExportPrintStage'))cleanupPageExport();});
+  window.addEventListener('afterprint',function(){if(document.body.classList.contains('grc-page-export-only')||document.getElementById('grcExportPrintStage'))cleanupPageExport();});
 })();
