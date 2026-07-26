@@ -545,6 +545,104 @@ window._selectPortal=async portal=>{
 
 
     /* Cleanup helper for pre-launch test User Requests (Super Admin/Admin only, explicit caller). */
+
+    /* ── GRC Risk Management Approval Workflow ────────────────────────
+       This workflow is intentionally separate from Performance requests,
+       Gap Analysis approvals and Review & Guidance requests.
+       Published Risk Register data changes only after final Super Admin
+       approval. Admin / Super Admin direct register saves continue to use
+       the existing GRC workspace state path. */
+    const GRC_RISK_REQUESTS_COLLECTION='grc_risk_requests';
+    const GRC_RISK_COUNTERS_COLLECTION='grc_risk_request_counters';
+    const GRC_SHARED_STATE_REF=doc(db,'kpi_dashboard','grc_workspace_shared_state_v1');
+    let _grcRiskRequestUnsub=null;
+
+    function _grcRiskRole(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
+    function _grcRiskEmail(){return String(window._fbUser||window.currentUserEmail||auth.currentUser&&auth.currentUser.email||'').toLowerCase().trim();}
+    function _grcRiskDept(){return String(window._fbDept||window.currentUserDept||'').trim();}
+    function _grcRiskPerms(){return Array.isArray(window._fbPerms)?window._fbPerms:[];}
+    function _grcRiskCanSubmit(){return _grcRiskRole()==='kpi_owner'||_grcRiskPerms().includes('edit_risk_management')||_grcRiskPerms().includes('*');}
+    function _grcRiskIsManager(){return _grcRiskRole()==='department_manager'||_grcRiskRole()==='dept_manager';}
+    function _grcRiskIsSuper(){return _grcRiskRole()==='super_admin';}
+    function _grcRiskIsAdmin(){return _grcRiskRole()==='admin'||_grcRiskIsSuper();}
+    function _grcRiskJson(v){try{return JSON.parse(JSON.stringify(v==null?null:v));}catch(_){return null;}}
+    function _grcRiskIso(){return new Date().toISOString();}
+    function _grcRiskDeptCode(d){return({maintenance:'MNT',safety:'SAF',housekeeping:'HSK',laundry:'LND',projects:'PRJ',division:'FMS',governance:'GOV'})[String(d||'').toLowerCase()]||'FMS';}
+    function _grcRiskKey(v){return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');}
+    function _grcRiskRecordKey(r){return _grcRiskKey(r&& (r.id||r.code));}
+    function _grcRiskSort(rows){return (rows||[]).sort((a,b)=>String(b.updatedAtIso||b.createdAtIso||'').localeCompare(String(a.updatedAtIso||a.createdAtIso||'')));}
+    function _grcRiskChangedFields(before,after){
+      before=before||{};after=after||{};const ignored={updatedAt:1,updatedBy:1,createdAt:1,createdBy:1,riskScore:1,riskLevel:1};
+      return Array.from(new Set(Object.keys(before).concat(Object.keys(after)))).filter(k=>!ignored[k]&&JSON.stringify(before[k]??'')!==JSON.stringify(after[k]??''));
+    }
+    function _grcRiskNextId(records,department,requested){
+      const requestedKey=_grcRiskKey(requested);if(requestedKey&&!records.some(r=>_grcRiskRecordKey(r)===requestedKey))return String(requested).trim();
+      const dept=String(department||'').toLowerCase();let prefix=({safety:'SAF',maintenance:'MNT',projects:'PM',laundry:'LUND'})[dept]||'HK';
+      if(dept==='housekeeping'&&/^LUND/i.test(String(requested||'')))prefix='LUND';
+      let max=0,width=2;
+      records.forEach(r=>{const raw=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/\s+/g,'');const m=raw.match(new RegExp('^'+prefix+'[- ]?(\\d+)$'));if(m){max=Math.max(max,Number(m[1])||0);width=Math.max(width,m[1].length);}});
+      return prefix+(prefix==='HK'||prefix==='LUND'?'':' ')+String(max+1).padStart(width,'0');
+    }
+    function _grcRiskApplyOperation(risks,request){
+      risks=(Array.isArray(risks)?risks:[]).map(r=>_grcRiskJson(r));
+      const op=String(request.operation||''),targetKey=_grcRiskKey(request.targetRiskId||request.currentRecord&&request.currentRecord.id||request.currentRecord&&request.currentRecord.code),proposed=_grcRiskJson(request.proposedRecord||{});
+      if(op==='add'){
+        const assigned=_grcRiskNextId(risks,request.department,proposed.id||proposed.code);proposed.id=assigned;proposed.code=proposed.code&&_grcRiskKey(proposed.code)!==_grcRiskKey(request.proposedRecord&&request.proposedRecord.id)?proposed.code:assigned;
+        proposed.department=request.department==='laundry'?'housekeeping':request.department;proposed.createdAt=proposed.createdAt||_grcRiskIso();proposed.createdBy=proposed.createdBy||request.submittedByName||request.submittedByEmail;proposed.updatedAt=_grcRiskIso();proposed.updatedBy=_grcRiskEmail();risks.push(proposed);return{risks,record:proposed};
+      }
+      const index=risks.findIndex(r=>_grcRiskRecordKey(r)===targetKey);if(index<0)throw new Error('Risk record no longer exists.');
+      if(op==='delete'){const removed=risks[index];risks.splice(index,1);return{risks,record:removed};}
+      if(op==='update'){
+        const current=risks[index],updated=Object.assign({},current,proposed,{id:current.id||proposed.id,code:current.code||proposed.code,department:current.department||request.department,updatedAt:_grcRiskIso(),updatedBy:_grcRiskEmail()});risks[index]=updated;return{risks,record:updated};
+      }
+      throw new Error('Unsupported risk request operation.');
+    }
+    function _grcRiskRequestData(snap){if(!snap||!snap.exists())return null;const d=snap.data()||{};return Object.assign({id:snap.id},d,{createdAtText:window._fmtTs?window._fmtTs(d.createdAt):d.createdAtIso||'',updatedAtText:window._fmtTs?window._fmtTs(d.updatedAt):d.updatedAtIso||''});}
+
+    window._grcRiskRequestSubmit=async function(operation,payload){
+      if(!_grcRiskEmail()||!db)throw new Error('not authenticated');if(!_grcRiskCanSubmit())throw new Error('Access denied.');
+      operation=String(operation||'').toLowerCase();if(!['add','update','delete'].includes(operation))throw new Error('Invalid operation.');payload=payload||{};
+      const department=String(payload.department||payload.proposedRecord&&payload.proposedRecord.department||payload.currentRecord&&payload.currentRecord.department||_grcRiskDept());
+      if(!department||(_grcRiskDept()&&department!==_grcRiskDept()))throw new Error('You can submit requests for your assigned department only.');
+      const current=_grcRiskJson(payload.currentRecord),proposed=_grcRiskJson(payload.proposedRecord),year=new Date().getFullYear(),deptCode=_grcRiskDeptCode(department),counterRef=doc(db,GRC_RISK_COUNTERS_COLLECTION,deptCode+'_'+year),requestRef=doc(collection(db,GRC_RISK_REQUESTS_COLLECTION)),nowIso=_grcRiskIso();
+      await runTransaction(db,async tx=>{
+        const cs=await tx.get(counterRef),next=Number(cs.exists()&&cs.data().next||0)+1,requestCode='RSK-REQ-'+deptCode+'-'+year+'-'+String(next).padStart(3,'0');
+        tx.set(counterRef,{next,updatedAt:serverTimestamp(),updatedBy:_grcRiskEmail()},{merge:true});
+        tx.set(requestRef,{requestCode,operation,department,targetRiskId:String(payload.targetRiskId||current&&current.id||current&&current.code||proposed&&proposed.id||''),currentRecord:current,proposedRecord:proposed,changedFields:_grcRiskChangedFields(current,proposed),deleteReason:String(payload.deleteReason||''),requesterNote:String(payload.note||''),status:'pending_manager',submittedByName:String(window._fbName||window.currentUserName||_grcRiskEmail().split('@')[0]),submittedByEmail:_grcRiskEmail(),submittedByRole:_grcRiskRole(),managerName:'',managerEmail:'',managerNote:'',superAdminName:'',superAdminEmail:'',superAdminNote:'',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:nowIso,updatedAtIso:nowIso,history:[{status:'pending_manager',by:_grcRiskEmail(),role:_grcRiskRole(),at:nowIso,note:String(payload.note||'')} ]});
+      });
+      try{window._recordAuditDirect&&window._recordAuditDirect('GRC_RISK_REQUEST_SUBMIT',operation.toUpperCase()+' risk request submitted',current,proposed,{portal:'grc',dept:department});}catch(_){}
+      return{requestId:requestRef.id};
+    };
+    window._grcRiskRequestResubmit=async function(requestId,proposedRecord,note){
+      if(!_grcRiskCanSubmit())throw new Error('Access denied.');const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(String(r.submittedByEmail||'').toLowerCase()!==_grcRiskEmail())throw new Error('Access denied.');if(!['returned_requester','rejected_manager','rejected_super_admin'].includes(String(r.status||'')))throw new Error('This request cannot be resubmitted.');
+      const proposed=_grcRiskJson(proposedRecord||r.proposedRecord),now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status:'pending_manager',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'Resubmitted')});
+      await updateDoc(ref,{proposedRecord:proposed,changedFields:_grcRiskChangedFields(r.currentRecord,proposed),status:'pending_manager',requesterNote:String(note||r.requesterNote||''),managerNote:'',superAdminNote:'',updatedAt:serverTimestamp(),updatedAtIso:now,history});return true;
+    };
+    window._grcRiskRequestCancel=async function(requestId){
+      const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(String(r.submittedByEmail||'').toLowerCase()!==_grcRiskEmail())throw new Error('Access denied.');if(!['pending_manager','returned_requester'].includes(String(r.status||'')))throw new Error('This request can no longer be cancelled.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status:'cancelled',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:'Cancelled by requester'});await updateDoc(ref,{status:'cancelled',updatedAt:serverTimestamp(),updatedAtIso:now,history});return true;
+    };
+    window._grcRiskRequestManagerAction=async function(requestId,action,note){
+      if(!_grcRiskIsManager())throw new Error('Department Manager approval is required.');const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(String(r.department||'')!==_grcRiskDept())throw new Error('This request belongs to another department.');if(!['pending_manager','returned_manager'].includes(String(r.status||'')))throw new Error('This request is not awaiting your approval.');
+      const status=action==='approve'?'pending_super_admin':action==='return'?'returned_requester':action==='reject'?'rejected_manager':'';if(!status)throw new Error('Invalid action.');if(action!=='approve'&&!String(note||'').trim())throw new Error('A reason is required.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status,by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'')});
+      await updateDoc(ref,{status,managerName:String(window._fbName||''),managerEmail:_grcRiskEmail(),managerNote:String(note||''),managerActionAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history});return true;
+    };
+    window._grcRiskRequestSuperAction=async function(requestId,action,note){
+      if(!_grcRiskIsSuper())throw new Error('Super Admin approval is required.');const requestRef=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId);if(action==='approve'){
+        let published=null;await runTransaction(db,async tx=>{const rs=await tx.get(requestRef);if(!rs.exists())throw new Error('Request not found.');const request=Object.assign({id:rs.id},rs.data());if(String(request.status||'')!=='pending_super_admin')throw new Error('This request is not awaiting final approval.');const ss=await tx.get(GRC_SHARED_STATE_REF),shared=ss.exists()?ss.data():{},applied=_grcRiskApplyOperation(shared.risks||[],request),now=_grcRiskIso();published=applied.record;tx.set(GRC_SHARED_STATE_REF,Object.assign({},shared,{risks:applied.risks,updatedAt:serverTimestamp(),updatedBy:_grcRiskEmail()}),{merge:false});const history=Array.isArray(request.history)?request.history.slice():[];history.push({status:'published',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'')});tx.set(requestRef,{status:'published',superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:String(note||''),finalRecord:applied.record,publishedRiskId:String(applied.record&&applied.record.id||''),approvedAt:serverTimestamp(),publishedAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history},{merge:true});});try{window._recordAuditDirect&&window._recordAuditDirect('GRC_RISK_REQUEST_PUBLISH','Risk request approved and published',null,published,{portal:'grc'});}catch(_){}return published;
+      }
+      const snap=await getDoc(requestRef);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(String(r.status||'')!=='pending_super_admin')throw new Error('This request is not awaiting final approval.');const status=action==='return'?'returned_manager':action==='reject'?'rejected_super_admin':'';if(!status)throw new Error('Invalid action.');if(!String(note||'').trim())throw new Error('A reason is required.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status,by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'')});await updateDoc(requestRef,{status,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:String(note||''),updatedAt:serverTimestamp(),updatedAtIso:now,history});return true;
+    };
+    async function _grcRiskRead(queryRef){const snap=await getDocs(queryRef),rows=[];snap.forEach(d=>rows.push(_grcRiskRequestData(d)));return _grcRiskSort(rows);}
+    window._grcRiskRequestsGetMine=async function(){if(!_grcRiskEmail())return[];return _grcRiskRead(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('submittedByEmail','==',_grcRiskEmail())));};
+    window._grcRiskRequestsGetForManager=async function(){if(!_grcRiskIsManager())return[];return _grcRiskRead(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('department','==',_grcRiskDept())));};
+    window._grcRiskRequestsGetAll=async function(){if(!_grcRiskIsAdmin())throw new Error('Access denied.');return _grcRiskRead(collection(db,GRC_RISK_REQUESTS_COLLECTION));};
+    window._grcRiskRequestsSubscribe=function(callback){
+      if(_grcRiskRequestUnsub){_grcRiskRequestUnsub();_grcRiskRequestUnsub=null;}if(!_grcRiskEmail()||!db)return function(){};let qref;
+      if(_grcRiskIsAdmin())qref=collection(db,GRC_RISK_REQUESTS_COLLECTION);else if(_grcRiskIsManager())qref=query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('department','==',_grcRiskDept()));else qref=query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('submittedByEmail','==',_grcRiskEmail()));
+      _grcRiskRequestUnsub=onSnapshot(qref,snap=>{const rows=[];snap.forEach(d=>rows.push(_grcRiskRequestData(d)));callback(_grcRiskSort(rows));},err=>{console.warn('[GRC Risk Requests] listener failed',err);callback([],err);});return _grcRiskRequestUnsub;
+    };
+    window._grcRiskRequestsStop=function(){if(_grcRiskRequestUnsub){_grcRiskRequestUnsub();_grcRiskRequestUnsub=null;}};
+
     window._kpiRequestsClearAllForLaunch=async function(){
       if(!window._fbUser||!db) throw new Error('not authenticated');
       const role=String(window._fbRole||'').toLowerCase().replace(/[\s-]+/g,'_');

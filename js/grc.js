@@ -15,7 +15,7 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__='20260723-grc-register-dedupe-inline-v57';
+  window.__QUMC_GRC_BUILD__='20260726-grc-risk-approval-v60';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
   var STATE_VERSION=12;
@@ -784,6 +784,14 @@
   function isAr(){return (typeof window.lang!=='undefined'?window.lang:(document.documentElement.dir==='rtl'?'ar':'en'))==='ar';}
   function normalizedRole(){var r=String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_');return r==='superadmin'?'super_admin':r;}
   function isGrcAdmin(){var r=normalizedRole();return r==='super_admin'||r==='admin';}
+  function isGrcSuperAdmin(){return normalizedRole()==='super_admin';}
+  function currentGrcDept(){return String(window._fbDept||window.currentUserDept||'').trim();}
+  function currentRiskRecordDept(){return currentGrcDept()==='laundry'?'housekeeping':currentGrcDept();}
+  function riskRecordBelongsToUser(record){var d=currentGrcDept(),id=String(record&&record.id||record&&record.code||'').toUpperCase().replace(/\s+/g,'');if(d==='laundry')return /^LUND/.test(id);if(d==='housekeeping')return String(record&&record.department||'')==='housekeeping'&&!/^LUND/.test(id);return String(record&&record.department||'')===d;}
+  function nextRiskIdForCurrentUser(){var d=currentGrcDept(),prefix=d==='laundry'?'LUND':d==='housekeeping'?'HK':d==='safety'?'SAF':d==='maintenance'?'MNT':d==='projects'?'PM':'RSK',max=0,width=2;(state.risks||[]).forEach(function(r){var raw=String(r.id||r.code||'').toUpperCase().replace(/\s+/g,''),m=raw.match(new RegExp('^'+prefix+'(\\d+)$'));if(m){max=Math.max(max,Number(m[1])||0);width=Math.max(width,m[1].length);}});return prefix+((prefix==='HK'||prefix==='LUND')?'':' ')+String(max+1).padStart(width,'0');}
+  function canSubmitRiskRequest(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return r==='kpi_owner'||p.indexOf('edit_risk_management')>=0||p.indexOf('*')>=0;}
+  function canEnterGrc(){return isGrcAdmin()||window.__QUMC_GRC_OPEN_TO_USERS__===true;}
+  function canUseRiskCrud(){return isGrcAdmin()||canSubmitRiskRequest();}
   function L(k){var lang=isAr()?'ar':'en';return(labels[lang]&&labels[lang][k])||labels.en[k]||k;}
   function esc(v){return String(v==null?'':v).replace(/[&<>'"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];});}
   function currentName(){return String(window._fbName||window.currentUserName||(window._fbUser||'').split('@')[0]||'Super Admin');}
@@ -884,7 +892,8 @@
       '<div class="grc-brand"><div class="grc-logo"><img alt="QUMC" src="'+esc(logoSrc())+'"></div><div><div class="grc-brand-title">'+L('app')+'</div><div class="grc-brand-sub">'+L('sub')+'</div></div></div>'+
       '<div class="grc-preview-pill"><span class="grc-preview-dot"></span>'+L('preview')+'</div><div class="grc-top-space"></div>'+
       '<button class="grc-top-btn" onclick="window._grcToggleLang()">'+(isAr()?'EN':'عربي')+'</button>'+
-      '<div class="grc-user"><div class="grc-user-avatar">'+esc((currentName()[0]||'S').toUpperCase())+'</div><div><div class="grc-user-name">'+esc(currentName())+'</div><div class="grc-user-role">'+esc(roleText())+'</div></div></div>'+(isGrcAdmin()?'<div class="grc-super-actions"><button onclick="window._grcSwitch(\'reports\')">▤ '+L('reportsTitle')+'</button><button onclick="window._grcSwitch(\'manuals\')">▥ '+(isAr()?'الدليل':'Manual')+'</button></div>':'')+
+      '<button type="button" id="grcRiskNotifBtn" class="grc-risk-notif-btn" onclick="window._grcRiskOpenNotifications&&window._grcRiskOpenNotifications(event)" title="Risk Management Notifications">♢<span id="grcRiskNotifCount" class="grc-risk-notif-count">0</span></button>'+
+      '<button type="button" class="grc-user grc-user-profile-btn" onclick="window._grcRiskOpenProfileMenu&&window._grcRiskOpenProfileMenu(event)"><div class="grc-user-avatar">'+esc((currentName()[0]||'S').toUpperCase())+'</div><div><div class="grc-user-name">'+esc(currentName())+'</div><div class="grc-user-role">'+esc(roleText())+'</div></div><span class="grc-user-chevron">⌄</span></button>'+(isGrcAdmin()?'<div class="grc-super-actions"><button onclick="window._grcSwitch(\'reports\')">▤ '+L('reportsTitle')+'</button><button onclick="window._grcSwitch(\'manuals\')">▥ '+(isAr()?'الدليل':'Manual')+'</button></div>':'')+
       '<button class="grc-top-btn grc-back" onclick="window._exitGRC()">← '+L('back')+'</button></header>'+
       '<div class="grc-nav-wrap"><nav class="grc-nav">'+modules.map(function(x){var c=x.count?countFor(x.count):null;return'<button class="grc-tab '+(activeTab===x.id?'is-active':'')+'" onclick="window._grcSwitch(\''+x.id+'\')"><span class="grc-tab-icon">'+x.icon+'</span><span>'+L(x.id)+'</span>'+(c!==null?'<span class="grc-tab-count">'+c+'</span>':'')+'</button>';}).join('')+'</nav><div class="grc-export-actions"><button class="grc-export-btn excel" type="button" onclick="window._grcOpenExcelSelector()">📊 <span>Excel</span></button><button class="grc-export-btn report" type="button" onclick="window._grcOpenReportSelector()">📄 <span>Report</span></button><div class="grc-export-menu-wrap"><button class="grc-export-btn export" type="button" onclick="window._grcToggleExportMenu(event)">↗ <span>Export</span> ▾</button><div id="grcExportMenu" class="grc-export-menu">'+modules.map(function(x){return'<button type="button" onclick="window._grcExportPage(\''+x.id+'\')">'+x.icon+' '+L(x.id)+'</button>';}).join('')+'<div class="grc-export-sep"></div><button type="button" onclick="window._grcExportPage(\'all\')">⇩ All Pages</button></div></div></div></div>'+
             '<main class="grc-main"><section id="grc-page-'+activeTab+'" class="grc-page is-active">'+pageHtml(activeTab)+'</section></main>'+
@@ -915,7 +924,7 @@
       }
     });
   }
-  function render(){var _repairBefore=governanceCodeRepairSnapshot(state);state=repairGovernanceCodeState(state);try{if(_repairBefore!==governanceCodeRepairSnapshot(state)){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));queueSharedStateSave(true);}}catch(_e2){}applyAutomaticExpiry();if(!app||!app.classList.contains('grc-visible'))return;app.setAttribute('dir',isAr()?'rtl':'ltr');try{app.innerHTML=shellHtml();}catch(err){try{console.error('[GRC Render]',err);}catch(_e){}app.innerHTML='<main class="grc-main"><section class="grc-page is-active"><div class="grc-section"><div class="grc-section-title">GRC</div><div class="grc-section-sub">'+esc(String(err&&err.message||err))+'</div></div></section></main>';return;}setTimeout(enhanceRegisterFilters,0);setTimeout(enhanceAllRegisterCrud,0);startSharedStateSync();if(activeTab==='reports'||activeTab==='compliance'||activeTab==='manuals')setTimeout(mountReportViewer,0);if(activeTab==='advisory'&&typeof window._grcAdvisoryMount==='function')setTimeout(window._grcAdvisoryMount,0);}
+  function render(){var _repairBefore=governanceCodeRepairSnapshot(state);state=repairGovernanceCodeState(state);try{if(_repairBefore!==governanceCodeRepairSnapshot(state)){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));queueSharedStateSave(true);}}catch(_e2){}applyAutomaticExpiry();if(!app||!app.classList.contains('grc-visible'))return;app.setAttribute('dir',isAr()?'rtl':'ltr');try{app.innerHTML=shellHtml();}catch(err){try{console.error('[GRC Render]',err);}catch(_e){}app.innerHTML='<main class="grc-main"><section class="grc-page is-active"><div class="grc-section"><div class="grc-section-title">GRC</div><div class="grc-section-sub">'+esc(String(err&&err.message||err))+'</div></div></section></main>';return;}setTimeout(enhanceRegisterFilters,0);setTimeout(enhanceAllRegisterCrud,0);setTimeout(function(){if(typeof window._grcRiskRefreshUi==='function')window._grcRiskRefreshUi();},0);startSharedStateSync();if(activeTab==='reports'||activeTab==='compliance'||activeTab==='manuals')setTimeout(mountReportViewer,0);if(activeTab==='advisory'&&typeof window._grcAdvisoryMount==='function')setTimeout(window._grcAdvisoryMount,0);}
 
   function hero(eye,title,desc,actions){return'<div class="grc-hero"><div class="grc-hero-row"><div><div class="grc-eyebrow">'+eye+'</div><h1>'+title+'</h1><p>'+desc+'</p></div><div class="grc-hero-actions">'+(actions||'')+'</div></div></div>';}
   function sectionHead(title,sub,badgeText){return'<div class="grc-section-head"><div><div class="grc-section-title">'+title+'</div><div class="grc-section-sub">'+(sub||'')+'</div></div>'+(badgeText?'<span class="grc-section-badge">'+badgeText+'</span>':'')+'</div>';}
@@ -2849,9 +2858,10 @@
         '<button type="button" class="grc-btn ghost" onclick="'+edit+'">✎ '+(isAr()?'تعديل':'Edit')+'</button>'+
         '<button type="button" class="grc-btn danger" onclick="'+del+'">⌫ '+(isAr()?'حذف':'Delete')+'</button>';
     }
+    var requestMode=map.type==='risk'&&canSubmitRiskRequest()&&!isGrcAdmin();
     return '<button type="button" class="grc-btn primary" data-grc-inline-action="add">＋ '+(isAr()?'إضافة':'Add')+'</button>'+
       '<button type="button" class="grc-btn ghost" data-grc-inline-action="edit">✎ '+(isAr()?'تعديل مباشر':'Edit Inline')+'</button>'+
-      '<button type="button" class="grc-btn danger" data-grc-inline-action="delete">× '+(isAr()?'حذف':'Delete')+'</button>';
+      '<button type="button" class="grc-btn danger" data-grc-inline-action="delete">× '+(requestMode?(isAr()?'طلب حذف':'Request Delete'):(isAr()?'حذف':'Delete'))+'</button>';
   }
   function _grcDataRows(block){
     var table=block&&block.querySelector('table');if(!table||!table.tBodies.length)return[];
@@ -2923,7 +2933,8 @@
   function _grcSetInlineActions(block,map,mode){
     var actions=block.querySelector('.grc-inline-crud-actions');if(!actions)return;
     if(mode==='edit'){
-      actions.innerHTML='<button type="button" class="grc-btn primary" data-grc-inline-action="save">✓ '+(isAr()?'حفظ التعديلات':'Save Changes')+'</button><button type="button" class="grc-btn ghost" data-grc-inline-action="cancel">'+(isAr()?'إلغاء':'Cancel')+'</button>';
+      var sendMode=map.type==='risk'&&canSubmitRiskRequest()&&!isGrcAdmin();
+      actions.innerHTML='<button type="button" class="grc-btn primary" data-grc-inline-action="save">✓ '+(sendMode?(isAr()?'إرسال التعديلات للاعتماد':'Send Changes for Approval'):(isAr()?'حفظ التعديلات':'Save Changes'))+'</button><button type="button" class="grc-btn ghost" data-grc-inline-action="cancel">'+(isAr()?'إلغاء':'Cancel')+'</button>';
     }else if(mode==='delete'){
       actions.innerHTML='<span class="grc-inline-mode-note">'+(isAr()?'اضغط × بجانب السجل المطلوب حذفه':'Click × beside the record to delete it')+'</span><button type="button" class="grc-btn ghost" data-grc-inline-action="cancel">'+(isAr()?'إنهاء':'Done')+'</button>';
     }else actions.innerHTML=registerCrudButtons(map);
@@ -2934,7 +2945,7 @@
     Array.prototype.forEach.call(actions.querySelectorAll('[data-grc-inline-action]'),function(btn){
       btn.addEventListener('click',function(){
         var action=btn.getAttribute('data-grc-inline-action');
-        if(action==='add'){var scopeArg=map.scope?map.scope:null;window._grcOpenForm(map.type,null,scopeArg);}
+        if(action==='add'){var scopeArg=map.scope?map.scope:null;window._grcOpenForm(map.type,(map.type==='risk'&&canSubmitRiskRequest()&&!isGrcAdmin())?currentRiskRecordDept():null,scopeArg);}
         else if(action==='edit')_grcBeginInlineEdit(block,map);
         else if(action==='delete')_grcBeginInlineDelete(block,map);
         else if(action==='save')_grcSaveInlineEdit(block,map);
@@ -2948,6 +2959,7 @@
     var headerRow=table.tHead&&table.tHead.rows[0],headers=headerRow?Array.prototype.map.call(headerRow.cells,function(th){return th.getAttribute('data-field')||th.textContent.trim();}):[];
     _grcDataRows(block).forEach(function(row){
       var resolved=_grcResolveRowRecord(block,map,row);if(!resolved)return;
+      if(map.type==='risk'&&canSubmitRiskRequest()&&!isGrcAdmin()&&!riskRecordBelongsToUser(resolved.record))return;
       row.dataset.grcRecordIndex=resolved.index;
       Array.prototype.forEach.call(row.cells,function(cell,col){
         var fieldName=_grcEditableField(headers[col],resolved.record,map);
@@ -2959,19 +2971,26 @@
     });
     _grcSetInlineActions(block,map,'edit');
   }
-  function _grcSaveInlineEdit(block,map){
-    var records=state[map.collection]||[],changed=false;
+  async function _grcSaveInlineEdit(block,map){
+    var records=state[map.collection]||[],changed=false,requests=[];
     _grcDataRows(block).forEach(function(row){
       var index=Number(row.dataset.grcRecordIndex);if(!isFinite(index)||!records[index])return;
-      var updated=Object.assign({},records[index]);
+      var original=records[index],updated=Object.assign({},original);
       Array.prototype.forEach.call(row.querySelectorAll('.grc-inline-input'),function(input){
         var fieldName=input.getAttribute('data-field'),value=input.value;
         if(['likelihood','impact','progress'].indexOf(fieldName)>=0)value=Number(value||0);
         updated[fieldName]=value;
       });
-      updated.updatedAt=new Date().toISOString();updated.updatedBy=currentName();
-      updated=normalizeRecordBeforeSave(map.type,updated);records[index]=updated;changed=true;
+      updated.updatedAt=new Date().toISOString();updated.updatedBy=currentName();updated=normalizeRecordBeforeSave(map.type,updated);
+      var comparableOld=JSON.stringify(Object.assign({},original,{updatedAt:undefined,updatedBy:undefined})),comparableNew=JSON.stringify(Object.assign({},updated,{updatedAt:undefined,updatedBy:undefined}));
+      if(comparableOld===comparableNew)return;
+      if(map.type==='risk'&&canSubmitRiskRequest()&&!isGrcAdmin())requests.push({currentRecord:original,proposedRecord:updated,targetRiskId:original.id||original.code,department:currentGrcDept()});
+      else{records[index]=updated;changed=true;}
     });
+    if(requests.length){
+      if(typeof window._grcRiskRequestSubmit!=='function'){window.alert(isAr()?'خدمة طلبات المخاطر غير جاهزة.':'Risk request service is not ready.');return;}
+      try{for(var i=0;i<requests.length;i++)await window._grcRiskRequestSubmit('update',requests[i]);window.toast&&window.toast((isAr()?'تم إرسال ':'Sent ')+requests.length+(isAr()?' طلب تعديل للاعتماد.':' update request(s) for approval.'));renderAtSamePosition(grcViewportPosition());if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();}catch(err){window.alert(String(err&&err.message||err));}return;
+    }
     if(changed){state[map.collection]=records;saveState();}else renderAtSamePosition(grcViewportPosition());
   }
   function _grcBeginInlineDelete(block,map){
@@ -2987,8 +3006,10 @@
       btn.addEventListener('click',function(){
         var current=state[map.collection]&&state[map.collection][resolved.index];if(!current)return;
         var label=genericRecordLabel(current)||_grcRecordIdentity(current);
-        var message=(isAr()?'هل تريد حذف هذا السجل نهائيًا؟\n':'Delete this record permanently?\n')+label;
+        var requestMode=map.type==='risk'&&canSubmitRiskRequest()&&!isGrcAdmin();
+        var message=(requestMode?(isAr()?'هل تريد إرسال طلب حذف هذا الخطر؟\n':'Submit a request to delete this risk?\n'):(isAr()?'هل تريد حذف هذا السجل نهائيًا؟\n':'Delete this record permanently?\n'))+label;
         if(!window.confirm(message))return;
+        if(requestMode){var reason=window.prompt(isAr()?'سبب طلب الحذف:':'Reason for deletion request:','');if(reason===null)return;if(!String(reason).trim()){window.alert(isAr()?'سبب الحذف مطلوب.':'Deletion reason is required.');return;}if(typeof window._grcRiskRequestSubmit!=='function'){window.alert(isAr()?'خدمة طلبات المخاطر غير جاهزة.':'Risk request service is not ready.');return;}window._grcRiskRequestSubmit('delete',{currentRecord:current,targetRiskId:current.id||current.code,department:currentGrcDept(),deleteReason:reason}).then(function(){window.toast&&window.toast(isAr()?'تم إرسال طلب الحذف للاعتماد.':'Deletion request sent for approval.');renderAtSamePosition(grcViewportPosition());if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();}).catch(function(err){window.alert(String(err&&err.message||err));});return;}
         state[map.collection].splice(resolved.index,1);saveState();
       });
       td.appendChild(btn);row.insertBefore(td,row.firstChild);
@@ -2996,13 +3017,17 @@
     _grcSetInlineActions(block,map,'delete');
   }
   function enhanceAllRegisterCrud(){
-    if(!app||!isGrcAdmin())return;
+    if(!app||(!isGrcAdmin()&&!canSubmitRiskRequest()))return;
     var candidates=app.querySelectorAll('.grc-register-block,.grc-section,.grc-card,.grc-table-card');
     Array.prototype.forEach.call(candidates,function(block){
       if(block.dataset.crudReady==='1'||!block.querySelector('table'))return;
       var titleEl=block.querySelector('.grc-register-name,.grc-register-title,.grc-section-title,.grc-card-title,h2,h3,h4,h5');
       if(!titleEl)return;
       var map=crudMapForTitle(titleEl.textContent);if(!map)return;
+      if(!isGrcAdmin()&&map.type!=='risk')return;
+      if(map.type==='risk'&&!isGrcAdmin()){
+        var rows=_grcDataRows(block),matches=rows.some(function(row){var resolved=_grcResolveRowRecord(block,map,row);return resolved&&riskRecordBelongsToUser(resolved.record);});if(rows.length&&!matches)return;
+      }
       var head=titleEl.closest('.grc-register-titlebar,.grc-register-head,.grc-section-head,.grc-card-head,header')||titleEl.parentElement;if(!head)return;
       var actions=head.querySelector('.grc-register-actions,.grc-section-actions,.grc-inline-crud-actions');
       if(!actions){actions=document.createElement('div');actions.className='grc-register-actions grc-inline-crud-actions';head.appendChild(actions);}else actions.classList.add('grc-inline-crud-actions');
@@ -3036,24 +3061,33 @@
   };
 
   window._grcOpenForm=function(type,deptOverride,scopeOverride){
-    if(!isGrcAdmin())return;
+    var requestMode=type==='risk'&&canSubmitRiskRequest()&&!isGrcAdmin();
+    if(!isGrcAdmin()&&!requestMode)return;
     var spec=formSpec(type,deptOverride),old=document.getElementById('_grcFormModal');if(old)old.remove();
-    var ov=document.createElement('div');ov.id='_grcFormModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+spec.title+'</div><div class="grc-modal-sub">'+L('draftWorkspace')+' · '+L('localNote')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcFormModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcForm"><div class="grc-form-grid">'+spec.fields+'</div><div id="_grcFormErr" style="font-size:9px;color:#b83232;font-weight:800;margin-top:10px"></div><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcFormModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-primary-btn">'+L('save')+'</button></div></form></div>';
+    var ov=document.createElement('div');ov.id='_grcFormModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+spec.title+'</div><div class="grc-modal-sub">'+(requestMode?(isAr()?'لن يظهر الخطر في السجل حتى اكتمال الاعتماد.':'The risk will not be published until the approval workflow is complete.'):(L('draftWorkspace')+' · '+L('localNote')))+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcFormModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcForm"><div class="grc-form-grid">'+spec.fields+'</div><div id="_grcFormErr" style="font-size:9px;color:#b83232;font-weight:800;margin-top:10px"></div><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcFormModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-primary-btn">'+(requestMode?(isAr()?'إرسال للاعتماد':'Send for Approval'):L('save'))+'</button></div></form></div>';
     document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
     var openedForm=document.getElementById('_grcForm');
+    if(requestMode&&openedForm&&openedForm.elements.department){openedForm.elements.department.value=currentRiskRecordDept();openedForm.elements.department.disabled=true;}
     if(type==='form'&&scopeOverride&&openedForm&&openedForm.elements.scope)openedForm.elements.scope.value=scopeOverride;
     if(type==='initiative'&&openedForm)window._grcPrepareInitiativeForm(openedForm,null);
-    document.getElementById('_grcForm').addEventListener('submit',function(e){e.preventDefault();var ok=true,first=null;Array.prototype.forEach.call(e.target.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);var wrap=el.closest('.grc-field,.grc-report-upload-field');if(wrap)wrap.classList.toggle('required-missing',miss);if(miss){ok=false;if(!first)first=el;}});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(e.target),obj={createdAt:new Date().toISOString(),createdBy:currentName()};fd.forEach(function(v,k){if(!/^(leader|member\d)(Name|Gender|Department)$/.test(k))obj[k]=v;});obj.id=nextRecordCode(spec,obj);if(!obj.code)obj.code=obj.id;if(type==='initiative')obj.team=initiativeTeamFromForm(e.target);if(obj.likelihood!==undefined)obj.likelihood=Number(obj.likelihood);if(obj.impact!==undefined)obj.impact=Number(obj.impact);if(obj.progress!==undefined)obj.progress=Number(obj.progress||0);obj=normalizeRecordBeforeSave(type,obj);state[spec.collection].push(obj);ov.remove();saveState();});
+    document.getElementById('_grcForm').addEventListener('submit',function(e){e.preventDefault();var ok=true,first=null;Array.prototype.forEach.call(e.target.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);var wrap=el.closest('.grc-field,.grc-report-upload-field');if(wrap)wrap.classList.toggle('required-missing',miss);if(miss){ok=false;if(!first)first=el;}});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(e.target),obj={createdAt:new Date().toISOString(),createdBy:currentName()};fd.forEach(function(v,k){if(!/^(leader|member\d)(Name|Gender|Department)$/.test(k))obj[k]=v;});if(requestMode)obj.department=currentRiskRecordDept();obj.id=requestMode?nextRiskIdForCurrentUser():nextRecordCode(spec,obj);if(!obj.code)obj.code=obj.id;if(type==='initiative')obj.team=initiativeTeamFromForm(e.target);if(obj.likelihood!==undefined)obj.likelihood=Number(obj.likelihood);if(obj.impact!==undefined)obj.impact=Number(obj.impact);if(obj.progress!==undefined)obj.progress=Number(obj.progress||0);obj=normalizeRecordBeforeSave(type,obj);if(requestMode){obj.department=currentRiskRecordDept();if(typeof window._grcRiskRequestSubmit!=='function'){document.getElementById('_grcFormErr').textContent=isAr()?'خدمة طلبات المخاطر غير جاهزة.':'Risk request service is not ready.';return;}var submitBtn=e.target.querySelector('button[type=submit]');if(submitBtn)submitBtn.disabled=true;window._grcRiskRequestSubmit('add',{proposedRecord:obj,department:currentGrcDept()}).then(function(){ov.remove();window.toast&&window.toast(isAr()?'تم إرسال طلب الإضافة للاعتماد.':'Add Risk request sent for approval.');if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();}).catch(function(err){document.getElementById('_grcFormErr').textContent=String(err&&err.message||err);if(submitBtn)submitBtn.disabled=false;});return;}state[spec.collection].push(obj);ov.remove();saveState();});
+  };
+
+  window._grcOpenRiskRequestResubmit=function(request){
+    if(!request||!canSubmitRiskRequest())return;var record=Object.assign({},request.proposedRecord||request.currentRecord||{}),spec=formSpec('risk',request.department||currentGrcDept()),old=document.getElementById('_grcFormModal');if(old)old.remove();
+    var ov=document.createElement('div');ov.id='_grcFormModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(isAr()?'تعديل وإعادة إرسال الطلب':'Edit & Resubmit Request')+'</div><div class="grc-modal-sub">'+esc(request.requestCode||'')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcFormModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcRiskResubmitForm"><div class="grc-form-grid">'+spec.fields+'</div><div id="_grcFormErr"></div><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcFormModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-primary-btn">'+(isAr()?'إعادة الإرسال للاعتماد':'Resubmit for Approval')+'</button></div></form></div>';document.body.appendChild(ov);
+    var f=document.getElementById('_grcRiskResubmitForm');Object.keys(record).forEach(function(k){if(f.elements[k])f.elements[k].value=record[k]==null?'':record[k];});if(f.elements.department){f.elements.department.value=request.department==='laundry'?'housekeeping':(request.department||currentRiskRecordDept());f.elements.department.disabled=true;}
+    f.addEventListener('submit',function(e){e.preventDefault();var fd=new FormData(f),updated=Object.assign({},record,{department:request.department==='laundry'?'housekeeping':(request.department||currentRiskRecordDept()),updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){updated[k]=v;});updated.likelihood=Number(updated.likelihood||0);updated.impact=Number(updated.impact||0);updated=normalizeRecordBeforeSave('risk',updated);var btn=f.querySelector('button[type=submit]');if(btn)btn.disabled=true;window._grcRiskRequestResubmit(request.id,updated,'Updated and resubmitted').then(function(){ov.remove();window.toast&&window.toast(isAr()?'تمت إعادة إرسال الطلب.':'Request resubmitted.');if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();}).catch(function(err){document.getElementById('_grcFormErr').textContent=String(err&&err.message||err);if(btn)btn.disabled=false;});});
   };
 
   window._grcDelete=function(collection,id){if(!isGrcAdmin())return;if(!window.confirm(L('confirmDelete')))return;state[collection]=(state[collection]||[]).filter(function(r){return String(r.id)!==String(id);});saveState();};
-  window._grcSwitch=function(id){if(!isGrcAdmin()){window._showGrcComingSoon();return;}if(!modules.some(function(x){return x.id===id;}))id='executive';activeTab=id;if(id==='reports')reportNav={group:null,type:null,year:null,quarter:null};if(id==='compliance'){complianceNavAuthority=null;complianceNavDocument=null;}try{window.__qumcActivePortal='grc';if(typeof window.addAudit==='function')window.addAudit('GRC_NAV','Opened GRC page: '+id);}catch(_){}render();var m=app&&app.querySelector('.grc-main');if(m)m.scrollTop=0;};
+  window._grcSwitch=function(id){if(!canEnterGrc()){window._showGrcComingSoon();return;}if(!modules.some(function(x){return x.id===id;}))id='executive';activeTab=id;if(id==='reports')reportNav={group:null,type:null,year:null,quarter:null};if(id==='compliance'){complianceNavAuthority=null;complianceNavDocument=null;}try{window.__qumcActivePortal='grc';if(typeof window.addAudit==='function')window.addAudit('GRC_NAV','Opened GRC page: '+id);}catch(_){}render();var m=app&&app.querySelector('.grc-main');if(m)m.scrollTop=0;};
   window._grcToggleLang=function(){if(typeof window.lang!=='undefined')window.lang=window.lang==='en'?'ar':'en';else window.lang=isAr()?'en':'ar';document.documentElement.lang=isAr()?'ar':'en';document.documentElement.dir=isAr()?'rtl':'ltr';var b=document.getElementById('langBtn');if(b)b.textContent=isAr()?'EN':'عربي';render();};
   window._grcRefreshLanguage=function(){render();};
   window._hideGRC=function(){var a=document.getElementById('grcApp');if(a){a.classList.remove('grc-visible');a.setAttribute('aria-hidden','true');}document.body.classList.remove('grc-mode');};
   window._exitGRC=function(){window._hideGRC();var bg=document.getElementById('_bgLayer'),po=document.getElementById('_portalOverlay'),auth=document.getElementById('_authOverlay');if(auth)auth.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
   window._openGrcPortal=function(){window._enterGRC();};
-  window._enterGRC=function(){if(!isGrcAdmin()){window._showGrcComingSoon();return;}activeTab=activeTab||'executive';['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');render();};
+  window._enterGRC=function(){if(!canEnterGrc()){window._showGrcComingSoon();return;}activeTab=activeTab||'executive';['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');render();};
   window._closeGrcComingSoon=function(){var ov=document.getElementById('_grcComingSoon');if(ov)ov.remove();document.body.classList.remove('grc-coming-open');};
   window._showGrcComingSoon=function(){
     window._closeGrcComingSoon();document.body.classList.add('grc-coming-open');
