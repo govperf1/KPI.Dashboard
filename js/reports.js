@@ -2525,6 +2525,12 @@ async function importSnapshot(){
   function prepareExternal(sourceDoc,options){
     cleanup();
     addPrintCSS();
+    options=options||{};
+    if(String(options.orientation||'').toLowerCase()==='landscape'){
+      var orientationCss=document.createElement('style');orientationCss.id='qumc-report-orientation-css';
+      orientationCss.textContent='@media print{@page{size:A4 landscape!important;margin:0!important}#qumcPrintReportPage{padding:10mm 9mm 9mm!important}#qumcPrintReportPage:before{top:.6mm!important;right:.6mm!important;bottom:.6mm!important;left:.6mm!important}}';
+      document.head.appendChild(orientationCss);document.body.classList.add('qumc-print-report-landscape');document.documentElement.classList.add('qumc-print-report-landscape');
+    }
     if(!sourceDoc)return false;
     var holder=document.createElement('div');
     holder.id='qumcPrintReportPage';
@@ -2729,8 +2735,9 @@ async function importSnapshot(){
     document.head.appendChild(css);
   }
   function cleanup(){
-    try{document.body.classList.remove('qumc-print-report-only');}catch(e){}
-    try{document.documentElement.classList.remove('qumc-print-report-only');}catch(e){}
+    try{document.body.classList.remove('qumc-print-report-only','qumc-print-report-landscape');}catch(e){}
+    try{document.documentElement.classList.remove('qumc-print-report-only','qumc-print-report-landscape');}catch(e){}
+    try{var orientationCss=document.getElementById('qumc-report-orientation-css');if(orientationCss)orientationCss.remove();}catch(e){}
     var holder=document.getElementById('qumcPrintReportPage');
     if(holder) holder.remove();
   }

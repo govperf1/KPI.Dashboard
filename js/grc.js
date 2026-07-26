@@ -785,9 +785,14 @@
   function normalizedRole(){var r=String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_');return r==='superadmin'?'super_admin':r;}
   function isGrcAdmin(){var r=normalizedRole();return r==='super_admin'||r==='admin';}
   function isGrcSuperAdmin(){return normalizedRole()==='super_admin';}
-  function currentGrcDept(){return String(window._fbDept||window.currentUserDept||'').trim();}
+  function canonicalGrcDepartment(value){
+    if(typeof window._grcCanonicalDepartment==='function')return window._grcCanonicalDepartment(value);
+    var raw=String(value||'').trim(),n=raw.toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');
+    if(!n)return'';if(n.indexOf('laundry')>=0)return'laundry';if(n.indexOf('housekeeping')>=0||n.indexOf('cleaning')>=0)return'housekeeping';if(n.indexOf('maintenance')>=0)return'maintenance';if(n.indexOf('safety')>=0)return'safety';if(n.indexOf('project')>=0)return'projects';if(n.indexOf('governance')>=0||n.indexOf('performance')>=0)return'governance';if(n==='fms'||n.indexOf('facility management')>=0||n.indexOf('facilities management')>=0||n.indexOf('division')>=0)return'division';return n.replace(/\s+/g,'_');
+  }
+  function currentGrcDept(){return canonicalGrcDepartment(window._fbDept||window.currentUserDept||'');}
   function currentRiskRecordDept(){return currentGrcDept()==='laundry'?'housekeeping':currentGrcDept();}
-  function riskRecordBelongsToUser(record){var d=currentGrcDept(),id=String(record&&record.id||record&&record.code||'').toUpperCase().replace(/\s+/g,'');if(d==='laundry')return /^LUND/.test(id);if(d==='housekeeping')return String(record&&record.department||'')==='housekeeping'&&!/^LUND/.test(id);return String(record&&record.department||'')===d;}
+  function riskRecordBelongsToUser(record){var d=currentGrcDept(),id=String(record&&record.id||record&&record.code||'').toUpperCase().replace(/\s+/g,''),rd=canonicalGrcDepartment(record&&record.department||record&&record.responsibleDept||record&&record.responsibleDepartment);if(d==='laundry')return (rd==='housekeeping'||rd==='laundry')&&/^LUND/.test(id);if(d==='housekeeping')return (rd==='housekeeping'||rd==='laundry')&&!/^LUND/.test(id);return rd===d;}
   function nextRiskIdForCurrentUser(){var d=currentGrcDept(),prefix=d==='laundry'?'LUND':d==='housekeeping'?'HK':d==='safety'?'SAF':d==='maintenance'?'MNT':d==='projects'?'PM':'RSK',max=0,width=2;(state.risks||[]).forEach(function(r){var raw=String(r.id||r.code||'').toUpperCase().replace(/\s+/g,''),m=raw.match(new RegExp('^'+prefix+'(\\d+)$'));if(m){max=Math.max(max,Number(m[1])||0);width=Math.max(width,m[1].length);}});return prefix+((prefix==='HK'||prefix==='LUND')?'':' ')+String(max+1).padStart(width,'0');}
   function canSubmitRiskRequest(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return r==='kpi_owner'||p.indexOf('edit_risk_management')>=0||p.indexOf('*')>=0;}
   function canEnterGrc(){return isGrcAdmin()||window.__QUMC_GRC_OPEN_TO_USERS__===true;}
@@ -805,8 +810,15 @@
   function riskSubgroup(r){return normalizeRiskId(r&&r.id).indexOf('LUND')===0?'laundryRisk':'housekeepingRisk';}
   function filterDept(arr,dept){
     if(!dept||dept==='allFms')return(arr||[]).slice();
-    if(dept==='housekeepingRisk'||dept==='laundryRisk')return(arr||[]).filter(function(r){return String(r.department||r.responsibleDept||'')==='housekeeping'&&riskSubgroup(r)===dept;});
-    return(arr||[]).filter(function(r){return String(r.department||r.responsibleDept||'')===String(dept);});
+    if(dept==='housekeepingRisk'||dept==='laundryRisk')return(arr||[]).filter(function(r){var rd=canonicalGrcDepartment(r&& (r.department||r.responsibleDept||r.responsibleDepartment));return (rd==='housekeeping'||rd==='laundry')&&riskSubgroup(r)===dept;});
+    var wanted=canonicalGrcDepartment(dept);
+    return(arr||[]).filter(function(r){return canonicalGrcDepartment(r&& (r.department||r.responsibleDept||r.responsibleDepartment))===wanted;});
+  }
+  function currentRiskTableScope(){var d=currentGrcDept();return d==='laundry'?'laundryRisk':d==='housekeeping'?'housekeepingRisk':d;}
+  function currentRiskRegisterBoard(){
+    var dept=currentGrcDept(),scope=currentRiskTableScope(),note=dept?deptName(dept):L('departmentRecords');
+    return'<section class="grc-registers-board grc-user-risk-register">'+sectionHead(L('riskRegisterGroup'),isAr()?'اعرض وأرسل طلبات إضافة أو تعديل أو حذف مخاطر قسمك من السجل نفسه.':'View the published risks for your department and submit add, update or delete requests directly from this register.')+
+      registerBlock('risk',L('riskRegister'),note,'',riskTable(scope,false))+'</section>';
   }
   function countFor(key){
     if(key==='governance')return state.policies.length+state.plans.length+state.forms.length;
@@ -936,11 +948,9 @@
       '<div class="grc-metric-foot"><span class="grc-metric-sub">'+(sub||'')+'</span>'+(onclick?'<span class="grc-metric-arrow">›</span>':'')+'</div></div>';
   }
   function registerBlock(kind,title,note,button,table){
-    var actions=button||'';
-    if(isGrcAdmin()){
-      var map=crudMapForTitle(title);
-      if(map)actions='<div class="grc-register-actions grc-inline-crud-actions">'+registerCrudButtons(map)+'</div>';
-    }
+    var actions=button||'',map=crudMapForTitle(title);
+    if(isGrcAdmin()&&map)actions='<div class="grc-register-actions grc-inline-crud-actions">'+registerCrudButtons(map)+'</div>';
+    else if(kind==='risk'&&canSubmitRiskRequest()&&map&&map.type==='risk')actions='<div class="grc-register-actions grc-inline-crud-actions">'+registerCrudButtons(map)+'</div>';
     return'<div class="grc-register-block"><div class="grc-register-titlebar '+kind+'"><div><div class="grc-register-name">'+title+'</div><div class="grc-register-note">'+note+'</div></div>'+actions+'</div>'+table+'</div>';
   }
   function addBtn(type,label,dept){return'<button class="grc-primary-btn" onclick="window._grcOpenForm(\''+type+'\',\''+esc(dept||'')+'\')">＋ '+label+'</button>';}
@@ -1602,7 +1612,10 @@
     return departmentPanel(dept,L('governance')+' · '+L('departmentRecords'),all.length,active,alert,L('active'),governanceModules('department',dept)+governanceOverview(dept,false,true));
   }
   function governancePage(){ensureOperationalPlanStyles();ensureGrcEnhancementStyles();return hero('GRC · Governance',L('governanceTitle'),L('governanceDesc'))+sectionHead(L('departmentView'),L('departmentSectionsDesc'))+'<div class="grc-department-stack">'+departmentOrder.map(governanceDepartmentPanel).join('')+'</div>';}
-  function riskPage(){return hero('GRC · Risk Management',L('riskTitle'),L('riskDesc'))+sectionHead(L('departmentView'),L('departmentSectionsDesc'))+'<div class="grc-department-stack">'+departmentOrder.map(riskDepartmentPanel).join('')+'</div>';}
+  function riskPage(){
+    if(!isGrcAdmin())return hero('GRC · Risk Management',L('riskTitle'),L('riskDesc'))+currentRiskRegisterBoard();
+    return hero('GRC · Risk Management',L('riskTitle'),L('riskDesc'))+sectionHead(L('departmentView'),L('departmentSectionsDesc'))+'<div class="grc-department-stack">'+departmentOrder.map(riskDepartmentPanel).join('')+'</div>';
+  }
 
   function governanceRegistersBoard(){
     return'<section class="grc-registers-board">'+sectionHead(L('governanceRegisterGroup'),L('registerDesc'))+
@@ -1670,6 +1683,7 @@
     ],rows);
   }
   function registerPage(){
+    if(!isGrcAdmin())return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+currentRiskRegisterBoard();
     return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+governanceRegistersBoard()+riskRegistersBoard()+
       '<section class="grc-registers-board">'+sectionHead(L('assuranceRegisterGroup'),L('registerDesc'))+
       registerBlock('plan',L('actionsTitle'),L('allDepartments'),addBtn('action',L('addAction')),tableHtml('plan',['id','title','source','department','owner','dueDate','progress','status'],(state.actions||[]).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.source||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td><div style="display:flex;align-items:center;gap:7px"><div class="grc-progress"><span style="width:'+Math.max(0,Math.min(100,Number(r.progress||0)))+'%"></span></div><b>'+Number(r.progress||0)+'%</b></div></td><td>'+badge(r.status)+'</td></tr>';}).join('')))+
@@ -3087,7 +3101,7 @@
   window._hideGRC=function(){var a=document.getElementById('grcApp');if(a){a.classList.remove('grc-visible');a.setAttribute('aria-hidden','true');}document.body.classList.remove('grc-mode');};
   window._exitGRC=function(){window._hideGRC();var bg=document.getElementById('_bgLayer'),po=document.getElementById('_portalOverlay'),auth=document.getElementById('_authOverlay');if(auth)auth.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
   window._openGrcPortal=function(){window._enterGRC();};
-  window._enterGRC=function(){if(!canEnterGrc()){window._showGrcComingSoon();return;}activeTab=activeTab||'executive';['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');render();};
+  window._enterGRC=function(){if(!canEnterGrc()){window._showGrcComingSoon();return;}activeTab=activeTab||'executive';['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.remove('dashboard-mode','auth-mode','portal-mode','performance-advisory-mode');document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');render();if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();};
   window._closeGrcComingSoon=function(){var ov=document.getElementById('_grcComingSoon');if(ov)ov.remove();document.body.classList.remove('grc-coming-open');};
   window._showGrcComingSoon=function(){
     window._closeGrcComingSoon();document.body.classList.add('grc-coming-open');

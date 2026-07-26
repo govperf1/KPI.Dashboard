@@ -4,7 +4,7 @@
    Review & Guidance Center requests.
    ===================================================================== */
 (function(){
-  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V60__)return;window.__QUMC_GRC_RISK_WORKFLOW_V60__=true;
+  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V63__)return;window.__QUMC_GRC_RISK_WORKFLOW_V63__=true;
   var cache=[],unsub=null,startedFor='';
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function role(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
@@ -19,7 +19,8 @@
   function tone(s){if(/^pending/.test(s)||/^returned/.test(s))return'warn';if(s==='published')return'good';if(/^rejected/.test(s)||s==='cancelled')return'bad';return'info';}
   function actionable(r){var s=String(r.status||'');if(isOwner())return s==='returned_requester'||s==='rejected_manager'||s==='rejected_super_admin';if(isManager())return s==='pending_manager'||s==='returned_manager';if(isSuper())return s==='pending_super_admin';return false;}
   function refreshBadge(){var n=cache.filter(actionable).length,el=document.getElementById('grcRiskNotifCount');if(el){el.textContent=String(n);el.style.display=n?'grid':'none';}}
-  function start(){var key=email()+'|'+role();if(!email()||typeof window._grcRiskRequestsSubscribe!=='function')return;if(startedFor===key&&unsub)return;if(unsub)try{unsub();}catch(_){}startedFor=key;unsub=window._grcRiskRequestsSubscribe(function(rows,err){if(err)return;cache=Array.isArray(rows)?rows:[];window.__grcRiskRequestCache=cache;refreshBadge();var ov=document.getElementById('_grcRiskProfileOv');if(ov)renderProfileBody();});}
+  function stop(){if(unsub)try{unsub();}catch(_){}unsub=null;startedFor='';cache=[];window.__grcRiskRequestCache=[];refreshBadge();var panel=document.getElementById('_grcRiskNotifPanel');if(panel)panel.remove();}
+  function start(){if(!document.body.classList.contains('grc-mode')){if(unsub||startedFor)stop();return;}var key=email()+'|'+role();if(!email()||typeof window._grcRiskRequestsSubscribe!=='function')return;if(startedFor===key&&unsub)return;if(unsub)try{unsub();}catch(_){}startedFor=key;unsub=window._grcRiskRequestsSubscribe(function(rows,err){if(err)return;cache=Array.isArray(rows)?rows:[];window.__grcRiskRequestCache=cache;refreshBadge();var ov=document.getElementById('_grcRiskProfileOv');if(ov)renderProfileBody();});}
   function fieldRows(obj){obj=obj||{};var labels={id:'Risk ID',riskIdentified:'Risk Identified',riskCategory:'Risk Category',likelihood:'Likelihood',impact:'Impact',controlType:'Control Type',actionStatus:'Action Status',department:'Department'};return Object.keys(labels).map(function(k){return'<tr><th>'+labels[k]+'</th><td>'+esc(obj[k]==null?'—':obj[k])+'</td></tr>';}).join('');}
   function changedTable(r){var before=r.currentRecord||{},after=r.proposedRecord||{},keys=Array.isArray(r.changedFields)&&r.changedFields.length?r.changedFields:['riskIdentified','riskCategory','likelihood','impact','controlType','actionStatus'];return'<table class="grc-risk-diff"><thead><tr><th>Field</th><th>Current Value</th><th>Proposed Value</th></tr></thead><tbody>'+keys.map(function(k){return'<tr><th>'+esc(k.replace(/([A-Z])/g,' $1'))+'</th><td>'+esc(before[k]==null?'—':before[k])+'</td><td>'+esc(after[k]==null?'—':after[k])+'</td></tr>';}).join('')+'</tbody></table>';}
   function actions(r){var s=String(r.status||''),html='';
