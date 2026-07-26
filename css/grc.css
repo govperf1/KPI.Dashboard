@@ -861,3 +861,46 @@ body.grc-mode > .footbar{display:none!important}
 #grcApp .grc-inline-delete-x:hover{background:#c62835;color:#fff;border-color:#c62835}
 #grcApp .grc-inline-mode-note{display:inline-flex;align-items:center;min-height:34px;padding:0 10px;border-radius:9px;background:#fff3f4;color:#ad2634;font-size:9px;font-weight:900}
 #grcApp .grc-inline-crud-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
+
+/* =====================================================================
+   GRC ROOT FIX v62 — portal isolation and exact live-page print
+   ===================================================================== */
+body.grc-mode{overflow:hidden!important}
+body.grc-mode>header.topbar,
+body.grc-mode>.topbar,
+body.grc-mode>.filter-strip,
+body.grc-mode>.tabnav,
+body.grc-mode>.dashwrap,
+body.grc-mode>.footbar,
+body.grc-mode>#page-advisory,
+body.grc-mode>#notificationsPanel,
+body.grc-mode>#myRequestsPanel{
+  display:none!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+}
+body.grc-mode #grcApp{display:flex!important;visibility:visible!important;pointer-events:auto!important}
+body.grc-mode #grcApp .grc-topbar,
+body.grc-mode #grcApp .grc-nav-wrap,
+body.grc-mode #grcApp .grc-main,
+body.grc-mode #grcApp .grc-footer{visibility:visible!important;pointer-events:auto!important}
+
+/* These rules intentionally come last. Older print rules changed the screen grids
+   to block layout, which made GRC cards and charts oversized and stacked. */
+@media print{
+  body.grc-page-export-only #grcApp .grc-exec-risk-visuals{
+    display:grid!important;
+    grid-template-columns:minmax(0,1.55fr) minmax(320px,.75fr)!important;
+  }
+  body.grc-page-export-only #grcApp .grc-exec-operations-grid,
+  body.grc-page-export-only #grcApp .grc-form-scope-grid,
+  body.grc-page-export-only #grcApp .grc-initiative-sections{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+  body.grc-page-export-only #grcApp .grc-chart-grid.cols-2,
+  body.grc-page-export-only #grcApp .grc-cbahi-attention-split{
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+}
