@@ -2587,7 +2587,23 @@
     var compliance=(state.compliance||[]).filter(function(r){return !r.department||_grcDepartmentMatch(r,dept);}).map(function(r){return _grcAdvisoryItem('compliance',r);});
     return{policies:policies,forms:forms,risks:risks,plansInitiatives:plans.concat(initiatives),compliance:compliance};
   };
-  window._grcGetExportSnapshot=function(){try{var out=JSON.parse(JSON.stringify(state));out._reports=JSON.parse(JSON.stringify(REPORT_LIBRARY||[]));return out;}catch(_){return state;}};
+  window._grcGetExportSnapshot=function(){
+    try{
+      var out=JSON.parse(JSON.stringify(state));
+      out._reports=JSON.parse(JSON.stringify(REPORT_LIBRARY||[]));
+      out._complianceLibrary=(COMPLIANCE_DOCUMENT_SEED||[]).map(function(r){
+        var authority=(COMPLIANCE_AUTHORITIES||[]).find(function(a){return a.id===r.authorityId;})||{};
+        return{id:r.id,code:r.code||r.id,authorityId:r.authorityId,authority:authority.en||authority.ar||r.authorityId,titleEn:r.titleEn||'',titleAr:r.titleAr||'',status:'Available'};
+      });
+      out._cbahiAssessment=assessmentRows('cbahi',CBAHI_FMS_ROWS).map(function(r){
+        return{chapter:cleanAssessmentCode(r[0]),standard:cleanAssessmentCode(r[1]),standardDescription:r[2]||'',subStandard:cleanAssessmentCode(r[3]),subStandardDescription:r[4]||'',specificRequirement:cleanAssessmentCode(r[5]),specificRequirementDescription:r[6]||'',responsibleDepartment:r[7]||'',complianceStatus:r[8]||'',score:r[9],assessmentActivities:r[10]||'',evidence:r[11]||'',gapDescription:r[12]||'',cap:r[13]||'',dueDate:r[14]||'',isEsr:[9,21,22,23,24,32].indexOf(cbahiStandardNumber(r[1]))>=0};
+      });
+      out._jciAssessment=normalizedJciRows().map(function(r){
+        return{chapter:'FMS',domain:r[0]||'',standard:cleanAssessmentCode(r[1]),standardDescription:r[2]||'',subStandard:cleanAssessmentCode(r[3]),subStandardDescription:r[4]||'',specificRequirement:cleanAssessmentCode(r[5]),specificRequirementDescription:r[6]||'',responsibleDepartment:r[7]||'',complianceStatus:r[8]||'',score:r[9],assessmentActivities:r[10]||'',evidence:r[11]||'',gapDescription:r[12]||'',cap:r[13]||'',dueDate:r[14]||''};
+      });
+      return out;
+    }catch(_){return state;}
+  };
   window._grcGetPageHtml=function(id){return pageHtml(id);};
   window._grcGetModules=function(){return modules.map(function(x){return{id:x.id,icon:x.icon,label:L(x.id)};});};
   window._grcGetActivePage=function(){return activeTab;};

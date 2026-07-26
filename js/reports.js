@@ -2522,9 +2522,51 @@ async function importSnapshot(){
     return true;
   }
 
+  function prepareExternal(sourceDoc,options){
+    cleanup();
+    addPrintCSS();
+    if(!sourceDoc)return false;
+    var holder=document.createElement('div');
+    holder.id='qumcPrintReportPage';
+    var sheet=document.createElement('div');
+    sheet.className='qumc-print-report-sheet';
+    var clone=sourceDoc.cloneNode(true);
+    clone.removeAttribute('style');
+    clone.style.display='block';
+    clone.style.width='100%';
+    clone.style.maxWidth='none';
+    clone.style.margin='0';
+    clone.style.background='#fff';
+    clone.style.overflow='visible';
+    convertCanvasesToImages(sourceDoc,clone);
+    normalizeClone(clone);
+    sheet.appendChild(clone);
+    sheet.appendChild(makeMeta(sourceDoc,options||{}));
+    holder.appendChild(sheet);
+    document.body.appendChild(holder);
+    fixSoftTextPageBreaks(holder);
+    document.documentElement.classList.add('qumc-print-report-only');
+    document.body.classList.add('qumc-print-report-only');
+    try{window.__qumcReportPrintOriginalTitle=document.title;window.__qumcReportPrintTitleWasSet=true;document.title='';}catch(e){}
+    return true;
+  }
   var nativePrint=window.__qumcNativePrint || (window.print && window.print.bind(window));
   if(!nativePrint) nativePrint=function(){};
   window.__qumcNativePrint=nativePrint;
+  window._qumcPrintReportDocument=function(sourceDoc,options){
+    try{
+      if(!prepareExternal(sourceDoc,options||{}))return false;
+      setTimeout(function(){
+        try{nativePrint();}
+        finally{setTimeout(cleanup,1800);}
+      },260);
+      return true;
+    }catch(e){
+      try{console.warn('QUMC external report print failed',e);}catch(_e){}
+      cleanup();
+      return false;
+    }
+  };
   window.print=function(){
     if(reportIsActive()){
       if(prepareReportPrint()){
@@ -2599,7 +2641,7 @@ async function importSnapshot(){
     }
     return txt;
   }
-  function makeMeta(doc){
+  function makeMeta(doc,metaOptions){
     var ar=isArabic();
     var u=getUserInfoForPrint();
     var d;
@@ -2608,7 +2650,7 @@ async function importSnapshot(){
     var by=ar?'طبع بواسطة':'Printed by';
     var at=ar?'وقت الطباعة':'Printed at';
     var periodLabel=ar?'الفترة':'Period';
-    var period=getPeriodText(doc);
+    var period=(metaOptions&&metaOptions.period)||getPeriodText(doc);
     var html=[];
     html.push('<div class="qumc-print-meta-title">'+esc(title)+'</div>');
     html.push('<div><b>'+esc(by)+':</b> '+esc(u.name)+(u.email?' <span>'+esc(u.email)+'</span>':'')+(u.role?' <span>'+esc(u.role)+'</span>':'')+'</div>');
@@ -2900,7 +2942,7 @@ async function importSnapshot(){
     }
     return txt;
   }
-  function makeMeta(doc){
+  function makeMeta(doc,metaOptions){
     var ar=isArabic();
     var u=getUserInfoForPrint();
     var d;
@@ -2909,7 +2951,7 @@ async function importSnapshot(){
     var by=ar?'طبع بواسطة':'Printed by';
     var at=ar?'وقت الطباعة':'Printed at';
     var periodLabel=ar?'الفترة':'Period';
-    var period=getPeriodText(doc);
+    var period=(metaOptions&&metaOptions.period)||getPeriodText(doc);
     var html=[];
     html.push('<div class="qumc-print-meta-title">'+esc(title)+'</div>');
     html.push('<div><b>'+esc(by)+':</b> '+esc(u.name)+(u.email?' <span>'+esc(u.email)+'</span>':'')+(u.role?' <span>'+esc(u.role)+'</span>':'')+'</div>');
@@ -3121,9 +3163,47 @@ async function importSnapshot(){
     try{window.__qumcReportPrintOriginalTitle=document.title; window.__qumcReportPrintTitleWasSet=true; document.title='';}catch(e){}
     return true;
   }
+  function prepareExternal(sourceDoc,options){
+    cleanup();
+    addPrintCSS();
+    if(!sourceDoc)return false;
+    var holder=document.createElement('div');
+    holder.id='qumcPrintReportPage';
+    var sheet=document.createElement('div');
+    sheet.className='qumc-print-report-sheet';
+    var clone=sourceDoc.cloneNode(true);
+    clone.removeAttribute('style');
+    clone.style.display='block';
+    clone.style.width='100%';
+    clone.style.maxWidth='none';
+    clone.style.margin='0';
+    clone.style.background='#fff';
+    clone.style.overflow='visible';
+    convertCanvasesToImages(sourceDoc,clone);
+    normalizeClone(clone);
+    sheet.appendChild(clone);
+    sheet.appendChild(makeMeta(sourceDoc,options||{}));
+    holder.appendChild(sheet);
+    document.body.appendChild(holder);
+    fixSoftTextPageBreaks(holder);
+    document.documentElement.classList.add('qumc-print-report-only');
+    document.body.classList.add('qumc-print-report-only');
+    try{window.__qumcReportPrintOriginalTitle=document.title;window.__qumcReportPrintTitleWasSet=true;document.title='';}catch(e){}
+    return true;
+  }
   var nativePrint=window.__qumcNativePrint || (window.print && window.print.bind(window));
   if(!nativePrint) nativePrint=function(){};
   window.__qumcNativePrint=nativePrint;
+  window._qumcPrintReportDocument=function(sourceDoc,options){
+    try{
+      if(!prepareExternal(sourceDoc,options||{}))return false;
+      setTimeout(function(){try{nativePrint();}finally{setTimeout(cleanup,1800);}},260);
+      return true;
+    }catch(e){
+      try{console.warn('QUMC external report print failed',e);}catch(_e){}
+      cleanup();return false;
+    }
+  };
   window.print=function(){
     if(reportIsActive()){
       try{
