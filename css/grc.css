@@ -844,4 +844,20 @@ body.grc-mode > .footbar{display:none!important}
   @page{size:A4 landscape;margin:10mm}
 }
 
-body.grc-export-open #_grcAdminFloatingBtn{display:none!important}
+
+/* v57 — Direct register editing, deletion, code dedupe and structured Excel */
+#grcApp .grc-inline-edit-mode .grc-filter-row,
+#grcApp .grc-inline-delete-mode .grc-filter-row,
+#grcApp .grc-inline-edit-mode .grc-table-filterbar,
+#grcApp .grc-inline-delete-mode .grc-table-filterbar{display:none!important}
+#grcApp .grc-inline-edit-mode .grc-table-wrap,
+#grcApp .grc-inline-delete-mode .grc-table-wrap{outline:2px solid rgba(0,163,196,.18);border-radius:12px}
+#grcApp .grc-inline-edit-cell{padding:5px!important;background:#f5fbfd!important}
+#grcApp .grc-inline-input{width:100%;min-width:105px;box-sizing:border-box;border:1px solid #91bec9;border-radius:8px;background:#fff;color:#17384a;padding:8px 9px;font:inherit;font-size:10px;outline:none}
+#grcApp .grc-inline-input:focus{border-color:#008ca5;box-shadow:0 0 0 3px rgba(0,140,165,.12)}
+#grcApp .grc-inline-locked{background:#f4f6f8!important;color:#788b96!important;cursor:not-allowed}
+#grcApp .grc-inline-delete-col,#grcApp .grc-inline-delete-cell{width:46px!important;min-width:46px!important;max-width:46px!important;text-align:center!important;padding:5px!important;background:#fff8f8!important}
+#grcApp .grc-inline-delete-x{width:28px;height:28px;border:1px solid #ef9aa3;border-radius:8px;background:#fff;color:#c62835;font-size:18px;font-weight:900;line-height:1;cursor:pointer}
+#grcApp .grc-inline-delete-x:hover{background:#c62835;color:#fff;border-color:#c62835}
+#grcApp .grc-inline-mode-note{display:inline-flex;align-items:center;min-height:34px;padding:0 10px;border-radius:9px;background:#fff3f4;color:#ad2634;font-size:9px;font-weight:900}
+#grcApp .grc-inline-crud-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
