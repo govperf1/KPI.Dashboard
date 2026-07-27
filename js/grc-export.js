@@ -1,6 +1,6 @@
 /* ======================================================================
    QUMC GRC — Excel / Report / Page Export
-   Build: 2026-07-27 v64 register selector, professional report and page export
+   Build: 2026-07-27 v68 resource export, report pagination and page export
    ====================================================================== */
 (function(){
   'use strict';
@@ -164,9 +164,20 @@
     }else{columns=['Information'];rows=[['No register dataset is configured for this page.']];}
     var titles={actions:'Action Plans',initiatives:'Initiatives Register',reports:'Reports Register',manuals:'Manuals Register',guides:'Guidelines Register'};return{title:titles[id]||PAGE_LABELS[id]||id,kind:'flat',columns:columns,rows:rows};
   }
+  function resourceSet(data,depts,types){
+    types=types&&types.length?types:['actions','initiatives','reports','manuals','guides'];
+    var labels={actions:'Action Plans',initiatives:'Initiatives Register',reports:'Reports Register',manuals:'Manuals Register',guides:'Guidelines Register'};
+    var tables=types.map(function(key){
+      var set=simpleSet(key,data,depts);
+      return table(labels[key]||set.title,set.columns,set.rows,'FF4C8294');
+    });
+    var sec=section('Operational & Resource Registers',tables,'FF2B6E7F');
+    return{title:'Operational & Resource Registers',kind:'sectioned',sections:sec?[sec]:[]};
+  }
   function rowsForPage(id,data,depts,selections){
     if(id==='governance')return governanceSet(data,depts,selections.governance);
     if(id==='risk')return riskSet(data,depts,selections.risk);
+    if(id==='resources')return resourceSet(data,depts,selections.resources);
     if(id==='compliance')return complianceSet(data,depts,selections.compliance);
     return simpleSet(id,data,depts);
   }
@@ -204,9 +215,10 @@
     var depts=checked('grcExcelDept'),selected=checked('grcExcelRegister');
     if(!depts.length){alert('Select at least one department.');return;}
     if(!selected.length){alert('Select at least one register.');return;}
-    var data=snap(),sets=[],gov=selected.filter(function(x){return['policies','forms','plans'].indexOf(x)>=0;}),risk=selected.filter(function(x){return['risks','incidents','codes'].indexOf(x)>=0;}),compliance=selected.filter(function(x){return['cbahi','jci'].indexOf(x)>=0;});
+    var data=snap(),sets=[],gov=selected.filter(function(x){return['policies','forms','plans'].indexOf(x)>=0;}),risk=selected.filter(function(x){return['risks','incidents','codes'].indexOf(x)>=0;}),resources=selected.filter(function(x){return['actions','initiatives','reports','manuals','guides'].indexOf(x)>=0;}),compliance=selected.filter(function(x){return['cbahi','jci'].indexOf(x)>=0;});
     if(gov.length){var g=governanceSet(data,depts,gov);g.title='Governance Registers';sets.push(g);}
     if(risk.length){var r=riskSet(data,depts,risk);r.title='Risk Management Registers';sets.push(r);}
+    if(resources.length){var o=resourceSet(data,depts,resources);sets.push(o);}
     if(compliance.length){var c=complianceSet(data,depts,compliance);c.title='Compliance Assessments';sets.push(c);}
     closeOverlay();
     try{var hasExcelJs=await waitForExcelJs(7000);if(hasExcelJs)await buildExcelJs(sets,depts);else buildSheetJs(sets,depts);if(typeof window.addAudit==='function')window.addAudit('GRC_EXPORT_EXCEL','Exported GRC registers: '+selected.join(', '));}catch(e){alert('Excel export failed: '+String(e&&e.message||e));}
@@ -286,12 +298,22 @@
       h.appendChild(no);h.appendChild(label);
     });
   }
+  function wrapReportBlocks(node){
+    if(!node)return node;
+    node.querySelectorAll('.grc-metric-grid,.grc-exec-metric-grid,.grc-chart-grid,.grc-exec-operations-grid,.grc-exec-risk-visuals,.grc-form-scope-grid,.grc-initiative-sections,.grc-register-block,.grc-table-wrap,.grc-chart-card,.grc-metric-card,.grc-module-card,.grc-exec-ops-card,.grc-initiative-section').forEach(function(x){x.classList.add('grc-report-keep-together');});
+    Array.prototype.slice.call(node.querySelectorAll('.grc-report-numbered-title')).forEach(function(head){
+      if(head.parentNode&&head.parentNode.classList&&head.parentNode.classList.contains('grc-report-subsection-block'))return;
+      var wrap=document.createElement('div');wrap.className='grc-report-subsection-block';head.parentNode.insertBefore(wrap,head);var cur=head;
+      while(cur){var next=cur.nextSibling;wrap.appendChild(cur);if(next&&next.nodeType===1&&next.classList&&next.classList.contains('grc-report-numbered-title'))break;cur=next;if(!cur)break;}
+    });
+    return node;
+  }
   function prepareReportDomain(part,index){
     var node=part.node.cloneNode(true),oldHead=node.querySelector('.grc-exec-domain-head'),desc=oldHead&&oldHead.querySelector('p')&&oldHead.querySelector('p').textContent||'';
     if(oldHead)oldHead.remove();
     node.querySelectorAll('.grc-export-frozen-box').forEach(function(x){x.classList.remove('grc-export-frozen-box');x.style.removeProperty('--grc-freeze-minh');x.style.minHeight='0';});
     node.querySelectorAll('[style*="min-height"]').forEach(function(x){x.style.minHeight='0';});
-    numberSubsections(node,index);
+    numberSubsections(node,index);wrapReportBlocks(node);
     node.classList.add('grc-report-domain');
     var head=document.createElement('div');head.className='grc-report-section-head';head.innerHTML='<span>'+index+'</span><div><h2>'+esc(part.title)+'</h2>'+(desc?'<p>'+esc(desc)+'</p>':'')+'</div>';
     node.insertBefore(head,node.firstChild);
@@ -369,6 +391,20 @@
       #rptDocument #grcApp .grc-initiative-progress-list{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px 10px!important}
       #rptDocument #grcApp .grc-heatmap-card{max-height:none!important;overflow:visible!important}
       #rptDocument #grcApp .grc-heat-grid{grid-template-columns:repeat(5,minmax(58px,1fr)) 72px!important}
+      /* v68: keep every meaningful report unit complete on one printed page */
+      #rptDocument #grcApp .grc-report-keep-together,
+      #rptDocument #grcApp .grc-report-subsection-block,
+      #rptDocument #grcApp .grc-chart-card,
+      #rptDocument #grcApp .grc-metric-card,
+      #rptDocument #grcApp .grc-module-card,
+      #rptDocument #grcApp .grc-exec-ops-card,
+      #rptDocument #grcApp .grc-register-block,
+      #rptDocument #grcApp .grc-initiative-section,
+      #rptDocument #grcApp .grc-heatmap-card{break-inside:avoid-page!important;page-break-inside:avoid!important}
+      #rptDocument #grcApp .grc-report-numbered-title,#rptDocument #grcApp .grc-section-title,#rptDocument #grcApp h2,#rptDocument #grcApp h3{break-after:avoid-page!important;page-break-after:avoid!important}
+      #rptDocument #grcApp p,#rptDocument #grcApp li,#rptDocument #grcApp tr{break-inside:avoid-page!important;page-break-inside:avoid!important}
+      #rptDocument #grcApp thead{display:table-header-group!important}
+      #rptDocument #grcApp tfoot{display:table-footer-group!important}
     `;doc.appendChild(style);return doc;
   }
   window._grcGenerateReport=function(){

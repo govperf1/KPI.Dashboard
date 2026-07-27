@@ -384,6 +384,60 @@ window._selectPortal=async portal=>{
       });
     };
 
+    /* ══════════════════════════════════════════════════════
+       grc_requests: GRC system / access requests
+       Separate from Performance kpi_requests, Risk Register approvals,
+       and Review & Development Center requests.
+       ══════════════════════════════════════════════════════ */
+    function _grcSystemRequestRole(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
+    function _grcSystemRequestIsAdmin(){const r=_grcSystemRequestRole();return r==='admin'||r==='super_admin';}
+    window._grcRequestsSubmit=async function(requestType,message){
+      if(!window._fbUser||!db) throw new Error('not authenticated');
+      const ref=await addDoc(collection(db,'grc_requests'),{
+        platform:'grc',
+        userName: window._fbName||window._fbUser.split('@')[0],
+        userEmail: (window._fbUser||'').toLowerCase().trim(),
+        department: String(window._fbDept||window.currentUserDept||'').trim(),
+        requestType: String(requestType||'General GRC Request').trim(),
+        message: String(message||'').trim(),
+        status: 'pending',
+        adminComment: '',
+        createdAt: serverTimestamp(),
+        respondedAt: null
+      });
+      return ref.id;
+    };
+    window._grcRequestsGetMine=async function(){
+      if(!window._fbUser||!db) return [];
+      try{
+        const userEmail=(window._fbUser||'').toLowerCase().trim();
+        const result=await getDocs(query(collection(db,'grc_requests'),where('userEmail','==',userEmail)));
+        const rows=result.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+        rows.sort(function(a,b){return ((b.createdAt&&b.createdAt.seconds)||0)-((a.createdAt&&a.createdAt.seconds)||0);});
+        return rows;
+      }catch(e){console.warn('[GRC Requests] getMine:',e&&e.message);return [];}
+    };
+    window._grcRequestsGetAll=async function(){
+      if(!window._fbUser||!db) return [];
+      if(!_grcSystemRequestIsAdmin()) throw new Error('Access denied.');
+      try{
+        const result=await getDocs(query(collection(db,'grc_requests'),orderBy('createdAt','desc')));
+        return result.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+      }catch(e){
+        try{const result=await getDocs(collection(db,'grc_requests'));const rows=result.docs.map(function(d){return Object.assign({id:d.id},d.data());});rows.sort(function(a,b){return ((b.createdAt&&b.createdAt.seconds)||0)-((a.createdAt&&a.createdAt.seconds)||0);});return rows;}catch(_){return [];}
+      }
+    };
+    window._grcRequestsRespond=async function(requestId,status,comment){
+      if(!window._fbUser||!db) throw new Error('not authenticated');
+      if(!_grcSystemRequestIsAdmin()) throw new Error('Access denied.');
+      await updateDoc(doc(db,'grc_requests',requestId),{
+        status:String(status||'pending'),
+        adminComment:String(comment||'').trim(),
+        respondedAt:serverTimestamp(),
+        respondedBy:String(window._fbName||window._fbUser||'')
+      });
+    };
+
 
     /* ══════════════════════════════════════════════════════
        advisory_requests: Performance + GRC Advisory Center
