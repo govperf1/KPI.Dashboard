@@ -76,7 +76,7 @@
   function openCenterRequests(){window._grcShowMyRequests();}
   window._grcRiskOpenProfileMenu=function(ev){
     if(ev){ev.preventDefault();ev.stopPropagation();}start();var old=document.getElementById('_grcUserProfileMenu');if(old){old.remove();return;}
-    var anchor=ev&&ev.currentTarget||document.querySelector('.grc-user-profile-btn'),rect=anchor&&anchor.getBoundingClientRect(),menu=document.createElement('div');
+    var anchor=ev&&ev.currentTarget||document.querySelector('.grc-profile-trigger'),rect=anchor&&anchor.getBoundingClientRect(),menu=document.createElement('div');
     var name=window._fbName||window.currentUserName||'User',dept=window._fbDept||window.currentUserDept||'—',last='Current session';
     try{last=(window._fbLastLogin||sessionStorage.getItem('qumc_last_login')||'Current session');}catch(_){}
     menu.id='_grcUserProfileMenu';menu.className='qumc-profile-drop grc-user-profile-menu grc-profile-drop-open';menu.style.display='block';menu.style.top=((rect&&rect.bottom||58)+8)+'px';menu.style.right=Math.max(12,window.innerWidth-(rect&&rect.right||window.innerWidth-20))+'px';
@@ -100,12 +100,12 @@
   window._grcRiskRefreshUi=function(){start();refreshBadge();};
 
   window._grcRiskBindHeader=function(){
-    var not=document.getElementById('grcRiskNotifBtn'),usr=document.querySelector('.grc-user-profile-btn');
+    var not=document.getElementById('grcRiskNotifBtn'),usr=document.querySelector('.grc-profile-trigger');
     if(not&&!not.dataset.grcBound){not.dataset.grcBound='1';not.onclick=function(e){e.preventDefault();e.stopPropagation();window._grcRiskOpenNotifications(e);};}
     if(usr&&!usr.dataset.grcBound){usr.dataset.grcBound='1';usr.onclick=function(e){e.preventDefault();e.stopPropagation();window._grcRiskOpenProfileMenu(e);};}
     start();refreshBadge();
   };
 
-  document.addEventListener('click',function(e){var p=document.getElementById('_grcRiskNotifPanel'),b=document.getElementById('grcRiskNotifBtn');if(p&&(!b||!b.contains(e.target))&&!p.contains(e.target))p.remove();var m=document.getElementById('_grcUserProfileMenu'),u=document.querySelector('.grc-user-profile-btn');if(m&&(!u||!u.contains(e.target))&&!m.contains(e.target))m.remove();},true);
+  document.addEventListener('click',function(e){var p=document.getElementById('_grcRiskNotifPanel'),b=document.getElementById('grcRiskNotifBtn');if(p&&(!b||!b.contains(e.target))&&!p.contains(e.target))p.remove();var m=document.getElementById('_grcUserProfileMenu'),u=document.querySelector('.grc-profile-trigger');if(m&&(!u||!u.contains(e.target))&&!m.contains(e.target))m.remove();},true);
   setInterval(start,1000);setInterval(refreshBadge,3000);document.addEventListener('DOMContentLoaded',start);
 })();

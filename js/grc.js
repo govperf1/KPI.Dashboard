@@ -932,19 +932,32 @@
   function shellHtml(){
     var logo=esc(logoSrc()),userInitial=esc((currentName()[0]||'U').toUpperCase());
     var bell='<svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewBox="0 0 24 24" width="18"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path><path d="M19 3.5c1.2 1 2 2.6 2.2 4.3"></path><path d="M5 3.5c-1.2 1-2 2.6-2.2 4.3"></path></svg>';
-    return'<header class="grc-topbar grc-performance-header">'+
-      '<div class="grc-perf-brand"><div class="grc-perf-logo"><img alt="QUMC" src="'+logo+'"></div><div class="grc-perf-identity"><div class="grc-perf-org">Qassim University Medical City</div><div class="grc-perf-div">Facility Management &amp; Safety Division — Governance, Risk &amp; Compliance</div></div></div>'+
-      '<div class="grc-top-space"></div><div class="grc-perf-actions">'+
-      '<button class="tb-btn grc-perf-lang" onclick="window._grcToggleLang()">'+(isAr()?'EN':'عربي')+'</button>'+
-      '<div class="qumc-top-user-wrap grc-top-user-wrap">'+
-        '<button type="button" class="qumc-user-badge grc-user-profile-btn" onclick="window._grcRiskOpenProfileMenu&&window._grcRiskOpenProfileMenu(event)" title="User account">'+
-          '<div class="qumc-user-avatar">'+userInitial+'</div><div class="grc-user-copy"><div class="qumc-user-name">'+esc(currentName())+'</div><div class="qumc-user-role">'+esc(roleText())+'</div></div>'+
-          '<svg fill="none" height="14" stroke="rgba(255,255,255,.55)" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewBox="0 0 24 24" width="14"><path d="m6 9 6 6 6-6"></path></svg></button>'+
-        '<button type="button" id="grcRiskNotifBtn" class="qumc-alert-btn" onclick="window._grcRiskOpenNotifications&&window._grcRiskOpenNotifications(event)" title="Risk Register Notifications">'+bell+'<span id="grcRiskNotifCount" class="qumc-alert-count grc-risk-notif-count">0</span></button>'+
-      '</div></div></header>'+
-      '<div class="grc-nav-wrap"><nav class="grc-nav">'+modules.map(function(x){var c=x.count?countFor(x.count):null;return'<button class="grc-tab '+(activeTab===x.id?'is-active':'')+'" onclick="window._grcSwitch(\''+x.id+'\')"><span class="grc-tab-icon">'+x.icon+'</span><span class="grc-tab-label">'+L(x.id)+'</span>'+(c!==null?'<span class="grc-tab-count">'+c+'</span>':'')+'</button>';}).join('')+'</nav><div class="grc-export-actions"><button class="grc-export-btn excel" type="button" onclick="window._grcOpenExcelSelector()">📊 <span>Excel</span></button><button class="grc-export-btn report" type="button" onclick="window._grcOpenReportSelector()">📄 <span>Report</span></button><div class="grc-export-menu-wrap"><button class="grc-export-btn export" type="button" onclick="window._grcToggleExportMenu(event)">↗ <span>Export</span> ▾</button><div id="grcExportMenu" class="grc-export-menu">'+modules.map(function(x){return'<button type="button" onclick="window._grcExportPage(\''+x.id+'\')">'+x.icon+' '+L(x.id)+'</button>';}).join('')+'<div class="grc-export-sep"></div><button type="button" onclick="window._grcExportPage(\'all\')">⇩ All Pages</button></div></div></div></div>'+
+    var tabs=modules.map(function(x){var c=x.count?countFor(x.count):null;return'<div class="tab grc-page-tab '+(activeTab===x.id?'on':'')+'" onclick="window._grcSwitch(\''+x.id+'\')"><span>'+L(x.id)+'</span>'+(c!==null?'<span class="tab-badge">'+c+'</span>':'')+'</div>';}).join('');
+    var exportItems=modules.map(function(x){return'<button type="button" class="export-menu-item grc-export-menu-item" onclick="window._grcExportPage(\''+x.id+'\')"><span>'+L(x.id)+'</span></button>';}).join('');
+    return'<header class="topbar grc-performance-topbar">'+
+      '<div class="tb-brand"><div class="tb-logo"><img alt="QUMC" src="'+logo+'"></div><div class="tb-identity"><div class="tb-org">Qassim University Medical City</div><div class="tb-div">Facility Management &amp; Safety Division — Governance, Risk &amp; Compliance</div></div></div>'+
+      '<div class="tb-rule"></div><div class="tb-space"></div>'+
+      '<div class="grc-header-actions" style="display:flex;align-items:center;gap:6px">'+
+        '<button class="tb-btn" type="button" onclick="window._grcToggleLang()">'+(isAr()?'EN':'عربي')+'</button>'+
+        '<div class="qumc-top-user-wrap grc-top-user-wrap" style="display:flex;align-items:center;gap:8px;margin-right:6px">'+
+          '<div class="qumc-user-badge grc-profile-trigger" onclick="window._grcRiskOpenProfileMenu&amp;&amp;window._grcRiskOpenProfileMenu(event)" title="User account">'+
+            '<div class="qumc-user-avatar">'+userInitial+'</div><div style="line-height:1.15;min-width:0"><div class="qumc-user-name">'+esc(currentName())+'</div><div class="qumc-user-role">'+esc(roleText())+'</div></div>'+
+            '<svg fill="none" height="14" stroke="rgba(255,255,255,.55)" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" style="margin-left:2px" viewBox="0 0 24 24" width="14"><path d="m6 9 6 6 6-6"></path></svg>'+
+          '</div>'+
+          '<button type="button" id="grcRiskNotifBtn" class="qumc-alert-btn" onclick="window._grcRiskOpenNotifications&amp;&amp;window._grcRiskOpenNotifications(event)" title="Risk Register Notifications">'+bell+'<span id="grcRiskNotifCount" class="qumc-alert-count grc-risk-notif-count">0</span></button>'+
+        '</div>'+
+      '</div></header>'+
+      '<div class="tabnav nav-export-combined grc-performance-nav"><div class="nav-tab-group">'+tabs+'</div>'+
+        '<div class="nav-export-group" aria-label="GRC export actions">'+
+          '<button class="nav-export-btn nav-export-excel" type="button" onclick="window._grcOpenExcelSelector()">📊 <span>Excel</span></button>'+
+          '<button class="nav-export-btn nav-export-report" type="button" onclick="window._grcOpenReportSelector()">📄 <span>Report</span></button>'+
+          '<div class="nav-export-menu-wrap grc-export-menu-wrap"><button class="nav-export-btn nav-export-pdf" type="button" onclick="window._grcToggleExportMenu(event)">↗ <span>Export</span> ▾</button>'+
+            '<div id="grcExportMenu" class="nav-export-menu grc-native-export-menu"><div class="nav-export-menu-title">Select Page to Export</div>'+exportItems+'<div class="nav-export-menu-sep"></div><button type="button" class="export-menu-item nav-export-all grc-export-menu-item" onclick="window._grcExportPage(\'all\')"><span>All Pages</span></button></div>'+
+          '</div>'+
+        '</div>'+
+      '</div>'+
       '<main class="grc-main"><section id="grc-page-'+activeTab+'" class="grc-page is-active">'+pageHtml(activeTab)+'</section></main>'+
-      '<footer class="grc-footer grc-performance-footer"><div class="grc-footer-left"><button class="footer-back-glass grc-footer-back" onclick="window._exitGRC()" type="button" title="Back to Portal Selection"><span>'+(isAr()?'رجوع':'← Back')+'</span></button><div class="grc-footer-logo"><img alt="QUMC" src="'+logo+'"></div><div class="grc-footer-info"><strong>Governance, Risk &amp; Compliance Workspace</strong><span>Facility Management &amp; Safety Division — Governance &amp; Performance</span></div></div><div class="grc-footer-right"><span class="grc-live"><i></i> Live</span><span class="grc-footer-sep">·</span><span>© 2026 Qassim University Medical City</span></div></footer>';
+      '<footer class="footbar grc-performance-footer"><div class="footbar-l"><div class="footbar-back-wrap"><button class="footer-back-glass" onclick="window._exitGRC()" type="button" title="Back to Portal Selection"><span>'+(isAr()?'رجوع':'← Back')+'</span></button></div><div class="footbar-logo"><img alt="QUMC" src="'+logo+'"></div><div class="footbar-info"><span class="footbar-title">Governance, Risk &amp; Compliance Workspace</span><span class="footbar-sub">Facility Management &amp; Safety Division — Governance &amp; Performance</span></div></div><div class="footbar-r"><div class="footbar-status"><span class="footbar-live">Live</span></div><span class="footbar-sep" style="opacity:.4">·</span><span class="footbar-copy">© 2026 QUMC</span></div></footer>';
   }
   function enhanceRegisterFilters(){
     if(!app)return;
