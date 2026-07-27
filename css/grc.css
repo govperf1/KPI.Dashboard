@@ -904,3 +904,41 @@ body.grc-mode #grcApp .grc-footer{visibility:visible!important;pointer-events:au
     grid-template-columns:repeat(2,minmax(0,1fr))!important;
   }
 }
+
+
+/* =====================================================================
+   GRC v64 — Performance-matched chrome and compact register export
+   ===================================================================== */
+#grcApp .grc-performance-header{
+  height:62px!important;min-height:62px!important;padding:0 28px!important;
+  display:flex!important;align-items:center!important;gap:16px!important;
+  background:#152538!important;border-bottom:2px solid #0195af!important;
+  box-shadow:0 4px 32px rgba(4,10,20,.55),0 1px 0 rgba(255,255,255,.04)!important;
+  color:#fff!important;position:relative!important;z-index:100!important;
+}
+#grcApp .grc-performance-header:after{content:"";position:absolute;left:0;right:0;bottom:0;height:2px;background:linear-gradient(90deg,transparent,rgba(0,163,196,.15) 10%,rgba(0,191,224,.7) 40%,rgba(1,149,175,.9) 50%,rgba(0,191,224,.7) 60%,rgba(0,163,196,.15) 90%,transparent);box-shadow:0 0 16px rgba(1,149,175,.35)}
+#grcApp .grc-perf-brand{display:flex;align-items:center;gap:14px;min-width:0;flex-shrink:0}
+#grcApp .grc-perf-logo{height:52px;display:flex;align-items:center;flex:0 0 auto}
+#grcApp .grc-perf-logo img{height:100%;width:auto;max-width:150px;object-fit:contain}
+#grcApp .grc-perf-identity{display:flex;flex-direction:column;gap:2px;min-width:0}
+#grcApp .grc-perf-org{font-size:13.5px;font-weight:700;color:rgba(255,255,255,.97);white-space:nowrap}
+#grcApp .grc-perf-div{font-size:8.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:rgba(1,149,175,.75);white-space:nowrap}
+#grcApp .grc-top-space{flex:1;min-width:8px}
+#grcApp .grc-perf-actions{display:flex;align-items:center;gap:7px;flex:0 0 auto}
+#grcApp .grc-perf-btn,#grcApp .grc-header-icon-btn{height:36px;border:1px solid rgba(255,255,255,.14);border-radius:9px;background:rgba(255,255,255,.06);color:#fff;padding:0 11px;display:inline-flex;align-items:center;justify-content:center;gap:7px;font-size:9px;font-weight:800;cursor:pointer;position:relative;white-space:nowrap}
+#grcApp .grc-perf-btn:hover,#grcApp .grc-header-icon-btn:hover{background:rgba(1,149,175,.18);border-color:rgba(1,149,175,.5)}
+#grcApp .grc-header-icon{font-size:13px;color:#35c6da}#grcApp .grc-header-btn-label{font-size:8.5px}
+#grcApp .grc-user-profile-btn{height:40px!important;border:1px solid rgba(255,255,255,.12)!important;background:rgba(255,255,255,.055)!important;color:#fff!important;border-radius:10px!important;padding:4px 9px 4px 5px!important;display:flex!important;align-items:center!important;gap:8px!important;cursor:pointer!important}
+#grcApp .grc-user-profile-btn .grc-user-avatar{width:30px!important;height:30px!important;border-radius:8px!important;background:linear-gradient(135deg,#0195af,#1bc4d7)!important;color:#fff!important;display:grid!important;place-items:center!important;font-size:11px!important;font-weight:900!important}
+#grcApp .grc-user-name{font-size:9px!important;font-weight:800!important;color:#fff!important}#grcApp .grc-user-role{font-size:7px!important;color:rgba(255,255,255,.55)!important}#grcApp .grc-user-chevron{color:rgba(255,255,255,.55)!important}
+#grcApp .grc-risk-notif-count{position:absolute;top:-6px;right:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:99px;background:#d94a57;color:#fff;border:2px solid #152538;display:none;place-items:center;font-style:normal;font-size:7px;font-weight:900}
+#grcApp .grc-performance-footer{min-height:52px!important;height:52px!important;padding:0 28px!important;background:linear-gradient(90deg,#0f1e33 0%,#152538 40%,#0f2040 100%)!important;border-top:3px solid transparent!important;border-image:linear-gradient(90deg,#0195af,#4ade80,#0195af) 1!important;color:#fff!important;box-shadow:0 -2px 16px rgba(1,149,175,.12)!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:16px!important}
+#grcApp .grc-footer-left,#grcApp .grc-footer-right{display:flex;align-items:center;gap:11px;min-width:0}#grcApp .grc-footer-left{flex:1}
+#grcApp .grc-footer-logo{height:34px;display:flex;align-items:center}#grcApp .grc-footer-logo img{height:100%;width:auto;object-fit:contain;filter:brightness(1.12)}
+#grcApp .grc-footer-info{display:flex;flex-direction:column;gap:2px;min-width:0}#grcApp .grc-footer-info strong{font-size:10px;color:#fff;white-space:nowrap}#grcApp .grc-footer-info span{font-size:8px;color:rgba(255,255,255,.52);white-space:nowrap}
+#grcApp .grc-footer-right{font-size:8px;color:rgba(255,255,255,.48);white-space:nowrap}#grcApp .grc-footer-right .grc-live{color:#4ade80;font-weight:800}#grcApp .grc-footer-sep{color:rgba(255,255,255,.18)}
+body.grc-mode>#adminOv,body.grc-mode>#gapOv,body.grc-mode>#lockOv,body.grc-mode>#userAlertDrop,body.grc-mode>#userProfileDrop,body.grc-mode>#notificationsPanel,body.grc-mode>#myRequestsPanel{display:none!important;visibility:hidden!important;pointer-events:none!important}
+.grc-export-select-all{display:flex;align-items:center;gap:10px;margin:0 0 13px;padding:12px 13px;border:1px solid rgba(0,163,196,.28);border-radius:12px;background:linear-gradient(135deg,#eef9fb,#f8fcfd);cursor:pointer}.grc-export-select-all input{width:17px;height:17px;accent-color:#0195af}.grc-export-select-all span{display:flex;flex-direction:column;gap:2px}.grc-export-select-all b{font-size:10px;color:#17384a}.grc-export-select-all small{font-size:8px;color:#708591}
+.grc-export-registers-section>.grc-export-help{font-size:8.5px;color:#718692;margin:0 0 10px;line-height:1.55}
+.grc-export-register-group{border:1px solid #dce6ec;border-radius:11px;background:#fff;margin:8px 0;overflow:hidden}.grc-export-register-group>summary{list-style:none;display:flex;align-items:center;gap:9px;padding:11px 12px;cursor:pointer;background:#f7fafc}.grc-export-register-group>summary::-webkit-details-marker{display:none}.grc-export-register-group[open]>summary{border-bottom:1px solid #e2eaee;background:#f1f8fa}.grc-export-register-chevron{font-size:13px;color:#0195af;transition:transform .18s}.grc-export-register-group[open] .grc-export-register-chevron{transform:rotate(180deg)}.grc-export-register-group summary>div{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}.grc-export-register-group summary b{font-size:10px;color:#17384a}.grc-export-register-group summary small{font-size:8px;color:#718692}.grc-export-group-all{display:flex;align-items:center;gap:5px;padding:5px 8px;border-radius:7px;background:#fff;border:1px solid #dce6ec;font-size:8px;font-weight:800;color:#315568;cursor:pointer}.grc-export-group-all input{accent-color:#0195af}.grc-export-register-body{padding:10px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+@media(max-width:900px){#grcApp .grc-performance-header{height:auto!important;min-height:62px!important;padding:8px 14px!important;flex-wrap:wrap!important}#grcApp .grc-perf-actions{margin-left:auto}#grcApp .grc-header-btn-label,#grcApp .grc-user-profile-btn>div:not(.grc-user-avatar){display:none!important}#grcApp .grc-performance-footer{padding:0 14px!important}#grcApp .grc-footer-info span,#grcApp .grc-footer-right>span:not(.grc-live){display:none!important}.grc-export-register-body{grid-template-columns:1fr}}
