@@ -1040,3 +1040,22 @@ body.grc-mode #filterChips,body.grc-mode #yearBtns,body.grc-mode .filter-chips,b
 #grcApp .grc-user-profile-btn .qumc-user-role{max-width:90px!important;font-size:7.4px!important;line-height:1.05!important;letter-spacing:.065em!important}
 #grcApp #grcRiskNotifBtn{width:34px!important;height:34px!important;border-radius:15px!important}
 @media(max-width:900px){#grcApp .grc-performance-header{height:auto!important;min-height:58px!important;padding:9px 16px!important}}
+\n\n/* v69 — GRC export controls match the compact Performance navigation controls */
+#grcApp .grc-export-actions{
+  gap:6px!important;
+  padding:3px 0!important;
+}
+#grcApp .grc-export-btn{
+  height:32px!important;
+  min-height:32px!important;
+  padding:0 12px!important;
+  border-radius:10px!important;
+  gap:6px!important;
+  font-size:10px!important;
+  font-weight:850!important;
+  letter-spacing:.025em!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.68)!important;
+}
+#grcApp .grc-export-menu{
+  top:38px!important;
+}
