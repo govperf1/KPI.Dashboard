@@ -4,7 +4,7 @@
    Review & Guidance Center requests.
    ===================================================================== */
 (function(){
-  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V64__)return;window.__QUMC_GRC_RISK_WORKFLOW_V64__=true;
+  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V65__)return;window.__QUMC_GRC_RISK_WORKFLOW_V65__=true;
   var cache=[],unsub=null,startedFor='';
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function role(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
@@ -20,7 +20,7 @@
   function actionable(r){var s=String(r.status||'');if(isOwner())return s==='returned_requester'||s==='rejected_manager'||s==='rejected_super_admin';if(isManager())return s==='pending_manager'||s==='returned_manager';if(isSuper())return s==='pending_super_admin';return false;}
   function refreshBadge(){var n=cache.filter(actionable).length,el=document.getElementById('grcRiskNotifCount'),req=document.getElementById('grcRiskRequestCount'),profile=document.getElementById('_grcProfileRiskCount');if(el){el.textContent=String(n);el.style.display=n?'grid':'none';}if(req){req.textContent=String(cache.length);req.style.display=cache.length?'grid':'none';}if(profile)profile.textContent=String(n);}
   function stop(){if(unsub)try{unsub();}catch(_){}unsub=null;startedFor='';cache=[];window.__grcRiskRequestCache=[];refreshBadge();var panel=document.getElementById('_grcRiskNotifPanel');if(panel)panel.remove();}
-  function start(){if(!document.body.classList.contains('grc-mode')){if(unsub||startedFor)stop();return;}var key=email()+'|'+role();if(!email()||typeof window._grcRiskRequestsSubscribe!=='function')return;if(startedFor===key&&unsub)return;if(unsub)try{unsub();}catch(_){}startedFor=key;unsub=window._grcRiskRequestsSubscribe(function(rows,err){if(err)return;cache=Array.isArray(rows)?rows:[];window.__grcRiskRequestCache=cache;refreshBadge();var ov=document.getElementById('_grcRiskProfileOv');if(ov)renderProfileBody();});}
+  function start(){if(!document.body.classList.contains('grc-mode')){if(unsub||startedFor)stop();return;}var key=email()+'|'+role();if(!email()){cache=[];refreshBadge();return;}if(typeof window._grcRiskRequestsSubscribe!=='function'){cache=[];window.__grcRiskRequestCache=[];refreshBadge();return;}if(startedFor===key&&unsub)return;if(unsub)try{unsub();}catch(_){}startedFor=key;unsub=window._grcRiskRequestsSubscribe(function(rows,err){if(err)return;cache=Array.isArray(rows)?rows:[];window.__grcRiskRequestCache=cache;refreshBadge();var ov=document.getElementById('_grcRiskProfileOv');if(ov)renderProfileBody();});}
   function fieldRows(obj){obj=obj||{};var labels={id:'Risk ID',riskIdentified:'Risk Identified',riskCategory:'Risk Category',likelihood:'Likelihood',impact:'Impact',controlType:'Control Type',actionStatus:'Action Status',department:'Department'};return Object.keys(labels).map(function(k){return'<tr><th>'+labels[k]+'</th><td>'+esc(obj[k]==null?'—':obj[k])+'</td></tr>';}).join('');}
   function changedTable(r){var before=r.currentRecord||{},after=r.proposedRecord||{},keys=Array.isArray(r.changedFields)&&r.changedFields.length?r.changedFields:['riskIdentified','riskCategory','likelihood','impact','controlType','actionStatus'];return'<table class="grc-risk-diff"><thead><tr><th>Field</th><th>Current Value</th><th>Proposed Value</th></tr></thead><tbody>'+keys.map(function(k){return'<tr><th>'+esc(k.replace(/([A-Z])/g,' $1'))+'</th><td>'+esc(before[k]==null?'—':before[k])+'</td><td>'+esc(after[k]==null?'—':after[k])+'</td></tr>';}).join('')+'</tbody></table>';}
   function actions(r){var s=String(r.status||''),html='';
@@ -41,6 +41,15 @@
   window._grcRiskEditResubmit=function(id){var r=cache.find(function(x){return String(x.id)===String(id);});if(!r)return;var d=document.getElementById('_grcRiskDetailsOv');if(d)d.remove();var p=document.getElementById('_grcRiskProfileOv');if(p)p.remove();if(typeof window._grcOpenRiskRequestResubmit==='function')window._grcOpenRiskRequestResubmit(r);};
   window._grcRiskOpenNotifications=function(ev){if(ev){ev.preventDefault();ev.stopPropagation();}start();var old=document.getElementById('_grcRiskNotifPanel');if(old){old.remove();return;}var btn=document.getElementById('grcRiskNotifBtn'),rect=btn&&btn.getBoundingClientRect(),rows=cache.filter(actionable),panel=document.createElement('div');panel.id='_grcRiskNotifPanel';panel.className='grc-risk-notif-panel';panel.style.top=((rect&&rect.bottom||70)+8)+'px';panel.style.right=Math.max(12,window.innerWidth-(rect&&rect.right||window.innerWidth-20))+'px';panel.innerHTML='<header><b>Risk Management Notifications</b><button onclick="document.getElementById(\'_grcRiskNotifPanel\').remove()">×</button></header><div>'+(rows.length?rows.map(function(r){return'<button onclick="document.getElementById(\'_grcRiskNotifPanel\').remove();window._grcRiskOpenProfile(\''+esc(r.id)+'\')"><strong>'+esc(r.requestCode||r.id)+'</strong><span>'+esc(statusLabel(r.status))+'</span></button>';}).join(''):'<p>No Risk Management actions require your attention.</p>')+'</div>';document.body.appendChild(panel);};
   window._grcRiskRefreshUi=function(){start();refreshBadge();};
+
+  window._grcRiskBindHeader=function(){
+    var req=document.getElementById('grcRiskRequestsBtn'),not=document.getElementById('grcRiskNotifBtn'),usr=document.querySelector('#grcApp .grc-user-profile-btn');
+    if(req&&!req.dataset.grcBound){req.dataset.grcBound='1';req.onclick=function(e){e.preventDefault();e.stopPropagation();window._grcRiskOpenProfile();};}
+    if(not&&!not.dataset.grcBound){not.dataset.grcBound='1';not.onclick=function(e){e.preventDefault();e.stopPropagation();window._grcRiskOpenNotifications(e);};}
+    if(usr&&!usr.dataset.grcBound){usr.dataset.grcBound='1';usr.onclick=function(e){e.preventDefault();e.stopPropagation();window._grcRiskOpenProfileMenu(e);};}
+    start();refreshBadge();
+  };
+
   document.addEventListener('click',function(e){var p=document.getElementById('_grcRiskNotifPanel'),b=document.getElementById('grcRiskNotifBtn');if(p&&(!b||!b.contains(e.target))&&!p.contains(e.target))p.remove();var m=document.getElementById('_grcUserProfileMenu'),u=document.querySelector('.grc-user-profile-btn');if(m&&(!u||!u.contains(e.target))&&!m.contains(e.target))m.remove();},true);
   setInterval(start,1000);setInterval(refreshBadge,3000);document.addEventListener('DOMContentLoaded',start);
 })();
