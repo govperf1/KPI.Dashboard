@@ -15,7 +15,7 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__='20260727-grc-root-v67';
+  window.__QUMC_GRC_BUILD__='20260727-grc-ui-export-v71';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
   var STATE_VERSION=13;
@@ -109,11 +109,11 @@
     {id:'executive',icon:'⌂'},
     {id:'governance',icon:'▦',count:'governance'},
     {id:'risk',icon:'◇',count:'risk'},
-    {id:'register',icon:'▤',count:'register'},
     {id:'compliance',icon:'✓',count:'compliance'},
     {id:'actions',icon:'→',count:'actions'},
     {id:'reports',icon:'▥'},
     {id:'manuals',icon:'▤',count:'manuals'},
+    {id:'register',icon:'▤',count:'register'},
     {id:'advisory',icon:'✦'}
   ];
 
