@@ -942,3 +942,39 @@ body.grc-mode>#adminOv,body.grc-mode>#gapOv,body.grc-mode>#lockOv,body.grc-mode>
 .grc-export-registers-section>.grc-export-help{font-size:8.5px;color:#718692;margin:0 0 10px;line-height:1.55}
 .grc-export-register-group{border:1px solid #dce6ec;border-radius:11px;background:#fff;margin:8px 0;overflow:hidden}.grc-export-register-group>summary{list-style:none;display:flex;align-items:center;gap:9px;padding:11px 12px;cursor:pointer;background:#f7fafc}.grc-export-register-group>summary::-webkit-details-marker{display:none}.grc-export-register-group[open]>summary{border-bottom:1px solid #e2eaee;background:#f1f8fa}.grc-export-register-chevron{font-size:13px;color:#0195af;transition:transform .18s}.grc-export-register-group[open] .grc-export-register-chevron{transform:rotate(180deg)}.grc-export-register-group summary>div{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}.grc-export-register-group summary b{font-size:10px;color:#17384a}.grc-export-register-group summary small{font-size:8px;color:#718692}.grc-export-group-all{display:flex;align-items:center;gap:5px;padding:5px 8px;border-radius:7px;background:#fff;border:1px solid #dce6ec;font-size:8px;font-weight:800;color:#315568;cursor:pointer}.grc-export-group-all input{accent-color:#0195af}.grc-export-register-body{padding:10px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
 @media(max-width:900px){#grcApp .grc-performance-header{height:auto!important;min-height:62px!important;padding:8px 14px!important;flex-wrap:wrap!important}#grcApp .grc-perf-actions{margin-left:auto}#grcApp .grc-header-btn-label,#grcApp .grc-user-profile-btn>div:not(.grc-user-avatar){display:none!important}#grcApp .grc-performance-footer{padding:0 14px!important}#grcApp .grc-footer-info span,#grcApp .grc-footer-right>span:not(.grc-live){display:none!important}.grc-export-register-body{grid-template-columns:1fr}}
+
+
+/* ===== v65: Performance-style GRC navigation and stable workspace chrome ===== */
+body.grc-mode > .topbar,body.grc-mode > .filter-strip,body.grc-mode > .tabnav,body.grc-mode > .dashwrap,body.grc-mode > .footbar,
+body.grc-mode #filterChips,body.grc-mode #yearBtns,body.grc-mode .filter-chips,body.grc-mode .tb-chip{display:none!important;visibility:hidden!important;pointer-events:none!important}
+#grcApp .grc-nav-wrap{background:#edf3f7!important;padding:8px 18px!important;gap:12px!important;min-height:58px!important;align-items:center!important}
+#grcApp .grc-nav{display:flex!important;gap:9px!important;min-height:40px!important;align-items:center!important;overflow-x:auto!important}
+#grcApp .grc-tab{height:39px!important;min-width:118px!important;padding:0 14px!important;border:1px solid #d5e1e8!important;border-radius:11px!important;background:#fff!important;color:#52657a!important;box-shadow:0 5px 14px rgba(21,37,56,.055)!important;font-size:10.5px!important}
+#grcApp .grc-tab:after{display:none!important}
+#grcApp .grc-tab:hover{border-color:#99c9d4!important;color:#007a96!important;background:#f8fdff!important}
+#grcApp .grc-tab.is-active{background:#152538!important;border-color:#152538!important;color:#fff!important;box-shadow:0 8px 20px rgba(21,37,56,.18)!important}
+#grcApp .grc-tab-count{background:#eaf3f7!important;color:#416173!important}.grc-tab.is-active .grc-tab-count{background:#00a3c4!important;color:#fff!important}
+.grc-export-dropdown-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.grc-export-compact-group{position:relative}.grc-export-dropdown-btn{width:100%;min-height:48px;border:1px solid #d7e3e9;border-radius:12px;background:#fff;padding:9px 11px;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;cursor:pointer}.grc-export-dropdown-btn span{display:flex;flex-direction:column;gap:3px}.grc-export-dropdown-btn b{font-size:10px;color:#183b50}.grc-export-dropdown-btn small{font-size:8px;color:#6e8491}.grc-export-dropdown-btn i{font-style:normal;color:#62808f}.grc-export-dropdown-menu{display:none;position:absolute;z-index:2147483600;top:calc(100% + 5px);left:0;right:0;max-height:260px;overflow:auto;background:#fff;border:1px solid #d5e2e8;border-radius:12px;padding:8px;box-shadow:0 18px 44px rgba(21,37,56,.2)}.grc-export-dropdown-menu.is-open{display:grid;gap:4px}.grc-export-dropdown-menu .group-all{border-bottom:1px solid #e4ecef;padding-bottom:7px;margin-bottom:3px;font-weight:900}
+/* GRC chat uses the same visual language as Performance but its own data */
+#grcAiFloatBtn{right:22px!important;bottom:56px!important;z-index:2147483000!important}#grcAiWin{right:22px!important;bottom:108px!important;z-index:2147483001!important}body:not(.grc-mode) #grcAiFloatBtn,body:not(.grc-mode) #grcAiWin{display:none!important}#grcAiWin.open{display:flex!important}
+/* Native page export: print the actual GRC page layout instead of rebuilding cards */
+@media print{
+ @page{size:A4 landscape;margin:8mm}
+ body.grc-native-export,body.grc-native-export-all{overflow:visible!important;background:#fff!important}
+ body.grc-native-export > *:not(#grcApp),body.grc-native-export-all > *:not(#grcApp){display:none!important}
+ body.grc-native-export #grcApp,body.grc-native-export-all #grcApp{position:static!important;display:block!important;width:100%!important;height:auto!important;overflow:visible!important;background:#fff!important}
+ body.grc-native-export #grcApp>.grc-topbar,body.grc-native-export #grcApp>.grc-nav-wrap,body.grc-native-export #grcApp>.grc-footer,
+ body.grc-native-export-all #grcApp>.grc-topbar,body.grc-native-export-all #grcApp>.grc-nav-wrap,body.grc-native-export-all #grcApp>.grc-footer{display:none!important}
+ body.grc-native-export #grcApp>.grc-main{display:block!important;padding:0!important;overflow:visible!important}
+ body.grc-native-export #grcApp .grc-page{display:none!important;max-width:none!important;width:100%!important;margin:0!important;overflow:visible!important}
+ body.grc-native-export #grcApp .grc-page.is-active{display:block!important}
+ body.grc-native-export-all #grcApp>.grc-main{display:none!important}
+ #grcNativeExportHost{display:block!important;width:100%!important;overflow:visible!important}
+ #grcNativeExportHost .grc-native-export-sheet{display:block!important;max-width:none!important;width:100%!important;margin:0!important;padding:0!important;break-before:page!important;page-break-before:always!important;overflow:visible!important}
+ #grcNativeExportHost .grc-native-export-sheet:first-child{break-before:auto!important;page-break-before:auto!important}
+ body.grc-native-export .grc-metric-grid,body.grc-native-export-all .grc-metric-grid{grid-template-columns:repeat(5,minmax(0,1fr))!important}
+ body.grc-native-export .grc-module-grid,body.grc-native-export-all .grc-module-grid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+ body.grc-native-export .grc-grid-2,body.grc-native-export-all .grc-grid-2{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+ body.grc-native-export .grc-table-wrap,body.grc-native-export-all .grc-table-wrap{overflow:visible!important;max-height:none!important}
+ body.grc-native-export button,body.grc-native-export-all button{print-color-adjust:exact!important;-webkit-print-color-adjust:exact!important}
+}

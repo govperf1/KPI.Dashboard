@@ -134,3 +134,54 @@
 :is(#grcApp,#performanceAdvisoryRoot) .adv-modal-wide{width:min(980px,96vw)}
 
 body.adv-modal-open #_grcAdminFloatingBtn{display:none!important}
+
+
+/* v65 request center fixes */
+.adv-modal-backdrop{position:fixed!important;inset:0!important;z-index:2147483646!important;align-items:center!important;justify-content:center!important;padding:18px!important;overflow:auto!important}
+.adv-modal{width:min(860px,96vw)!important;max-height:94vh!important;display:flex!important;flex-direction:column!important;overflow:hidden!important}.adv-modal-body{overflow:auto!important;min-height:0!important}.adv-form{align-items:start!important}.adv-related-list{max-height:230px!important;overflow:auto!important}
+.adv-metric-grid{grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:12px!important}.adv-metric-card{min-height:104px!important;display:flex!important;flex-direction:column!important;justify-content:space-between!important}.adv-metric-card strong{font-size:24px!important;line-height:1!important}.adv-metric-card span{line-height:1.25!important}
+@media(max-width:900px){.adv-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.adv-modal{width:min(760px,97vw)!important}}
+
+/* v65 modal portal styles — modal is mounted under <body>, outside platform roots */
+body > .adv-modal-backdrop{display:flex!important;background:rgba(7,24,35,.65)!important;backdrop-filter:blur(5px)}
+body > .adv-modal-backdrop .adv-modal{background:#fff!important;border-radius:20px!important;box-shadow:0 28px 90px rgba(0,0,0,.30)!important;color:#173f55!important}
+body > .adv-modal-backdrop .adv-modal-head{position:sticky;top:0;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 19px;background:#fff;border-bottom:1px solid #e1e9ed}
+body > .adv-modal-backdrop .adv-modal-head h2,body > .adv-modal-backdrop .adv-modal-head h3{font-size:14px;color:#173f55;margin:0}
+body > .adv-modal-backdrop .adv-modal-head p{font-size:9px;color:#718692;margin:4px 0 0}
+body > .adv-modal-backdrop .adv-modal-close{width:34px;height:34px;border:0;border-radius:9px;background:#edf3f5;color:#526b78;font-size:20px;cursor:pointer}
+body > .adv-modal-backdrop .adv-modal-body{padding:18px 20px}
+body > .adv-modal-backdrop .adv-modal-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:14px;padding:0 20px 18px}
+body > .adv-modal-backdrop .adv-modal-body .adv-modal-actions{padding:0;margin-top:14px}
+body > .adv-modal-backdrop .adv-form{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+body > .adv-modal-backdrop .adv-field{display:flex;flex-direction:column;gap:6px;min-width:0}
+body > .adv-modal-backdrop .adv-field.full{grid-column:1/-1}
+body > .adv-modal-backdrop .adv-field label{font-size:9px;font-weight:900;color:#45616f}
+body > .adv-modal-backdrop .adv-form input,body > .adv-modal-backdrop .adv-form select,body > .adv-modal-backdrop .adv-form textarea{box-sizing:border-box;width:100%;border:1px solid #cfdee3;border-radius:11px;background:#fff;color:#173f55;padding:10px 11px;font:inherit;font-size:10px;outline:none}
+body > .adv-modal-backdrop .adv-form input:focus,body > .adv-modal-backdrop .adv-form select:focus,body > .adv-modal-backdrop .adv-form textarea:focus{border-color:#4baeb9;box-shadow:0 0 0 3px rgba(75,174,185,.12)}
+body > .adv-modal-backdrop .adv-field textarea{min-height:100px;resize:vertical}
+body > .adv-modal-backdrop .adv-field small{font-size:8px;color:#7b8e98;line-height:1.4}
+body > .adv-modal-backdrop .adv-btn{border:0;border-radius:10px;padding:9px 13px;font:inherit;font-size:9px;font-weight:900;cursor:pointer}
+body > .adv-modal-backdrop .adv-btn.primary{background:#087e8c;color:#fff}
+body > .adv-modal-backdrop .adv-btn.ghost{background:#eef3f5;color:#45616f}
+body > .adv-modal-backdrop .adv-btn.warn{background:#fff2d7;color:#8b5b00}
+body > .adv-modal-backdrop .adv-btn.good{background:#e4f5ec;color:#18794e}
+body > .adv-modal-backdrop .adv-related-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;max-height:230px;overflow:auto;padding:8px;border:1px solid #d7e3e8;border-radius:12px;background:#fbfdfe}
+body > .adv-modal-backdrop .adv-related-option{display:flex;align-items:flex-start;gap:8px;padding:9px 10px;border:1px solid #e2eaee;border-radius:10px;background:#fff;cursor:pointer;color:#365665;font-size:9px;line-height:1.45}
+body > .adv-modal-backdrop .adv-related-option:hover{border-color:#9bcbd1;background:#f3fafb}
+body > .adv-modal-backdrop .adv-related-option input{width:auto;margin-top:2px;flex:0 0 auto}
+body > .adv-modal-backdrop .adv-related-option b{display:block;color:#173f55;font-size:9.5px}
+body > .adv-modal-backdrop .adv-related-option small{display:block;color:#7a8f9a;margin-top:2px}
+body > .adv-modal-backdrop .adv-related-new,body > .adv-modal-backdrop .adv-related-empty{grid-column:1/-1}
+body > .adv-modal-backdrop .adv-card{background:#fff;border:1px solid #dce6eb;border-radius:16px;padding:16px;box-shadow:0 5px 18px rgba(17,52,70,.045)}
+body > .adv-modal-backdrop .adv-card-title{font-size:11px;font-weight:900;color:#173f55;margin:0 0 13px}
+body > .adv-modal-backdrop .adv-detail-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-bottom:13px}
+body > .adv-modal-backdrop .adv-detail-item{border:1px solid #e3ebef;border-radius:11px;background:#fafcfd;padding:10px}
+body > .adv-modal-backdrop .adv-detail-item span{display:block;font-size:7.5px;text-transform:uppercase;color:#8597a1;margin-bottom:4px}
+body > .adv-modal-backdrop .adv-detail-item b{display:block;font-size:9.5px;color:#294e60;word-break:break-word}
+body > .adv-modal-backdrop .adv-message{border:1px solid #e1e9ed;border-radius:13px;padding:11px 12px;margin:8px 0;background:#fafcfd}
+body > .adv-modal-backdrop .adv-message.admin{background:#eff9fa;border-color:#cde8eb}
+body > .adv-modal-backdrop .adv-message.requester{background:#f8f7fc;border-color:#e4def2}
+body > .adv-modal-backdrop .adv-message-head{display:flex;justify-content:space-between;gap:12px;font-size:8px;color:#7b8f99;margin-bottom:6px}
+body > .adv-modal-backdrop .adv-message-body{font-size:9.5px;line-height:1.6;color:#35515f;white-space:pre-wrap}
+body > .adv-modal-backdrop .adv-personal-note{padding:10px 12px;border:1px solid #f1d69a;border-radius:11px;background:#fff8e7;color:#775100;font-size:9px;margin-bottom:11px;line-height:1.5}
+@media(max-width:620px){body > .adv-modal-backdrop .adv-form{grid-template-columns:1fr}body > .adv-modal-backdrop .adv-field.full{grid-column:auto}body > .adv-modal-backdrop .adv-related-list{grid-template-columns:1fr}body > .adv-modal-backdrop .adv-detail-grid{grid-template-columns:1fr}}
