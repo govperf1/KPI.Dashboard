@@ -4,7 +4,7 @@
    Review & Guidance Center requests.
    ===================================================================== */
 (function(){
-  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V63__)return;window.__QUMC_GRC_RISK_WORKFLOW_V63__=true;
+  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V64__)return;window.__QUMC_GRC_RISK_WORKFLOW_V64__=true;
   var cache=[],unsub=null,startedFor='';
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function role(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
@@ -18,7 +18,7 @@
   function operationLabel(s){return({add:'Add Risk',update:'Update Risk',delete:'Delete Risk'})[s]||s||'—';}
   function tone(s){if(/^pending/.test(s)||/^returned/.test(s))return'warn';if(s==='published')return'good';if(/^rejected/.test(s)||s==='cancelled')return'bad';return'info';}
   function actionable(r){var s=String(r.status||'');if(isOwner())return s==='returned_requester'||s==='rejected_manager'||s==='rejected_super_admin';if(isManager())return s==='pending_manager'||s==='returned_manager';if(isSuper())return s==='pending_super_admin';return false;}
-  function refreshBadge(){var n=cache.filter(actionable).length,el=document.getElementById('grcRiskNotifCount');if(el){el.textContent=String(n);el.style.display=n?'grid':'none';}}
+  function refreshBadge(){var n=cache.filter(actionable).length,el=document.getElementById('grcRiskNotifCount'),req=document.getElementById('grcRiskRequestCount'),profile=document.getElementById('_grcProfileRiskCount');if(el){el.textContent=String(n);el.style.display=n?'grid':'none';}if(req){req.textContent=String(cache.length);req.style.display=cache.length?'grid':'none';}if(profile)profile.textContent=String(n);}
   function stop(){if(unsub)try{unsub();}catch(_){}unsub=null;startedFor='';cache=[];window.__grcRiskRequestCache=[];refreshBadge();var panel=document.getElementById('_grcRiskNotifPanel');if(panel)panel.remove();}
   function start(){if(!document.body.classList.contains('grc-mode')){if(unsub||startedFor)stop();return;}var key=email()+'|'+role();if(!email()||typeof window._grcRiskRequestsSubscribe!=='function')return;if(startedFor===key&&unsub)return;if(unsub)try{unsub();}catch(_){}startedFor=key;unsub=window._grcRiskRequestsSubscribe(function(rows,err){if(err)return;cache=Array.isArray(rows)?rows:[];window.__grcRiskRequestCache=cache;refreshBadge();var ov=document.getElementById('_grcRiskProfileOv');if(ov)renderProfileBody();});}
   function fieldRows(obj){obj=obj||{};var labels={id:'Risk ID',riskIdentified:'Risk Identified',riskCategory:'Risk Category',likelihood:'Likelihood',impact:'Impact',controlType:'Control Type',actionStatus:'Action Status',department:'Department'};return Object.keys(labels).map(function(k){return'<tr><th>'+labels[k]+'</th><td>'+esc(obj[k]==null?'—':obj[k])+'</td></tr>';}).join('');}

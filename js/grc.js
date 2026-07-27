@@ -15,7 +15,7 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__='20260726-grc-risk-approval-v60';
+  window.__QUMC_GRC_BUILD__='20260727-grc-register-center-v64';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
   var STATE_VERSION=12;
@@ -112,7 +112,6 @@
     {id:'register',icon:'▤',count:'register'},
     {id:'compliance',icon:'✓',count:'compliance'},
     {id:'actions',icon:'→',count:'actions'},
-    {id:'documents',icon:'▣',count:'documents'},
     {id:'reports',icon:'▥'},
     {id:'manuals',icon:'▤',count:'manuals'},
     {id:'advisory',icon:'✦'}
@@ -900,16 +899,18 @@
   }
   function logoSrc(){var i=document.getElementById('logoImg');return i&&i.src?i.src:'';}
   function shellHtml(){
-    return'<header class="grc-topbar">'+
-      '<div class="grc-brand"><div class="grc-logo"><img alt="QUMC" src="'+esc(logoSrc())+'"></div><div><div class="grc-brand-title">'+L('app')+'</div><div class="grc-brand-sub">'+L('sub')+'</div></div></div>'+
-      '<div class="grc-preview-pill"><span class="grc-preview-dot"></span>'+L('preview')+'</div><div class="grc-top-space"></div>'+
-      '<button class="grc-top-btn" onclick="window._grcToggleLang()">'+(isAr()?'EN':'عربي')+'</button>'+
-      '<button type="button" id="grcRiskNotifBtn" class="grc-risk-notif-btn" onclick="window._grcRiskOpenNotifications&&window._grcRiskOpenNotifications(event)" title="Risk Management Notifications">♢<span id="grcRiskNotifCount" class="grc-risk-notif-count">0</span></button>'+
-      '<button type="button" class="grc-user grc-user-profile-btn" onclick="window._grcRiskOpenProfileMenu&&window._grcRiskOpenProfileMenu(event)"><div class="grc-user-avatar">'+esc((currentName()[0]||'S').toUpperCase())+'</div><div><div class="grc-user-name">'+esc(currentName())+'</div><div class="grc-user-role">'+esc(roleText())+'</div></div><span class="grc-user-chevron">⌄</span></button>'+(isGrcAdmin()?'<div class="grc-super-actions"><button onclick="window._grcSwitch(\'reports\')">▤ '+L('reportsTitle')+'</button><button onclick="window._grcSwitch(\'manuals\')">▥ '+(isAr()?'الدليل':'Manual')+'</button></div>':'')+
-      '<button class="grc-top-btn grc-back" onclick="window._exitGRC()">← '+L('back')+'</button></header>'+
+    var logo=esc(logoSrc()),userInitial=esc((currentName()[0]||'U').toUpperCase());
+    return'<header class="grc-topbar grc-performance-header">'+
+      '<div class="grc-perf-brand"><div class="grc-perf-logo"><img alt="QUMC" src="'+logo+'"></div><div class="grc-perf-identity"><div class="grc-perf-org">Qassim University Medical City</div><div class="grc-perf-div">Facility Management &amp; Safety Division — Governance, Risk &amp; Compliance</div></div></div>'+
+      '<div class="grc-top-space"></div><div class="grc-perf-actions">'+
+      '<button class="grc-perf-btn" onclick="window._grcToggleLang()">'+(isAr()?'EN':'عربي')+'</button>'+
+      '<button type="button" id="grcRiskRequestsBtn" class="grc-header-icon-btn grc-request-header-btn" onclick="window._grcRiskOpenProfile&&window._grcRiskOpenProfile()" title="Submitted Risk Management Requests"><span class="grc-header-icon">▤</span><span class="grc-header-btn-label">Submitted Requests</span><i id="grcRiskRequestCount" class="grc-risk-notif-count">0</i></button>'+
+      '<button type="button" id="grcRiskNotifBtn" class="grc-header-icon-btn" onclick="window._grcRiskOpenNotifications&&window._grcRiskOpenNotifications(event)" title="Risk Management Notifications"><span class="grc-header-icon">♢</span><span class="grc-header-btn-label">Notifications</span><i id="grcRiskNotifCount" class="grc-risk-notif-count">0</i></button>'+
+      '<button type="button" class="grc-user grc-user-profile-btn" onclick="window._grcRiskOpenProfileMenu&&window._grcRiskOpenProfileMenu(event)"><div class="grc-user-avatar">'+userInitial+'</div><div><div class="grc-user-name">'+esc(currentName())+'</div><div class="grc-user-role">'+esc(roleText())+'</div></div><span class="grc-user-chevron">⌄</span></button>'+
+      '<button class="grc-perf-btn grc-back" onclick="window._exitGRC()">← '+L('back')+'</button></div></header>'+
       '<div class="grc-nav-wrap"><nav class="grc-nav">'+modules.map(function(x){var c=x.count?countFor(x.count):null;return'<button class="grc-tab '+(activeTab===x.id?'is-active':'')+'" onclick="window._grcSwitch(\''+x.id+'\')"><span class="grc-tab-icon">'+x.icon+'</span><span>'+L(x.id)+'</span>'+(c!==null?'<span class="grc-tab-count">'+c+'</span>':'')+'</button>';}).join('')+'</nav><div class="grc-export-actions"><button class="grc-export-btn excel" type="button" onclick="window._grcOpenExcelSelector()">📊 <span>Excel</span></button><button class="grc-export-btn report" type="button" onclick="window._grcOpenReportSelector()">📄 <span>Report</span></button><div class="grc-export-menu-wrap"><button class="grc-export-btn export" type="button" onclick="window._grcToggleExportMenu(event)">↗ <span>Export</span> ▾</button><div id="grcExportMenu" class="grc-export-menu">'+modules.map(function(x){return'<button type="button" onclick="window._grcExportPage(\''+x.id+'\')">'+x.icon+' '+L(x.id)+'</button>';}).join('')+'<div class="grc-export-sep"></div><button type="button" onclick="window._grcExportPage(\'all\')">⇩ All Pages</button></div></div></div></div>'+
-            '<main class="grc-main"><section id="grc-page-'+activeTab+'" class="grc-page is-active">'+pageHtml(activeTab)+'</section></main>'+
-      '<footer class="grc-footer"><div class="grc-footer-left"><button class="footer-back-glass grc-footer-back" onclick="window._exitGRC()" type="button" title="Back to Portal Selection"><span>'+(isAr()?'رجوع':'← Back')+'</span></button><span><strong>QUMC GRC Workspace</strong> · '+L('draftWorkspace')+' · '+L('localNote')+'</span></div><span class="grc-live"><i></i> '+'GRC Workspace · © 2026 QUMC</span></footer>';
+      '<main class="grc-main"><section id="grc-page-'+activeTab+'" class="grc-page is-active">'+pageHtml(activeTab)+'</section></main>'+
+      '<footer class="grc-footer grc-performance-footer"><div class="grc-footer-left"><button class="footer-back-glass grc-footer-back" onclick="window._exitGRC()" type="button" title="Back to Portal Selection"><span>'+(isAr()?'رجوع':'← Back')+'</span></button><div class="grc-footer-logo"><img alt="QUMC" src="'+logo+'"></div><div class="grc-footer-info"><strong>Governance, Risk &amp; Compliance Workspace</strong><span>Facility Management &amp; Safety Division — Governance &amp; Performance</span></div></div><div class="grc-footer-right"><span class="grc-live"><i></i> Live</span><span class="grc-footer-sep">·</span><span>© 2026 Qassim University Medical City</span></div></footer>';
   }
   function enhanceRegisterFilters(){
     if(!app)return;
@@ -2607,8 +2608,10 @@
     var risks=(state.risks||[]).filter(function(r){return _grcDepartmentMatch(r,dept);}).map(function(r){return _grcAdvisoryItem('risk',r);});
     var plans=(state.plans||[]).filter(function(r){return _grcDepartmentMatch(r,dept);}).map(function(r){return _grcAdvisoryItem('plan',r);});
     var initiatives=(state.initiatives||[]).filter(function(r){return _grcDepartmentMatch(r,dept);}).map(function(r){return _grcAdvisoryItem('initiative',r);});
-    var compliance=(state.compliance||[]).filter(function(r){return !r.department||_grcDepartmentMatch(r,dept);}).map(function(r){return _grcAdvisoryItem('compliance',r);});
-    return{policies:policies,forms:forms,risks:risks,plansInitiatives:plans.concat(initiatives),compliance:compliance};
+    function assessmentDeptMatch(r){var raw=String(r&&r.responsibleDepartment||'').toLowerCase();if(!raw)return true;if(dept==='projects')return raw.indexOf('project')>=0;if(dept==='housekeeping')return raw.indexOf('house')>=0&&!/laund/.test(raw);if(dept==='laundry')return raw.indexOf('laund')>=0;return raw.indexOf(dept)>=0;}
+    var cbahi=assessmentRows('cbahi',CBAHI_FMS_ROWS).map(function(r){return{chapter:cleanAssessmentCode(r[0]),standard:cleanAssessmentCode(r[1]),standardDescription:r[2]||'',subStandard:cleanAssessmentCode(r[3]),specificRequirement:cleanAssessmentCode(r[5]),specificRequirementDescription:r[6]||'',responsibleDepartment:r[7]||''};}).filter(assessmentDeptMatch).map(function(r){return{type:'cbahi',id:[r.standard,r.subStandard,r.specificRequirement].filter(Boolean).join('/'),code:[r.standard,r.subStandard,r.specificRequirement].filter(Boolean).join('/'),name:r.specificRequirementDescription||r.standardDescription||'CBAHI Requirement'};});
+    var jci=normalizedJciRows().map(function(r){return{domain:r[0]||'',standard:cleanAssessmentCode(r[1]),standardDescription:r[2]||'',subStandard:cleanAssessmentCode(r[3]),specificRequirement:cleanAssessmentCode(r[5]),specificRequirementDescription:r[6]||'',responsibleDepartment:r[7]||''};}).filter(assessmentDeptMatch).map(function(r){return{type:'jci',id:[r.standard,r.subStandard,r.specificRequirement].filter(Boolean).join('/'),code:[r.standard,r.subStandard,r.specificRequirement].filter(Boolean).join('/'),name:r.specificRequirementDescription||r.standardDescription||'JCI Requirement'};});
+    return{policies:policies,forms:forms,risks:risks,plans:plans,initiatives:initiatives,cbahi:cbahi,jci:jci};
   };
   window._grcGetExportSnapshot=function(){
     try{
@@ -2631,7 +2634,7 @@
   window._grcGetModules=function(){return modules.map(function(x){return{id:x.id,icon:x.icon,label:L(x.id)};});};
   window._grcGetActivePage=function(){return activeTab;};
 
-  function pageHtml(id){if(id==='executive')return executivePage();if(id==='governance')return governancePage();if(id==='risk')return riskPage();if(id==='register')return registerPage();if(id==='manuals')return manualsPage();if(id==='compliance')return compliancePage();if(id==='actions')return actionsPage();if(id==='documents')return documentsPage();if(id==='advisory')return typeof window._grcAdvisoryPage==='function'?window._grcAdvisoryPage():'<div class="grc-section"><div class="grc-section-title">Review & Guidance Center</div><div class="grc-section-sub">Review & Guidance Center module is loading.</div></div>';return reportsPage();}
+  function pageHtml(id){if(id==='executive')return executivePage();if(id==='governance')return governancePage();if(id==='risk')return riskPage();if(id==='register')return registerPage();if(id==='manuals')return manualsPage();if(id==='compliance')return compliancePage();if(id==='actions')return actionsPage();if(id==='advisory')return typeof window._grcAdvisoryPage==='function'?window._grcAdvisoryPage():'<div class="grc-section"><div class="grc-section-title">Review & Guidance Center</div><div class="grc-section-sub">Review & Guidance Center module is loading.</div></div>';return reportsPage();}
 
   function ensureOrgViewerStyles(){
     if(document.getElementById('_grcOrgViewerStyles'))return;
@@ -3099,9 +3102,13 @@
   window._grcToggleLang=function(){if(typeof window.lang!=='undefined')window.lang=window.lang==='en'?'ar':'en';else window.lang=isAr()?'en':'ar';document.documentElement.lang=isAr()?'ar':'en';document.documentElement.dir=isAr()?'rtl':'ltr';var b=document.getElementById('langBtn');if(b)b.textContent=isAr()?'EN':'عربي';render();};
   window._grcRefreshLanguage=function(){render();};
   window._hideGRC=function(){var a=document.getElementById('grcApp');if(a){a.classList.remove('grc-visible');a.setAttribute('aria-hidden','true');}document.body.classList.remove('grc-mode');};
+  function closePerformanceUiForGrc(){
+    ['adminOv','gapOv','notificationsPanel','myRequestsPanel','userAlertDrop','userProfileDrop','_kpiOwnerGapStatusOv','_gapOwnerPopup'].forEach(function(id){var e=document.getElementById(id);if(!e)return;e.style.display='none';e.classList.remove('on','open','show');});
+    document.body.classList.remove('modal-mode');
+  }
   window._exitGRC=function(){window._hideGRC();var bg=document.getElementById('_bgLayer'),po=document.getElementById('_portalOverlay'),auth=document.getElementById('_authOverlay');if(auth)auth.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
   window._openGrcPortal=function(){window._enterGRC();};
-  window._enterGRC=function(){if(!canEnterGrc()){window._showGrcComingSoon();return;}activeTab=activeTab||'executive';['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.remove('dashboard-mode','auth-mode','portal-mode','performance-advisory-mode');document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');render();if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();};
+  window._enterGRC=function(){if(!canEnterGrc()){window._showGrcComingSoon();return;}activeTab=activeTab||'executive';closePerformanceUiForGrc();['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.remove('dashboard-mode','auth-mode','portal-mode','performance-advisory-mode');document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');render();if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();};
   window._closeGrcComingSoon=function(){var ov=document.getElementById('_grcComingSoon');if(ov)ov.remove();document.body.classList.remove('grc-coming-open');};
   window._showGrcComingSoon=function(){
     window._closeGrcComingSoon();document.body.classList.add('grc-coming-open');

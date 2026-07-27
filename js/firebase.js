@@ -400,7 +400,7 @@ window._selectPortal=async portal=>{
     function _advPublicShape(r){
       r=r||{};
       return {
-        code:String(r.code||''),platform:String(r.platform||'grc'),serviceType:'consultation',requestType:String(r.requestType||''),
+        code:String(r.code||''),platform:String(r.platform||'grc'),serviceType:String(r.serviceType||'review_guidance'),requestType:String(r.requestType||''),
         requestTypeLabel:String(r.requestTypeLabel||''),category:String(r.category||''),
         relatedType:String(r.relatedType||''),relatedItems:Array.isArray(r.relatedItems)?r.relatedItems.map(function(x){return {type:String(x&&x.type||''),id:String(x&&x.id||''),code:String(x&&x.code||''),name:String(x&&x.name||'')};}):[],
         relatedNewText:String(r.relatedNewText||''),departmentKey:String(r.departmentKey||''),
@@ -457,7 +457,7 @@ window._selectPortal=async portal=>{
       const base={
         userName:String(window._fbName||window.currentUserName||_advEmail().split('@')[0]||'User'),userEmail:_advEmail(),
         departmentKey:String(payload.departmentKey||window._fbDept||''),departmentCode:deptCode,gender:String(payload.gender||''),priority:String(payload.priority||'Normal'),
-        platform:String(payload.platform||'grc'),serviceType:'consultation',requestType:String(payload.requestType||''),requestTypeLabel:String(payload.requestTypeLabel||''),
+        platform:String(payload.platform||'grc'),serviceType:String(payload.serviceType||'review_guidance'),requestType:String(payload.requestType||''),requestTypeLabel:String(payload.requestTypeLabel||''),
         category:String(payload.category||''),relatedType:String(payload.relatedType||''),
         relatedItems:Array.isArray(payload.relatedItems)?payload.relatedItems.map(function(x){return {type:String(x&&x.type||''),id:String(x&&x.id||''),code:String(x&&x.code||''),name:String(x&&x.name||'')};}):[],
         relatedNewText:String(payload.relatedNewText||''),title:String(payload.title||''),details:String(payload.details||''),
