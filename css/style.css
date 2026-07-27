@@ -2576,3 +2576,16 @@ body.grc-mode .topbar,body.grc-mode .filter-strip,body.grc-mode .tabnav,body.grc
 /* v66 unified Back button for Performance and GRC */
 .footbar .footer-back-glass,#grcApp .footer-back-glass{background:linear-gradient(135deg,rgba(1,149,175,.20),rgba(21,37,56,.62))!important;border:1px solid rgba(83,207,224,.38)!important;color:#fff!important;box-shadow:0 10px 26px rgba(3,18,31,.20),inset 0 1px 0 rgba(255,255,255,.14)!important;backdrop-filter:blur(14px)!important;-webkit-backdrop-filter:blur(14px)!important}
 .footbar .footer-back-glass:hover,#grcApp .footer-back-glass:hover{background:linear-gradient(135deg,rgba(1,149,175,.32),rgba(21,37,56,.76))!important;border-color:rgba(83,207,224,.58)!important;color:#fff!important;box-shadow:0 14px 34px rgba(1,149,175,.18),inset 0 1px 0 rgba(255,255,255,.18)!important}
+
+
+/* v68 — restore the original light-glass Back button colour */
+.footbar .footer-back-glass,#grcApp .footer-back-glass{
+  background:linear-gradient(135deg,rgba(255,255,255,.92),rgba(240,249,252,.70))!important;
+  border:1px solid rgba(1,149,175,.24)!important;color:#152538!important;
+  box-shadow:0 10px 26px rgba(15,23,42,.08),inset 0 1px 0 rgba(255,255,255,.78)!important;
+}
+.footbar .footer-back-glass:hover,#grcApp .footer-back-glass:hover{
+  background:linear-gradient(135deg,rgba(255,255,255,.98),rgba(231,248,252,.86))!important;
+  border-color:rgba(1,149,175,.42)!important;color:#152538!important;
+  box-shadow:0 14px 34px rgba(1,149,175,.15),inset 0 1px 0 rgba(255,255,255,.90)!important;
+}
