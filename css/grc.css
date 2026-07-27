@@ -1104,3 +1104,87 @@ body.grc-mode #grcApp>.footbar.grc-performance-footer{display:flex!important;vis
 #grcApp>.topbar.grc-performance-topbar .qumc-user-avatar{width:27px!important;height:27px!important;min-width:27px!important;border-radius:11px!important}
 #grcApp>.topbar.grc-performance-topbar .qumc-user-name{max-width:90px!important;font-size:10.5px!important;line-height:1.05!important}
 #grcApp>.topbar.grc-performance-topbar .qumc-user-role{max-width:90px!important;font-size:7.4px!important;line-height:1.05!important;letter-spacing:.065em!important}
+
+
+/* =====================================================================
+   v71 — navigation, readable request form, and complete native export
+   ===================================================================== */
+#grcApp>.grc-performance-nav .grc-page-tab .tab-badge{
+  background:linear-gradient(135deg,#00A3C4,#0089A8)!important;
+  color:#fff!important;
+  border:1px solid rgba(255,255,255,.35)!important;
+  box-shadow:0 2px 7px rgba(0,137,168,.22)!important;
+}
+#grcSubmitReqOv .grc-submit-request-light select,
+#grcSubmitReqOv .grc-submit-request-light textarea{
+  color:#152538!important;
+  background:#f8fbfd!important;
+  border-color:#bfd2df!important;
+}
+#grcSubmitReqOv .grc-submit-request-light select option{
+  color:#152538!important;
+  background:#fff!important;
+}
+#grcSubmitReqOv .grc-submit-request-light textarea::placeholder{color:#8a9aaa!important}
+#grcSubmitReqOv .grc-submit-request-light select:focus,
+#grcSubmitReqOv .grc-submit-request-light textarea:focus{
+  border-color:#0195af!important;
+  box-shadow:0 0 0 3px rgba(1,149,175,.12)!important;
+}
+
+@media print{
+  @page{size:A4 landscape;margin:6mm}
+  body.grc-native-export-all #grcApp{overflow:visible!important;background:#fff!important}
+  body.grc-native-export-all #grcApp>.grc-main{display:none!important}
+  #grcNativeExportHost{display:block!important;width:100%!important;max-width:100%!important;overflow:visible!important;padding:0!important;margin:0!important}
+  #grcNativeExportHost .grc-native-export-sheet{
+    display:block!important;
+    width:133.333333%!important;
+    max-width:none!important;
+    zoom:.75!important;
+    margin:0!important;
+    padding:8px!important;
+    box-sizing:border-box!important;
+    overflow:visible!important;
+    break-before:page!important;
+    page-break-before:always!important;
+  }
+  #grcNativeExportHost .grc-native-export-sheet:first-child{break-before:auto!important;page-break-before:auto!important}
+  #grcNativeExportHost .grc-native-export-sheet,
+  #grcNativeExportHost .grc-native-export-sheet *{box-sizing:border-box!important;print-color-adjust:exact!important;-webkit-print-color-adjust:exact!important}
+  #grcNativeExportHost .grc-export-frozen-layout{
+    display:var(--grc-freeze-display)!important;
+    grid-template-columns:var(--grc-freeze-cols)!important;
+    grid-template-rows:var(--grc-freeze-rows)!important;
+    grid-auto-flow:var(--grc-freeze-flow)!important;
+    gap:var(--grc-freeze-gap)!important;
+    flex-direction:var(--grc-freeze-flex-dir)!important;
+    flex-wrap:var(--grc-freeze-flex-wrap)!important;
+    align-items:var(--grc-freeze-align)!important;
+    justify-content:var(--grc-freeze-justify)!important;
+  }
+  #grcNativeExportHost .grc-card,
+  #grcNativeExportHost .grc-metric-card,
+  #grcNativeExportHost .grc-module-card,
+  #grcNativeExportHost .grc-chart-card,
+  #grcNativeExportHost .grc-exec-ops-card,
+  #grcNativeExportHost .grc-compliance-card,
+  #grcNativeExportHost .grc-initiative-section,
+  #grcNativeExportHost .grc-register-titlebar,
+  #grcNativeExportHost .grc-section-head{
+    break-inside:avoid-page!important;
+    page-break-inside:avoid!important;
+    overflow:visible!important;
+    max-width:100%!important;
+  }
+  #grcNativeExportHost table{width:100%!important;max-width:100%!important}
+  #grcNativeExportHost tr{break-inside:avoid-page!important;page-break-inside:avoid!important}
+  #grcNativeExportHost .grc-table-wrap{overflow:visible!important;max-height:none!important;width:100%!important}
+  #grcNativeExportHost img,#grcNativeExportHost svg,#grcNativeExportHost canvas{max-width:100%!important}
+}
+@media print{
+  #grcNativeExportHost .grc-export-frozen-box{
+    min-height:var(--grc-freeze-minh)!important;
+    height:auto!important;
+  }
+}
