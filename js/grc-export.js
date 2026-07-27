@@ -8,7 +8,7 @@
   var PAGE_LABELS={
     executive:'Executive Command',governance:'Governance',risk:'Risk Management',register:'Registers',
     compliance:'Compliance',actions:'Action Plans',reports:'Reports',
-    manuals:'FMS Manual',advisory:'Review & Guidance Center'
+    manuals:'FMS Manual',advisory:'Review & Development Center'
   };
   var DEPTS=[
     ['safety','Safety'],['maintenance','Maintenance'],['housekeeping','Housekeeping'],
@@ -353,6 +353,22 @@
       #rptDocument #grcApp .grc-line-wrap,#rptDocument #grcApp .grc-vertical-bars,#rptDocument #grcApp .grc-bar-list,#rptDocument #grcApp .grc-stacked-list{min-height:0!important;max-height:150px!important;overflow:hidden!important}
       #rptDocument #grcApp .grc-chart-grid{align-items:start!important}
       #rptDocument .grc-report-footer{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:14px!important;margin-top:10px!important;padding:9px 13px!important;border-radius:8px!important;background:#152538!important;color:#fff!important;break-inside:avoid!important}#rptDocument .grc-report-footer div{display:flex!important;flex-direction:column!important;gap:2px!important}#rptDocument .grc-report-footer strong{font-size:9px!important}#rptDocument .grc-report-footer span,#rptDocument .grc-report-footer small{font-size:7px!important;color:rgba(255,255,255,.68)!important}
+      /* v66 report flow: clear starts, compact charts, and no artificial blank space */
+      #rptDocument #grcApp .grc-report-domain{padding-top:3px!important;break-inside:auto!important;page-break-inside:auto!important}
+      #rptDocument #grcApp .grc-report-section-head{margin:0 0 14px!important;padding:10px 12px!important;min-height:46px!important;background:linear-gradient(90deg,#f4fafc,#fff)!important;border-left-width:5px!important}
+      #rptDocument #grcApp .grc-report-domain>.grc-section,#rptDocument #grcApp .grc-exec-domain-body{break-inside:auto!important;page-break-inside:auto!important;padding-top:2px!important}
+      #rptDocument #grcApp .grc-report-numbered-title{margin:11px 0 7px!important;padding-top:3px!important;clear:both!important}
+      #rptDocument #grcApp .grc-metric-card,#rptDocument #grcApp .grc-chart-card,#rptDocument #grcApp .grc-module-card,#rptDocument #grcApp .grc-exec-ops-card,#rptDocument #grcApp .grc-register-block,#rptDocument #grcApp .grc-initiative-section{break-inside:avoid!important;page-break-inside:avoid!important}
+      #rptDocument #grcApp .grc-chart-grid,#rptDocument #grcApp .grc-exec-operations-grid,#rptDocument #grcApp .grc-form-scope-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important;align-items:start!important}
+      #rptDocument #grcApp .grc-chart-card:not(.grc-heatmap-card){max-height:184px!important;padding:8px!important}
+      #rptDocument #grcApp .grc-chart-card svg,#rptDocument #grcApp .grc-chart-card canvas,#rptDocument #grcApp .grc-chart-card img{height:132px!important;max-height:132px!important}
+      #rptDocument #grcApp .grc-donut-card svg,#rptDocument #grcApp .grc-donut-card img{height:108px!important;max-height:108px!important}
+      #rptDocument #grcApp .grc-line-wrap,#rptDocument #grcApp .grc-vertical-bars,#rptDocument #grcApp .grc-bar-list,#rptDocument #grcApp .grc-stacked-list{max-height:126px!important}
+      #rptDocument #grcApp .grc-initiative-sections{display:grid!important;grid-template-columns:1fr!important;gap:9px!important}
+      #rptDocument #grcApp .grc-initiative-section,#rptDocument #grcApp .grc-initiatives-panel{display:block!important;width:100%!important;padding:9px!important}
+      #rptDocument #grcApp .grc-initiative-progress-list{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px 10px!important}
+      #rptDocument #grcApp .grc-heatmap-card{max-height:none!important;overflow:visible!important}
+      #rptDocument #grcApp .grc-heat-grid{grid-template-columns:repeat(5,minmax(58px,1fr)) 72px!important}
     `;doc.appendChild(style);return doc;
   }
   window._grcGenerateReport=function(){
