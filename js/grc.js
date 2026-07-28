@@ -784,16 +784,127 @@
   }
   function saveState(){var position=grcViewportPosition();applyAutomaticExpiry();state=repairGovernanceCodeState(state);state.risks=(state.risks||[]).map(normalizeRiskClassification);state.initiatives=normalizeInitiativePeople(state.initiatives);state.version=STATE_VERSION;state.updatedAt=new Date().toISOString();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}renderAtSamePosition(position);queueSharedStateSave();}
 
-  var GRC_SHARED_STATE_DOC='grc_workspace_shared_state_v1',grcStateUnsub=null,grcStateSaveTimer=null,grcApplyingRemote=false;
+  /* GRC secure storage v79
+     Each register is stored as individual Firestore documents. Department users
+     query only their own department plus explicitly shared Division records.
+     The legacy all-in-one document is read only by Admin/Super Admin for the
+     one-time automatic migration and is never used for normal saves. */
+  var GRC_SHARED_STATE_DOC='grc_workspace_shared_state_v1';
+  var GRC_SCHEMA_VERSION=2;
+  var GRC_MIGRATION_DOC='state_migration_v2';
+  var GRC_COLLECTION_MAP={
+    policies:'grc_policies',plans:'grc_plans',forms:'grc_forms',manuals:'grc_manuals',
+    risks:'grc_risks',incidents:'grc_incidents',codes:'grc_codes',compliance:'grc_compliance',
+    audits:'grc_audits',actions:'grc_actions',documents:'grc_documents',initiatives:'grc_initiatives'
+  };
+  var grcStateUnsubs=[],grcStateSaveTimer=null,grcApplyingRemote=false,grcSyncStarted=false,grcCloudReady=false;
+  var grcCloudParts={},grcCloudMirror={},grcInitialScopes={},grcMigrationPromise=null,grcPendingCloudSave=false;
+
   function grcSharedStateRef(b){return b.fs.doc(b.db,'kpi_dashboard',GRC_SHARED_STATE_DOC);}
-  function cleanSharedState(value){var out={};['policies','plans','forms','manuals','risks','incidents','codes','compliance','audits','actions','documents','initiatives'].forEach(function(k){out[k]=Array.isArray(value&&value[k])?value[k].map(copyRecord):[];});out=repairGovernanceCodeState(out);out.risks=(out.risks||[]).map(normalizeRiskClassification);out.initiatives=normalizeInitiativePeople(out.initiatives);out.version=STATE_VERSION;out.updatedAt=value&&value.updatedAt||new Date().toISOString();return out;}
+  function grcMigrationRef(b){return b.fs.doc(b.db,'grc_meta',GRC_MIGRATION_DOC);}
+  function grcHash(text){var h=2166136261,s=String(text||'');for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return(h>>>0).toString(36);}
+  function grcSafeDocPart(value){var out=String(value||'').trim().replace(/[^A-Za-z0-9_-]+/g,'_').replace(/^_+|_+$/g,'');return(out||'record').slice(0,86);}
+  function grcRecordDepartment(collectionKey,record){
+    record=record||{};var raw=String(record.department||record.responsibleDept||record.responsibleDepartment||'').trim();
+    var id=String(record.id||record.code||'').toUpperCase().replace(/\s+/g,'');
+    if(collectionKey==='risks'&&/^LUND/.test(id))return'laundry';
+    if(collectionKey==='risks'&&/^HK/.test(id))return'housekeeping';
+    if(/^(all\s*fms|allfms|division|governance|governanceDept)$/i.test(raw.replace(/[&/_-]+/g,' ')))return'division';
+    var d=canonicalGrcDepartment(raw);
+    if(!d||d==='allfms'||d==='all_fms'||d==='governance'||d==='division')return'division';
+    return d;
+  }
+  function grcRecordVisibility(collectionKey,record){return grcRecordDepartment(collectionKey,record)==='division'?'shared':'department';}
+  function grcCloudDocId(collectionKey,record,index){
+    record=record||{};var existing=String(record._cloudId||record.cloudId||'').trim();if(existing)return grcSafeDocPart(existing);
+    var identity=String(record.id||record.code||record.requirementId||record.standard||record.nameEn||record.nameAr||record.name||record.title||record.riskIdentified||('row_'+index));
+    return grcSafeDocPart(identity)+'_'+grcHash(collectionKey+'|'+identity);
+  }
+  function grcSerializable(value){try{return JSON.parse(JSON.stringify(value||{}));}catch(_){return{};}}
+  function grcPrepareCloudRecord(collectionKey,record,index,b){
+    var out=grcSerializable(record),id=grcCloudDocId(collectionKey,out,index);out._cloudId=id;out.cloudId=id;
+    out.department=grcRecordDepartment(collectionKey,out);out.visibility=grcRecordVisibility(collectionKey,out);out.recordType=collectionKey;out.schemaVersion=GRC_SCHEMA_VERSION;
+    out.updatedByEmail=String(window._fbUser||b&&b.auth&&b.auth.currentUser&&b.auth.currentUser.email||'').toLowerCase();
+    if(!out.createdByEmail)out.createdByEmail=out.updatedByEmail;
+    if(b&&b.fs&&b.fs.serverTimestamp)out.cloudUpdatedAt=b.fs.serverTimestamp();
+    return out;
+  }
+  function grcComparable(record){var out=grcSerializable(record);delete out.cloudUpdatedAt;delete out._cloudLoadedAt;return out;}
+  function grcRecordsEqual(a,b){try{return JSON.stringify(grcComparable(a))===JSON.stringify(grcComparable(b));}catch(_){return false;}}
+  function grcRecordAllowedLocally(collectionKey,record){
+    if(canViewAllExecutiveDepartments())return true;
+    var visibility=String(record&&record.visibility||grcRecordVisibility(collectionKey,record));if(visibility==='shared')return true;
+    var mine=currentGrcDept();return !!mine&&grcRecordDepartment(collectionKey,record)===mine;
+  }
+  function enforceLocalGrcScope(){
+    if(!window._fbUser||canViewAllExecutiveDepartments())return;
+    Object.keys(GRC_COLLECTION_MAP).forEach(function(key){state[key]=(state[key]||[]).filter(function(r){return grcRecordAllowedLocally(key,r);});});
+  }
+  function cleanSharedState(value){
+    var out={};Object.keys(GRC_COLLECTION_MAP).forEach(function(k){out[k]=Array.isArray(value&&value[k])?value[k].map(copyRecord):[];});
+    out=repairGovernanceCodeState(out);out.risks=(out.risks||[]).map(normalizeRiskClassification);out.initiatives=normalizeInitiativePeople(out.initiatives);out.version=STATE_VERSION;out.updatedAt=value&&value.updatedAt||new Date().toISOString();return out;
+  }
   function needsRiskClassificationRepair(raw,cleaned){
     var a=(raw&&Array.isArray(raw.risks)?raw.risks:[]).map(function(r){return[String(r&&r.id||r&&r.code||''),Number(r&&r.riskScore)||0,normalizeStatus(r&&r.riskLevel)];});
     var b=(cleaned&&Array.isArray(cleaned.risks)?cleaned.risks:[]).map(function(r){return[String(r&&r.id||r&&r.code||''),Number(r&&r.riskScore)||0,normalizeStatus(r&&r.riskLevel)];});
     return JSON.stringify(a)!==JSON.stringify(b);
   }
-  function startSharedStateSync(){if(grcStateUnsub)return;ensureReportBackend().then(function(b){if(!b.auth.currentUser)return;grcStateUnsub=b.fs.onSnapshot(grcSharedStateRef(b),function(snap){if(!snap.exists()){queueSharedStateSave(true);return;}var raw=snap.data(),remote=cleanSharedState(raw),repairNeeded=needsGovernanceCodeRepair(raw,remote)||needsRiskClassificationRepair(raw,remote);grcApplyingRemote=true;Object.keys(remote).forEach(function(k){state[k]=remote[k];});state=repairGovernanceCodeState(state);try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}grcApplyingRemote=false;renderAtSamePosition(grcViewportPosition());if(repairNeeded)queueSharedStateSave(true);},function(err){console.error('[GRC Shared State] live sync failed',err);});}).catch(function(err){console.error('[GRC Shared State] init failed',err);});}
-  function queueSharedStateSave(immediate){if(grcApplyingRemote)return;clearTimeout(grcStateSaveTimer);grcStateSaveTimer=setTimeout(function(){ensureReportBackend().then(function(b){if(!b.auth.currentUser)return;return b.fs.setDoc(grcSharedStateRef(b),Object.assign(cleanSharedState(state),{updatedAt:b.fs.serverTimestamp(),updatedBy:window._fbUser||b.auth.currentUser.email||''}),{merge:false});}).catch(function(err){console.error('[GRC Shared State] save failed',err);});},immediate?0:180);}
+  function grcDocsFromSnapshot(snapshot){var rows=[];snapshot.forEach(function(d){var r=grcSerializable(d.data()||{});r._cloudId=d.id;r.cloudId=d.id;rows.push(r);});return rows;}
+  function grcApplyCloudCollection(collectionKey){
+    var parts=grcCloudParts[collectionKey]||{},map={};Object.keys(parts).forEach(function(scope){(parts[scope]||[]).forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i);r._cloudId=id;r.cloudId=id;map[id]=r;});});
+    var rows=Object.keys(map).map(function(id){return map[id];});
+    if(collectionKey==='risks')rows=rows.map(normalizeRiskClassification);
+    if(collectionKey==='initiatives')rows=normalizeInitiativePeople(rows);
+    state[collectionKey]=rows;grcCloudMirror[collectionKey]={};rows.forEach(function(r,i){grcCloudMirror[collectionKey][grcCloudDocId(collectionKey,r,i)]=grcComparable(r);});
+  }
+  function grcAllInitialScopesReady(){return Object.keys(GRC_COLLECTION_MAP).every(function(k){return grcInitialScopes[k]===true;});}
+  function grcHandleCollectionSnapshot(collectionKey,scope,snapshot){
+    grcCloudParts[collectionKey]=grcCloudParts[collectionKey]||{};grcCloudParts[collectionKey][scope]=grcDocsFromSnapshot(snapshot);grcInitialScopes[collectionKey]=true;
+    grcApplyingRemote=true;grcApplyCloudCollection(collectionKey);state=repairGovernanceCodeState(state);enforceLocalGrcScope();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}grcApplyingRemote=false;
+    if(grcAllInitialScopesReady()){grcCloudReady=true;if(grcPendingCloudSave){grcPendingCloudSave=false;queueSharedStateSave(true);}}
+    renderAtSamePosition(grcViewportPosition());
+  }
+  function grcListen(b,collectionKey,scope,qref){
+    var unsub=b.fs.onSnapshot(qref,function(snap){grcHandleCollectionSnapshot(collectionKey,scope,snap);},function(err){console.error('[GRC Secure Sync] '+collectionKey+' '+scope+' failed',err);grcInitialScopes[collectionKey]=true;if(grcAllInitialScopesReady())grcCloudReady=true;});
+    grcStateUnsubs.push(unsub);
+  }
+  async function grcAnySecureRecords(b){
+    var keys=Object.keys(GRC_COLLECTION_MAP);for(var i=0;i<keys.length;i++){var snap=await b.fs.getDocs(b.fs.query(b.fs.collection(b.db,GRC_COLLECTION_MAP[keys[i]]),b.fs.limit(1)));if(!snap.empty)return true;}return false;
+  }
+  async function grcCommitWrites(b,writes){
+    for(var start=0;start<writes.length;start+=400){var batch=b.fs.writeBatch(b.db);writes.slice(start,start+400).forEach(function(w){if(w.op==='delete')batch.delete(w.ref);else batch.set(w.ref,w.data,{merge:false});});await batch.commit();}
+  }
+  async function migrateLegacyGrcState(b,force){
+    if(!isGrcAdmin())return false;if(grcMigrationPromise&&!force)return grcMigrationPromise;
+    grcMigrationPromise=(async function(){
+      var marker=await b.fs.getDoc(grcMigrationRef(b));if(marker.exists()&&marker.data().status==='completed'&&!force)return false;
+      await b.fs.setDoc(grcMigrationRef(b),{status:'running',schemaVersion:GRC_SCHEMA_VERSION,startedAt:b.fs.serverTimestamp(),startedBy:String(window._fbUser||'')},{merge:true});
+      var legacySnap=await b.fs.getDoc(grcSharedStateRef(b)),source=legacySnap.exists()?cleanSharedState(legacySnap.data()):cleanSharedState(state),writes=[],counts={};
+      Object.keys(GRC_COLLECTION_MAP).forEach(function(key){var arr=Array.isArray(source[key])?source[key]:[];counts[key]=arr.length;arr.forEach(function(record,index){var prepared=grcPrepareCloudRecord(key,record,index,b),id=prepared._cloudId;writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],id),data:prepared});});});
+      await grcCommitWrites(b,writes);await b.fs.setDoc(grcMigrationRef(b),{status:'completed',schemaVersion:GRC_SCHEMA_VERSION,legacyDocument:'kpi_dashboard/'+GRC_SHARED_STATE_DOC,counts:counts,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+      try{window._recordAuditDirect&&window._recordAuditDirect('GRC_SECURE_MIGRATION','Migrated the GRC shared document to department-scoped collections',null,counts,{portal:'grc'});}catch(_){}
+      return true;
+    })().catch(function(err){grcMigrationPromise=null;console.error('[GRC Secure Migration] failed',err);throw err;});return grcMigrationPromise;
+  }
+  window._grcRunSecureMigration=function(){return ensureReportBackend().then(function(b){return migrateLegacyGrcState(b,true);});};
+  function startSharedStateSync(){
+    if(grcSyncStarted)return;ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;grcSyncStarted=true;enforceLocalGrcScope();
+      if(isGrcAdmin()){try{await migrateLegacyGrcState(b,false);}catch(err){console.error('[GRC Secure Migration] automatic migration did not complete',err);}}
+      var canAll=canViewAllExecutiveDepartments(),dept=currentGrcDept();Object.keys(GRC_COLLECTION_MAP).forEach(function(key){var col=b.fs.collection(b.db,GRC_COLLECTION_MAP[key]);grcCloudParts[key]={};if(canAll){grcListen(b,key,'all',col);}else{var expected=dept?2:1,received=0;grcInitialScopes[key]=false;var mark=function(){received++;if(received>=expected)grcInitialScopes[key]=true;};
+          var sharedQ=b.fs.query(col,b.fs.where('visibility','==','shared'));var u1=b.fs.onSnapshot(sharedQ,function(snap){grcCloudParts[key].shared=grcDocsFromSnapshot(snap);mark();grcHandleCollectionSnapshot(key,'shared',snap);},function(err){console.error('[GRC Secure Sync] '+key+' shared failed',err);mark();});grcStateUnsubs.push(u1);
+          if(dept){var ownQ=b.fs.query(col,b.fs.where('department','==',dept));var u2=b.fs.onSnapshot(ownQ,function(snap){grcCloudParts[key].department=grcDocsFromSnapshot(snap);mark();grcHandleCollectionSnapshot(key,'department',snap);},function(err){console.error('[GRC Secure Sync] '+key+' department failed',err);mark();});grcStateUnsubs.push(u2);}
+        }});
+    }).catch(function(err){grcSyncStarted=false;console.error('[GRC Secure Sync] init failed',err);});
+  }
+  async function flushSecureState(){
+    if(grcApplyingRemote||!isGrcAdmin())return false;if(!grcCloudReady){grcPendingCloudSave=true;return false;}
+    var b=await ensureReportBackend();if(!b.auth.currentUser)throw new Error('not-authenticated');var writes=[];
+    Object.keys(GRC_COLLECTION_MAP).forEach(function(key){var current={},arr=Array.isArray(state[key])?state[key]:[];arr.forEach(function(record,index){var prepared=grcPrepareCloudRecord(key,record,index,b),id=prepared._cloudId;record._cloudId=id;record.cloudId=id;current[id]=grcComparable(prepared);var previous=(grcCloudMirror[key]||{})[id];if(!previous||!grcRecordsEqual(current[id],previous))writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],id),data:prepared});});Object.keys(grcCloudMirror[key]||{}).forEach(function(id){if(!current[id])writes.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],id)});});});
+    if(!writes.length)return true;await grcCommitWrites(b,writes);return true;
+  }
+  function queueSharedStateSave(immediate){
+    if(grcApplyingRemote||!isGrcAdmin())return;clearTimeout(grcStateSaveTimer);grcStateSaveTimer=setTimeout(function(){flushSecureState().catch(function(err){console.error('[GRC Secure Sync] save failed',err);});},immediate?0:220);
+  }
 
 
   function isAr(){return (typeof window.lang!=='undefined'?window.lang:(document.documentElement.dir==='rtl'?'ar':'en'))==='ar';}
@@ -806,7 +917,7 @@
     if(!n)return'';if(n.indexOf('laundry')>=0)return'laundry';if(n.indexOf('housekeeping')>=0||n.indexOf('cleaning')>=0)return'housekeeping';if(n.indexOf('maintenance')>=0)return'maintenance';if(n.indexOf('safety')>=0)return'safety';if(n.indexOf('project')>=0)return'projects';if(n.indexOf('governance')>=0||n.indexOf('performance')>=0)return'governance';if(n==='fms'||n.indexOf('facility management')>=0||n.indexOf('facilities management')>=0||n.indexOf('division')>=0)return'division';return n.replace(/\s+/g,'_');
   }
   function currentGrcDept(){return canonicalGrcDepartment(window._fbDept||window.currentUserDept||'');}
-  function canViewAllExecutiveDepartments(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return r==='super_admin'||r==='admin'||r==='executive'||p.indexOf('*')>=0||p.indexOf('view_all_departments')>=0||p.indexOf('view_grc_all_departments')>=0;}
+  function canViewAllExecutiveDepartments(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return r==='super_admin'||r==='admin'||r==='executive'||p.indexOf('*')>=0||p.indexOf('view_grc_all_departments')>=0;}
   function resolvedExecutiveDept(value){var raw=String(value||executiveDeptFilter||'');if(/^(all\s*fms|allfms|all_departments|all)$/i.test(raw.replace(/[&/_-]+/g,' ')))return canViewAllExecutiveDepartments()?'allFms':(currentGrcDept()||'allFms');var d=canonicalGrcDepartment(raw);if(canViewAllExecutiveDepartments())return d&&d!=='division'?d:'allFms';d=currentGrcDept();return d&&d!=='division'?d:'allFms';}
   function executiveDepartmentFilterHtml(selected){if(!canViewAllExecutiveDepartments())return'';var choices=[['allFms',isAr()?'جميع الأقسام':'All Departments'],['safety',deptName('safety')],['maintenance',deptName('maintenance')],['housekeeping',deptName('housekeeping')],['laundry',deptName('laundry')],['projects',deptName('projects')]];return'<div class="grc-executive-filter"><label><span>'+(isAr()?'تصفية القسم':'Department Filter')+'</span><select onchange="window._grcSetExecutiveDepartment(this.value)">'+choices.map(function(x){return'<option value="'+x[0]+'" '+(selected===x[0]?'selected':'')+'>'+esc(x[1])+'</option>';}).join('')+'</select></label></div>';}
   window._grcSetExecutiveDepartment=function(value){var raw=String(value||'allFms');executiveDeptFilter=/^(all\s*fms|allfms|all_departments|all)$/i.test(raw.replace(/[&/_-]+/g,' '))?'allFms':canonicalGrcDepartment(raw);renderAtSamePosition(grcViewportPosition());};
@@ -996,7 +1107,7 @@
       }
     });
   }
-  function render(){var _repairBefore=governanceCodeRepairSnapshot(state);state=repairGovernanceCodeState(state);try{if(_repairBefore!==governanceCodeRepairSnapshot(state)){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));queueSharedStateSave(true);}}catch(_e2){}applyAutomaticExpiry();if(!app||!app.classList.contains('grc-visible'))return;app.setAttribute('dir',isAr()?'rtl':'ltr');try{app.innerHTML=shellHtml();}catch(err){try{console.error('[GRC Render]',err);}catch(_e){}app.innerHTML='<main class="grc-main"><section class="grc-page is-active"><div class="grc-section"><div class="grc-section-title">GRC</div><div class="grc-section-sub">'+esc(String(err&&err.message||err))+'</div></div></section></main>';return;}setTimeout(enhanceRegisterFilters,0);setTimeout(enhanceAllRegisterCrud,0);setTimeout(function(){if(typeof window._grcRiskRefreshUi==='function')window._grcRiskRefreshUi();if(typeof window._grcRiskBindHeader==='function')window._grcRiskBindHeader();if(typeof window._grcChatEnsure==='function')window._grcChatEnsure();},0);startSharedStateSync();if(activeTab==='reports'||activeTab==='compliance'||activeTab==='manuals')setTimeout(mountReportViewer,0);if(activeTab==='advisory'&&typeof window._grcAdvisoryMount==='function')setTimeout(window._grcAdvisoryMount,0);}
+  function render(){if(window._fbUser)enforceLocalGrcScope();var _repairBefore=governanceCodeRepairSnapshot(state);state=repairGovernanceCodeState(state);try{if(_repairBefore!==governanceCodeRepairSnapshot(state)){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));queueSharedStateSave(true);}}catch(_e2){}applyAutomaticExpiry();if(!app||!app.classList.contains('grc-visible'))return;app.setAttribute('dir',isAr()?'rtl':'ltr');try{app.innerHTML=shellHtml();}catch(err){try{console.error('[GRC Render]',err);}catch(_e){}app.innerHTML='<main class="grc-main"><section class="grc-page is-active"><div class="grc-section"><div class="grc-section-title">GRC</div><div class="grc-section-sub">'+esc(String(err&&err.message||err))+'</div></div></section></main>';return;}setTimeout(enhanceRegisterFilters,0);setTimeout(enhanceAllRegisterCrud,0);setTimeout(function(){if(typeof window._grcRiskRefreshUi==='function')window._grcRiskRefreshUi();if(typeof window._grcRiskBindHeader==='function')window._grcRiskBindHeader();if(typeof window._grcChatEnsure==='function')window._grcChatEnsure();},0);startSharedStateSync();if(activeTab==='reports'||activeTab==='compliance'||activeTab==='manuals')setTimeout(mountReportViewer,0);if(activeTab==='advisory'&&typeof window._grcAdvisoryMount==='function')setTimeout(window._grcAdvisoryMount,0);}
 
   function hero(eye,title,desc,actions){return'<div class="grc-hero"><div class="grc-hero-row"><div><div class="grc-eyebrow">'+eye+'</div><h1>'+title+'</h1><p>'+desc+'</p></div><div class="grc-hero-actions">'+(actions||'')+'</div></div></div>';}
   function sectionHead(title,sub,badgeText){return'<div class="grc-section-head"><div><div class="grc-section-title">'+title+'</div><div class="grc-section-sub">'+(sub||'')+'</div></div>'+(badgeText?'<span class="grc-section-badge">'+badgeText+'</span>':'')+'</div>';}
