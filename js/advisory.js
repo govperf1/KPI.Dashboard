@@ -1,6 +1,6 @@
 /* ======================================================================
    QUMC Review & Development Center — Performance + GRC
-   Build: 2026-07-28 v74
+   Build: 2026-07-28 v75
    Request types:
    1) Existing Item Review & Update
    2) New Item Request
@@ -10,7 +10,7 @@
 
   var records=[],currentPlatform='grc',currentRootId='advRootGrc',currentView='dashboard';
   var dashboardFilter='all',departmentFilter='',dashboardSearch='',dashboardStatus='';
-  var adminSearch='',adminStatus='',adminDepartment='',loading=false,lastLoadError='',selectedRequest=null;
+  var adminSearch='',adminStatus='',adminDepartment='',loading=false,lastLoadError='',selectedRequest=null,liveUnsub=null;
 
   var STATUS_LABELS={
     under_review:'Under Review',in_progress:'In Progress',awaiting_requester_information:'Awaiting Information from Requester',
@@ -95,7 +95,7 @@
   window._grcAdvisoryPage=function(){return pageSkeleton('grc','advRootGrc');};
   window._grcAdvisoryMount=function(){mount('grc','advRootGrc');};
   window._performanceAdvisoryMount=function(){var h=document.getElementById('performanceAdvisoryRoot');if(!h)return;if(!h.querySelector('#advRootPerformance'))h.innerHTML=pageSkeleton('performance','advRootPerformance');mount('performance','advRootPerformance');};
-  function mount(platform,rootId){currentPlatform=platform;currentRootId=rootId;currentView='dashboard';dashboardFilter='all';departmentFilter='';loadRecords();}
+  function mount(platform,rootId){if(liveUnsub){try{liveUnsub();}catch(_){}liveUnsub=null;}currentPlatform=platform;currentRootId=rootId;currentView='dashboard';dashboardFilter='all';departmentFilter='';loadRecords();if(apiReady('_advisorySubscribe'))liveUnsub=window._advisorySubscribe(function(){if(root()&&!loading)loadRecords();});}
   window._advSwitchView=function(view){if(view==='management'&&!isSuperAdmin())return;currentView=view;dashboardSearch='';dashboardStatus='';adminSearch='';adminStatus='';adminDepartment='';var r=root();if(r)r.querySelectorAll('.adv-module-card').forEach(function(x){x.classList.toggle('is-active',x.getAttribute('data-adv-view')===view);});if(view==='management')renderView();else loadRecords();};
 
   async function loadRecords(){if(loading)return;loading=true;lastLoadError='';renderView();try{if(currentView==='dashboard'){if(!apiReady('_advisoryGetPublic'))throw new Error('Record request data service is unavailable.');records=await window._advisoryGetPublic();}else if(isAdmin()){if(!apiReady('_advisoryGetAll'))throw new Error('Record request data service is unavailable.');records=await window._advisoryGetAll();}else{if(!apiReady('_advisoryGetMine'))throw new Error('Record request data service is unavailable.');records=await window._advisoryGetMine();}records=(records||[]).filter(isRelevantRecord);}catch(e){lastLoadError=String(e&&e.message||e);records=[];}loading=false;renderView();if(currentView==='requests'&&!isAdmin())showRatingNotification();}
@@ -172,10 +172,10 @@
     if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Submitting…';}
     try{
       var result=await window._advisorySubmit({platform:currentPlatform,departmentKey:dept,departmentCode:departmentCode(dept),priority:priority,serviceType:'record_request_review',requestType:type,requestTypeLabel:TYPE_LABELS[type],category:def.label,title:title,details:details,relatedType:def.label,relatedItems:relatedItems,relatedNewText:type==='new'?relatedNewText:'',formDependencies:isForm?{policies:policyItems,plans:planItems}:null,benchmarkType:isBenchmark?benchmarkType:''},file||null);
-      audit('REVIEW_DEVELOPMENT_REQUEST_SUBMIT','Submitted '+currentPlatform+' request '+(result&&result.code||''));closeModal();currentView='requests';await loadRecords();toast('Request submitted successfully: '+(result&&result.code||''));
+      audit('REVIEW_DEVELOPMENT_REQUEST_SUBMIT','Submitted '+currentPlatform+' request '+(result&&result.code||''));closeModal();currentView='requests';await loadRecords();var success='Request submitted successfully: '+(result&&result.code||'');if(result&&result.warning)success+=' · '+result.warning;toast(success);
     }catch(e){
       var msg=String(e&&e.message||e||'Request submission failed.');
-      if(/permission-denied|missing or insufficient permissions/i.test(msg))msg='The request could not be saved because Firestore permissions do not allow the Review & Development collections. Update the rules and try again.';
+      if(/permission-denied|missing or insufficient permissions/i.test(msg))msg='The request could not be saved through either available request channel. Check Firestore access for kpi_requests and reload the page.';
       toast(msg);if(submitBtn){submitBtn.disabled=false;submitBtn.textContent=oldText||'Submit Request';}
     }
   };

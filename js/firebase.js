@@ -325,6 +325,8 @@ window._selectPortal=async portal=>{
     }
     window._fmtTs=_fmtTs;
 
+    function _isReviewDevelopmentRequestDoc(r){return !!(r&&(r.isReviewDevelopmentRequest===true||String(r.requestDomain||'')==='review_development'));}
+
     /* Submit a new request */
     window._kpiRequestsSubmit=async function(requestType,message){
       if(!window._fbUser||!db) throw new Error('not authenticated');
@@ -346,7 +348,7 @@ window._selectPortal=async portal=>{
       if(!window._fbUser||!db) return [];
       try{
         const snap=await getDocs(query(collection(db,'kpi_requests'),orderBy('createdAt','desc')));
-        return snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+        return snap.docs.map(function(d){return Object.assign({id:d.id},d.data());}).filter(function(r){return !_isReviewDevelopmentRequestDoc(r);});
       }catch(e){console.warn('[Requests] getAll:',e.message);return [];}
     };
 
@@ -359,7 +361,7 @@ window._selectPortal=async portal=>{
         const _email=(window._fbUser||'').toLowerCase().trim();
         const snap=await getDocs(query(collection(db,'kpi_requests'),
           where('userEmail','==',_email)));
-        const rows=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+        const rows=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());}).filter(function(r){return !_isReviewDevelopmentRequestDoc(r);});
         rows.sort(function(a,b){
           var ta=(a.createdAt&&a.createdAt.seconds)||0;
           var tb=(b.createdAt&&b.createdAt.seconds)||0;
@@ -440,26 +442,34 @@ window._selectPortal=async portal=>{
 
 
     /* ══════════════════════════════════════════════════════
-       advisory_requests: Performance + GRC Advisory Center
-       - Full records: advisory_requests (requester + Admin/SA)
-       - Sanitized analytics: advisory_public (all authenticated users)
-       - File chunks: advisory_attachments
-       Statuses are action-driven; no free manual status selector.
+       Review & Development Center requests
+       Primary storage:
+         - advisory_requests (full request)
+         - advisory_public (sanitized analytics)
+       Compatibility fallback:
+         - kpi_requests with requestDomain = review_development
+       The fallback keeps the center operational on deployments whose current
+       Firestore rules already allow kpi_requests but have not yet been updated
+       for the dedicated Review & Development collections.
        ══════════════════════════════════════════════════════ */
+    const ADV_REQUESTS_COLLECTION='advisory_requests';
+    const ADV_PUBLIC_COLLECTION='advisory_public';
+    const ADV_FALLBACK_COLLECTION='kpi_requests';
     function _advRole(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_');}
     function _advIsAdmin(){const r=_advRole();return r==='admin'||r==='super_admin';}
     function _advEmail(){return String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();}
     function _advIso(){return new Date().toISOString();}
     function _advTsMs(v){if(!v)return 0;try{return v.toDate?v.toDate().getTime():new Date(v).getTime()||0;}catch(_){return 0;}}
+    function _advIsFallbackRow(r){return !!(r&&(r.isReviewDevelopmentRequest===true||String(r.requestDomain||'')==='review_development'));}
     function _advPublicShape(r){
       r=r||{};
       return {
-        code:String(r.code||''),platform:String(r.platform||'grc'),serviceType:String(r.serviceType||'review_guidance'),requestType:String(r.requestType||''),
+        code:String(r.code||''),platform:String(r.platform||'grc'),serviceType:String(r.serviceType||'record_request_review'),requestType:String(r.requestType||''),
         requestTypeLabel:String(r.requestTypeLabel||''),category:String(r.category||''),
         relatedType:String(r.relatedType||''),relatedItems:Array.isArray(r.relatedItems)?r.relatedItems.map(function(x){return {type:String(x&&x.type||''),id:String(x&&x.id||''),code:String(x&&x.code||''),name:String(x&&x.name||'')};}):[],
         relatedNewText:String(r.relatedNewText||''),benchmarkType:String(r.benchmarkType||''),formDependencies:r.formDependencies&&typeof r.formDependencies==='object'?r.formDependencies:null,departmentKey:String(r.departmentKey||''),
         departmentCode:String(r.departmentCode||''),gender:String(r.gender||''),priority:String(r.priority||'Medium'),
-        status:String(r.status||'under_review'),createdAt:r.createdAt||serverTimestamp(),updatedAt:r.updatedAt||serverTimestamp(),
+        status:String(r.status||'under_review'),createdAt:r.createdAt||r.createdAtIso||serverTimestamp(),updatedAt:r.updatedAt||r.updatedAtIso||serverTimestamp(),
         firstRespondedAt:r.firstRespondedAt||null,respondedAt:r.respondedAt||null,responseMinutes:r.responseMinutes==null?null:Number(r.responseMinutes),
         completedAt:r.completedAt||null,closedAt:r.closedAt||null,rating:r.rating==null?null:Number(r.rating),
         ratingAt:r.ratingAt||null,attachmentCount:Number(r.attachmentCount||0)
@@ -484,133 +494,169 @@ window._selectPortal=async portal=>{
       await Promise.all(writes);
       return {id:attachmentId,name:String(file.name||'attachment'),type:String(file.type||'application/octet-stream'),size:Number(file.size||0),chunkCount,createdAt:_advIso(),uploadedBy:String(uploadedBy||_advEmail())};
     }
+    function _advNormalizeRow(id,r,storage){
+      r=Object.assign({},r||{});
+      if(storage==='kpi_requests'){
+        r.details=String(r.details||r.message||'');
+        r.title=String(r.title||r.requestTitle||r.requestTypeLabel||'Review & Development Request');
+        r.status=String(r.status||'under_review')==='pending'?'under_review':String(r.status||'under_review');
+        r.requestType=String(r.requestType||r.reviewRequestType||'edit_review');
+        r.requestTypeLabel=String(r.requestTypeLabel||'');
+        r.serviceType=String(r.serviceType||'record_request_review');
+      }
+      r.id=id;r._storage=storage;return r;
+    }
+    async function _advLocateRequest(requestId){
+      try{
+        const primary=await getDoc(doc(db,ADV_REQUESTS_COLLECTION,requestId));
+        if(primary.exists())return {record:_advNormalizeRow(primary.id,primary.data(),'advisory_requests'),requestRef:primary.ref,publicRef:doc(db,ADV_PUBLIC_COLLECTION,primary.id),storage:'advisory_requests'};
+      }catch(_){ }
+      const fallback=await getDoc(doc(db,ADV_FALLBACK_COLLECTION,requestId));
+      if(!fallback.exists()||!_advIsFallbackRow(fallback.data()))throw new Error('Request not found.');
+      return {record:_advNormalizeRow(fallback.id,fallback.data(),'kpi_requests'),requestRef:fallback.ref,publicRef:null,storage:'kpi_requests'};
+    }
     async function _advAuthorizedRequest(requestId,adminAllowed){
-      const snap=await getDoc(doc(db,'advisory_requests',requestId));
-      if(!snap.exists())throw new Error('Request not found.');
-      const r=Object.assign({id:snap.id},snap.data());
+      const loc=await _advLocateRequest(requestId),r=loc.record;
       if(!(adminAllowed&&_advIsAdmin())&&String(r.userEmail||'').toLowerCase().trim()!==_advEmail())throw new Error('Access denied.');
-      return r;
+      return Object.assign(r,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
     }
     async function _advGetSorted(collectionName){
       try{
         const snap=await getDocs(query(collection(db,collectionName),orderBy('createdAt','desc')));
-        return snap.docs.map(d=>Object.assign({id:d.id},d.data()));
+        return snap.docs.map(d=>_advNormalizeRow(d.id,d.data(),collectionName));
       }catch(e){
         const snap=await getDocs(collection(db,collectionName));
-        const rows=snap.docs.map(d=>Object.assign({id:d.id},d.data()));
-        rows.sort((a,b)=>_advTsMs(b.createdAt)-_advTsMs(a.createdAt));return rows;
+        const rows=snap.docs.map(d=>_advNormalizeRow(d.id,d.data(),collectionName));
+        rows.sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));return rows;
       }
+    }
+    async function _advFallbackRows(userOnly){
+      try{
+        let snap;
+        if(userOnly)snap=await getDocs(query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',_advEmail())));
+        else snap=await getDocs(collection(db,ADV_FALLBACK_COLLECTION));
+        const rows=snap.docs.filter(d=>_advIsFallbackRow(d.data())).map(d=>_advNormalizeRow(d.id,d.data(),'kpi_requests'));
+        rows.sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));return rows;
+      }catch(_){return [];}
+    }
+    function _advMergeRows(primary,fallback,publicOnly){
+      const map=new Map();
+      (fallback||[]).concat(primary||[]).forEach(function(r){
+        if(!r)return;const key=String(r.platform||'grc')+'|'+String(r.code||r.id||'');
+        const value=publicOnly?_advPublicShape(r):r;value.id=r.id;value._storage=r._storage;
+        map.set(key,value);
+      });
+      return Array.from(map.values()).sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
     }
 
     window._advisorySubmit=async function(payload,file){
       if(!_advEmail()||!db)throw new Error('Not authenticated.');
       payload=payload||{};
       const year=new Date().getFullYear(),deptCode=_advSafeCode(payload.departmentCode),counterId=year+'_'+deptCode;
-      const counterRef=doc(db,'advisory_counters',counterId),requestRef=doc(collection(db,'advisory_requests')),publicRef=doc(db,'advisory_public',requestRef.id);
-      let code='';
+      const counterRef=doc(db,'advisory_counters',counterId),primaryRef=doc(collection(db,ADV_REQUESTS_COLLECTION));
+      let code='',counterFallback=false;
+      try{
+        await runTransaction(db,async tx=>{const c=await tx.get(counterRef),next=Number(c.exists()&&c.data().next||0)+1;code='RD-'+deptCode+'-'+year+'-'+String(next).padStart(3,'0');tx.set(counterRef,{next,updatedAt:serverTimestamp()},{merge:true});});
+      }catch(_){counterFallback=true;code='RD-'+deptCode+'-'+year+'-'+String(Date.now()).slice(-6)+Math.random().toString(36).slice(2,4).toUpperCase();}
       const base={
         userName:String(window._fbName||window.currentUserName||_advEmail().split('@')[0]||'User'),userEmail:_advEmail(),
         departmentKey:String(payload.departmentKey||window._fbDept||''),departmentCode:deptCode,gender:String(payload.gender||''),priority:String(payload.priority||'Medium'),
-        platform:String(payload.platform||'grc'),serviceType:String(payload.serviceType||'review_guidance'),requestType:String(payload.requestType||''),requestTypeLabel:String(payload.requestTypeLabel||''),
+        platform:String(payload.platform||'grc'),serviceType:String(payload.serviceType||'record_request_review'),requestType:String(payload.requestType||''),requestTypeLabel:String(payload.requestTypeLabel||''),
         category:String(payload.category||''),relatedType:String(payload.relatedType||''),
         relatedItems:Array.isArray(payload.relatedItems)?payload.relatedItems.map(function(x){return {type:String(x&&x.type||''),id:String(x&&x.id||''),code:String(x&&x.code||''),name:String(x&&x.name||'')};}):[],
         relatedNewText:String(payload.relatedNewText||''),benchmarkType:String(payload.benchmarkType||''),formDependencies:payload.formDependencies&&typeof payload.formDependencies==='object'?payload.formDependencies:null,title:String(payload.title||''),details:String(payload.details||''),
-        status:'under_review',messages:[],attachments:[],attachmentCount:0,firstRespondedAt:null,respondedAt:null,responseMinutes:null,
-        completedAt:null,closedAt:null,rating:null,ratingAt:null,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:_advIso(),updatedBy:_advEmail()
+        status:'under_review',messages:[],attachments:[],attachmentCount:0,firstRespondedAt:null,respondedAt:null,responseMinutes:null,completedAt:null,closedAt:null,rating:null,ratingAt:null,
+        createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:_advIso(),updatedAtIso:_advIso(),updatedBy:_advEmail(),code,counterFallback
       };
+      let requestId=primaryRef.id,storage='advisory_requests',warning='';
       try{
-        await runTransaction(db,async tx=>{
-          const c=await tx.get(counterRef),next=Number(c.exists()&&c.data().next||0)+1;
-          code='RD-'+deptCode+'-'+year+'-'+String(next).padStart(3,'0');
-          tx.set(counterRef,{next,updatedAt:serverTimestamp()},{merge:true});
-          const full=Object.assign({},base,{code});
-          tx.set(requestRef,full,{merge:false});
-          tx.set(publicRef,_advPublicShape(full),{merge:false});
-        });
-      }catch(counterError){
-        /* Some deployments allow request documents but do not yet allow the
-           dedicated counter document. Preserve request submission by using a
-           collision-resistant fallback code instead of failing the workflow. */
-        const suffix=String(Date.now()).slice(-6)+Math.random().toString(36).slice(2,4).toUpperCase();
-        code='RD-'+deptCode+'-'+year+'-'+suffix;
-        const full=Object.assign({},base,{code,counterFallback:true});
+        await setDoc(primaryRef,base,{merge:false});
+        try{await setDoc(doc(db,ADV_PUBLIC_COLLECTION,primaryRef.id),_advPublicShape(base),{merge:false});}catch(publicError){warning='The request was saved, but dashboard analytics could not be updated.';console.warn('[Review Development] public analytics write failed',publicError&&publicError.code||publicError);}
+      }catch(primaryError){
+        const fallback=Object.assign({},base,{requestDomain:'review_development',isReviewDevelopmentRequest:true,storageBackend:'kpi_requests',requestTypeLegacy:String(payload.requestTypeLabel||''),message:String(payload.details||''),superAdminComment:''});
         try{
-          await setDoc(requestRef,full,{merge:false});
-          await setDoc(publicRef,_advPublicShape(full),{merge:false});
-        }catch(writeError){
-          throw writeError&&writeError.code?writeError:counterError;
+          const fallbackRef=await addDoc(collection(db,ADV_FALLBACK_COLLECTION),fallback);requestId=fallbackRef.id;storage='kpi_requests';warning='Saved through the compatible request channel.';
+        }catch(fallbackError){
+          const e=fallbackError&&fallbackError.code?fallbackError:primaryError;throw e;
         }
       }
       if(file){
-        const meta=await _advUploadFile(requestRef.id,file,_advEmail());
-        await updateDoc(requestRef,{attachments:arrayUnion(meta),attachmentCount:1,updatedAt:serverTimestamp()});
-        await updateDoc(publicRef,{attachmentCount:1,updatedAt:serverTimestamp()});
+        if(storage==='advisory_requests'){
+          try{const meta=await _advUploadFile(requestId,file,_advEmail());await updateDoc(doc(db,ADV_REQUESTS_COLLECTION,requestId),{attachments:arrayUnion(meta),attachmentCount:1,updatedAt:serverTimestamp()});try{await updateDoc(doc(db,ADV_PUBLIC_COLLECTION,requestId),{attachmentCount:1,updatedAt:serverTimestamp()});}catch(_){}}catch(fileError){warning=(warning?warning+' ':'')+'The request was submitted, but the attachment could not be uploaded.';console.warn('[Review Development] attachment upload failed',fileError&&fileError.code||fileError);}
+        }else warning=(warning?warning+' ':'')+'The request was submitted without the attachment because the compatible request channel does not support file chunks.';
       }
-      return {id:requestRef.id,code};
+      return {id:requestId,code,storage,warning};
     };
 
-    window._advisoryGetPublic=async function(){if(!_advEmail()||!db)return[];return _advGetSorted('advisory_public');};
-    window._advisoryGetAll=async function(){if(!_advIsAdmin())throw new Error('Access denied.');return _advGetSorted('advisory_requests');};
-    window._advisoryGetMine=async function(){
+    window._advisoryGetPublic=async function(){
       if(!_advEmail()||!db)return[];
-      const snap=await getDocs(query(collection(db,'advisory_requests'),where('userEmail','==',_advEmail())));
-      const rows=snap.docs.map(d=>Object.assign({id:d.id},d.data()));rows.sort((a,b)=>_advTsMs(b.createdAt)-_advTsMs(a.createdAt));return rows;
+      let primary=[];try{primary=await _advGetSorted(ADV_PUBLIC_COLLECTION);}catch(_){ }
+      const fallback=await _advFallbackRows(!_advIsAdmin());
+      if(!primary.length&&!_advIsAdmin()){
+        try{const own=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));primary=own.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));}catch(_){ }
+      }
+      return _advMergeRows(primary,fallback,true);
+    };
+    window._advisoryGetAll=async function(){if(!_advIsAdmin())throw new Error('Access denied.');let primary=[];try{primary=await _advGetSorted(ADV_REQUESTS_COLLECTION);}catch(_){ }return _advMergeRows(primary,await _advFallbackRows(false),false);};
+    window._advisoryGetMine=async function(){
+      if(!_advEmail()||!db)return[];let primary=[];
+      try{const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));primary=snap.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));}catch(_){ }
+      return _advMergeRows(primary,await _advFallbackRows(true),false);
     };
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true);};
+    window._advisorySubscribe=function(callback){
+      if(typeof callback!=='function'||!_advEmail()||!db)return function(){};
+      let closed=false,timer=null,unsubs=[];
+      const signal=function(){if(closed)return;clearTimeout(timer);timer=setTimeout(function(){if(!closed)callback();},180);};
+      const listen=function(qref){try{unsubs.push(onSnapshot(qref,signal,function(){/* The compatible listener may be unavailable under older rules. */}));}catch(_){ }};
+      if(_advIsAdmin()){
+        listen(collection(db,ADV_REQUESTS_COLLECTION));
+        listen(collection(db,ADV_FALLBACK_COLLECTION));
+      }else{
+        listen(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
+        listen(query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',_advEmail())));
+      }
+      return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
+    };
 
     window._advisoryAdminAction=async function(requestId,action,data,file){
       if(!_advIsAdmin())throw new Error('Access denied.');
-      data=data||{};const current=await _advAuthorizedRequest(requestId,true),requestRef=doc(db,'advisory_requests',requestId),publicRef=doc(db,'advisory_public',requestId),nowIso=_advIso();
-      const updates={updatedAt:serverTimestamp(),updatedBy:_advEmail()},publicUpdates={updatedAt:serverTimestamp()},messageAttachments=[];
-      if(file){const meta=await _advUploadFile(requestId,file,_advEmail());messageAttachments.push(meta);updates.attachments=arrayUnion(meta);updates.attachmentCount=Number(current.attachmentCount||0)+1;publicUpdates.attachmentCount=updates.attachmentCount;}
+      data=data||{};const current=await _advAuthorizedRequest(requestId,true),requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso();
+      const updates={updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:_advEmail()},publicUpdates={updatedAt:serverTimestamp()},messageAttachments=[];
+      if(file&&current._storage==='advisory_requests'){try{const meta=await _advUploadFile(requestId,file,_advEmail());messageAttachments.push(meta);updates.attachments=arrayUnion(meta);updates.attachmentCount=Number(current.attachmentCount||0)+1;publicUpdates.attachmentCount=updates.attachmentCount;}catch(e){throw new Error('The response attachment could not be uploaded: '+String(e&&e.message||e));}}
       const firstResponseActions=['respond','request_info'];
-      if(firstResponseActions.includes(action)&&!current.firstRespondedAt){
-        const created=_advTsMs(current.createdAt)||Date.now(),mins=Math.max(0,Math.round((Date.now()-created)/60000));
-        updates.firstRespondedAt=serverTimestamp();updates.responseMinutes=mins;publicUpdates.firstRespondedAt=serverTimestamp();publicUpdates.responseMinutes=mins;
-      }
+      if(firstResponseActions.includes(action)&&!current.firstRespondedAt){const created=_advTsMs(current.createdAt)||Date.now(),mins=Math.max(0,Math.round((Date.now()-created)/60000));updates.firstRespondedAt=serverTimestamp();updates.responseMinutes=mins;publicUpdates.firstRespondedAt=serverTimestamp();publicUpdates.responseMinutes=mins;}
       let status=current.status,messageText=String(data.text||'').trim();
       if(action==='respond'){status='responded';updates.respondedAt=serverTimestamp();publicUpdates.respondedAt=serverTimestamp();}
       else if(action==='request_info')status='awaiting_requester_information';
       else if(action==='close'){if(current.status!=='completed')throw new Error('Only completed requests can be closed.');status='closed';updates.closedAt=serverTimestamp();publicUpdates.closedAt=serverTimestamp();}
-      else if(action==='duplicate')status='duplicate';
-      else if(action==='out_of_scope')status='out_of_scope';
-      else if(action==='knowledge_guide')status='knowledge_guide';
-      else throw new Error('Unsupported action.');
+      else if(action==='duplicate')status='duplicate';else if(action==='out_of_scope')status='out_of_scope';else if(action==='knowledge_guide')status='knowledge_guide';else throw new Error('Unsupported action.');
       updates.status=status;publicUpdates.status=status;
-      if(messageText||messageAttachments.length){updates.messages=arrayUnion({id:'msg_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),senderRole:_advRole(),senderName:String(window._fbName||'Admin'),senderEmail:_advEmail(),text:messageText,attachments:messageAttachments,createdAt:nowIso});}
-      await updateDoc(requestRef,updates);await updateDoc(publicRef,publicUpdates);return true;
+      if(messageText||messageAttachments.length)updates.messages=arrayUnion({id:'msg_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),senderRole:_advRole(),senderName:String(window._fbName||'Admin'),senderEmail:_advEmail(),text:messageText,attachments:messageAttachments,createdAt:nowIso});
+      await updateDoc(requestRef,updates);if(publicRef){try{await updateDoc(publicRef,publicUpdates);}catch(_){}}return true;
     };
 
     window._advisoryRequesterAction=async function(requestId,action,data,file){
-      data=data||{};const current=await _advAuthorizedRequest(requestId,false),requestRef=doc(db,'advisory_requests',requestId),publicRef=doc(db,'advisory_public',requestId),updates={updatedAt:serverTimestamp(),updatedBy:_advEmail()},publicUpdates={updatedAt:serverTimestamp()},messageAttachments=[];
-      if(file){const meta=await _advUploadFile(requestId,file,_advEmail());messageAttachments.push(meta);updates.attachments=arrayUnion(meta);updates.attachmentCount=Number(current.attachmentCount||0)+1;publicUpdates.attachmentCount=updates.attachmentCount;}
+      data=data||{};const current=await _advAuthorizedRequest(requestId,false),requestRef=current._requestRef,publicRef=current._publicRef,updates={updatedAt:serverTimestamp(),updatedAtIso:_advIso(),updatedBy:_advEmail()},publicUpdates={updatedAt:serverTimestamp()},messageAttachments=[];
+      if(file&&current._storage==='advisory_requests'){const meta=await _advUploadFile(requestId,file,_advEmail());messageAttachments.push(meta);updates.attachments=arrayUnion(meta);updates.attachmentCount=Number(current.attachmentCount||0)+1;publicUpdates.attachmentCount=updates.attachmentCount;}
       if(action==='clarify'){
-        if(current.status!=='awaiting_requester_information')throw new Error('This request is not waiting for clarification.');
-        const text=String(data.text||'').trim();if(!text)throw new Error('Clarification is required.');updates.status='in_progress';publicUpdates.status='in_progress';
-        updates.messages=arrayUnion({id:'msg_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),senderRole:_advRole(),senderName:String(window._fbName||'Requester'),senderEmail:_advEmail(),text,attachments:messageAttachments,createdAt:_advIso()});
-      }else if(action==='complete'){
-        if(current.status!=='responded')throw new Error('The request must be in Responded status first.');updates.status='completed';updates.completedAt=serverTimestamp();publicUpdates.status='completed';publicUpdates.completedAt=serverTimestamp();
-      }else if(action==='cancel'){
-        if(['completed','closed','duplicate','out_of_scope','knowledge_guide'].includes(current.status))throw new Error('This request can no longer be cancelled.');updates.status='cancelled';publicUpdates.status='cancelled';
-      }else throw new Error('Unsupported action.');
-      await updateDoc(requestRef,updates);await updateDoc(publicRef,publicUpdates);return true;
+        if(current.status!=='awaiting_requester_information')throw new Error('This request is not waiting for clarification.');const text=String(data.text||'').trim();if(!text)throw new Error('Clarification is required.');updates.status='in_progress';publicUpdates.status='in_progress';updates.messages=arrayUnion({id:'msg_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),senderRole:_advRole(),senderName:String(window._fbName||'Requester'),senderEmail:_advEmail(),text,attachments:messageAttachments,createdAt:_advIso()});
+      }else if(action==='complete'){if(current.status!=='responded')throw new Error('The request must be in Responded status first.');updates.status='completed';updates.completedAt=serverTimestamp();publicUpdates.status='completed';publicUpdates.completedAt=serverTimestamp();}
+      else if(action==='cancel'){if(['completed','closed','duplicate','out_of_scope','knowledge_guide'].includes(current.status))throw new Error('This request can no longer be cancelled.');updates.status='cancelled';publicUpdates.status='cancelled';}
+      else throw new Error('Unsupported action.');
+      await updateDoc(requestRef,updates);if(publicRef){try{await updateDoc(publicRef,publicUpdates);}catch(_){}}return true;
     };
 
     window._advisoryRate=async function(requestId,rating){
-      const current=await _advAuthorizedRequest(requestId,false),n=Math.max(1,Math.min(5,Number(rating||0)));
-      if(current.status!=='closed')throw new Error('Only closed requests can be rated.');if(Number(current.rating))throw new Error('This request has already been rated.');
-      const updates={rating:n,ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedBy:_advEmail()};
-      await updateDoc(doc(db,'advisory_requests',requestId),updates);await updateDoc(doc(db,'advisory_public',requestId),{rating:n,ratingAt:serverTimestamp(),updatedAt:serverTimestamp()});return true;
+      const current=await _advAuthorizedRequest(requestId,false),n=Math.max(1,Math.min(5,Number(rating||0)));if(current.status!=='closed')throw new Error('Only closed requests can be rated.');if(Number(current.rating))throw new Error('This request has already been rated.');
+      const updates={rating:n,ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:_advIso(),updatedBy:_advEmail()};await updateDoc(current._requestRef,updates);if(current._publicRef){try{await updateDoc(current._publicRef,{rating:n,ratingAt:serverTimestamp(),updatedAt:serverTimestamp()});}catch(_){}}return true;
     };
 
     window._advisoryDownloadAttachment=async function(requestId,attachmentId,mimeType,chunkCount){
-      await _advAuthorizedRequest(requestId,true);const chunks=[];
-      for(let i=0;i<Number(chunkCount||0);i++){
-        const snap=await getDoc(doc(db,'advisory_attachments',_advChunkDocId(requestId,attachmentId,i)));if(!snap.exists())throw new Error('Attachment chunk is missing.');chunks.push(_advBase64ToBytes(String(snap.data().data||'')));
-      }
+      const current=await _advAuthorizedRequest(requestId,true);if(current._storage!=='advisory_requests')throw new Error('This request was saved through the compatible channel and has no stored attachment.');const chunks=[];
+      for(let i=0;i<Number(chunkCount||0);i++){const snap=await getDoc(doc(db,'advisory_attachments',_advChunkDocId(requestId,attachmentId,i)));if(!snap.exists())throw new Error('Attachment chunk is missing.');chunks.push(_advBase64ToBytes(String(snap.data().data||'')));}
       const total=chunks.reduce((n,x)=>n+x.length,0),out=new Uint8Array(total);let offset=0;chunks.forEach(x=>{out.set(x,offset);offset+=x.length;});return new Blob([out],{type:String(mimeType||'application/octet-stream')});
     };
-
 
 
     /* Cleanup helper for pre-launch test User Requests (Super Admin/Admin only, explicit caller). */
