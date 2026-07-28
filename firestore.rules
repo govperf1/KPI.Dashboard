@@ -1,0 +1,515 @@
+// ═══════════════════════════════════════════════════════════════════════
+// FIRESTORE SECURITY RULES v3 — QUMC KPI Dashboard + Department GRC
+// Schema: GRC register documents are stored individually by department.
+// Deploy from Firebase Console → Firestore Database → Rules.
+// ═══════════════════════════════════════════════════════════════════════
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Identity and role helpers ──────────────────────────────────────
+    function signedIn() {
+      return request.auth != null && request.auth.token.email != null;
+    }
+
+    function userPath() {
+      return /databases/$(database)/documents/users/$(request.auth.token.email);
+    }
+
+    function userExists() {
+      return signedIn() && exists(userPath());
+    }
+
+    function userData() {
+      return get(userPath()).data;
+    }
+
+    function approved() {
+      return userExists() && userData().approved == true;
+    }
+
+    function role() {
+      return userData().role;
+    }
+
+    function rolePath() {
+      return /databases/$(database)/documents/config_roles/$(role());
+    }
+
+    function hasPerm(perm) {
+      return approved() && (
+        role() == 'super_admin' ||
+        (
+          exists(rolePath()) &&
+          get(rolePath()).data.permissions is list &&
+          (
+            get(rolePath()).data.permissions.hasAny(['*']) ||
+            get(rolePath()).data.permissions.hasAny([perm])
+          )
+        )
+      );
+    }
+
+    function superAdmin() {
+      return approved() && role() == 'super_admin';
+    }
+
+    function admin() {
+      return approved() && (role() == 'admin' || role() == 'super_admin');
+    }
+
+    function executive() {
+      return approved() && role() == 'executive';
+    }
+
+    function departmentManager() {
+      return approved() && role() == 'department_manager';
+    }
+
+    function kpiOwner() {
+      return approved() && role() == 'kpi_owner';
+    }
+
+    function ownEmail(value) {
+      return signedIn() && value == request.auth.token.email;
+    }
+
+    // Accept current user-document labels while secure records use canonical keys.
+    function userDeptIn(values) {
+      return approved() && (
+        (('deptKey' in userData()) && userData().deptKey in values) ||
+        (('dept' in userData()) && userData().dept in values)
+      );
+    }
+
+    function sameDepartment(dept) {
+      return
+        ((('deptKey' in userData()) && dept == userData().deptKey) ||
+         (('dept' in userData()) && dept == userData().dept)) ||
+        (dept == 'safety' && userDeptIn(['safety', 'Safety', 'Safety Department', 'Safety Management'])) ||
+        (dept == 'maintenance' && userDeptIn(['maintenance', 'Maintenance', 'Maintenance Department'])) ||
+        (dept == 'housekeeping' && userDeptIn(['housekeeping', 'Housekeeping', 'Housekeeping Department', 'Cleaning'])) ||
+        (dept == 'laundry' && userDeptIn(['laundry', 'Laundry', 'Laundry Department'])) ||
+        (dept == 'projects' && userDeptIn(['projects', 'Projects', 'Project Management', 'Projects Management'])) ||
+        (dept == 'governance' && userDeptIn(['governance', 'Governance', 'Governance & Performance', 'Governance and Performance'])) ||
+        (dept == 'division' && userDeptIn(['division', 'FMS Division', 'Facility Management & Safety Division', 'Facilities & Safety Division']));
+    }
+
+    function viewAllGrcDepartments() {
+      return admin() || executive() || hasPerm('view_grc_all_departments');
+    }
+
+    function sharedGrcRecord(data) {
+      return ('visibility' in data && data.visibility == 'shared') ||
+             ('department' in data && data.department == 'division');
+    }
+
+    function validGrcRecord(data) {
+      return data.department is string &&
+             data.visibility is string &&
+             data.visibility in ['department', 'shared'] &&
+             data.schemaVersion == 2;
+    }
+
+    function canReadGrcRecord(data) {
+      return approved() && (
+        viewAllGrcDepartments() ||
+        sharedGrcRecord(data) ||
+        (('department' in data) && sameDepartment(data.department))
+      );
+    }
+
+    function canWriteGrcRecord() {
+      return admin();
+    }
+
+    // ── Users and role definitions ────────────────────────────────────
+    match /users/{email} {
+      allow read: if signedIn() && (
+        request.auth.token.email == email || hasPerm('manage_users')
+      );
+      allow create: if superAdmin();
+      allow update: if signedIn() && (
+        (
+          request.auth.token.email == email &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastLogin'])
+        ) || hasPerm('manage_users')
+      );
+      allow delete: if superAdmin();
+    }
+
+    match /config_roles/{roleId} {
+      allow read: if approved();
+      allow create, update, delete: if hasPerm('manage_roles') || hasPerm('manage_permissions');
+    }
+
+    // ── Performance KPI records ───────────────────────────────────────
+    match /kpi_data/{docId} {
+      allow read: if approved() && (
+        admin() || executive() || hasPerm('view_all_departments') ||
+        (('dept' in resource.data) && sameDepartment(resource.data.dept))
+      );
+      allow create: if hasPerm('edit_kpi') &&
+        request.resource.data.dept is string &&
+        (admin() || sameDepartment(request.resource.data.dept));
+      allow update: if hasPerm('edit_kpi') &&
+        resource.data.dept is string && request.resource.data.dept is string &&
+        (admin() || sameDepartment(resource.data.dept)) &&
+        request.resource.data.dept == resource.data.dept;
+      allow delete: if admin();
+    }
+
+    match /kpi_changes/{changeId} {
+      allow read: if approved();
+      allow create: if approved() && hasPerm('edit_kpi') &&
+        (!('userEmail' in request.resource.data) || ownEmail(request.resource.data.userEmail));
+      allow update: if hasPerm('approve_changes');
+      allow delete: if admin();
+    }
+
+    match /quarter_locks/{lockId} {
+      allow read: if approved();
+      allow create, update: if hasPerm('lock_quarter') || hasPerm('unlock_quarter');
+      allow delete: if superAdmin();
+    }
+
+    match /gap_analysis/{docId} {
+      allow read: if approved() && (
+        admin() || executive() || hasPerm('view_all_departments') ||
+        (('dept' in resource.data) && sameDepartment(resource.data.dept))
+      );
+      allow create: if hasPerm('edit_gap_analysis') &&
+        request.resource.data.dept is string &&
+        (admin() || sameDepartment(request.resource.data.dept));
+      allow update: if hasPerm('edit_gap_analysis') &&
+        resource.data.dept is string && request.resource.data.dept is string &&
+        (admin() || sameDepartment(resource.data.dept)) &&
+        request.resource.data.dept == resource.data.dept;
+      allow delete: if admin();
+    }
+
+    match /action_plans/{docId} {
+      allow read: if approved() && (
+        admin() || executive() || hasPerm('view_all_departments') ||
+        (('dept' in resource.data) && sameDepartment(resource.data.dept))
+      );
+      allow create: if hasPerm('edit_actions') &&
+        request.resource.data.dept is string &&
+        (admin() || sameDepartment(request.resource.data.dept));
+      allow update: if hasPerm('edit_actions') &&
+        resource.data.dept is string && request.resource.data.dept is string &&
+        (admin() || sameDepartment(resource.data.dept)) &&
+        request.resource.data.dept == resource.data.dept;
+      allow delete: if admin();
+    }
+
+    // ── Append-only activity collections ─────────────────────────────
+    match /audit_trail/{logId} {
+      allow read: if admin();
+      allow create: if approved() && request.resource.data.email == request.auth.token.email;
+      allow update, delete: if false;
+    }
+
+    match /activity_log/{logId} {
+      allow read: if admin();
+      allow create: if approved();
+      allow update, delete: if false;
+    }
+
+    // ── Existing dashboard documents ─────────────────────────────────
+    match /kpi_dashboard/state {
+      allow read: if approved();
+      allow create, update: if approved() && (
+        admin() || hasPerm('edit_kpi') || hasPerm('edit_gap_analysis') ||
+        hasPerm('edit_actions') || hasPerm('edit_targets') ||
+        hasPerm('approve_changes') || hasPerm('lock_quarter') ||
+        hasPerm('unlock_quarter') || hasPerm('manage_dashboard_settings')
+      );
+      allow delete: if superAdmin();
+    }
+
+    match /kpi_dashboard/audit {
+      allow read: if admin();
+      allow create: if approved();
+      allow update: if approved() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['log', 'updatedAt', 'updatedBy', 'clearedAt', 'clearedBy']);
+      allow delete: if superAdmin();
+    }
+
+    // Legacy source used once by the automatic Super Admin migration.
+    match /kpi_dashboard/grc_workspace_shared_state_v1 {
+      allow read: if admin();
+      allow write: if false;
+    }
+
+    // Shared approved report/manual/compliance PDF libraries.
+    match /kpi_dashboard/grc_reports_index {
+      allow read: if approved();
+      allow write: if admin();
+    }
+    match /kpi_dashboard/grc_compliance_documents_index {
+      allow read: if approved();
+      allow write: if admin();
+    }
+    match /kpi_dashboard/grc_operational_plans_index {
+      allow read: if approved();
+      allow write: if admin();
+    }
+    match /kpi_dashboard/{chunkId} {
+      allow read: if approved() && chunkId.matches('grc_report_.*');
+      allow write: if admin() && chunkId.matches('grc_report_.*');
+    }
+
+    // ── Department-scoped GRC register collections ───────────────────
+    match /grc_policies/{recordId} {
+      allow read: if canReadGrcRecord(resource.data);
+      allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow delete: if canWriteGrcRecord();
+    }
+    match /grc_plans/{recordId} {
+      allow read: if canReadGrcRecord(resource.data);
+      allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow delete: if canWriteGrcRecord();
+    }
+    match /grc_forms/{recordId} {
+      allow read: if canReadGrcRecord(resource.data);
+      allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow delete: if canWriteGrcRecord();
+    }
+    match /grc_manuals/{recordId} {
+      allow read: if canReadGrcRecord(resource.data);
+      allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow delete: if canWriteGrcRecord();
+    }
+    match /grc_risks/{recordId} {
+      allow read: if canReadGrcRecord(resource.data);
+      allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow delete: if canWriteGrcRecord();
+    }
+    match /grc_incidents/{recordId} {
+      allow read: if canReadGrcRecord(resource.data);
+      allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow delete: if canWriteGrcRecord();
+    }
+    match /grc_codes/{recordId} {
+      allow read: if canReadGrcRecord(resource.data);
+      allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow delete: if canWriteGrcRecord();
+    }
+    match /grc_compliance/{recordId} {
+      allow read: if canReadGrcRecord(resource.data);
+      allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow delete: if canWriteGrcRecord();
+    }
+    match /grc_audits/{recordId} {
+      allow read: if canReadGrcRecord(resource.data);
+      allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow delete: if canWriteGrcRecord();
+    }
+    match /grc_actions/{recordId} {
+      allow read: if canReadGrcRecord(resource.data);
+      allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow delete: if canWriteGrcRecord();
+    }
+    match /grc_documents/{recordId} {
+      allow read: if canReadGrcRecord(resource.data);
+      allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow delete: if canWriteGrcRecord();
+    }
+    match /grc_initiatives/{recordId} {
+      allow read: if canReadGrcRecord(resource.data);
+      allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow delete: if canWriteGrcRecord();
+    }
+
+    match /grc_meta/{metaId} {
+      allow read, create, update: if admin();
+      allow delete: if superAdmin();
+    }
+
+    // ── Performance and GRC system requests ──────────────────────────
+    function requesterFieldsOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'status', 'message', 'details', 'messages', 'attachments',
+        'attachmentCount', 'completedAt', 'rating', 'ratingAt',
+        'updatedAt', 'updatedAtIso', 'updatedBy'
+      ]);
+    }
+
+    match /kpi_requests/{requestId} {
+      allow create: if approved() && ownEmail(request.resource.data.userEmail);
+      allow read: if approved() && (admin() || ownEmail(resource.data.userEmail));
+      allow update: if admin() ||
+        (approved() && ownEmail(resource.data.userEmail) && requesterFieldsOnly());
+      allow delete: if admin();
+    }
+
+    match /grc_requests/{requestId} {
+      allow create: if approved() && ownEmail(request.resource.data.userEmail) &&
+        (
+          !('department' in request.resource.data) ||
+          request.resource.data.department == '' ||
+          sameDepartment(request.resource.data.department)
+        );
+      allow read: if approved() && (admin() || ownEmail(resource.data.userEmail));
+      allow update: if admin();
+      allow delete: if superAdmin();
+    }
+
+    // ── Review & Development Center ──────────────────────────────────
+    function validAdvisoryOwnerChange() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'status', 'messages', 'attachments', 'attachmentCount',
+        'completedAt', 'rating', 'ratingAt', 'updatedAt',
+        'updatedAtIso', 'updatedBy'
+      ]);
+    }
+
+    function validAdvisoryAdminChange() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'status', 'messages', 'attachments', 'attachmentCount',
+        'firstRespondedAt', 'respondedAt', 'responseMinutes',
+        'completedAt', 'closedAt', 'rating', 'ratingAt',
+        'updatedAt', 'updatedAtIso', 'updatedBy'
+      ]);
+    }
+
+    function advisoryOwner(requestId) {
+      return exists(/databases/$(database)/documents/advisory_requests/$(requestId)) &&
+        get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.userEmail == request.auth.token.email;
+    }
+
+    match /advisory_requests/{requestId} {
+      allow create: if approved() && ownEmail(request.resource.data.userEmail) &&
+        (
+          !('departmentKey' in request.resource.data) ||
+          request.resource.data.departmentKey == '' ||
+          sameDepartment(request.resource.data.departmentKey)
+        );
+      allow read: if approved() && (admin() || ownEmail(resource.data.userEmail));
+      allow update: if
+        (admin() && validAdvisoryAdminChange()) ||
+        (approved() && ownEmail(resource.data.userEmail) && validAdvisoryOwnerChange());
+      allow delete: if superAdmin();
+    }
+
+    match /advisory_public/{requestId} {
+      allow create: if approved() && advisoryOwner(requestId);
+      allow read: if admin();
+      allow update: if admin() || (approved() && advisoryOwner(requestId));
+      allow delete: if superAdmin();
+    }
+
+    match /advisory_attachments/{chunkId} {
+      allow create: if approved() &&
+        request.resource.data.requestId is string &&
+        (admin() || advisoryOwner(request.resource.data.requestId)) &&
+        (admin() || ownEmail(request.resource.data.uploadedBy));
+      allow read: if approved() && (
+        admin() ||
+        (('requestId' in resource.data) && advisoryOwner(resource.data.requestId))
+      );
+      allow update: if false;
+      allow delete: if admin();
+    }
+
+    match /advisory_counters/{counterId} {
+      allow read: if approved();
+      allow create: if approved() && request.resource.data.next == 1;
+      allow update: if approved() &&
+        request.resource.data.next == resource.data.next + 1 &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['next', 'updatedAt']);
+      allow delete: if superAdmin();
+    }
+
+    // ── Risk and Incident approval workflow ──────────────────────────
+    function canSubmitRiskRequest() {
+      return approved() && (
+        kpiOwner() || hasPerm('edit_risk_management') ||
+        hasPerm('edit_incident_register')
+      );
+    }
+
+    function riskRequesterChange() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'proposedRecord', 'changedFields', 'requesterNote', 'managerNote',
+        'superAdminNote', 'status', 'updatedAt', 'updatedAtIso', 'history'
+      ]);
+    }
+
+    function riskManagerChange() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'status', 'managerName', 'managerEmail', 'managerNote',
+        'managerActionAt', 'updatedAt', 'updatedAtIso', 'history'
+      ]);
+    }
+
+    function validRequesterRiskTransition() {
+      return
+        (resource.data.status in ['returned_requester', 'rejected_manager', 'rejected_super_admin'] &&
+          request.resource.data.status == 'pending_manager') ||
+        (resource.data.status in ['pending_manager', 'returned_requester'] &&
+          request.resource.data.status == 'cancelled');
+    }
+
+    function validManagerRiskTransition() {
+      return resource.data.status in ['pending_manager', 'returned_manager'] &&
+        request.resource.data.status in ['pending_super_admin', 'returned_requester', 'rejected_manager'];
+    }
+
+    match /grc_risk_requests/{requestId} {
+      allow create: if canSubmitRiskRequest() &&
+        ownEmail(request.resource.data.submittedByEmail) &&
+        sameDepartment(request.resource.data.department) &&
+        request.resource.data.recordType in ['risk', 'incident'] &&
+        request.resource.data.operation in ['add', 'update', 'delete'] &&
+        request.resource.data.status == 'pending_manager';
+
+      allow read: if approved() && (
+        admin() ||
+        ownEmail(resource.data.submittedByEmail) ||
+        (departmentManager() && sameDepartment(resource.data.department))
+      );
+
+      allow update: if
+        (
+          approved() && ownEmail(resource.data.submittedByEmail) &&
+          riskRequesterChange() && validRequesterRiskTransition()
+        ) ||
+        (
+          departmentManager() && sameDepartment(resource.data.department) &&
+          riskManagerChange() && validManagerRiskTransition()
+        ) || superAdmin();
+
+      allow delete: if superAdmin();
+    }
+
+    match /grc_risk_request_counters/{counterId} {
+      allow read: if approved();
+      allow create: if canSubmitRiskRequest() && request.resource.data.next == 1;
+      allow update: if canSubmitRiskRequest() &&
+        request.resource.data.next == resource.data.next + 1 &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['next', 'recordType', 'updatedAt', 'updatedBy']);
+      allow delete: if superAdmin();
+    }
+
+    // ── Default deny ─────────────────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

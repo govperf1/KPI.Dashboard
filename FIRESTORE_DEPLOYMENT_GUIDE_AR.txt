@@ -1,0 +1,54 @@
+دليل تطبيق عزل بيانات GRC حسب القسم — v79
+============================================
+
+الملفات الرئيسية:
+- firestore.rules: قواعد Firestore الجديدة.
+- js/grc.js: التخزين الجديد لكل سجل كمستند مستقل مع استعلام القسم.
+- js/firebase.js: نشر طلبات Risk/Incident في المجموعات الجديدة.
+- index.html: تحديث الكاش.
+
+قبل التطبيق
+-----------
+1) خذي نسخة احتياطية من Firestore أو صدّري البيانات.
+2) لا تحذفي المستند القديم:
+   kpi_dashboard/grc_workspace_shared_state_v1
+   فهو يبقى نسخة رجوع ولا يُكتب عليه بعد التحديث.
+
+طريقة التطبيق الموصى بها
+------------------------
+1) ارفعي ملفات index.html وjs/grc.js وjs/firebase.js.
+2) من Firebase Console افتحي:
+   Firestore Database → Rules
+3) الصقي محتوى firestore.rules كاملًا ثم اضغطي Publish.
+4) سجلي الدخول مرة واحدة بحساب Super Admin أو Admin وافتحي GRC.
+5) يبدأ الترحيل تلقائيًا إلى المجموعات التالية:
+   grc_policies
+   grc_plans
+   grc_forms
+   grc_manuals
+   grc_risks
+   grc_incidents
+   grc_codes
+   grc_compliance
+   grc_audits
+   grc_actions
+   grc_documents
+   grc_initiatives
+6) تأكدي من ظهور المستند:
+   grc_meta/state_migration_v2
+   وقيمة status = completed
+7) اختبري حسابًا من Safety وحسابًا من Maintenance للتأكد أن كل حساب يرى قسمه والسجلات المشتركة فقط.
+
+ملاحظات مهمة
+------------
+- السجلات التي department = division وvisibility = shared تعتبر مراجع مشتركة لكل مستخدمي GRC المعتمدين.
+- Admin وSuper Admin وExecutive يستطيعون عرض جميع الأقسام.
+- Department Manager وKPI Owner وViewer/User يقرؤون قسمهم فقط، ولا يعتمد العزل على إخفاء الواجهة؛ Firestore نفسه يرفض قراءة قسم آخر.
+- KPI Owner لا يكتب مباشرة في Risk أو Incident. الطلب يمر على Department Manager ثم Super Admin، وبعد الاعتماد النهائي يُنشر في grc_risks أو grc_incidents.
+- Viewer لم يعد يحصل افتراضيًا على view_all_departments داخل الكود.
+- مكتبة التقارير والأدلة وملفات الالتزام الحالية تُعامل كمراجع معتمدة مشتركة. سجلات الأقسام التشغيلية نفسها معزولة.
+
+الرجوع عند حدوث مشكلة
+---------------------
+- المستند القديم لم يُحذف، لذلك يمكن إعادة ملفات النسخة السابقة وقواعدها مؤقتًا.
+- لا تشغلي الدالة اليدوية window._grcRunSecureMigration() إلا من حساب Admin/Super Admin وعند الحاجة لإعادة الترحيل عمدًا.
