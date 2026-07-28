@@ -1,6 +1,6 @@
 /* ======================================================================
    QUMC GRC — Excel / Report / Page Export
-   Build: 2026-07-27 v68 resource export, report pagination and page export
+   Build: 2026-07-28 v74 registers, professional report and page export
    ====================================================================== */
 (function(){
   'use strict';
@@ -67,14 +67,17 @@
   var REGISTER_GROUPS=[
     {id:'governance',title:'Governance Registers',items:[['policies','Policy Register'],['forms','Form Register'],['plans','Plan Register']]},
     {id:'risk',title:'Risk Management Registers',items:[['risks','Risk Register'],['incidents','Incident Register'],['codes','Emergency Codes']]},
-    {id:'resources',title:'Operational & Resource Registers',items:[['actions','Action Plans'],['initiatives','Initiatives Register'],['reports','Reports Register'],['manuals','Manuals Register'],['guides','Guidelines Register']]},
+    {id:'resources',title:'Registers',items:[['actions','Action Plans'],['initiatives','Initiatives Register'],['reports','Reports Register'],['manuals_guidelines','Manuals & Guidelines Register']]},
     {id:'compliance',title:'Compliance Assessments',items:[['cbahi','CBAHI Assessment'],['jci','JCI Assessment']]}
   ];
   var REPORT_GROUPS=[
-    {id:'governance',title:'Governance',items:[['gov_policies','Policies'],['gov_plans','Plans'],['gov_forms','Forms']]},
+    {id:'governance',title:'Governance',items:[['gov_policies','Policy Register'],['gov_plans','Plan Register'],['gov_forms','Form Register']]},
     {id:'risk',title:'Risk Management',items:[['risk_register','Risk Register'],['risk_incidents','Incident Register'],['risk_codes','Emergency Codes']]},
     {id:'compliance',title:'Compliance',items:[['overall','Overall Compliance'],['cbahi','CBAHI Assessment'],['jci','JCI Assessment']]},
-    {id:'resources',title:'Operational & Resource',items:[['reports','Reports'],['manuals','Manuals & Guidelines'],['initiatives','Initiatives']]}
+    {id:'operational_plan',title:'Operational Plan',items:[['operational_plan','Operational Plan']]},
+    {id:'reports',title:'Reports',items:[['reports','Reports Register']]},
+    {id:'manuals',title:'Manuals & Guidelines',items:[['manuals','Manuals & Guidelines Register']]},
+    {id:'initiatives',title:'Initiatives',items:[['initiatives','Initiatives Register']]}
   ];
   var REPORT_FIXED_DEPTS=[];
   function excelSelectable(){return Array.prototype.slice.call(document.querySelectorAll('[data-grc-excel-selectable]'));}
@@ -162,24 +165,22 @@
       source=filtered('documents');columns=['Code','Document','Department','Category','Version','Issue Date','Status'];source.forEach(function(r){rows.push([r.code||r.id,r.name||r.title,r.department,r.category,r.version,r.issueDate,r.status]);});
     }else if(id==='reports'){
       source=(data._reports||[]).filter(function(r){return String(r.kind||r.type||'').toLowerCase()!=='guideline';});columns=['Code','Report Name','Family','Type','Year','Quarter','Status'];source.forEach(function(r){rows.push([r.code||r.id,r.titleEn||r.title||r.name,r.family,r.kind||r.type,r.year,r.quarter,r.status||'Available']);});
-    }else if(id==='manuals'){
-      source=filtered('manuals');columns=['Code','Manual','Language','Version','Status'];source.forEach(function(r){rows.push([r.code||r.id,r.nameEn||r.name||r.title,r.language,r.version,r.status]);});
-    }else if(id==='guides'){
-      source=(data._reports||[]).filter(function(r){return String(r.kind||r.type||'').toLowerCase()==='guideline';});columns=['Code','Guideline','Language','Version','Status'];source.forEach(function(r){rows.push([r.code||r.id,r.titleEn||r.title||r.name,r.language,r.version,r.status||'Available']);});
+    }else if(id==='manuals_guidelines'){
+      var manuals=filtered('manuals'),guides=(data._reports||[]).filter(function(r){return String(r.kind||r.type||'').toLowerCase()==='guideline';});columns=['Code','Manual / Guideline','Type','Language','Version','Status'];manuals.forEach(function(r){rows.push([r.code||r.id,r.nameEn||r.name||r.title,'Manual',r.language,r.version,r.status]);});guides.forEach(function(r){rows.push([r.code||r.id,r.titleEn||r.title||r.name,'Guideline',r.language,r.version,r.status||'Available']);});
     }else if(id==='initiatives'){
       source=filtered('initiatives');columns=['Code','Initiative','Department','Owner','Status','Progress'];source.forEach(function(r){rows.push([r.code||r.id,r.nameEn||r.name||r.title,r.department,r.owner||r.responsiblePerson,r.status,r.progress]);});
     }else{columns=['Information'];rows=[['No register dataset is configured for this page.']];}
-    var titles={actions:'Action Plans',initiatives:'Initiatives Register',reports:'Reports Register',manuals:'Manuals Register',guides:'Guidelines Register'};return{title:titles[id]||PAGE_LABELS[id]||id,kind:'flat',columns:columns,rows:rows};
+    var titles={actions:'Action Plans',initiatives:'Initiatives Register',reports:'Reports Register',manuals_guidelines:'Manuals & Guidelines Register'};return{title:titles[id]||PAGE_LABELS[id]||id,kind:'flat',columns:columns,rows:rows};
   }
   function resourceSet(data,depts,types){
-    types=types&&types.length?types:['actions','initiatives','reports','manuals','guides'];
-    var labels={actions:'Action Plans',initiatives:'Initiatives Register',reports:'Reports Register',manuals:'Manuals Register',guides:'Guidelines Register'};
+    types=types&&types.length?types:['actions','initiatives','reports','manuals_guidelines'];
+    var labels={actions:'Action Plans',initiatives:'Initiatives Register',reports:'Reports Register',manuals_guidelines:'Manuals & Guidelines Register'};
     var tables=types.map(function(key){
       var set=simpleSet(key,data,depts);
       return table(labels[key]||set.title,set.columns,set.rows,'FF4C8294');
     });
-    var sec=section('Operational & Resource Registers',tables,'FF2B6E7F');
-    return{title:'Operational & Resource Registers',kind:'sectioned',sections:sec?[sec]:[]};
+    var sec=section('Registers',tables,'FF2B6E7F');
+    return{title:'Registers',kind:'sectioned',sections:sec?[sec]:[]};
   }
   function rowsForPage(id,data,depts,selections){
     if(id==='governance')return governanceSet(data,depts,selections.governance);
@@ -222,7 +223,7 @@
     var depts=checked('grcExcelDept'),selected=checked('grcExcelRegister');
     if(!depts.length){alert('Select at least one department.');return;}
     if(!selected.length){alert('Select at least one register.');return;}
-    var data=snap(),sets=[],gov=selected.filter(function(x){return['policies','forms','plans'].indexOf(x)>=0;}),risk=selected.filter(function(x){return['risks','incidents','codes'].indexOf(x)>=0;}),resources=selected.filter(function(x){return['actions','initiatives','reports','manuals','guides'].indexOf(x)>=0;}),compliance=selected.filter(function(x){return['cbahi','jci'].indexOf(x)>=0;});
+    var data=snap(),sets=[],gov=selected.filter(function(x){return['policies','forms','plans'].indexOf(x)>=0;}),risk=selected.filter(function(x){return['risks','incidents','codes'].indexOf(x)>=0;}),resources=selected.filter(function(x){return['actions','initiatives','reports','manuals_guidelines'].indexOf(x)>=0;}),compliance=selected.filter(function(x){return['cbahi','jci'].indexOf(x)>=0;});
     if(gov.length){var g=governanceSet(data,depts,gov);g.title='Governance Registers';sets.push(g);}
     if(risk.length){var r=riskSet(data,depts,risk);r.title='Risk Management Registers';sets.push(r);}
     if(resources.length){var o=resourceSet(data,depts,resources);sets.push(o);}
@@ -290,189 +291,58 @@
   function reportSelectable(){return Array.prototype.slice.call(document.querySelectorAll('[data-grc-report-selectable]'));}
   function reportSelectedCount(group){return Array.prototype.slice.call(document.querySelectorAll('input[data-grc-report-group="'+group.id+'"]')).filter(function(x){return x.checked;}).length;}
   function updateReportDropdownLabel(group){var label=document.getElementById('grcReportDropLabel-'+group.id),n=reportSelectedCount(group);if(label)label.textContent=n===group.items.length?'All selected':n+' selected';}
-  function reportGroupHtml(group){
-    return'<div class="grc-export-compact-group"><button type="button" class="grc-export-dropdown-btn" onclick="window._grcToggleReportDropdown(\''+group.id+'\',event)"><span><b>'+esc(group.title)+'</b><small id="grcReportDropLabel-'+group.id+'">All selected</small></span><i>⌄</i></button><div id="grcReportDrop-'+group.id+'" class="grc-export-dropdown-menu"><label class="grc-export-check group-all"><input id="grcReportGroupAll-'+group.id+'" type="checkbox" checked onchange="window._grcToggleReportGroup(\''+group.id+'\',this.checked)"><span>Select all in this group</span></label>'+group.items.map(function(item){return'<label class="grc-export-check"><input data-grc-report-selectable data-grc-report-group="'+group.id+'" type="checkbox" name="grcReportItem" value="'+item[0]+'" checked onchange="window._grcSyncReportGroup(\''+group.id+'\')"><span>'+esc(item[1])+'</span></label>';}).join('')+'</div></div>';
-  }
-
+  function reportGroupHtml(group){return'<div class="grc-export-compact-group"><button type="button" class="grc-export-dropdown-btn" onclick="window._grcToggleReportDropdown(\''+group.id+'\',event)"><span><b>'+esc(group.title)+'</b><small id="grcReportDropLabel-'+group.id+'">All selected</small></span><i>⌄</i></button><div id="grcReportDrop-'+group.id+'" class="grc-export-dropdown-menu"><label class="grc-export-check group-all"><input id="grcReportGroupAll-'+group.id+'" type="checkbox" checked onchange="window._grcToggleReportGroup(\''+group.id+'\',this.checked)"><span>Select all in this section</span></label>'+group.items.map(function(item){return'<label class="grc-export-check"><input data-grc-report-selectable data-grc-report-group="'+group.id+'" type="checkbox" name="grcReportItem" value="'+item[0]+'" checked onchange="window._grcSyncReportGroup(\''+group.id+'\')"><span>'+esc(item[1])+'</span></label>';}).join('')+'</div></div>';}
   window._grcToggleReportDropdown=function(id,e){if(e){e.preventDefault();e.stopPropagation();}document.querySelectorAll('.grc-export-dropdown-menu.is-open').forEach(function(x){if(x.id!=='grcReportDrop-'+id)x.classList.remove('is-open');});var m=document.getElementById('grcReportDrop-'+id);if(m)m.classList.toggle('is-open');};
   window._grcToggleReportAll=function(on){reportSelectable().forEach(function(x){x.checked=!!on;});REPORT_GROUPS.forEach(function(g){var all=document.getElementById('grcReportGroupAll-'+g.id);if(all)all.checked=!!on;updateReportDropdownLabel(g);});};
   window._grcToggleReportGroup=function(group,on){document.querySelectorAll('input[data-grc-report-group="'+group+'"]').forEach(function(x){x.checked=!!on;});window._grcSyncReportGroup(group);};
   window._grcSyncReportGroup=function(group){var boxes=Array.prototype.slice.call(document.querySelectorAll('input[data-grc-report-group="'+group+'"]')),all=document.getElementById('grcReportGroupAll-'+group),g=REPORT_GROUPS.find(function(x){return x.id===group;});if(all){all.checked=boxes.length>0&&boxes.every(function(x){return x.checked;});all.indeterminate=boxes.some(function(x){return x.checked;})&&!all.checked;}if(g)updateReportDropdownLabel(g);window._grcSyncReportAll();};
   window._grcSyncReportAll=function(){var boxes=reportSelectable(),all=document.getElementById('grcReportSelectAll');if(all){all.checked=boxes.length>0&&boxes.every(function(x){return x.checked;});all.indeterminate=boxes.some(function(x){return x.checked;})&&!all.checked;}};
-  window._grcOpenReportSelector=async function(){
-    REPORT_FIXED_DEPTS=reportCanViewAllDepartments()?[]:[reportUserDept()];
-    var deptSection='';
-    if(reportCanViewAllDepartments()){
-      var deptChecks=DEPTS.map(function(d){return'<label class="grc-export-check"><input data-grc-report-selectable type="checkbox" name="grcReportDept" value="'+d[0]+'" checked onchange="window._grcSyncReportAll()"><span>'+d[1]+'</span></label>';}).join('');
-      deptSection='<div class="grc-export-section"><h3>Departments</h3><div class="grc-export-check-grid">'+deptChecks+'</div></div>';
-    }
-    var groups=REPORT_GROUPS.map(reportGroupHtml).join('');
-    var body='<label class="grc-export-select-all"><input id="grcReportSelectAll" type="checkbox" checked onchange="window._grcToggleReportAll(this.checked)"><span><b>Select All Options</b><small>Select or clear every available department and report section.</small></span></label>'+deptSection+'<div class="grc-export-section"><h3>Report Content</h3><p class="grc-export-help">Open each dropdown and choose one or more sections.</p><div class="grc-export-dropdown-grid">'+groups+'</div></div>';
-    overlay('GRC Executive Command Report','Choose departments first, then select the Governance, Risk, Compliance and resource content to include.',body,'Build Report','window._grcGenerateReport()');
+  window._grcOpenReportSelector=function(){
+    REPORT_FIXED_DEPTS=reportCanViewAllDepartments()?[]:[reportUserDept()];var deptSection='';
+    if(reportCanViewAllDepartments()){var deptChecks=DEPTS.map(function(d){return'<label class="grc-export-check"><input data-grc-report-selectable type="checkbox" name="grcReportDept" value="'+d[0]+'" checked onchange="window._grcSyncReportAll()"><span>'+d[1]+'</span></label>';}).join('');deptSection='<div class="grc-export-section"><h3>Departments</h3><div class="grc-export-check-grid">'+deptChecks+'</div></div>';}
+    var body='<label class="grc-export-select-all"><input id="grcReportSelectAll" type="checkbox" checked onchange="window._grcToggleReportAll(this.checked)"><span><b>Select All Options</b><small>Select or clear every available department and report section.</small></span></label>'+deptSection+'<div class="grc-export-section"><h3>Report Content</h3><p class="grc-export-help">Each section below becomes a professionally formatted report section.</p><div class="grc-export-dropdown-grid">'+REPORT_GROUPS.map(reportGroupHtml).join('')+'</div></div>';
+    overlay('GRC Report','Choose the departments and the exact registers or assessments to include.',body,'Build Report','window._grcGenerateReport()');
   };
-  function reportDomainKey(part){var t=String(part&&part.title||'').toLowerCase();if(t.indexOf('governance')>=0)return'governance';if(t.indexOf('risk')>=0)return'risk';if(t.indexOf('overall compliance')>=0)return'overall';if(t.indexOf('cbahi')>=0)return'cbahi';if(t.indexOf('jci')>=0)return'jci';if(t.indexOf('report')>=0)return'reports';if(t.indexOf('manual')>=0||t.indexOf('guide')>=0)return'manuals';if(t.indexOf('initiative')>=0)return'initiatives';return'';}
-  function selectedSubIndexes(items,prefixes){var out=[];prefixes.forEach(function(p,i){if(items.indexOf(p)>=0)out.push(i);});return out;}
-  function filterDomainPart(part,key,items){
-    var node=part.node.cloneNode(true),keep=[];
-    if(key==='governance')keep=selectedSubIndexes(items,['gov_policies','gov_plans','gov_forms']);
-    if(key==='risk')keep=selectedSubIndexes(items,['risk_register','risk_incidents','risk_codes']);
-    if(key==='governance'||key==='risk')Array.prototype.slice.call(node.querySelectorAll('.grc-domain-section')).forEach(function(sec,i){if(keep.indexOf(i)<0)sec.remove();});
-    if((key==='governance'||key==='risk')&&!node.querySelector('.grc-domain-section'))return null;
-    return{title:part.title,node:node,width:part.width};
-  }
-  async function reportPartsForSelection(depts,items){
-    var allSelected=DEPTS.every(function(d){return depts.indexOf(d[0])>=0;}),renderDepts=allSelected?['allFms']:depts.slice(),out=[];
-    for(var d=0;d<renderDepts.length;d++){
-      var dept=renderDepts[d],html='';
-      if(typeof window._grcGetExecutiveHtmlForDepartment==='function')html=window._grcGetExecutiveHtmlForDepartment(dept)||'';
-      if(!html){var live=await ensureExecutiveRendered();html=live?live.innerHTML:'';}
-      var wrap=document.createElement('div');wrap.innerHTML=html;var parts=executiveReportParts(wrap),suffix=renderDepts.length>1?' — '+departmentTitle(dept):'';
-      parts.forEach(function(part){var key=reportDomainKey(part),include=false;
-        if(key==='governance')include=items.some(function(x){return x.indexOf('gov_')===0;});
-        else if(key==='risk')include=items.some(function(x){return x.indexOf('risk_')===0;});
-        else include=items.indexOf(key)>=0;
-        if(!include)return;var filtered=filterDomainPart(part,key,items);if(!filtered)return;filtered.title=filtered.title+suffix;out.push(filtered);
-      });
-    }
-    return out;
-  }
-
-  function subsectionCandidates(node){
-    var all=Array.prototype.slice.call(node.querySelectorAll('.grc-section-title,.grc-exec-ops-head h3'));
-    return all.filter(function(h){
-      return !h.closest('.grc-chart-card,.grc-metric-card,.grc-exec-domain-head,.grc-table-wrap,thead,tbody')&&String(h.textContent||'').trim();
-    });
-  }
-  function numberSubsections(node,mainNo){
-    subsectionCandidates(node).forEach(function(h,i){
-      var text=String(h.textContent||'').replace(/^\s*\d+(?:\.\d+)*[.\s-]*/,'').trim();
-      h.textContent='';h.classList.add('grc-report-numbered-title');
-      var no=document.createElement('span');no.className='grc-report-subnumber';no.textContent=mainNo+'.'+(i+1);
-      var label=document.createElement('span');label.className='grc-report-subtitle-text';label.textContent=text;
-      h.appendChild(no);h.appendChild(label);
-    });
-  }
-  function wrapReportBlocks(node){
-    if(!node)return node;
-    node.querySelectorAll('.grc-metric-grid,.grc-exec-metric-grid,.grc-chart-grid,.grc-exec-operations-grid,.grc-exec-risk-visuals,.grc-form-scope-grid,.grc-initiative-sections,.grc-register-block,.grc-table-wrap,.grc-chart-card,.grc-metric-card,.grc-module-card,.grc-exec-ops-card,.grc-initiative-section').forEach(function(x){x.classList.add('grc-report-keep-together');});
-    Array.prototype.slice.call(node.querySelectorAll('.grc-report-numbered-title')).forEach(function(head){
-      if(head.parentNode&&head.parentNode.classList&&head.parentNode.classList.contains('grc-report-subsection-block'))return;
-      var wrap=document.createElement('div');wrap.className='grc-report-subsection-block';head.parentNode.insertBefore(wrap,head);var cur=head;
-      while(cur){var next=cur.nextSibling;wrap.appendChild(cur);if(next&&next.nodeType===1&&next.classList&&next.classList.contains('grc-report-numbered-title'))break;cur=next;if(!cur)break;}
-    });
-    return node;
-  }
-  function prepareReportDomain(part,index){
-    var node=part.node.cloneNode(true),oldHead=node.querySelector('.grc-exec-domain-head'),desc=oldHead&&oldHead.querySelector('p')&&oldHead.querySelector('p').textContent||'';
-    if(oldHead)oldHead.remove();
-    node.querySelectorAll('.grc-export-frozen-box').forEach(function(x){x.classList.remove('grc-export-frozen-box');x.style.removeProperty('--grc-freeze-minh');x.style.minHeight='0';});
-    node.querySelectorAll('[style*="min-height"]').forEach(function(x){x.style.minHeight='0';});
-    numberSubsections(node,index);wrapReportBlocks(node);
-    node.classList.add('grc-report-domain');
-    var head=document.createElement('div');head.className='grc-report-section-head';head.innerHTML='<span>'+index+'</span><div><h2>'+esc(part.title)+'</h2>'+(desc?'<p>'+esc(desc)+'</p>':'')+'</div>';
-    node.insertBefore(head,node.firstChild);
-    return node;
-  }
   function logoSrc(){return((document.querySelector('#grcApp .grc-logo img')||document.getElementById('logoImg')||{}).src||'');}
-  function reportHeader(title,subtitle,date,context){
-    var logo=logoSrc();return'<div class="qumc-report-header grc-report-header"><div class="grc-report-logo">'+(logo?'<img src="'+esc(logo)+'" alt="QUMC">':'')+'</div><div class="grc-report-heading"><p>OFFICIAL GOVERNANCE, RISK &amp; COMPLIANCE REPORT</p><h1>'+esc(title)+'</h1><h2>'+esc(subtitle)+'</h2><div><span>'+esc(date)+'</span><i>·</i><span>'+esc(context)+'</span></div></div></div><div class="qumc-report-header-line"></div>';
-  }
-  function buildReportDocument(chosen){
-    var doc=document.createElement('div');doc.id='rptDocument';doc.className='grc-official-report grc-professional-report';
-    var date=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'}),selected=chosen.map(function(i){return REPORT_PARTS[i];}).filter(Boolean);
-    doc.innerHTML=reportHeader('GRC Executive Command Report','Facility Management & Safety Division',date,'Executive Command');
-    var body=document.createElement('div');body.className='grc-report-content';
-    var intro=document.createElement('section');intro.className='grc-report-overview';intro.innerHTML='<div><span>REPORT SCOPE</span><h2>Governance, Risk and Compliance Executive Overview</h2><p>This report presents the selected Executive Command domains using the current platform data. Each main domain begins on a clear report section, with numbered internal register headings and unnumbered charts.</p></div><div class="grc-report-overview-metrics"><article><b>'+selected.length+'</b><span>Included Sections</span></article><article><b>'+esc(date)+'</b><span>Generated Date</span></article></div>';
-    /* compact official report: no separate overview cover */
-    var contents=document.createElement('section');contents.className='grc-report-contents';contents.innerHTML='<h3>Report Contents</h3><div>'+selected.map(function(p,i){return'<span><b>'+(i+1)+'</b>'+esc(p.title)+'</span>';}).join('')+'</div>';/* contents omitted to keep the report compact */
-    var scope=document.createElement('div');scope.id='grcApp';scope.className='grc-visible grc-report-snapshot';scope.setAttribute('dir','ltr');
-    chosen.forEach(function(i,index){var part=REPORT_PARTS[i];if(part)scope.appendChild(prepareReportDomain(part,index+1));});body.appendChild(scope);
-    var footer=document.createElement('div');footer.className='grc-report-footer';footer.innerHTML='<div><strong>Qassim University Medical City</strong><span>Facility Management &amp; Safety Division · Governance &amp; Performance Department</span></div><small>Generated: '+esc(date)+'</small>';body.appendChild(footer);doc.appendChild(body);
-    var style=document.createElement('style');style.textContent=`
-      @media print{@page{size:A4 landscape!important;margin:0!important}}
-      #rptDocument.grc-official-report{display:block!important;width:100%!important;margin:0!important;background:#fff!important;color:#152538!important;font-family:Arial,"Segoe UI",sans-serif!important;overflow:visible!important}
-      #rptDocument .grc-report-header{display:flex!important;align-items:center!important;gap:18px!important;padding:17px 25px 14px!important;background:#152538!important;color:#fff!important}
-      #rptDocument .grc-report-logo img{height:56px!important;width:auto!important;max-width:145px!important;object-fit:contain!important}
-      #rptDocument .grc-report-heading{flex:1!important;border-left:2px solid rgba(1,181,210,.55)!important;padding-left:18px!important}
-      #rptDocument .grc-report-heading p{margin:0 0 3px!important;font-size:7px!important;font-weight:900!important;color:#01b5d2!important;letter-spacing:.18em!important}
-      #rptDocument .grc-report-heading h1{margin:0 0 2px!important;font-size:19px!important;line-height:1.18!important;color:#fff!important;font-weight:900!important}
-      #rptDocument .grc-report-heading h2{margin:0 0 7px!important;font-size:10px!important;font-weight:500!important;color:rgba(255,255,255,.78)!important}
-      #rptDocument .grc-report-heading>div{display:flex!important;gap:10px!important;font-size:8px!important;font-weight:700!important;color:#01b5d2!important}
-      #rptDocument .qumc-report-header-line{height:3px!important;background:linear-gradient(90deg,#0195af,#01c5e8 45%,#152538)!important}
-      #rptDocument .grc-report-content{padding:11px 14px 14px!important;overflow:visible!important}
-      #rptDocument .grc-report-overview{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;align-items:center!important;gap:18px!important;padding:14px 16px!important;margin:0 0 10px!important;border:1px solid #d7e4e9!important;border-radius:10px!important;background:linear-gradient(135deg,#f8fbfc,#eef7f8)!important}
-      #rptDocument .grc-report-overview span{font-size:7px!important;font-weight:900!important;letter-spacing:.16em!important;color:#0195af!important}#rptDocument .grc-report-overview h2{font-size:14px!important;margin:3px 0 4px!important}#rptDocument .grc-report-overview p{font-size:7.5px!important;line-height:1.45!important;margin:0!important;color:#5e7480!important;max-width:720px!important}
-      #rptDocument .grc-report-overview-metrics{display:flex!important;gap:8px!important}#rptDocument .grc-report-overview-metrics article{min-width:105px!important;padding:9px 11px!important;border-radius:8px!important;background:#fff!important;border:1px solid #dce7eb!important;text-align:center!important}#rptDocument .grc-report-overview-metrics b{display:block!important;font-size:13px!important;color:#173f55!important}#rptDocument .grc-report-overview-metrics span{font-size:6.5px!important;letter-spacing:0!important;color:#6f838e!important}
-      #rptDocument .grc-report-contents{padding:9px 12px!important;margin:0 0 12px!important;border:1px solid #e0e8ec!important;border-radius:9px!important;background:#fff!important}#rptDocument .grc-report-contents h3{font-size:9px!important;margin:0 0 7px!important}#rptDocument .grc-report-contents>div{display:flex!important;flex-wrap:wrap!important;gap:6px!important}#rptDocument .grc-report-contents span{display:inline-flex!important;align-items:center!important;gap:5px!important;padding:5px 8px!important;border-radius:7px!important;background:#f2f7f9!important;font-size:7px!important;color:#355464!important}#rptDocument .grc-report-contents b{display:grid!important;place-items:center!important;width:17px!important;height:17px!important;border-radius:5px!important;background:#173f55!important;color:#fff!important;font-size:6.5px!important}
-      #rptDocument #grcApp{display:block!important;position:static!important;max-width:none!important;width:100%!important;height:auto!important;margin:0!important;padding:0!important;overflow:visible!important;background:#fff!important;color:#152538!important}
-      #rptDocument #grcApp .grc-report-domain{display:block!important;margin:0!important;padding:0!important;border:0!important;background:#fff!important;box-shadow:none!important;overflow:visible!important;break-before:page!important;page-break-before:always!important}
-      #rptDocument #grcApp .grc-report-domain:first-child{break-before:auto!important;page-break-before:auto!important}
-      #rptDocument #grcApp .grc-report-section-head{display:flex!important;align-items:center!important;gap:10px!important;margin:0 0 9px!important;padding:8px 10px!important;border:1px solid #d4e2e9!important;border-left:4px solid #0195af!important;border-radius:8px!important;background:#f7fafc!important;break-after:avoid!important}
-      #rptDocument #grcApp .grc-report-section-head>span{display:grid!important;place-items:center!important;min-width:30px!important;height:30px!important;border-radius:8px!important;background:#152538!important;color:#fff!important;font-size:10px!important;font-weight:900!important}#rptDocument #grcApp .grc-report-section-head h2{font-size:14px!important;line-height:1.15!important;margin:0!important}#rptDocument #grcApp .grc-report-section-head p{font-size:7px!important;margin:2px 0 0!important;color:#647b88!important}
-      #rptDocument #grcApp .grc-report-numbered-title{display:flex!important;align-items:center!important;gap:7px!important;margin:7px 0 6px!important;break-after:avoid!important}#rptDocument #grcApp .grc-report-subnumber{display:inline-grid!important;place-items:center!important;min-width:32px!important;height:21px!important;padding:0 5px!important;border-radius:6px!important;background:#173f55!important;color:#fff!important;font-size:7px!important;font-weight:900!important}#rptDocument #grcApp .grc-report-subtitle-text{font-size:10px!important;font-weight:900!important;color:#173f55!important}
-      #rptDocument #grcApp .grc-metric-grid,#rptDocument #grcApp .grc-exec-metric-grid{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr))!important;gap:7px!important;margin:0 0 9px!important}
-      #rptDocument #grcApp .grc-chart-grid,#rptDocument #grcApp .grc-exec-operations-grid,#rptDocument #grcApp .grc-form-scope-grid,#rptDocument #grcApp .grc-initiative-sections{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:8px!important;margin:0 0 9px!important}
-      #rptDocument #grcApp .grc-exec-risk-visuals{display:grid!important;grid-template-columns:minmax(0,1.5fr) minmax(0,.8fr)!important;gap:8px!important;margin:0 0 9px!important}
-      #rptDocument #grcApp .grc-metric-card,#rptDocument #grcApp .grc-chart-card,#rptDocument #grcApp .grc-module-card,#rptDocument #grcApp .grc-exec-ops-card,#rptDocument #grcApp .grc-section{min-height:0!important;height:auto!important;margin:0!important;padding:9px!important;box-shadow:none!important;break-inside:avoid!important;page-break-inside:avoid!important}
-      #rptDocument #grcApp .grc-metric-value{font-size:17px!important}#rptDocument #grcApp .grc-metric-label{font-size:7px!important}#rptDocument #grcApp .grc-metric-foot{font-size:6.5px!important}
-      #rptDocument #grcApp .grc-chart-title{font-size:8.5px!important;font-weight:900!important}#rptDocument #grcApp .grc-chart-card svg,#rptDocument #grcApp .grc-chart-card canvas,#rptDocument #grcApp .grc-chart-card img{display:block!important;width:100%!important;max-width:100%!important;height:155px!important;max-height:155px!important;object-fit:contain!important;margin:auto!important}#rptDocument #grcApp .grc-donut-card svg,#rptDocument #grcApp .grc-donut-card img{height:125px!important;max-height:125px!important}
-      #rptDocument #grcApp .grc-table-wrap{overflow:visible!important;max-height:none!important}#rptDocument #grcApp table{width:100%!important;min-width:0!important;font-size:6.5px!important}#rptDocument #grcApp th,#rptDocument #grcApp td{padding:4px 5px!important;line-height:1.25!important}
-      #rptDocument #grcApp input,#rptDocument #grcApp select,#rptDocument #grcApp textarea,#rptDocument #grcApp .grc-hero-actions,#rptDocument #grcApp .grc-primary-btn,#rptDocument #grcApp .grc-link-btn,#rptDocument #grcApp .grc-icon-btn,#rptDocument #grcApp .grc-row-actions{display:none!important}
-      #rptDocument #grcApp .grc-report-domain>.grc-section,#rptDocument #grcApp .grc-exec-domain-body{display:block!important;min-height:0!important;gap:8px!important}
-      #rptDocument #grcApp .grc-chart-grid>.grc-heatmap-card,#rptDocument #grcApp .grc-exec-risk-visuals>.grc-heatmap-card,#rptDocument #grcApp .grc-heatmap-card{grid-column:1/-1!important;width:100%!important;display:block!important;padding:8px!important;break-inside:avoid!important}
-      #rptDocument #grcApp .grc-heat-grid{display:grid!important;grid-template-columns:repeat(5,minmax(68px,1fr)) 82px!important;gap:4px!important;min-width:0!important;margin-top:6px!important}
-      #rptDocument #grcApp .grc-heat-cell{display:flex!important;min-height:42px!important;padding:4px!important;border:0!important;border-radius:6px!important;align-items:center!important;justify-content:center!important;flex-direction:column!important;position:relative!important}
-      #rptDocument #grcApp .grc-heat-cell.very-high{background:#D96D73!important;color:#fff!important}#rptDocument #grcApp .grc-heat-cell.high{background:#E7A76E!important;color:#374B59!important}#rptDocument #grcApp .grc-heat-cell.medium{background:#E7D17A!important;color:#374B59!important}#rptDocument #grcApp .grc-heat-cell.low{background:#7DBCA5!important;color:#244D43!important}
-      #rptDocument #grcApp .grc-heat-cell strong{font-size:10px!important}#rptDocument #grcApp .grc-heat-cell span{font-size:5.8px!important}#rptDocument #grcApp .grc-heat-cell em{font-size:5px!important;padding:1px 3px!important;top:2px!important;right:2px!important}
-      #rptDocument #grcApp .grc-heat-impact-head,#rptDocument #grcApp .grc-heat-like-label,#rptDocument #grcApp .grc-heat-side-head{font-size:5.8px!important;min-height:22px!important;padding:3px!important}
-      #rptDocument #grcApp .grc-chart-card{min-height:0!important}#rptDocument #grcApp .grc-chart-card:not(.grc-heatmap-card){max-height:205px!important;overflow:hidden!important}
-      #rptDocument #grcApp .grc-line-wrap,#rptDocument #grcApp .grc-vertical-bars,#rptDocument #grcApp .grc-bar-list,#rptDocument #grcApp .grc-stacked-list{min-height:0!important;max-height:150px!important;overflow:hidden!important}
-      #rptDocument #grcApp .grc-chart-grid{align-items:start!important}
-      #rptDocument .grc-report-footer{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:14px!important;margin-top:10px!important;padding:9px 13px!important;border-radius:8px!important;background:#152538!important;color:#fff!important;break-inside:avoid!important}#rptDocument .grc-report-footer div{display:flex!important;flex-direction:column!important;gap:2px!important}#rptDocument .grc-report-footer strong{font-size:9px!important}#rptDocument .grc-report-footer span,#rptDocument .grc-report-footer small{font-size:7px!important;color:rgba(255,255,255,.68)!important}
-      /* v66 report flow: clear starts, compact charts, and no artificial blank space */
-      #rptDocument #grcApp .grc-report-domain{padding-top:3px!important;break-inside:auto!important;page-break-inside:auto!important}
-      #rptDocument #grcApp .grc-report-section-head{margin:0 0 14px!important;padding:10px 12px!important;min-height:46px!important;background:linear-gradient(90deg,#f4fafc,#fff)!important;border-left-width:5px!important}
-      #rptDocument #grcApp .grc-report-domain>.grc-section,#rptDocument #grcApp .grc-exec-domain-body{break-inside:auto!important;page-break-inside:auto!important;padding-top:2px!important}
-      #rptDocument #grcApp .grc-report-numbered-title{margin:11px 0 7px!important;padding-top:3px!important;clear:both!important}
-      #rptDocument #grcApp .grc-metric-card,#rptDocument #grcApp .grc-chart-card,#rptDocument #grcApp .grc-module-card,#rptDocument #grcApp .grc-exec-ops-card,#rptDocument #grcApp .grc-register-block,#rptDocument #grcApp .grc-initiative-section{break-inside:avoid!important;page-break-inside:avoid!important}
-      #rptDocument #grcApp .grc-chart-grid,#rptDocument #grcApp .grc-exec-operations-grid,#rptDocument #grcApp .grc-form-scope-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:9px!important;align-items:start!important}
-      #rptDocument #grcApp .grc-chart-card:not(.grc-heatmap-card){max-height:184px!important;padding:8px!important}
-      #rptDocument #grcApp .grc-chart-card svg,#rptDocument #grcApp .grc-chart-card canvas,#rptDocument #grcApp .grc-chart-card img{height:132px!important;max-height:132px!important}
-      #rptDocument #grcApp .grc-donut-card svg,#rptDocument #grcApp .grc-donut-card img{height:108px!important;max-height:108px!important}
-      #rptDocument #grcApp .grc-line-wrap,#rptDocument #grcApp .grc-vertical-bars,#rptDocument #grcApp .grc-bar-list,#rptDocument #grcApp .grc-stacked-list{max-height:126px!important}
-      #rptDocument #grcApp .grc-initiative-sections{display:grid!important;grid-template-columns:1fr!important;gap:9px!important}
-      #rptDocument #grcApp .grc-initiative-section,#rptDocument #grcApp .grc-initiatives-panel{display:block!important;width:100%!important;padding:9px!important}
-      #rptDocument #grcApp .grc-initiative-progress-list{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:7px 10px!important}
-      #rptDocument #grcApp .grc-heatmap-card{max-height:none!important;overflow:visible!important}
-      #rptDocument #grcApp .grc-heat-grid{grid-template-columns:repeat(5,minmax(58px,1fr)) 72px!important}
-      /* v68: keep every meaningful report unit complete on one printed page */
-      #rptDocument #grcApp .grc-report-keep-together,
-      #rptDocument #grcApp .grc-report-subsection-block,
-      #rptDocument #grcApp .grc-chart-card,
-      #rptDocument #grcApp .grc-metric-card,
-      #rptDocument #grcApp .grc-module-card,
-      #rptDocument #grcApp .grc-exec-ops-card,
-      #rptDocument #grcApp .grc-register-block,
-      #rptDocument #grcApp .grc-initiative-section,
-      #rptDocument #grcApp .grc-heatmap-card{break-inside:avoid-page!important;page-break-inside:avoid!important}
-      #rptDocument #grcApp .grc-report-numbered-title,#rptDocument #grcApp .grc-section-title,#rptDocument #grcApp h2,#rptDocument #grcApp h3{break-after:avoid-page!important;page-break-after:avoid!important}
-      #rptDocument #grcApp p,#rptDocument #grcApp li,#rptDocument #grcApp tr{break-inside:avoid-page!important;page-break-inside:avoid!important}
-      #rptDocument #grcApp thead{display:table-header-group!important}
-      #rptDocument #grcApp tfoot{display:table-footer-group!important}
-    `;doc.appendChild(style);return doc;
-  }
-  window._grcGenerateReport=async function(){
-    var items=checked('grcReportItem'),depts=REPORT_FIXED_DEPTS.length?REPORT_FIXED_DEPTS:checked('grcReportDept');
-    if(!items.length){alert('Select at least one report content option.');return;}
-    if(!depts.length){alert('Select at least one department.');return;}
-    REPORT_PARTS=await reportPartsForSelection(depts,items);
-    if(!REPORT_PARTS.length){alert('No report content was found for the selected options.');return;}
-    var chosen=REPORT_PARTS.map(function(_,i){return i;}),doc=buildReportDocument(chosen);closeOverlay();
-    var period=(depts.length===DEPTS.length?'All Departments':depts.map(departmentTitle).join(', '))+' · '+new Date().toLocaleDateString('en-GB');
-    var ok=typeof window._qumcPrintReportDocument==='function'&&window._qumcPrintReportDocument(doc,{period:'GRC Executive Command · '+period,orientation:'landscape'});
-    if(!ok){alert('The Performance report print engine is not ready. Reload the page and try again.');return;}
-    if(typeof window.addAudit==='function')window.addAudit('GRC_REPORT_PDF','Generated GRC Executive Command report');
+  function reportHeader(title,subtitle,date,context){var logo=logoSrc();return'<div class="qumc-report-header grc-report-header"><div class="grc-report-logo">'+(logo?'<img src="'+esc(logo)+'" alt="QUMC">':'')+'</div><div class="grc-report-heading"><p>OFFICIAL GOVERNANCE, RISK &amp; COMPLIANCE REPORT</p><h1>'+esc(title)+'</h1><h2>'+esc(subtitle)+'</h2><div><span>'+esc(date)+'</span><i>·</i><span>'+esc(context)+'</span></div></div></div><div class="qumc-report-header-line"></div>';}
+  function reportFooter(date){return'<div class="grc-rpt-footer"><div><strong>Qassim University Medical City</strong><span>Facility Management &amp; Safety Division · Governance &amp; Performance</span></div><small>Generated: '+esc(date)+'</small></div>';}
+  function reportName(r){return String(r&& (r.nameEn||r.name||r.titleEn||r.title||r.riskIdentified||r.standardDescription||r.specificRequirementDescription||r.requirement||r.description)||'—');}
+  function reportStatus(r){return String(r&& (r.status||r.actionStatus||r.complianceStatus||r.executionStatus)||'Unknown');}
+  function reportDate(v){if(!v)return'—';var d=new Date(String(v).length===10?v+'T00:00:00':v);return isNaN(d.getTime())?String(v):d.toLocaleDateString('en-GB');}
+  function reportFilter(records,depts,mode){records=Array.isArray(records)?records:[];if(!depts||!depts.length)return records.slice();return records.filter(function(r){return depts.some(function(d){return deptMatch(r,d,mode||'merged');});});}
+  function reportStatusCounts(rows){var map={};rows.forEach(function(r){var k=reportStatus(r)||'Unknown';map[k]=(map[k]||0)+1;});return map;}
+  function reportMetric(label,value,note,tone){return'<article class="grc-rpt-metric '+(tone||'')+'"><span>'+esc(label)+'</span><strong>'+esc(value)+'</strong><small>'+esc(note||'')+'</small></article>';}
+  function reportBars(title,counts){var entries=Object.keys(counts).map(function(k){return[k,counts[k]];}).sort(function(a,b){return b[1]-a[1];}),max=Math.max(1,...entries.map(function(x){return x[1];}));return'<section class="grc-rpt-chart"><h3>'+esc(title)+'</h3><div class="grc-rpt-bars">'+(entries.length?entries.slice(0,8).map(function(x,i){return'<div><span>'+esc(x[0])+'</span><i><b style="width:'+Math.max(4,Math.round(x[1]/max*100))+'%"></b></i><strong>'+x[1]+'</strong></div>';}).join(''):'<p>No data available.</p>')+'</div></section>';}
+  function reportTable(title,columns,rows){return'<section class="grc-rpt-table-card"><h3>'+esc(title)+'</h3><table><thead><tr>'+columns.map(function(c){return'<th>'+esc(c)+'</th>';}).join('')+'</tr></thead><tbody>'+(rows.length?rows.map(function(row){return'<tr>'+row.map(function(v){return'<td>'+esc(v==null?'—':v)+'</td>';}).join('')+'</tr>';}).join(''):'<tr><td colspan="'+columns.length+'" class="empty">No matching records.</td></tr>')+'</tbody></table></section>';}
+  function chunkRows(rows,size){var out=[];for(var i=0;i<rows.length;i+=size)out.push(rows.slice(i,i+size));return out.length?out:[[]];}
+  function reportHeatMap(rows){var counts={};rows.forEach(function(r){var l=Number(r.likelihood),i=Number(r.impact);if(l>=1&&l<=5&&i>=1&&i<=5)counts[l+'-'+i]=(counts[l+'-'+i]||0)+1;});var cells='';for(var l=5;l>=1;l--){for(var i=1;i<=5;i++){var score=l*i,tone=score>=15?'critical':score>=8?'high':score>=4?'medium':'low';cells+='<div class="'+tone+'"><span>'+l+'×'+i+'</span><strong>'+Number(counts[l+'-'+i]||0)+'</strong><small>'+score+'</small></div>';}}return'<section class="grc-rpt-heat"><h3>Risk Heat Map</h3><div class="grc-rpt-heat-grid">'+cells+'</div><div class="grc-rpt-heat-legend"><span class="low">Low 1–3</span><span class="medium">Medium 4–7</span><span class="high">High 8–14</span><span class="critical">Critical 15–25</span></div></section>';}
+  var REPORT_META={
+    gov_policies:{domain:1,domainTitle:'Governance',sub:'1.1',title:'Policy Register'},gov_plans:{domain:1,domainTitle:'Governance',sub:'1.2',title:'Plan Register'},gov_forms:{domain:1,domainTitle:'Governance',sub:'1.3',title:'Form Register'},
+    risk_register:{domain:2,domainTitle:'Risk Management',sub:'2.1',title:'Risk Register'},risk_incidents:{domain:2,domainTitle:'Risk Management',sub:'2.2',title:'Incident Register'},risk_codes:{domain:2,domainTitle:'Risk Management',sub:'2.3',title:'Emergency Codes'},
+    overall:{domain:3,domainTitle:'Compliance',sub:'3.1',title:'Overall Compliance'},cbahi:{domain:3,domainTitle:'Compliance',sub:'3.2',title:'CBAHI Assessment'},jci:{domain:3,domainTitle:'Compliance',sub:'3.3',title:'JCI Assessment'},
+    operational_plan:{domain:4,domainTitle:'Operational Plan',sub:'4.1',title:'Operational Plan'},reports:{domain:5,domainTitle:'Reports',sub:'5.1',title:'Reports Register'},manuals:{domain:6,domainTitle:'Manuals & Guidelines',sub:'6.1',title:'Manuals & Guidelines Register'},initiatives:{domain:7,domainTitle:'Initiatives',sub:'7.1',title:'Initiatives Register'}
   };
+  function reportDataset(item,data,depts){var rows=[],columns=[],raw=[],chartCounts={},extras='';
+    if(item==='gov_policies'){raw=reportFilter(data.policies,depts);columns=['Code','Policy','Department','Issue Date','Review Date','Status'];rows=raw.map(function(r){return[r.code||r.id,reportName(r),r.department,reportDate(r.issueDate),reportDate(r.reviewDate||r.expiryDate),reportStatus(r)];});}
+    else if(item==='gov_plans'){raw=reportFilter(data.plans,depts);columns=['Code','Plan','Department','Start Date','End / Review Date','Status'];rows=raw.map(function(r){return[r.code||r.id,reportName(r),r.department,reportDate(r.startDate||r.issueDate),reportDate(r.endDate||r.reviewDate||r.expiryDate),reportStatus(r)];});}
+    else if(item==='gov_forms'){raw=reportFilter(data.forms,depts);columns=['Code','Form','Scope','Department','Status'];rows=raw.map(function(r){return[r.code||r.id,reportName(r),r.scope||r.formScope||'Internal',r.department,reportStatus(r)];});}
+    else if(item==='risk_register'){raw=reportFilter(data.risks,depts,'risk-register');columns=['ID','Risk','Department','Category','Likelihood','Impact','Score','Level','Status'];rows=raw.map(function(r){var score=Number(r.riskScore)||Number(r.likelihood||0)*Number(r.impact||0);return[r.id||r.code,reportName(r),r.department,r.riskCategory,Number(r.likelihood||0),Number(r.impact||0),score,r.riskLevel,r.actionStatus||r.status];});extras=reportHeatMap(raw);}
+    else if(item==='risk_incidents'){raw=reportFilter(data.incidents,depts);columns=['ID','Date','Category','Contributing Factors','Department','Investigation','Status'];rows=raw.map(function(r){return[r.id||r.code,reportDate(r.date||r.incidentDate),r.category,r.contributingFactors,r.department||r.responsibleDept,r.investigationRequired,reportStatus(r)];});}
+    else if(item==='risk_codes'){raw=reportFilter(data.codes,depts);columns=['Code','Emergency Code','Department','Type','Date','Location','Status'];rows=raw.map(function(r){return[r.id||r.code,reportName(r),r.department,r.type||r.category,reportDate(r.date||r.eventDate),r.location,reportStatus(r)];});}
+    else if(item==='cbahi'||item==='jci'){raw=(item==='cbahi'?data._cbahiAssessment:data._jciAssessment)||[];raw=raw.filter(function(r){return complianceDeptMatch(r,depts);});columns=['Standard','Requirement','Department','Compliance Status','Score','Due Date'];rows=raw.map(function(r){return[[r.standard,r.subStandard,r.specificRequirement].filter(Boolean).join(' / '),r.specificRequirementDescription||r.standardDescription,r.responsibleDepartment,r.complianceStatus,r.score,reportDate(r.dueDate)];});}
+    else if(item==='overall'){var c=((data._cbahiAssessment||[]).filter(function(r){return complianceDeptMatch(r,depts);})),j=((data._jciAssessment||[]).filter(function(r){return complianceDeptMatch(r,depts);}));function summary(authority,list){var applicable=list.filter(function(r){return String(r.complianceStatus||'').trim()&&String(r.complianceStatus||'').toLowerCase()!=='not applicable';}),met=applicable.filter(function(r){return /fully met|met|compliant/i.test(String(r.complianceStatus||''))&&!/not met/i.test(String(r.complianceStatus||''));}).length,rate=applicable.length?Math.round(met/applicable.length*100):0;return[authority,list.length,applicable.length,met,applicable.length-met,rate+'%'];}raw=c.concat(j);columns=['Authority','Total','Applicable','Met','Not Met / Partial','Compliance Rate'];rows=[summary('CBAHI',c),summary('JCI',j)];}
+    else if(item==='operational_plan'){raw=(data._operationalPlans||[]).filter(function(r){return r.scope==='division'||depts.indexOf(String(r.department||'').toLowerCase())>=0;});columns=['Year','Scope','Department','Plan','Pages','Status'];rows=raw.map(function(r){return[r.year,r.scope,r.department||'Division',r.titleEn||r.titleAr||('Operational Plan '+r.year),r.pages||'—',r.status||'Available'];});}
+    else if(item==='reports'){raw=(data._reports||[]).filter(function(r){return String(r.kind||r.type||'').toLowerCase()!=='guideline';});columns=['Code','Report','Family','Year','Quarter','Status'];rows=raw.map(function(r){return[r.code||r.id,r.titleEn||r.title||r.name,r.family,r.year,r.quarter,r.status||'Available'];});}
+    else if(item==='manuals'){var manuals=reportFilter(data.manuals,depts),guides=(data._reports||[]).filter(function(r){return String(r.kind||r.type||'').toLowerCase()==='guideline';});raw=manuals.concat(guides);columns=['Code','Manual / Guideline','Type','Language','Version','Status'];rows=manuals.map(function(r){return[r.code||r.id,reportName(r),'Manual',r.language,r.version,reportStatus(r)];}).concat(guides.map(function(r){return[r.code||r.id,r.titleEn||r.title||r.name,'Guideline',r.language,r.version,r.status||'Available'];}));}
+    else if(item==='initiatives'){raw=reportFilter(data.initiatives,depts);columns=['Code','Initiative','Department','Team Members','Status','Progress'];rows=raw.map(function(r){return[r.code||r.id,reportName(r),r.department,(r.team||[]).map(function(m){return m.name||m.nameEn||m.email;}).filter(Boolean).join(', ')||r.owner||'—',reportStatus(r),(Number(r.progress)||0)+'%'];});}
+    chartCounts=reportStatusCounts(raw);return{raw:raw,columns:columns,rows:rows,counts:chartCounts,extras:extras};
+  }
+  function reportPage(meta,content,depts,date,pageIndex,totalPages,continuation){var total=content.raw.length,completed=content.raw.filter(function(r){return /active|valid|complete|completed|closed|available|met|compliant/i.test(reportStatus(r))&&!/not met/i.test(reportStatus(r));}).length,attention=content.raw.filter(function(r){return /expired|invalid|open|pending|high|critical|not met|partial/i.test(reportStatus(r));}).length,rate=total?Math.round(completed/total*100):0;var metrics='<div class="grc-rpt-metrics">'+reportMetric('Total Records',total,'Current register records','navy')+reportMetric('Positive / Completed',completed,'Based on current status','teal')+reportMetric('Needs Attention',attention,'Open, overdue or non-compliant','amber')+reportMetric('Completion Rate',rate+'%','Calculated from current data','purple')+'</div>';var tableChunks=chunkRows(content.rows,10),chunk=tableChunks[pageIndex]||[],pageTitle=continuation?meta.title+' — Continued':meta.title;return'<section class="grc-rpt-page">'+reportHeader('GRC Report','Facility Management & Safety Division',date,departmentText(depts))+'<div class="grc-rpt-body"><div class="grc-rpt-domain"><span>'+meta.domain+'</span><div><small>SECTION '+String(meta.domain).padStart(2,'0')+'</small><h2>'+esc(meta.domainTitle)+'</h2></div></div><div class="grc-rpt-subhead"><b>'+meta.sub+'</b><div><h3>'+esc(pageTitle)+'</h3><p>Data source: live platform register · Page '+(pageIndex+1)+' of '+totalPages+'</p></div></div>'+(pageIndex===0?metrics+'<div class="grc-rpt-visuals">'+reportBars('Status Distribution',content.counts)+(content.extras||'')+'</div>':'')+reportTable(meta.title+(continuation?' — Continued':''),content.columns,chunk)+'</div>'+reportFooter(date)+'</section>';}
+  function buildProfessionalReport(items,depts){var data=snap(),date=new Date().toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'}),doc=document.createElement('div');doc.id='rptDocument';doc.className='grc-official-report grc-professional-v74';var html='';items.forEach(function(item){var meta=REPORT_META[item];if(!meta)return;var content=reportDataset(item,data,depts),chunks=chunkRows(content.rows,10);chunks.forEach(function(_,i){html+=reportPage(meta,content,depts,date,i,chunks.length,i>0);});});doc.innerHTML=html;var style=document.createElement('style');style.textContent=`
+@media print{@page{size:A4 landscape;margin:0}.grc-rpt-page{page-break-after:always;break-after:page}.grc-rpt-page:last-child{page-break-after:auto}}
+#rptDocument{font-family:Arial,"Segoe UI",sans-serif;color:#152538;background:#fff}.grc-rpt-page{width:100%;min-height:190mm;box-sizing:border-box;background:#fff;display:flex;flex-direction:column;overflow:hidden}.grc-report-header{display:flex;align-items:center;gap:18px;padding:15px 24px 12px;background:#152538;color:#fff}.grc-report-logo img{height:52px;max-width:145px;object-fit:contain}.grc-report-heading{flex:1;border-left:2px solid rgba(1,181,210,.55);padding-left:17px}.grc-report-heading p{margin:0 0 3px;font-size:7px;font-weight:900;color:#01b5d2;letter-spacing:.17em}.grc-report-heading h1{margin:0 0 2px;font-size:18px;color:#fff}.grc-report-heading h2{margin:0 0 6px;font-size:9px;font-weight:500;color:rgba(255,255,255,.78)}.grc-report-heading>div{display:flex;gap:9px;font-size:7px;font-weight:700;color:#01b5d2}.qumc-report-header-line{height:3px;background:linear-gradient(90deg,#0195af,#01c5e8 45%,#152538)}.grc-rpt-body{flex:1;padding:11px 16px 10px;display:flex;flex-direction:column;gap:9px}.grc-rpt-domain{display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:9px;background:linear-gradient(90deg,#edf7f9,#fff);border:1px solid #d6e6ea;border-left:5px solid #0195af}.grc-rpt-domain>span{display:grid;place-items:center;width:34px;height:34px;border-radius:8px;background:#152538;color:#fff;font-size:14px;font-weight:900}.grc-rpt-domain small{display:block;color:#0195af;font-size:6.5px;font-weight:900;letter-spacing:.12em}.grc-rpt-domain h2{margin:2px 0 0;font-size:14px}.grc-rpt-subhead{display:flex;align-items:center;gap:9px}.grc-rpt-subhead>b{display:grid;place-items:center;min-width:38px;height:25px;border-radius:7px;background:#0195af;color:#fff;font-size:8px}.grc-rpt-subhead h3{margin:0;font-size:11px}.grc-rpt-subhead p{margin:2px 0 0;font-size:6.8px;color:#6c8290}.grc-rpt-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.grc-rpt-metric{border:1px solid #dbe7eb;border-top:3px solid #294b5f;border-radius:9px;padding:8px 10px;background:#fff}.grc-rpt-metric.teal{border-top-color:#0195af}.grc-rpt-metric.amber{border-top-color:#d79524}.grc-rpt-metric.purple{border-top-color:#8161aa}.grc-rpt-metric span{display:block;font-size:6.8px;font-weight:800;color:#607785}.grc-rpt-metric strong{display:block;margin:3px 0;font-size:17px;color:#173f55}.grc-rpt-metric small{font-size:6px;color:#82939d}.grc-rpt-visuals{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:9px;align-items:stretch}.grc-rpt-chart,.grc-rpt-heat{border:1px solid #dbe7eb;border-radius:9px;padding:8px 10px;background:#fbfdfe;min-height:104px}.grc-rpt-chart h3,.grc-rpt-heat h3,.grc-rpt-table-card h3{margin:0 0 7px;font-size:8px;color:#173f55}.grc-rpt-bars{display:grid;gap:5px}.grc-rpt-bars>div{display:grid;grid-template-columns:110px 1fr 24px;gap:6px;align-items:center;font-size:6.5px}.grc-rpt-bars i{display:block;height:7px;border-radius:999px;background:#e6eff2;overflow:hidden}.grc-rpt-bars i b{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#0195af,#00bfd5)}.grc-rpt-bars strong{text-align:right;font-size:7px}.grc-rpt-heat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:3px}.grc-rpt-heat-grid>div{min-height:27px;border-radius:5px;padding:3px;display:grid;grid-template-columns:1fr auto;align-items:center;color:#173f55}.grc-rpt-heat-grid .low{background:#a8d7c4}.grc-rpt-heat-grid .medium{background:#f1dc85}.grc-rpt-heat-grid .high{background:#efaa73}.grc-rpt-heat-grid .critical{background:#d96d73;color:#fff}.grc-rpt-heat-grid span,.grc-rpt-heat-grid small{font-size:5px}.grc-rpt-heat-grid strong{font-size:8px}.grc-rpt-heat-legend{display:flex;gap:5px;margin-top:5px}.grc-rpt-heat-legend span{padding:3px 6px;border-radius:999px;font-size:5.5px}.grc-rpt-heat-legend .low{background:#a8d7c4}.grc-rpt-heat-legend .medium{background:#f1dc85}.grc-rpt-heat-legend .high{background:#efaa73}.grc-rpt-heat-legend .critical{background:#d96d73;color:#fff}.grc-rpt-table-card{border:1px solid #dbe7eb;border-radius:9px;padding:8px;background:#fff;break-inside:avoid;overflow:hidden}.grc-rpt-table-card table{width:100%;border-collapse:collapse;table-layout:fixed}.grc-rpt-table-card th{background:#173f55;color:#fff;padding:5px 6px;font-size:6.4px;text-align:left}.grc-rpt-table-card td{padding:4px 6px;border-bottom:1px solid #e6edf0;font-size:6.1px;line-height:1.25;word-break:break-word}.grc-rpt-table-card tr:nth-child(even) td{background:#f8fbfc}.grc-rpt-table-card td.empty{text-align:center;color:#748895;padding:18px}.grc-rpt-footer{margin-top:auto;display:flex;justify-content:space-between;align-items:center;padding:8px 15px;background:#152538;color:#fff}.grc-rpt-footer div{display:flex;flex-direction:column;gap:2px}.grc-rpt-footer strong{font-size:7.5px}.grc-rpt-footer span,.grc-rpt-footer small{font-size:6px;color:rgba(255,255,255,.7)}
+`;doc.appendChild(style);return doc;}
+  window._grcGenerateReport=async function(){var items=checked('grcReportItem'),depts=REPORT_FIXED_DEPTS.length?REPORT_FIXED_DEPTS:checked('grcReportDept');if(!items.length){alert('Select at least one report content option.');return;}if(!depts.length){alert('Select at least one department.');return;}var doc=buildProfessionalReport(items,depts);closeOverlay();var period=(depts.length===DEPTS.length?'All Departments':depts.map(departmentTitle).join(', '))+' · '+new Date().toLocaleDateString('en-GB'),ok=typeof window._qumcPrintReportDocument==='function'&&window._qumcPrintReportDocument(doc,{period:'GRC Report · '+period,orientation:'landscape'});if(!ok){alert('The Performance report print engine is not ready. Reload the page and try again.');return;}if(typeof window.addAudit==='function')window.addAudit('GRC_REPORT_PDF','Generated GRC report: '+items.join(', '));};
 
   window._grcToggleExportMenu=function(e){if(e)e.stopPropagation();var m=document.getElementById('grcExportMenu');if(m)m.classList.toggle('is-open');};
   document.addEventListener('click',function(e){var m=document.getElementById('grcExportMenu');if(m&&!e.target.closest('.grc-export-menu-wrap'))m.classList.remove('is-open');});

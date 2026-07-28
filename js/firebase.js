@@ -457,8 +457,8 @@ window._selectPortal=async portal=>{
         code:String(r.code||''),platform:String(r.platform||'grc'),serviceType:String(r.serviceType||'review_guidance'),requestType:String(r.requestType||''),
         requestTypeLabel:String(r.requestTypeLabel||''),category:String(r.category||''),
         relatedType:String(r.relatedType||''),relatedItems:Array.isArray(r.relatedItems)?r.relatedItems.map(function(x){return {type:String(x&&x.type||''),id:String(x&&x.id||''),code:String(x&&x.code||''),name:String(x&&x.name||'')};}):[],
-        relatedNewText:String(r.relatedNewText||''),departmentKey:String(r.departmentKey||''),
-        departmentCode:String(r.departmentCode||''),gender:String(r.gender||''),priority:String(r.priority||'Normal'),
+        relatedNewText:String(r.relatedNewText||''),benchmarkType:String(r.benchmarkType||''),formDependencies:r.formDependencies&&typeof r.formDependencies==='object'?r.formDependencies:null,departmentKey:String(r.departmentKey||''),
+        departmentCode:String(r.departmentCode||''),gender:String(r.gender||''),priority:String(r.priority||'Medium'),
         status:String(r.status||'under_review'),createdAt:r.createdAt||serverTimestamp(),updatedAt:r.updatedAt||serverTimestamp(),
         firstRespondedAt:r.firstRespondedAt||null,respondedAt:r.respondedAt||null,responseMinutes:r.responseMinutes==null?null:Number(r.responseMinutes),
         completedAt:r.completedAt||null,closedAt:r.closedAt||null,rating:r.rating==null?null:Number(r.rating),
@@ -510,22 +510,37 @@ window._selectPortal=async portal=>{
       let code='';
       const base={
         userName:String(window._fbName||window.currentUserName||_advEmail().split('@')[0]||'User'),userEmail:_advEmail(),
-        departmentKey:String(payload.departmentKey||window._fbDept||''),departmentCode:deptCode,gender:String(payload.gender||''),priority:String(payload.priority||'Normal'),
+        departmentKey:String(payload.departmentKey||window._fbDept||''),departmentCode:deptCode,gender:String(payload.gender||''),priority:String(payload.priority||'Medium'),
         platform:String(payload.platform||'grc'),serviceType:String(payload.serviceType||'review_guidance'),requestType:String(payload.requestType||''),requestTypeLabel:String(payload.requestTypeLabel||''),
         category:String(payload.category||''),relatedType:String(payload.relatedType||''),
         relatedItems:Array.isArray(payload.relatedItems)?payload.relatedItems.map(function(x){return {type:String(x&&x.type||''),id:String(x&&x.id||''),code:String(x&&x.code||''),name:String(x&&x.name||'')};}):[],
-        relatedNewText:String(payload.relatedNewText||''),title:String(payload.title||''),details:String(payload.details||''),
+        relatedNewText:String(payload.relatedNewText||''),benchmarkType:String(payload.benchmarkType||''),formDependencies:payload.formDependencies&&typeof payload.formDependencies==='object'?payload.formDependencies:null,title:String(payload.title||''),details:String(payload.details||''),
         status:'under_review',messages:[],attachments:[],attachmentCount:0,firstRespondedAt:null,respondedAt:null,responseMinutes:null,
         completedAt:null,closedAt:null,rating:null,ratingAt:null,createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:_advIso(),updatedBy:_advEmail()
       };
-      await runTransaction(db,async tx=>{
-        const c=await tx.get(counterRef),next=Number(c.exists()&&c.data().next||0)+1;
-        code='ADV-'+deptCode+'-'+year+'-'+String(next).padStart(3,'0');
-        tx.set(counterRef,{next,updatedAt:serverTimestamp()},{merge:true});
-        const full=Object.assign({},base,{code});
-        tx.set(requestRef,full,{merge:false});
-        tx.set(publicRef,_advPublicShape(full),{merge:false});
-      });
+      try{
+        await runTransaction(db,async tx=>{
+          const c=await tx.get(counterRef),next=Number(c.exists()&&c.data().next||0)+1;
+          code='RD-'+deptCode+'-'+year+'-'+String(next).padStart(3,'0');
+          tx.set(counterRef,{next,updatedAt:serverTimestamp()},{merge:true});
+          const full=Object.assign({},base,{code});
+          tx.set(requestRef,full,{merge:false});
+          tx.set(publicRef,_advPublicShape(full),{merge:false});
+        });
+      }catch(counterError){
+        /* Some deployments allow request documents but do not yet allow the
+           dedicated counter document. Preserve request submission by using a
+           collision-resistant fallback code instead of failing the workflow. */
+        const suffix=String(Date.now()).slice(-6)+Math.random().toString(36).slice(2,4).toUpperCase();
+        code='RD-'+deptCode+'-'+year+'-'+suffix;
+        const full=Object.assign({},base,{code,counterFallback:true});
+        try{
+          await setDoc(requestRef,full,{merge:false});
+          await setDoc(publicRef,_advPublicShape(full),{merge:false});
+        }catch(writeError){
+          throw writeError&&writeError.code?writeError:counterError;
+        }
+      }
       if(file){
         const meta=await _advUploadFile(requestRef.id,file,_advEmail());
         await updateDoc(requestRef,{attachments:arrayUnion(meta),attachmentCount:1,updatedAt:serverTimestamp()});
@@ -628,7 +643,7 @@ window._selectPortal=async portal=>{
     function _grcRiskDept(){return _grcCanonicalDepartment(window._fbDept||window.currentUserDept||'');}
     window._grcCanonicalDepartment=window._grcCanonicalDepartment||_grcCanonicalDepartment;
     function _grcRiskPerms(){return Array.isArray(window._fbPerms)?window._fbPerms:[];}
-    function _grcRiskCanSubmit(){return _grcRiskRole()==='kpi_owner'||_grcRiskPerms().includes('edit_risk_management')||_grcRiskPerms().includes('*');}
+    function _grcRiskCanSubmit(recordType){recordType=String(recordType||'risk').toLowerCase();const p=_grcRiskPerms(),owner=_grcRiskRole()==='kpi_owner';if(recordType==='incident')return owner||p.includes('edit_incident_register')||p.includes('edit_risk_management')||p.includes('*');return owner||p.includes('edit_risk_management')||p.includes('*');}
     function _grcRiskIsManager(){return _grcRiskRole()==='department_manager'||_grcRiskRole()==='dept_manager';}
     function _grcRiskIsSuper(){return _grcRiskRole()==='super_admin';}
     function _grcRiskIsAdmin(){return _grcRiskRole()==='admin'||_grcRiskIsSuper();}
@@ -642,47 +657,54 @@ window._selectPortal=async portal=>{
       before=before||{};after=after||{};const ignored={updatedAt:1,updatedBy:1,createdAt:1,createdBy:1,riskScore:1,riskLevel:1};
       return Array.from(new Set(Object.keys(before).concat(Object.keys(after)))).filter(k=>!ignored[k]&&JSON.stringify(before[k]??'')!==JSON.stringify(after[k]??''));
     }
-    function _grcRiskNextId(records,department,requested){
+    function _grcRegisterNextId(records,department,requested,recordType){
+      recordType=String(recordType||'risk').toLowerCase();
       const requestedKey=_grcRiskKey(requested);if(requestedKey&&!records.some(r=>_grcRiskRecordKey(r)===requestedKey))return String(requested).trim();
-      const dept=String(department||'').toLowerCase();let prefix=({safety:'SAF',maintenance:'MNT',projects:'PM',laundry:'LUND'})[dept]||'HK';
+      const dept=String(department||'').toLowerCase();
+      if(recordType==='incident'){
+        const deptCode=_grcRiskDeptCode(dept),year=new Date().getFullYear(),prefix='INC-'+deptCode+'-'+year+'-';let max=0;
+        records.forEach(r=>{const raw=String(r&&r.id||r&&r.code||'').toUpperCase(),m=raw.match(/(\d+)$/);if(m)max=Math.max(max,Number(m[1])||0);});
+        return prefix+String(max+1).padStart(3,'0');
+      }
+      let prefix=({safety:'SAF',maintenance:'MNT',projects:'PM',laundry:'LUND'})[dept]||'HK';
       if(dept==='housekeeping'&&/^LUND/i.test(String(requested||'')))prefix='LUND';
       let max=0,width=2;
       records.forEach(r=>{const raw=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/\s+/g,'');const m=raw.match(new RegExp('^'+prefix+'[- ]?(\\d+)$'));if(m){max=Math.max(max,Number(m[1])||0);width=Math.max(width,m[1].length);}});
       return prefix+(prefix==='HK'||prefix==='LUND'?'':' ')+String(max+1).padStart(width,'0');
     }
-    function _grcRiskApplyOperation(risks,request){
-      risks=(Array.isArray(risks)?risks:[]).map(r=>_grcRiskJson(r));
-      const op=String(request.operation||''),targetKey=_grcRiskKey(request.targetRiskId||request.currentRecord&&request.currentRecord.id||request.currentRecord&&request.currentRecord.code),proposed=_grcRiskJson(request.proposedRecord||{});
+    function _grcRegisterApplyOperation(records,request){
+      records=(Array.isArray(records)?records:[]).map(r=>_grcRiskJson(r));
+      const recordType=String(request.recordType||'risk').toLowerCase(),label=recordType==='incident'?'Incident':'Risk',op=String(request.operation||''),targetKey=_grcRiskKey(request.targetRecordId||request.targetRiskId||request.currentRecord&&request.currentRecord.id||request.currentRecord&&request.currentRecord.code),proposed=_grcRiskJson(request.proposedRecord||{});
       if(op==='add'){
-        const assigned=_grcRiskNextId(risks,request.department,proposed.id||proposed.code);proposed.id=assigned;proposed.code=proposed.code&&_grcRiskKey(proposed.code)!==_grcRiskKey(request.proposedRecord&&request.proposedRecord.id)?proposed.code:assigned;
-        proposed.department=request.department==='laundry'?'housekeeping':request.department;proposed.createdAt=proposed.createdAt||_grcRiskIso();proposed.createdBy=proposed.createdBy||request.submittedByName||request.submittedByEmail;proposed.updatedAt=_grcRiskIso();proposed.updatedBy=_grcRiskEmail();risks.push(proposed);return{risks,record:proposed};
+        const assigned=_grcRegisterNextId(records,request.department,proposed.id||proposed.code,recordType);proposed.id=assigned;proposed.code=proposed.code&&_grcRiskKey(proposed.code)!==_grcRiskKey(request.proposedRecord&&request.proposedRecord.id)?proposed.code:assigned;
+        proposed.department=recordType==='risk'&&request.department==='laundry'?'housekeeping':request.department;proposed.createdAt=proposed.createdAt||_grcRiskIso();proposed.createdBy=proposed.createdBy||request.submittedByName||request.submittedByEmail;proposed.updatedAt=_grcRiskIso();proposed.updatedBy=_grcRiskEmail();records.push(proposed);return{records,record:proposed};
       }
-      const index=risks.findIndex(r=>_grcRiskRecordKey(r)===targetKey);if(index<0)throw new Error('Risk record no longer exists.');
-      if(op==='delete'){const removed=risks[index];risks.splice(index,1);return{risks,record:removed};}
+      const index=records.findIndex(r=>_grcRiskRecordKey(r)===targetKey);if(index<0)throw new Error(label+' record no longer exists.');
+      if(op==='delete'){const removed=records[index];records.splice(index,1);return{records,record:removed};}
       if(op==='update'){
-        const current=risks[index],updated=Object.assign({},current,proposed,{id:current.id||proposed.id,code:current.code||proposed.code,department:current.department||request.department,updatedAt:_grcRiskIso(),updatedBy:_grcRiskEmail()});risks[index]=updated;return{risks,record:updated};
+        const current=records[index],updated=Object.assign({},current,proposed,{id:current.id||proposed.id,code:current.code||proposed.code,department:current.department||request.department,updatedAt:_grcRiskIso(),updatedBy:_grcRiskEmail()});records[index]=updated;return{records,record:updated};
       }
-      throw new Error('Unsupported risk request operation.');
+      throw new Error('Unsupported '+recordType+' request operation.');
     }
     function _grcRiskRequestData(snap){if(!snap||!snap.exists())return null;const d=snap.data()||{};return Object.assign({id:snap.id},d,{createdAtText:window._fmtTs?window._fmtTs(d.createdAt):d.createdAtIso||'',updatedAtText:window._fmtTs?window._fmtTs(d.updatedAt):d.updatedAtIso||''});}
 
     window._grcRiskRequestSubmit=async function(operation,payload){
-      if(!_grcRiskEmail()||!db)throw new Error('not authenticated');if(!_grcRiskCanSubmit())throw new Error('Access denied.');
-      operation=String(operation||'').toLowerCase();if(!['add','update','delete'].includes(operation))throw new Error('Invalid operation.');payload=payload||{};
+      if(!_grcRiskEmail()||!db)throw new Error('not authenticated');payload=payload||{};const recordType=String(payload.recordType||'risk').toLowerCase();if(!['risk','incident'].includes(recordType)||!_grcRiskCanSubmit(recordType))throw new Error('Access denied.');
+      operation=String(operation||'').toLowerCase();if(!['add','update','delete'].includes(operation))throw new Error('Invalid operation.');
       const department=_grcCanonicalDepartment(payload.department||payload.proposedRecord&&payload.proposedRecord.department||payload.currentRecord&&payload.currentRecord.department||_grcRiskDept());
       const userDepartment=_grcRiskDept();
       if(!department||(userDepartment&&department!==userDepartment))throw new Error('You can submit requests for your assigned department only.');
-      const current=_grcRiskJson(payload.currentRecord),proposed=_grcRiskJson(payload.proposedRecord),year=new Date().getFullYear(),deptCode=_grcRiskDeptCode(department),counterRef=doc(db,GRC_RISK_COUNTERS_COLLECTION,deptCode+'_'+year),requestRef=doc(collection(db,GRC_RISK_REQUESTS_COLLECTION)),nowIso=_grcRiskIso();
+      const current=_grcRiskJson(payload.currentRecord),proposed=_grcRiskJson(payload.proposedRecord),year=new Date().getFullYear(),deptCode=_grcRiskDeptCode(department),kindCode=recordType==='incident'?'INC':'RSK',counterRef=doc(db,GRC_RISK_COUNTERS_COLLECTION,kindCode+'_'+deptCode+'_'+year),requestRef=doc(collection(db,GRC_RISK_REQUESTS_COLLECTION)),nowIso=_grcRiskIso();
       await runTransaction(db,async tx=>{
-        const cs=await tx.get(counterRef),next=Number(cs.exists()&&cs.data().next||0)+1,requestCode='RSK-REQ-'+deptCode+'-'+year+'-'+String(next).padStart(3,'0');
-        tx.set(counterRef,{next,updatedAt:serverTimestamp(),updatedBy:_grcRiskEmail()},{merge:true});
-        tx.set(requestRef,{requestCode,operation,department,targetRiskId:String(payload.targetRiskId||current&&current.id||current&&current.code||proposed&&proposed.id||''),currentRecord:current,proposedRecord:proposed,changedFields:_grcRiskChangedFields(current,proposed),deleteReason:String(payload.deleteReason||''),requesterNote:String(payload.note||''),status:'pending_manager',submittedByName:String(window._fbName||window.currentUserName||_grcRiskEmail().split('@')[0]),submittedByEmail:_grcRiskEmail(),submittedByRole:_grcRiskRole(),managerName:'',managerEmail:'',managerNote:'',superAdminName:'',superAdminEmail:'',superAdminNote:'',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:nowIso,updatedAtIso:nowIso,history:[{status:'pending_manager',by:_grcRiskEmail(),role:_grcRiskRole(),at:nowIso,note:String(payload.note||'')} ]});
+        const cs=await tx.get(counterRef),next=Number(cs.exists()&&cs.data().next||0)+1,requestCode=kindCode+'-REQ-'+deptCode+'-'+year+'-'+String(next).padStart(3,'0');
+        tx.set(counterRef,{next,recordType,updatedAt:serverTimestamp(),updatedBy:_grcRiskEmail()},{merge:true});
+        tx.set(requestRef,{requestCode,recordType,operation,department,targetRiskId:String(payload.targetRiskId||payload.targetRecordId||current&&current.id||current&&current.code||proposed&&proposed.id||''),targetRecordId:String(payload.targetRecordId||payload.targetRiskId||current&&current.id||current&&current.code||proposed&&proposed.id||''),currentRecord:current,proposedRecord:proposed,changedFields:_grcRiskChangedFields(current,proposed),deleteReason:String(payload.deleteReason||''),requesterNote:String(payload.note||''),status:'pending_manager',submittedByName:String(window._fbName||window.currentUserName||_grcRiskEmail().split('@')[0]),submittedByEmail:_grcRiskEmail(),submittedByRole:_grcRiskRole(),managerName:'',managerEmail:'',managerNote:'',superAdminName:'',superAdminEmail:'',superAdminNote:'',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:nowIso,updatedAtIso:nowIso,history:[{status:'pending_manager',by:_grcRiskEmail(),role:_grcRiskRole(),at:nowIso,note:String(payload.note||'')} ]});
       });
-      try{window._recordAuditDirect&&window._recordAuditDirect('GRC_RISK_REQUEST_SUBMIT',operation.toUpperCase()+' risk request submitted',current,proposed,{portal:'grc',dept:department});}catch(_){}
+      try{window._recordAuditDirect&&window._recordAuditDirect('GRC_REGISTER_REQUEST_SUBMIT',operation.toUpperCase()+' '+recordType+' request submitted',current,proposed,{portal:'grc',dept:department,recordType});}catch(_){}
       return{requestId:requestRef.id};
     };
     window._grcRiskRequestResubmit=async function(requestId,proposedRecord,note){
-      if(!_grcRiskCanSubmit())throw new Error('Access denied.');const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(String(r.submittedByEmail||'').toLowerCase()!==_grcRiskEmail())throw new Error('Access denied.');if(!['returned_requester','rejected_manager','rejected_super_admin'].includes(String(r.status||'')))throw new Error('This request cannot be resubmitted.');
+      if(!_grcRiskCanSubmit('risk')&&!_grcRiskCanSubmit('incident'))throw new Error('Access denied.');const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(String(r.submittedByEmail||'').toLowerCase()!==_grcRiskEmail())throw new Error('Access denied.');if(!['returned_requester','rejected_manager','rejected_super_admin'].includes(String(r.status||'')))throw new Error('This request cannot be resubmitted.');
       const proposed=_grcRiskJson(proposedRecord||r.proposedRecord),now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status:'pending_manager',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'Resubmitted')});
       await updateDoc(ref,{proposedRecord:proposed,changedFields:_grcRiskChangedFields(r.currentRecord,proposed),status:'pending_manager',requesterNote:String(note||r.requesterNote||''),managerNote:'',superAdminNote:'',updatedAt:serverTimestamp(),updatedAtIso:now,history});return true;
     };
@@ -696,7 +718,7 @@ window._selectPortal=async portal=>{
     };
     window._grcRiskRequestSuperAction=async function(requestId,action,note){
       if(!_grcRiskIsSuper())throw new Error('Super Admin approval is required.');const requestRef=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId);if(action==='approve'){
-        let published=null;await runTransaction(db,async tx=>{const rs=await tx.get(requestRef);if(!rs.exists())throw new Error('Request not found.');const request=Object.assign({id:rs.id},rs.data());if(String(request.status||'')!=='pending_super_admin')throw new Error('This request is not awaiting final approval.');const ss=await tx.get(GRC_SHARED_STATE_REF),shared=ss.exists()?ss.data():{},applied=_grcRiskApplyOperation(shared.risks||[],request),now=_grcRiskIso();published=applied.record;tx.set(GRC_SHARED_STATE_REF,Object.assign({},shared,{risks:applied.risks,updatedAt:serverTimestamp(),updatedBy:_grcRiskEmail()}),{merge:false});const history=Array.isArray(request.history)?request.history.slice():[];history.push({status:'published',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'')});tx.set(requestRef,{status:'published',superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:String(note||''),finalRecord:applied.record,publishedRiskId:String(applied.record&&applied.record.id||''),approvedAt:serverTimestamp(),publishedAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history},{merge:true});});try{window._recordAuditDirect&&window._recordAuditDirect('GRC_RISK_REQUEST_PUBLISH','Risk request approved and published',null,published,{portal:'grc'});}catch(_){}return published;
+        let published=null,recordType='risk';await runTransaction(db,async tx=>{const rs=await tx.get(requestRef);if(!rs.exists())throw new Error('Request not found.');const request=Object.assign({id:rs.id,recordType:'risk'},rs.data());if(String(request.status||'')!=='pending_super_admin')throw new Error('This request is not awaiting final approval.');recordType=String(request.recordType||'risk').toLowerCase();const collectionKey=recordType==='incident'?'incidents':'risks',ss=await tx.get(GRC_SHARED_STATE_REF),shared=ss.exists()?ss.data():{},applied=_grcRegisterApplyOperation(shared[collectionKey]||[],request),now=_grcRiskIso();published=applied.record;const nextShared=Object.assign({},shared,{updatedAt:serverTimestamp(),updatedBy:_grcRiskEmail()});nextShared[collectionKey]=applied.records;tx.set(GRC_SHARED_STATE_REF,nextShared,{merge:false});const history=Array.isArray(request.history)?request.history.slice():[];history.push({status:'published',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'')});tx.set(requestRef,{status:'published',recordType,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:String(note||''),finalRecord:applied.record,publishedRiskId:recordType==='risk'?String(applied.record&&applied.record.id||''):'',publishedRecordId:String(applied.record&&applied.record.id||''),approvedAt:serverTimestamp(),publishedAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history},{merge:true});});try{window._recordAuditDirect&&window._recordAuditDirect('GRC_REGISTER_REQUEST_PUBLISH',recordType+' request approved and published',null,published,{portal:'grc',recordType});}catch(_){}return published;
       }
       const snap=await getDoc(requestRef);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(String(r.status||'')!=='pending_super_admin')throw new Error('This request is not awaiting final approval.');const status=action==='return'?'returned_manager':action==='reject'?'rejected_super_admin':'';if(!status)throw new Error('Invalid action.');if(!String(note||'').trim())throw new Error('A reason is required.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status,by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'')});await updateDoc(requestRef,{status,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:String(note||''),updatedAt:serverTimestamp(),updatedAtIso:now,history});return true;
     };
