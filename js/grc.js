@@ -15,7 +15,7 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__='20260727-grc-ui-export-v71';
+  window.__QUMC_GRC_BUILD__='20260728-grc-open-department-scope-v78';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
   var STATE_VERSION=13;
@@ -806,7 +806,7 @@
     if(!n)return'';if(n.indexOf('laundry')>=0)return'laundry';if(n.indexOf('housekeeping')>=0||n.indexOf('cleaning')>=0)return'housekeeping';if(n.indexOf('maintenance')>=0)return'maintenance';if(n.indexOf('safety')>=0)return'safety';if(n.indexOf('project')>=0)return'projects';if(n.indexOf('governance')>=0||n.indexOf('performance')>=0)return'governance';if(n==='fms'||n.indexOf('facility management')>=0||n.indexOf('facilities management')>=0||n.indexOf('division')>=0)return'division';return n.replace(/\s+/g,'_');
   }
   function currentGrcDept(){return canonicalGrcDepartment(window._fbDept||window.currentUserDept||'');}
-  function canViewAllExecutiveDepartments(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return r==='super_admin'||r==='admin'||p.indexOf('*')>=0||p.indexOf('view_all_departments')>=0||p.indexOf('view_grc_all_departments')>=0;}
+  function canViewAllExecutiveDepartments(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return r==='super_admin'||r==='admin'||r==='executive'||p.indexOf('*')>=0||p.indexOf('view_all_departments')>=0||p.indexOf('view_grc_all_departments')>=0;}
   function resolvedExecutiveDept(value){var raw=String(value||executiveDeptFilter||'');if(/^(all\s*fms|allfms|all_departments|all)$/i.test(raw.replace(/[&/_-]+/g,' ')))return canViewAllExecutiveDepartments()?'allFms':(currentGrcDept()||'allFms');var d=canonicalGrcDepartment(raw);if(canViewAllExecutiveDepartments())return d&&d!=='division'?d:'allFms';d=currentGrcDept();return d&&d!=='division'?d:'allFms';}
   function executiveDepartmentFilterHtml(selected){if(!canViewAllExecutiveDepartments())return'';var choices=[['allFms',isAr()?'جميع الأقسام':'All Departments'],['safety',deptName('safety')],['maintenance',deptName('maintenance')],['housekeeping',deptName('housekeeping')],['laundry',deptName('laundry')],['projects',deptName('projects')]];return'<div class="grc-executive-filter"><label><span>'+(isAr()?'تصفية القسم':'Department Filter')+'</span><select onchange="window._grcSetExecutiveDepartment(this.value)">'+choices.map(function(x){return'<option value="'+x[0]+'" '+(selected===x[0]?'selected':'')+'>'+esc(x[1])+'</option>';}).join('')+'</select></label></div>';}
   window._grcSetExecutiveDepartment=function(value){var raw=String(value||'allFms');executiveDeptFilter=/^(all\s*fms|allfms|all_departments|all)$/i.test(raw.replace(/[&/_-]+/g,' '))?'allFms':canonicalGrcDepartment(raw);renderAtSamePosition(grcViewportPosition());};
@@ -821,7 +821,7 @@
   function canSubmitRiskRequest(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return r==='kpi_owner'||p.indexOf('edit_risk_management')>=0||p.indexOf('*')>=0;}
   function canSubmitIncidentRequest(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return r==='kpi_owner'||p.indexOf('edit_incident_register')>=0||p.indexOf('edit_risk_management')>=0||p.indexOf('*')>=0;}
   function canSubmitRegisterRequest(type){return type==='risk'?canSubmitRiskRequest():type==='incident'?canSubmitIncidentRequest():false;}
-  function canEnterGrc(){return isGrcAdmin()||window.__QUMC_GRC_OPEN_TO_USERS__===true;}
+  function canEnterGrc(){var r=normalizedRole();return ['super_admin','admin','executive','department_manager','kpi_owner','viewer','user'].indexOf(r)>=0||window.__QUMC_GRC_OPEN_TO_USERS__===true;}
   function canUseRiskCrud(){return isGrcAdmin()||canSubmitRiskRequest();}
   function L(k){var lang=isAr()?'ar':'en';return(labels[lang]&&labels[lang][k])||labels.en[k]||k;}
   function esc(v){return String(v==null?'':v).replace(/[&<>'"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];});}
@@ -1675,7 +1675,7 @@
     var alert=all.filter(function(r){return isExpired(r)||expiringThisYear(r);}).length;
     return departmentPanel(dept,L('governance')+' · '+L('departmentRecords'),all.length,active,alert,L('active'),governanceModules('department',dept)+governanceOverview(dept,false,true));
   }
-  function governancePage(){ensureOperationalPlanStyles();ensureGrcEnhancementStyles();return hero('GRC · Governance',L('governanceTitle'),L('governanceDesc'))+sectionHead(L('departmentView'),L('departmentSectionsDesc'))+'<div class="grc-department-stack">'+departmentOrder.map(governanceDepartmentPanel).join('')+'</div>';}
+  function governancePage(){ensureOperationalPlanStyles();ensureGrcEnhancementStyles();var depts=isGrcAdmin()?departmentOrder:[currentGrcDept()].filter(Boolean);return hero('GRC · Governance',L('governanceTitle'),L('governanceDesc'))+sectionHead(L('departmentView'),isGrcAdmin()?L('departmentSectionsDesc'):deptName(currentGrcDept()))+'<div class="grc-department-stack">'+depts.map(governanceDepartmentPanel).join('')+'</div>';}
   function riskPage(){
     if(!isGrcAdmin())return hero('GRC · Risk Management',L('riskTitle'),L('riskDesc'))+currentRiskRegisterBoard();
     return hero('GRC · Risk Management',L('riskTitle'),L('riskDesc'))+sectionHead(L('departmentView'),L('departmentSectionsDesc'))+'<div class="grc-department-stack">'+departmentOrder.map(riskDepartmentPanel).join('')+'</div>';
@@ -1747,7 +1747,16 @@
     ],rows);
   }
   function registerPage(){
-    if(!isGrcAdmin())return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+currentRiskRegisterBoard();
+    if(!isGrcAdmin()){var d=currentGrcDept(),riskDept=d==='laundry'?'laundryRisk':d==='housekeeping'?'housekeepingRisk':d;return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+
+      '<section class="grc-registers-board">'+sectionHead(L('governanceRegisterGroup'),deptName(d))+
+      registerBlock('policy',L('policyRegister'),deptName(d),'',governanceTable('policies',d,'policy',false))+
+      registerBlock('plan',L('planRegister'),deptName(d),'',governanceTable('plans',d,'plan',false))+
+      registerBlock('form',L('internalForms'),deptName(d),'',formsTable(d,'internal',false))+
+      registerBlock('form',L('externalForms'),deptName(d),'',formsTable(d,'external',false))+'</section>'+
+      '<section class="grc-registers-board">'+sectionHead(L('riskRegisterGroup'),deptName(d))+
+      registerBlock('risk',L('riskRegister'),deptName(d),'',riskTable(riskDept,false))+
+      registerBlock('incident',L('incidentRegister'),deptName(d),'',incidentTable(d,false))+
+      registerBlock('code',L('codeRegister'),deptName(d),'',codeTable(d,false))+'</section>'; }
     return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+governanceRegistersBoard()+riskRegistersBoard()+
       '<section class="grc-registers-board">'+sectionHead(L('assuranceRegisterGroup'),L('registerDesc'))+
       registerBlock('plan',L('actionsTitle'),L('allDepartments'),addBtn('action',L('addAction')),tableHtml('plan',['id','title','source','department','owner','dueDate','progress','status'],(state.actions||[]).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.source||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td><div style="display:flex;align-items:center;gap:7px"><div class="grc-progress"><span style="width:'+Math.max(0,Math.min(100,Number(r.progress||0)))+'%"></span></div><b>'+Number(r.progress||0)+'%</b></div></td><td>'+badge(r.status)+'</td></tr>';}).join('')))+
@@ -1943,7 +1952,7 @@
     if(dept==='laundry')return raw.indexOf('laund')>=0;
     return raw.indexOf(dept)>=0;
   }
-  function cbahiRowsForDept(dept){return assessmentRows('cbahi',CBAHI_FMS_ROWS).filter(function(r){return assessmentRowMatchesDept(r,dept);});}
+  function cbahiRowsForDept(dept){return cbahiRowsForDept(dept).filter(function(r){return assessmentRowMatchesDept(r,dept);});}
   function jciRowsForDept(dept){return normalizedJciRows().filter(function(r){return assessmentRowMatchesDept(r,dept);});}
   function cbahiSummary(dept){
     var status={fully:0,partial:0,notmet:0,na:0},standards={};
@@ -1961,8 +1970,8 @@
     var map={};cbahiRowsForDept(dept).forEach(function(r){var status=String(r[CBAHI_COLS.complianceStatus]||'');if(status!=='Not Met'&&status!=='Partially Met')return;var key=String(r[CBAHI_COLS.standard]||'Other');if(!map[key])map[key]={notmet:0,partial:0};if(status==='Not Met')map[key].notmet++;else map[key].partial++;});
     return Object.keys(map).map(function(k){return{label:k,total:map[k].notmet+map[k].partial,segments:[{label:L('cbahiNotMet'),value:map[k].notmet,color:chartPalette.coral},{label:L('cbahiPartiallyMet'),value:map[k].partial,color:chartPalette.amber}]};}).sort(function(a,b){return b.total-a.total;}).slice(0,10);
   }
-  function cbahiTableHtml(){
-    var cbahiRows=assessmentRows('cbahi',CBAHI_FMS_ROWS);
+  function cbahiTableHtml(dept){
+    var cbahiRows=cbahiRowsForDept(dept);
     var heads=['chapter','standard','standardDescription','subStandard','subStandardDescription','specificRequirement','specificRequirementDescription','responsibleDepartment','complianceStatus','score','assessmentActivities','evidence','gapDescription','cap','dueDate'];
     // Merge consecutive identical cells, including Chapter, into one visual cell.
     // Parent-column checks prevent unrelated blank or repeated values from being merged across groups.
@@ -2007,14 +2016,14 @@
     var matches=String(value||'').match(/\d+/g);
     return matches&&matches.length?Number(matches[matches.length-1]):null;
   }
-  function cbahiEsrRows(){
+  function cbahiEsrRows(dept){
     var esrNumbers=[9,21,22,23,24,32];
     return assessmentRows('cbahi',CBAHI_FMS_ROWS).filter(function(r){
       return esrNumbers.indexOf(cbahiStandardNumber(r[CBAHI_COLS.standard]))>=0;
     });
   }
-  function cbahiEsrSummary(){
-    var rows=cbahiEsrRows(),status={fully:0,partial:0,notmet:0,na:0},standards={};
+  function cbahiEsrSummary(dept){
+    var rows=cbahiEsrRows(dept),status={fully:0,partial:0,notmet:0,na:0},standards={};
     rows.forEach(function(r){
       var standard=cleanAssessmentCode(r[CBAHI_COLS.standard]);
       if(standard)standards[standard]=1;
@@ -2039,8 +2048,8 @@
       rate:applicable.length?Math.round(score/(applicable.length*2)*10000)/100:0
     };
   }
-  function cbahiEsrOverview(){
-    var s=cbahiEsrSummary(),
+  function cbahiEsrOverview(dept){
+    var s=cbahiEsrSummary(dept),
       cards='<div class="grc-metric-grid cols-7 grc-esr-metric-grid">'+
         metricCard(L('cbahiTotalStandards'),s.standards,'info',L('records'))+
         metricCard(isAr()?'إجمالي متطلبات ESR':'Total ESR Requirements',s.total,'info',L('records'))+
@@ -2059,9 +2068,9 @@
     return'<div class="grc-esr-overview">'+sectionHead(isAr()?'متطلبات السلامة الأساسية ESR':'Essential Safety Requirements (ESR)',isAr()?'المعايير 9 و21 و22 و23 و24 و32':'Standards 9, 21, 22, 23, 24 and 32')+cards+
       '<div class="grc-chart-grid cols-1">'+verticalBarChart(isAr()?'حالة ESR':'ESR Status',items)+'</div></div>';
   }
-  function cbahiAssessmentSection(){
+  function cbahiAssessmentSection(dept){
     ensureCbahiStyles();
-    var s=cbahiSummary(),cards='<div class="grc-metric-grid cols-7 grc-cbahi-primary-metrics">'+
+    var s=cbahiSummary(dept),cards='<div class="grc-metric-grid cols-7 grc-cbahi-primary-metrics">'+
       metricCard(L('cbahiTotalStandards'),s.standards,'info',L('records'))+
       metricCard(L('cbahiTotalRequirements'),s.total,'info',L('records'))+
       metricCard(L('cbahiFullyMet'),s.fully,'good',L('records'))+
@@ -2075,10 +2084,10 @@
       {label:L('cbahiNotMet'),value:s.notmet,color:chartPalette.coral},
       {label:L('cbahiNotApplicable'),value:s.na,color:chartPalette.slate}
     ];
-    var attention=cbahiAttentionRows(),notMetRows=attention.map(function(x){var seg=x.segments[0];return{label:x.label,total:seg.value,segments:[seg]};}).filter(function(x){return x.total>0;}),partialRows=attention.map(function(x){var seg=x.segments[1];return{label:x.label,total:seg.value,segments:[seg]};}).filter(function(x){return x.total>0;});var charts='<div class="grc-chart-grid cols-1">'+verticalBarChart(L('cbahiStatusDistribution'),statusItems)+'</div><div class="grc-chart-grid grc-cbahi-attention-split">'+stackedBarChart(L('cbahiNotMet')+' · '+L('cbahiAttentionByStandard'),notMetRows,[{label:L('cbahiNotMet'),color:chartPalette.coral}])+stackedBarChart(L('cbahiPartiallyMet')+' · '+L('cbahiAttentionByStandard'),partialRows,[{label:L('cbahiPartiallyMet'),color:chartPalette.amber}])+'</div>';
+    var attention=cbahiAttentionRows(dept),notMetRows=attention.map(function(x){var seg=x.segments[0];return{label:x.label,total:seg.value,segments:[seg]};}).filter(function(x){return x.total>0;}),partialRows=attention.map(function(x){var seg=x.segments[1];return{label:x.label,total:seg.value,segments:[seg]};}).filter(function(x){return x.total>0;});var charts='<div class="grc-chart-grid cols-1">'+verticalBarChart(L('cbahiStatusDistribution'),statusItems)+'</div><div class="grc-chart-grid grc-cbahi-attention-split">'+stackedBarChart(L('cbahiNotMet')+' · '+L('cbahiAttentionByStandard'),notMetRows,[{label:L('cbahiNotMet'),color:chartPalette.coral}])+stackedBarChart(L('cbahiPartiallyMet')+' · '+L('cbahiAttentionByStandard'),partialRows,[{label:L('cbahiPartiallyMet'),color:chartPalette.amber}])+'</div>';
     var register=registerBlock('policy',L('cbahiRegister'),L('cbahiRegisterDesc'),'',
-      cbahiTableHtml());
-    return'<div class="grc-section grc-cbahi-section">'+sectionHead(L('cbahiSection'),L('cbahiSectionDesc'),s.standards+' '+L('cbahiTotalStandards'))+cards+cbahiEsrOverview()+charts+register+'</div>';
+      cbahiTableHtml(dept));
+    return'<div class="grc-section grc-cbahi-section">'+sectionHead(L('cbahiSection'),L('cbahiSectionDesc'),s.standards+' '+L('cbahiTotalStandards'))+cards+cbahiEsrOverview(dept)+charts+register+'</div>';
   }
   function sanitizeJciRow(row){
     var out=(row||[]).slice();
@@ -2136,8 +2145,8 @@
     });
     return Object.keys(map).map(function(k){return{label:k,total:map[k],segments:[{label:L('cbahiNotMet'),value:map[k],color:chartPalette.coral}]};}).sort(function(a,b){return b.total-a.total;}).slice(0,10);
   }
-  function jciTableHtml(){
-    var sourceRows=normalizedJciRows();
+  function jciTableHtml(dept){
+    var sourceRows=jciRowsForDept(dept);
     var jciRows=sourceRows.map(function(r){return[cleanAssessmentCode('FMS Division'),String(r[0]||''),r[1],r[2],r[3],r[4],r[5],r[6],r[7],r[8],r[9],r[10],r[11],r[12],r[13],r[14]];});
     var heads=['chapter','domain','standard','standardDescription','subStandard','subStandardDescription','specificRequirement','specificRequirementDescription','responsibleDepartment','complianceStatus','score','assessmentActivities','evidence','gapDescription','cap','dueDate'];
     var mergeable={0:[],1:[0],2:[0,1],3:[0,1,2],4:[0,1,2],5:[0,1,2,4],6:[0,1,2,4],7:[0,1,2,4,6],8:[0,1,2,4,6]};
@@ -2147,25 +2156,25 @@
     var rows=jciRows.map(function(r,rowIndex){var rawStatus=String(r[9]||'');if(rawStatus==='Partially Met')rawStatus='';var source=sourceRows[rowIndex],notMet=rawStatus==='Not Met',evidenceRequired=requirementStartsWithD(source)&&rawStatus==='Fully Met';return'<tr>'+cell(rowIndex,0,'grc-cbahi-chapter',esc(r[0]))+cell(rowIndex,1,'grc-jci-domain',esc(r[1]||'—'))+cell(rowIndex,2,'grc-id grc-cbahi-standard',esc(cleanAssessmentCode(r[2])||'—'))+cell(rowIndex,3,'grc-cbahi-description',esc(r[3]||'—'))+cell(rowIndex,4,'grc-id grc-cbahi-substandard',esc(cleanAssessmentCode(r[4])||''))+cell(rowIndex,5,'grc-cbahi-description',highlightLeadingD(r[5]||''))+cell(rowIndex,6,'grc-id grc-cbahi-specific',esc(cleanAssessmentCode(r[6])||''))+cell(rowIndex,7,'grc-cbahi-specific-desc',highlightLeadingD(r[7]||''))+cell(rowIndex,8,'grc-cbahi-department',esc(r[8]||'—'))+cell(rowIndex,9,'grc-cbahi-status-cell',assessmentStatusEditor('jci',rowIndex,rawStatus))+cell(rowIndex,10,'grc-cbahi-score',esc(r[10]===0?'0':r[10]||'—'))+cell(rowIndex,11,'grc-cbahi-activity',esc(r[11]||'—'))+cell(rowIndex,12,'grc-cbahi-evidence '+(evidenceRequired?'grc-required-cell':''),assessmentTextEditor('jci',rowIndex,11,r[12],evidenceRequired,'Evidence required'))+cell(rowIndex,13,'grc-cbahi-gap '+(notMet?'grc-required-cell':''),assessmentTextEditor('jci',rowIndex,12,r[13],notMet,'Gap Description required'))+cell(rowIndex,14,'grc-cbahi-cap '+(notMet?'grc-required-cell':''),assessmentTextEditor('jci',rowIndex,13,r[14],notMet,'CAP required'))+cell(rowIndex,15,'grc-cbahi-due',esc(r[15]||'—'))+'</tr>';}).join('');
     var table=tableHtml('policy',heads,rows).replace('class="grc-table policy"','class="grc-table policy grc-cbahi-table"').replace('class="grc-table-wrap"','class="grc-table-wrap grc-cbahi-scroll-main" onscroll="this.previousElementSibling.scrollLeft=this.scrollLeft"');return'<div class="grc-cbahi-scroll-top" onscroll="this.nextElementSibling.scrollLeft=this.scrollLeft"><div></div></div>'+table;
   }
-  function jciAssessmentSection(){
-    ensureCbahiStyles();ensureGrcEnhancementStyles();var s=jciSummary();
+  function jciAssessmentSection(dept){
+    ensureCbahiStyles();ensureGrcEnhancementStyles();var s=jciSummary(dept);
     var cards='<div class="grc-metric-grid cols-6">'+metricCard(L('cbahiTotalStandards'),s.standards,'info',L('records'))+metricCard(L('cbahiTotalRequirements'),s.total,'info',L('records'))+metricCard(L('cbahiFullyMet'),s.fully,'good',L('records'))+metricCard(L('cbahiNotMet'),s.notmet,'bad',L('records'))+metricCard(L('cbahiNotApplicable'),s.na,'neutral',L('records'))+metricCard(L('cbahiComplianceRate'),s.rate+'%','purple',L('percentage'))+'</div>';
     var statusItems=[{label:L('cbahiFullyMet'),value:s.fully,color:chartPalette.green},{label:L('cbahiNotMet'),value:s.notmet,color:chartPalette.coral},{label:L('cbahiNotApplicable'),value:s.na,color:chartPalette.slate}];
-    var charts='<div class="grc-chart-grid cols-2">'+verticalBarChart(L('cbahiStatusDistribution'),statusItems)+stackedBarChart(L('cbahiAttentionByStandard'),jciAttentionRows(),[{label:L('cbahiNotMet'),color:chartPalette.coral}])+'</div>';
-    return'<div class="grc-section grc-cbahi-section grc-jci-section">'+sectionHead(L('jciSection'),L('jciSectionDesc'),s.standards+' '+L('cbahiTotalStandards'))+cards+charts+assessmentToolbar('jci')+registerBlock('policy',L('jciRegister'),L('jciRegisterDesc'),'',jciTableHtml())+'</div>';
+    var charts='<div class="grc-chart-grid cols-2">'+verticalBarChart(L('cbahiStatusDistribution'),statusItems)+stackedBarChart(L('cbahiAttentionByStandard'),jciAttentionRows(dept),[{label:L('cbahiNotMet'),color:chartPalette.coral}])+'</div>';
+    return'<div class="grc-section grc-cbahi-section grc-jci-section">'+sectionHead(L('jciSection'),L('jciSectionDesc'),s.standards+' '+L('cbahiTotalStandards'))+cards+charts+assessmentToolbar('jci')+registerBlock('policy',L('jciRegister'),L('jciRegisterDesc'),'',jciTableHtml(dept))+'</div>';
   }
   function complianceDashboardHtml(){var totalAuthorities=COMPLIANCE_AUTHORITIES.length,totalReq=COMPLIANCE_DOCUMENT_SEED.length;var cards='<div class="grc-metric-grid cols-2 grc-compliance-overview-grid">'+metricCard(L('totalAuthorities'),totalAuthorities,'info',L('complianceAuthorities'))+metricCard(L('totalRequirements'),totalReq,'purple',L('records'))+'</div>';var items=COMPLIANCE_AUTHORITIES.map(function(a){return{label:isAr()?a.ar:a.en,value:complianceDocsFor(a.id).length,color:chartPalette.teal};});return'<div class="grc-section">'+sectionHead(L('complianceDashboard'),L('complianceDesc'))+cards+'<div class="grc-chart-grid cols-1">'+barChart(L('requirementsByAuthority'),items)+'</div></div>';}
   function compliancePage(){
     ensureComplianceStyles();ensureGrcEnhancementStyles();if(!complianceLibraryLoaded&&!complianceLibraryLoading)loadComplianceLibrary(false);
     var top=hero('GRC · Compliance',L('complianceTitle'),L('complianceDesc'));
-    if(!complianceNavAuthority)return top+complianceDashboardHtml()+'<div class="grc-section">'+sectionHead(L('complianceAuthorities'),L('selectAuthority'))+complianceAuthorityCards()+'</div>'+cbahiAssessmentSection()+jciAssessmentSection();
+    if(!complianceNavAuthority){var scope=isGrcAdmin()?'allFms':currentGrcDept();return top+complianceDashboardHtml()+'<div class="grc-section">'+sectionHead(L('complianceAuthorities'),L('selectAuthority'))+complianceAuthorityCards()+'</div>'+cbahiAssessmentSection(scope)+jciAssessmentSection(scope);}
     var authority=COMPLIANCE_AUTHORITIES.find(function(a){return a.id===complianceNavAuthority;});if(!authority){complianceNavAuthority=null;complianceNavDocument=null;return compliancePage();}
     if(!complianceNavDocument)return top+'<div class="grc-section"><div class="grc-compliance-breadcrumb"><button onclick="window._grcComplianceHome()">← '+L('backToAuthorities')+'</button><span>›</span><strong>'+esc(isAr()?authority.ar:authority.en)+'</strong></div>'+sectionHead(esc(isAr()?authority.ar:authority.en),String(complianceDocsFor(authority.id).length)+' '+(isAr()?'مستند':'documents'))+complianceDocumentCards(authority)+'</div>';
     var seed=complianceSeedDocument(complianceNavDocument);if(!seed||seed.authorityId!==authority.id){complianceNavDocument=null;return compliancePage();}var file=complianceFileDocument(seed.id);
     return top+'<div class="grc-section"><div class="grc-compliance-breadcrumb"><button onclick="window._grcComplianceHome()">'+L('backToAuthorities')+'</button><span>›</span><button type="button" onclick="window._grcComplianceAuthority(\''+complianceJsArg(authority.id)+'\')">'+esc(isAr()?authority.ar:authority.en)+'</button><span>›</span><strong>'+esc(seed.titleEn)+'</strong></div>'+complianceViewerHtml(seed,file)+'</div>';
   }
   function auditPage(){return simpleRegisterPage('audits','auditTitle','auditDesc','audit','addFinding',['id','title','severity','department','owner','dueDate','status'],function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+badge(r.severity)+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td>'+badge(r.status)+'</td></tr>';},'incident');}
-  function actionsPage(){return simpleRegisterPage('actions','actionsTitle','actionsDesc','action','addAction',['id','title','source','department','owner','dueDate','progress','status'],function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.source||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td><div style="display:flex;align-items:center;gap:7px"><div class="grc-progress"><span style="width:'+Math.max(0,Math.min(100,Number(r.progress||0)))+'%"></span></div><b>'+Number(r.progress||0)+'%</b></div></td><td>'+badge(r.status)+'</td></tr>';},'plan');}
+  function actionsPage(){if(!isGrcAdmin()){var d=currentGrcDept(),rows=filterDept(state.actions,d).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.source||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td><div style="display:flex;align-items:center;gap:7px"><div class="grc-progress"><span style="width:'+Math.max(0,Math.min(100,Number(r.progress||0)))+'%"></span></div><b>'+Number(r.progress||0)+'%</b></div></td><td>'+badge(r.status)+'</td></tr>';}).join('');return hero('GRC · Action Plans',L('actionsTitle'),L('actionsDesc'))+registerBlock('plan',L('actionsTitle'),deptName(d),'',tableHtml('plan',['id','title','source','department','owner','dueDate','progress','status'],rows));}return simpleRegisterPage('actions','actionsTitle','actionsDesc','action','addAction',['id','title','source','department','owner','dueDate','progress','status'],function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.source||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td><div style="display:flex;align-items:center;gap:7px"><div class="grc-progress"><span style="width:'+Math.max(0,Math.min(100,Number(r.progress||0)))+'%"></span></div><b>'+Number(r.progress||0)+'%</b></div></td><td>'+badge(r.status)+'</td></tr>';},'plan');}
   function documentsPage(){return simpleRegisterPage('documents','documentsTitle','documentsDesc','document','addDocument',['id','title','category','department','owner','reviewDate','status'],function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.category||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.reviewDate)+'</td><td>'+badge(r.status)+'</td></tr>';},'form');}
   function reportTitle(r){return isAr()?(r.titleAr||r.titleEn):(r.titleEn||r.titleAr);}
   function reportTypeLabel(type){var m={annualReport:'annualFmsReport',annualExecutive:'annualExecutiveSummary',quarterlyReport:'quarterlyFmsReport',quarterlyExecutive:'quarterlyExecutiveSummary'};return L(m[type]||type);}
