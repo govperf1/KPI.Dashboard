@@ -19,7 +19,7 @@
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
   var STATE_VERSION=13;
-  var activeTab='executive';
+  var activeTab='executive',executiveDeptFilter='allFms';
   var app=null;
 
   var labels={
@@ -806,6 +806,10 @@
     if(!n)return'';if(n.indexOf('laundry')>=0)return'laundry';if(n.indexOf('housekeeping')>=0||n.indexOf('cleaning')>=0)return'housekeeping';if(n.indexOf('maintenance')>=0)return'maintenance';if(n.indexOf('safety')>=0)return'safety';if(n.indexOf('project')>=0)return'projects';if(n.indexOf('governance')>=0||n.indexOf('performance')>=0)return'governance';if(n==='fms'||n.indexOf('facility management')>=0||n.indexOf('facilities management')>=0||n.indexOf('division')>=0)return'division';return n.replace(/\s+/g,'_');
   }
   function currentGrcDept(){return canonicalGrcDepartment(window._fbDept||window.currentUserDept||'');}
+  function canViewAllExecutiveDepartments(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return r==='super_admin'||r==='admin'||p.indexOf('*')>=0||p.indexOf('view_all_departments')>=0||p.indexOf('view_grc_all_departments')>=0;}
+  function resolvedExecutiveDept(value){var raw=String(value||executiveDeptFilter||'');if(/^(all\s*fms|allfms|all_departments|all)$/i.test(raw.replace(/[&/_-]+/g,' ')))return canViewAllExecutiveDepartments()?'allFms':(currentGrcDept()||'allFms');var d=canonicalGrcDepartment(raw);if(canViewAllExecutiveDepartments())return d&&d!=='division'?d:'allFms';d=currentGrcDept();return d&&d!=='division'?d:'allFms';}
+  function executiveDepartmentFilterHtml(selected){if(!canViewAllExecutiveDepartments())return'';var choices=[['allFms',isAr()?'جميع الأقسام':'All Departments'],['safety',deptName('safety')],['maintenance',deptName('maintenance')],['housekeeping',deptName('housekeeping')],['laundry',deptName('laundry')],['projects',deptName('projects')]];return'<div class="grc-executive-filter"><label><span>'+(isAr()?'تصفية القسم':'Department Filter')+'</span><select onchange="window._grcSetExecutiveDepartment(this.value)">'+choices.map(function(x){return'<option value="'+x[0]+'" '+(selected===x[0]?'selected':'')+'>'+esc(x[1])+'</option>';}).join('')+'</select></label></div>';}
+  window._grcSetExecutiveDepartment=function(value){var raw=String(value||'allFms');executiveDeptFilter=/^(all\s*fms|allfms|all_departments|all)$/i.test(raw.replace(/[&/_-]+/g,' '))?'allFms':canonicalGrcDepartment(raw);renderAtSamePosition(grcViewportPosition());};
   function currentRiskRecordDept(){return currentGrcDept()==='laundry'?'housekeeping':currentGrcDept();}
   function riskRecordBelongsToUser(record){var d=currentGrcDept(),id=String(record&&record.id||record&&record.code||'').toUpperCase().replace(/\s+/g,''),rd=canonicalGrcDepartment(record&&record.department||record&&record.responsibleDept||record&&record.responsibleDepartment);if(d==='laundry')return (rd==='housekeeping'||rd==='laundry')&&/^LUND/.test(id);if(d==='housekeeping')return (rd==='housekeeping'||rd==='laundry')&&!/^LUND/.test(id);return rd===d;}
   function nextRiskIdForCurrentUser(){var d=currentGrcDept(),prefix=d==='laundry'?'LUND':d==='housekeeping'?'HK':d==='safety'?'SAF':d==='maintenance'?'MNT':d==='projects'?'PM':'RSK',max=0,width=2;(state.risks||[]).forEach(function(r){var raw=String(r.id||r.code||'').toUpperCase().replace(/\s+/g,''),m=raw.match(new RegExp('^'+prefix+'(\\d+)$'));if(m){max=Math.max(max,Number(m[1])||0);width=Math.max(width,m[1].length);}});return prefix+((prefix==='HK'||prefix==='LUND')?'':' ')+String(max+1).padStart(width,'0');}
@@ -1352,8 +1356,8 @@
       metricCard(L('failedCodeRate'),pct(failed,success+failed),'purple',L('codes'),'window._grcOpenMetric(\'codes\',\'failedRate\',\'allFms\')')+
       '</div>';
   }
-  function executiveComplianceSummary(){
-    var c=cbahiSummary(),j=jciSummary();
+  function executiveComplianceSummary(dept){
+    var c=cbahiSummary(dept),j=jciSummary(dept);
     var cApplicable=Math.max(0,c.total-c.na),jApplicable=Math.max(0,j.total-j.na),den=(cApplicable+jApplicable)*2;
     var score=(c.rate/100)*(cApplicable*2)+(j.rate/100)*(jApplicable*2);
     return{total:c.total+j.total,fully:c.fully+j.fully,partial:c.partial,notmet:c.notmet+j.notmet,na:c.na+j.na,rate:den?Math.round((score/den)*10000)/100:0};
@@ -1373,18 +1377,18 @@
       metricCard(L('cbahiNotApplicable'),s.na,'neutral',L('records'),'window._grcSwitch(\'compliance\')')+
       metricCard(L('cbahiComplianceRate'),s.rate+'%','purple',L('percentage'),'window._grcSwitch(\'compliance\')')+'</div>';
   }
-  function executiveOverallCompliance(){
-    var s=executiveComplianceSummary();
+  function executiveOverallCompliance(dept){
+    var s=executiveComplianceSummary(dept);
     var status=[{label:L('cbahiFullyMet'),value:s.fully,color:chartPalette.green},{label:L('cbahiPartiallyMet'),value:s.partial,color:chartPalette.amber},{label:L('cbahiNotMet'),value:s.notmet,color:chartPalette.coral},{label:L('cbahiNotApplicable'),value:s.na,color:chartPalette.slate}];
-    return executiveComplianceAuthorityCards()+executiveComplianceCards(s,true)+'<div class="grc-chart-grid cols-2">'+verticalBarChart(isAr()?'حالة الالتزام الإجمالية':'Overall Compliance Status',status)+verticalBarChart(isAr()?'معدل الالتزام حسب الاعتماد':'Compliance Rate by Accreditation',[{label:'CBAHI',value:cbahiSummary().rate,color:chartPalette.teal},{label:'JCI',value:jciSummary().rate,color:chartPalette.navy}])+'</div>';
+    return executiveComplianceAuthorityCards()+executiveComplianceCards(s,true)+'<div class="grc-chart-grid cols-2">'+verticalBarChart(isAr()?'حالة الالتزام الإجمالية':'Overall Compliance Status',status)+verticalBarChart(isAr()?'معدل الالتزام حسب الاعتماد':'Compliance Rate by Accreditation',[{label:'CBAHI',value:cbahiSummary(dept).rate,color:chartPalette.teal},{label:'JCI',value:jciSummary(dept).rate,color:chartPalette.navy}])+'</div>';
   }
-  function executiveCbahiOverview(){
-    var s=cbahiSummary(),status=[{label:L('cbahiFullyMet'),value:s.fully,color:chartPalette.green},{label:L('cbahiPartiallyMet'),value:s.partial,color:chartPalette.amber},{label:L('cbahiNotMet'),value:s.notmet,color:chartPalette.coral},{label:L('cbahiNotApplicable'),value:s.na,color:chartPalette.slate}];
-    var attention=cbahiAttentionRows(),notMetRows=attention.map(function(x){var seg=x.segments[0];return{label:x.label,total:seg.value,segments:[seg]};}).filter(function(x){return x.total>0;}),partialRows=attention.map(function(x){var seg=x.segments[1];return{label:x.label,total:seg.value,segments:[seg]};}).filter(function(x){return x.total>0;});return executiveComplianceCards(s,true)+'<div class="grc-chart-grid cols-1">'+verticalBarChart(L('cbahiStatusDistribution'),status)+'</div><div class="grc-chart-grid grc-cbahi-attention-split">'+stackedBarChart(L('cbahiNotMet')+' · '+L('cbahiAttentionByStandard'),notMetRows,[{label:L('cbahiNotMet'),color:chartPalette.coral}])+stackedBarChart(L('cbahiPartiallyMet')+' · '+L('cbahiAttentionByStandard'),partialRows,[{label:L('cbahiPartiallyMet'),color:chartPalette.amber}])+'</div>';
+  function executiveCbahiOverview(dept){
+    var s=cbahiSummary(dept),status=[{label:L('cbahiFullyMet'),value:s.fully,color:chartPalette.green},{label:L('cbahiPartiallyMet'),value:s.partial,color:chartPalette.amber},{label:L('cbahiNotMet'),value:s.notmet,color:chartPalette.coral},{label:L('cbahiNotApplicable'),value:s.na,color:chartPalette.slate}];
+    var attention=cbahiAttentionRows(dept),notMetRows=attention.map(function(x){var seg=x.segments[0];return{label:x.label,total:seg.value,segments:[seg]};}).filter(function(x){return x.total>0;}),partialRows=attention.map(function(x){var seg=x.segments[1];return{label:x.label,total:seg.value,segments:[seg]};}).filter(function(x){return x.total>0;});return executiveComplianceCards(s,true)+'<div class="grc-chart-grid cols-1">'+verticalBarChart(L('cbahiStatusDistribution'),status)+'</div><div class="grc-chart-grid grc-cbahi-attention-split">'+stackedBarChart(L('cbahiNotMet')+' · '+L('cbahiAttentionByStandard'),notMetRows,[{label:L('cbahiNotMet'),color:chartPalette.coral}])+stackedBarChart(L('cbahiPartiallyMet')+' · '+L('cbahiAttentionByStandard'),partialRows,[{label:L('cbahiPartiallyMet'),color:chartPalette.amber}])+'</div>';
   }
-  function executiveJciOverview(){
-    var s=jciSummary(),status=[{label:L('cbahiFullyMet'),value:s.fully,color:chartPalette.green},{label:L('cbahiNotMet'),value:s.notmet,color:chartPalette.coral},{label:L('cbahiNotApplicable'),value:s.na,color:chartPalette.slate}];
-    return executiveComplianceCards(s,false)+'<div class="grc-chart-grid cols-2">'+verticalBarChart(L('cbahiStatusDistribution'),status)+stackedBarChart(L('cbahiAttentionByStandard'),jciAttentionRows(),[{label:L('cbahiNotMet'),color:chartPalette.coral}])+'</div>';
+  function executiveJciOverview(dept){
+    var s=jciSummary(dept),status=[{label:L('cbahiFullyMet'),value:s.fully,color:chartPalette.green},{label:L('cbahiNotMet'),value:s.notmet,color:chartPalette.coral},{label:L('cbahiNotApplicable'),value:s.na,color:chartPalette.slate}];
+    return executiveComplianceCards(s,false)+'<div class="grc-chart-grid cols-2">'+verticalBarChart(L('cbahiStatusDistribution'),status)+stackedBarChart(L('cbahiAttentionByStandard'),jciAttentionRows(dept),[{label:L('cbahiNotMet'),color:chartPalette.coral}])+'</div>';
   }
   function executiveReportStats(){
     var now=new Date(),current=now.getFullYear(),completedQuarter=Math.floor((now.getMonth()+1)/3);
@@ -1431,12 +1435,12 @@
       metricCard(L('annualExecutiveSummary'),s.annualExecutive,'neutral',L('available'),'window._grcSwitch(\'reports\')')+
       '</div><div class="grc-chart-grid cols-1">'+verticalBarChart(isAr()?'توفر التقارير':'Reports Availability',[{label:L('available'),value:s.available,color:chartPalette.green},{label:L('unavailable'),value:s.unavailable,color:chartPalette.coral}])+'</div>';
   }
-  function executiveManualStats(){
-    var guides=guideRecords(),ar=guides.filter(function(r){return String(r.language).toLowerCase()==='ar';}).length,en=guides.filter(function(r){return String(r.language).toLowerCase()==='en';}).length;
+  function executiveManualStats(dept){
+    var guides=guideRecords();if(dept&&dept!=='allFms')guides=guides.filter(function(r){return canonicalGrcDepartment(r.department||r.responsibleDepartment||r.ownerDepartment)===dept||!String(r.department||r.responsibleDepartment||r.ownerDepartment||'').trim();});var ar=guides.filter(function(r){return String(r.language).toLowerCase()==='ar';}).length,en=guides.filter(function(r){return String(r.language).toLowerCase()==='en';}).length;
     return{total:guides.length,arabic:ar,english:en,available:guides.filter(function(r){return normalizeStatus(r.status||'active')!=='invalid';}).length};
   }
-  function executiveManualsOverview(){
-    var s=executiveManualStats(),guides=guideRecords();
+  function executiveManualsOverview(dept){
+    var s=executiveManualStats(dept),guides=guideRecords();if(dept&&dept!=='allFms')guides=guides.filter(function(r){return canonicalGrcDepartment(r.department||r.responsibleDepartment||r.ownerDepartment)===dept||!String(r.department||r.responsibleDepartment||r.ownerDepartment||'').trim();});
     var valid=guides.filter(function(r){return ['valid','active','available'].indexOf(normalizeStatus(r.status||'valid'))>=0;}).length;
     var unavailable=Math.max(0,s.total-valid);
     var versions={};guides.forEach(function(r){versions[String(r.versionLabel||r.version||'1.0')]=1;});
@@ -1447,21 +1451,21 @@
       metricCard(isAr()?'عدد النسخ':'Versions',Object.keys(versions).length,'purple',L('guidelinesLibrary'),'window._grcSwitch(\'manuals\')')+
       '</div><div class="grc-chart-grid cols-1">'+verticalBarChart(isAr()?'حالة الأدلة':'Manual Status',[{label:L('valid'),value:valid,color:chartPalette.green},{label:L('unavailable'),value:unavailable,color:chartPalette.coral}])+'</div>';
   }
-  function selectedInitiatives(){
-    return (state.initiatives||INITIATIVE_SEED).filter(function(r){return normalizeStatus(r.status)==='selected';});
+  function selectedInitiatives(dept){
+    var rows=(state.initiatives||INITIATIVE_SEED);if(dept&&dept!=='allFms')rows=filterDept(rows,dept);return rows.filter(function(r){return normalizeStatus(r.status)==='selected';});
   }
   function initiativeProgress(r){
     return Math.max(0,Math.min(100,Number(r.progress||0)));
   }
-  function initiativeExecutionSummary(){
-    var rows=selectedInitiatives(),
+  function initiativeExecutionSummary(dept){
+    var rows=selectedInitiatives(dept),
       done=rows.filter(function(r){return initiativeProgress(r)>=100||normalizeStatus(r.executionStatus)==='done';}).length,
       inProgress=rows.filter(function(r){var p=initiativeProgress(r);return p<100&&normalizeStatus(r.executionStatus)!=='done';}).length,
       totalProgress=rows.reduce(function(sum,r){return sum+initiativeProgress(r);},0);
     return{done:done,inProgress:inProgress,rate:rows.length?Math.round(totalProgress/rows.length*100)/100:0};
   }
-  function initiativeProgressChart(){
-    var rows=selectedInitiatives();
+  function initiativeProgressChart(dept){
+    var rows=selectedInitiatives(dept);
     return'<div class="grc-chart-card grc-initiative-progress-card">'+
       chartHeader(isAr()?'نسبة اكتمال المبادرات المختارة':'Selected Initiative Completion',rows.length,L('records'))+
       '<div class="grc-initiative-progress-list">'+rows.map(function(r){
@@ -1471,20 +1475,22 @@
           '<div class="grc-initiative-progress-track"><span class="'+(done?'done':'in-progress')+'" style="width:'+p+'%"></span></div></div>';
       }).join('')+'</div></div>';
   }
-  function executiveInitiativesOverview(){
-    var initiatives=state.initiatives||INITIATIVE_SEED,
-      proposed=initiatives.filter(function(r){return normalizeStatus(r.status)==='proposed';}).length,
+  function executiveInitiativesOverview(dept){
+    var initiatives=state.initiatives||INITIATIVE_SEED;if(dept&&dept!=='allFms')initiatives=filterDept(initiatives,dept);
+    var proposed=initiatives.filter(function(r){return normalizeStatus(r.status)==='proposed';}).length,
       selected=initiatives.filter(function(r){return normalizeStatus(r.status)==='selected';}).length,
-      deptMap={maintenance:2,safety:1,housekeeping:5,projects:1,allFms:1},
-      male=6,female=4,totalParticipants=10;
-    var depts=[
+      deptMap={maintenance:0,safety:0,housekeeping:0,laundry:0,projects:0,allFms:0},male=0,female=0,totalParticipants=0;
+    initiatives.forEach(function(r){var team=Array.isArray(r.team)?r.team:[];team.forEach(function(m){totalParticipants++;var gender=String(m.gender||'').toLowerCase();if(gender==='female')female++;else if(gender==='male')male++;var d=canonicalGrcDepartment(m.department||r.department);if(d==='division'||d==='governance')d='allFms';if(deptMap[d]===undefined)deptMap[d]=0;deptMap[d]++;});});
+    var deptDefs=[
       ['maintenance',deptName('maintenance'),'info',chartPalette.navy],
       ['safety',deptName('safety'),'bad',chartPalette.coral],
       ['housekeeping',deptName('housekeeping'),'good',chartPalette.teal],
+      ['laundry',deptName('laundry'),'good','#43a68c'],
       ['projects',deptName('projects'),'warn','#d6a320'],
       ['allFms','FMS Division','purple','#8b5aa8']
     ];
-    var deptChart=depts.map(function(x){return{label:x[1],value:deptMap[x[0]],color:x[3]};});
+    var depts=(dept&&dept!=='allFms')?deptDefs.filter(function(x){return x[0]===dept;}):deptDefs;
+    var deptChart=depts.map(function(x){return{label:x[1],value:deptMap[x[0]]||0,color:x[3]};});
     return'<div class="grc-initiative-sections">'+
       '<section class="grc-exec-ops-panel grc-participants-panel"><div class="grc-exec-ops-head"><div><h3>'+(isAr()?'المشاركون':'Participants')+'</h3><p>'+(isAr()?'توزيع المشاركين حسب الجنس والقسم':'Participants by gender and department')+'</p></div></div>'+
       '<div class="grc-metric-grid cols-1 grc-participants-total">'+metricCard(isAr()?'إجمالي المشاركين':'Total Participants',totalParticipants,'info',L('records'))+'</div>'+
@@ -1501,8 +1507,8 @@
         metricCard(isAr()?'مكتملة':'Done',summary.done,'good',L('records'))+
         metricCard(isAr()?'قيد التنفيذ':'In Progress',summary.inProgress,'warn',L('records'))+
         metricCard(isAr()?'معدل الإنجاز':'Completion Rate',summary.rate+'%','purple',L('percentage'))+
-      '</div>';})(initiativeExecutionSummary())+
-      '<div class="grc-chart-grid cols-1">'+donutChart(isAr()?'حالة المبادرات':'Initiative Status',[{label:isAr()?'مقترحة':'Proposed',value:proposed,color:chartPalette.blue},{label:isAr()?'مختارة':'Selected',value:selected,color:chartPalette.green}],L('records'))+initiativeProgressChart()+'</div></section></div>';
+      '</div>';})(initiativeExecutionSummary(dept))+
+      '<div class="grc-chart-grid cols-1">'+donutChart(isAr()?'حالة المبادرات':'Initiative Status',[{label:isAr()?'مقترحة':'Proposed',value:proposed,color:chartPalette.blue},{label:isAr()?'مختارة':'Selected',value:selected,color:chartPalette.green}],L('records'))+initiativeProgressChart(dept)+'</div></section></div>';
   }
 
   function initiativeCard(r){
@@ -1618,7 +1624,7 @@
     return'<div class="grc-executive-summary-grid">'+items.map(function(x){return'<button type="button" onclick="'+x[2]+'"><strong>'+esc(x[1])+'</strong><span>'+esc(x[0])+'</span></button>';}).join('')+'</div>';
   }
   function ensureExecutiveExtensionStyles(){
-    if(document.getElementById('grcExecutiveExtensionStyles'))return;var st=document.createElement('style');st.id='grcExecutiveExtensionStyles';st.textContent='.grc-exec-domain{margin-top:28px}.grc-exec-clickable-cards .grc-metric-card{cursor:pointer}.grc-executive-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.grc-executive-summary-grid button{border:1px solid #dbe6ee;background:#fff;border-radius:16px;padding:20px;text-align:start;box-shadow:0 8px 24px rgba(15,42,55,.06);cursor:pointer}.grc-executive-summary-grid strong{display:block;font-size:25px;color:#123746;margin-bottom:5px}.grc-executive-summary-grid span{font-weight:700;color:#607784}@media(max-width:1000px){.grc-executive-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.grc-executive-summary-grid{grid-template-columns:1fr}}.grc-assessment-readonly.is-required:empty{min-height:28px;border:1px solid #dc2626;border-radius:7px;background:#fff5f5}.grc-initiative-sections{display:grid;grid-template-columns:1fr 1fr;gap:18px}.grc-emergency-code-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0 18px}.grc-emergency-code-card{display:flex;align-items:center;gap:10px;border:1px solid #dbe6ee;background:#fff;border-radius:14px;padding:14px}.grc-emergency-code-card>span{width:10px;height:34px;border-radius:8px;background:var(--code-color)}.grc-emergency-code-card strong{flex:1}.grc-emergency-code-card b{font-size:22px}.grc-dept-pill{display:inline-flex;align-items:center;border-radius:999px;padding:3px 9px;margin-inline-end:7px;font-weight:800;font-size:11px}.grc-dept-pill.dept-maintenance{background:#e8f0ff;color:#315fa8}.grc-dept-pill.dept-safety{background:#fff0ee;color:#b84236}.grc-dept-pill.dept-housekeeping{background:#e7f8f4;color:#237a68}.grc-dept-pill.dept-projects{background:#f2eafe;color:#7547a8}.grc-exec-compliance-authorities{margin-bottom:14px}@media(max-width:1000px){.grc-initiative-sections{grid-template-columns:1fr}}';document.head.appendChild(st);
+    if(document.getElementById('grcExecutiveExtensionStyles'))return;var st=document.createElement('style');st.id='grcExecutiveExtensionStyles';st.textContent='.grc-exec-domain{margin-top:28px}.grc-executive-filter{display:flex;justify-content:flex-end;margin:14px 0 4px}.grc-executive-filter label{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #d8e5eb;border-radius:12px;background:#fff;box-shadow:0 5px 16px rgba(15,42,55,.05)}.grc-executive-filter span{font-size:10px;font-weight:850;color:#526d7b}.grc-executive-filter select{min-width:190px;border:1px solid #cfdde4;border-radius:9px;background:#f8fbfc;color:#173f55;padding:7px 9px;font-size:10px;font-weight:750}.grc-exec-clickable-cards .grc-metric-card{cursor:pointer}.grc-executive-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.grc-executive-summary-grid button{border:1px solid #dbe6ee;background:#fff;border-radius:16px;padding:20px;text-align:start;box-shadow:0 8px 24px rgba(15,42,55,.06);cursor:pointer}.grc-executive-summary-grid strong{display:block;font-size:25px;color:#123746;margin-bottom:5px}.grc-executive-summary-grid span{font-weight:700;color:#607784}@media(max-width:1000px){.grc-executive-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.grc-executive-summary-grid{grid-template-columns:1fr}}.grc-assessment-readonly.is-required:empty{min-height:28px;border:1px solid #dc2626;border-radius:7px;background:#fff5f5}.grc-initiative-sections{display:grid;grid-template-columns:1fr 1fr;gap:18px}.grc-emergency-code-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0 18px}.grc-emergency-code-card{display:flex;align-items:center;gap:10px;border:1px solid #dbe6ee;background:#fff;border-radius:14px;padding:14px}.grc-emergency-code-card>span{width:10px;height:34px;border-radius:8px;background:var(--code-color)}.grc-emergency-code-card strong{flex:1}.grc-emergency-code-card b{font-size:22px}.grc-dept-pill{display:inline-flex;align-items:center;border-radius:999px;padding:3px 9px;margin-inline-end:7px;font-weight:800;font-size:11px}.grc-dept-pill.dept-maintenance{background:#e8f0ff;color:#315fa8}.grc-dept-pill.dept-safety{background:#fff0ee;color:#b84236}.grc-dept-pill.dept-housekeeping{background:#e7f8f4;color:#237a68}.grc-dept-pill.dept-projects{background:#f2eafe;color:#7547a8}.grc-exec-compliance-authorities{margin-bottom:14px}@media(max-width:1000px){.grc-initiative-sections{grid-template-columns:1fr}}';document.head.appendChild(st);
   }
   function safeExecutiveBlock(name,render){
     try{return render()||'';}catch(err){
@@ -1626,23 +1632,26 @@
       return'';
     }
   }
-  function executivePage(){
+  function executivePage(deptOverride,reportMode){
     try{ensureOperationalPlanStyles();}catch(e){try{console.error('[GRC Executive] operational styles',e);}catch(_e){}}
     try{ensureGrcEnhancementStyles();}catch(e){try{console.error('[GRC Executive] enhancement styles',e);}catch(_e){}}
     try{ensureExecutiveExtensionStyles();}catch(e){try{console.error('[GRC Executive] extension styles',e);}catch(_e){}}
     try{if(!reportLibraryLoaded&&!reportLibraryLoading)loadReportLibrary(false);}catch(e){try{console.error('[GRC Executive] report library',e);}catch(_e){}}
-    var html='';
+    var execDept=resolvedExecutiveDept(deptOverride),deptLabel=execDept==='allFms'?L('allDepartments'):deptName(execDept),html='';
+    var govCount=['policies','plans','forms'].reduce(function(sum,k){return sum+filterDept(state[k],execDept).length;},0);
+    var riskCount=filterDept(state.risks,execDept).length+filterDept(state.incidents,execDept).length+filterDept(state.codes,execDept).length;
     html+=safeExecutiveBlock('hero',function(){return hero('GRC · Executive Command',L('executiveTitle'),L('executiveDesc'));});
+    if(!reportMode)html+=executiveDepartmentFilterHtml(execDept);
     html+=safeExecutiveBlock('modules',function(){return governanceModules('executive');});
     html+='<div class="grc-divider"></div>';
-    html+=safeExecutiveBlock('governance',function(){return'<section class="grc-exec-domain governance-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">01</span><h2>'+L('governanceOverview')+'</h2><p>'+L('governanceDesc')+'</p></div><span class="grc-exec-domain-badge">'+countFor('governance')+' '+L('records')+'</span></div>'+governanceOverview('allFms',false,true)+'</section>';});
-    html+=safeExecutiveBlock('risk',function(){return'<section class="grc-exec-domain risk-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">02</span><h2>'+L('riskOverview')+'</h2><p>'+L('riskDesc')+'</p></div><span class="grc-exec-domain-badge">'+countFor('risk')+' '+L('records')+'</span></div>'+riskOverview('allFms',false,true)+'</section>';});
-    html+=safeExecutiveBlock('overall compliance',function(){return'<section class="grc-exec-domain compliance-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">03</span><h2>'+(isAr()?'نظرة الالتزام الإجمالية':'Overall Compliance Overview')+'</h2><p>'+L('complianceDesc')+'</p></div></div>'+executiveOverallCompliance()+'</section>';});
-    html+=safeExecutiveBlock('CBAHI',function(){return'<section class="grc-exec-domain cbahi-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">04</span><h2>CBAHI FMS Division Compliance Assessment</h2><p>'+L('cbahiSectionDesc')+'</p></div></div>'+executiveCbahiOverview()+'</section>';});
-    html+=safeExecutiveBlock('JCI',function(){return'<section class="grc-exec-domain jci-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">05</span><h2>JCI FMS Division Compliance Assessment</h2><p>'+L('jciSectionDesc')+'</p></div></div>'+executiveJciOverview()+'</section>';});
-    html+=safeExecutiveBlock('reports',function(){return'<section class="grc-exec-domain reports-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">06</span><h2>'+(isAr()?'نظرة عامة على التقارير':'Reports Overview')+'</h2><p>'+L('reportsDesc')+'</p></div></div>'+executiveReportsOverview()+'</section>';});
-    html+=safeExecutiveBlock('manuals',function(){return'<section class="grc-exec-domain manuals-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">07</span><h2>'+(isAr()?'نظرة عامة على الأدلة':'Manuals Overview')+'</h2><p>'+L('guidelinesLibraryDesc')+'</p></div></div>'+executiveManualsOverview()+'</section>';});
-    html+=safeExecutiveBlock('initiatives',function(){return'<section class="grc-exec-domain initiatives-domain"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">08</span><h2>'+(isAr()?'المبادرات':'Initiatives')+'</h2><p>'+(isAr()?'مشاركة الأقسام وحالة المبادرات المقترحة والمختارة.':'Department participation and proposed/selected initiative status.')+'</p></div></div>'+executiveInitiativesOverview()+'</section>';});
+    html+=safeExecutiveBlock('governance',function(){return'<section class="grc-exec-domain governance-domain" data-report-domain="governance" data-report-department="'+esc(execDept)+'"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">01</span><h2>'+L('governanceOverview')+'</h2><p>'+L('governanceDesc')+' · '+esc(deptLabel)+'</p></div><span class="grc-exec-domain-badge">'+govCount+' '+L('records')+'</span></div>'+governanceOverview(execDept,false,true)+'</section>';});
+    html+=safeExecutiveBlock('risk',function(){return'<section class="grc-exec-domain risk-domain" data-report-domain="risk" data-report-department="'+esc(execDept)+'"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">02</span><h2>'+L('riskOverview')+'</h2><p>'+L('riskDesc')+' · '+esc(deptLabel)+'</p></div><span class="grc-exec-domain-badge">'+riskCount+' '+L('records')+'</span></div>'+riskOverview(execDept,false,true)+'</section>';});
+    html+=safeExecutiveBlock('overall compliance',function(){return'<section class="grc-exec-domain compliance-domain" data-report-domain="overall"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">03</span><h2>'+(isAr()?'نظرة الالتزام الإجمالية':'Overall Compliance Overview')+'</h2><p>'+L('complianceDesc')+' · '+esc(deptLabel)+'</p></div></div>'+executiveOverallCompliance(execDept)+'</section>';});
+    html+=safeExecutiveBlock('CBAHI',function(){return'<section class="grc-exec-domain cbahi-domain" data-report-domain="cbahi"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">04</span><h2>CBAHI FMS Division Compliance Assessment</h2><p>'+L('cbahiSectionDesc')+' · '+esc(deptLabel)+'</p></div></div>'+executiveCbahiOverview(execDept)+'</section>';});
+    html+=safeExecutiveBlock('JCI',function(){return'<section class="grc-exec-domain jci-domain" data-report-domain="jci"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">05</span><h2>JCI FMS Division Compliance Assessment</h2><p>'+L('jciSectionDesc')+' · '+esc(deptLabel)+'</p></div></div>'+executiveJciOverview(execDept)+'</section>';});
+    html+=safeExecutiveBlock('reports',function(){return'<section class="grc-exec-domain reports-domain" data-report-domain="reports"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">06</span><h2>'+(isAr()?'نظرة عامة على التقارير':'Reports Overview')+'</h2><p>'+L('reportsDesc')+'</p></div></div>'+executiveReportsOverview()+'</section>';});
+    html+=safeExecutiveBlock('manuals',function(){return'<section class="grc-exec-domain manuals-domain" data-report-domain="manuals"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">07</span><h2>'+(isAr()?'نظرة عامة على الأدلة':'Manuals Overview')+'</h2><p>'+L('guidelinesLibraryDesc')+'</p></div></div>'+executiveManualsOverview(execDept)+'</section>';});
+    html+=safeExecutiveBlock('initiatives',function(){return'<section class="grc-exec-domain initiatives-domain" data-report-domain="initiatives"><div class="grc-exec-domain-head"><div><span class="grc-exec-domain-kicker">08</span><h2>'+(isAr()?'المبادرات':'Initiatives')+'</h2><p>'+(isAr()?'مشاركة الأقسام وحالة المبادرات المقترحة والمختارة.':'Department participation and proposed/selected initiative status.')+' · '+esc(deptLabel)+'</p></div></div>'+executiveInitiativesOverview(execDept)+'</section>';});
     return html;
   }
 
@@ -1918,29 +1927,31 @@
     var map={'Fully Met':'cbahiFullyMet','Partially Met':'cbahiPartiallyMet','Not Met':'cbahiNotMet','Not Applicable':'cbahiNotApplicable'};
     return L(map[status]||'cbahiNotApplicable');
   }
-  function cbahiSummary(){
+  function assessmentRowMatchesDept(row,dept){
+    dept=resolvedExecutiveDept(dept);if(!dept||dept==='allFms')return true;
+    var raw=String(row&&row[CBAHI_COLS.responsibleDepartment]||row&&row[7]||'').trim().toLowerCase();
+    if(!raw)return true;
+    if(dept==='projects')return raw.indexOf('project')>=0;
+    if(dept==='housekeeping')return raw.indexOf('house')>=0&&!/laund/.test(raw);
+    if(dept==='laundry')return raw.indexOf('laund')>=0;
+    return raw.indexOf(dept)>=0;
+  }
+  function cbahiRowsForDept(dept){return assessmentRows('cbahi',CBAHI_FMS_ROWS).filter(function(r){return assessmentRowMatchesDept(r,dept);});}
+  function jciRowsForDept(dept){return normalizedJciRows().filter(function(r){return assessmentRowMatchesDept(r,dept);});}
+  function cbahiSummary(dept){
     var status={fully:0,partial:0,notmet:0,na:0},standards={};
-    var allRows=assessmentRows('cbahi',CBAHI_FMS_ROWS);
+    var allRows=cbahiRowsForDept(dept);
     allRows.forEach(function(r){if(r[CBAHI_COLS.standard])standards[r[CBAHI_COLS.standard]]=1;});
-    var assessedRows=allRows.filter(function(r){
-      var value=String(r[CBAHI_COLS.complianceStatus]||'').trim();
-      return ['Fully Met','Partially Met','Not Met','Not Applicable'].indexOf(value)>=0;
-    });
-    assessedRows.forEach(function(r){
-      var value=String(r[CBAHI_COLS.complianceStatus]||'').trim();
-      if(value==='Fully Met')status.fully++;
-      else if(value==='Partially Met')status.partial++;
-      else if(value==='Not Met')status.notmet++;
-      else if(value==='Not Applicable')status.na++;
-    });
-    // Blank/unassessed rows are ignored. Not Applicable is excluded from the rate denominator.
+    var assessedRows=allRows.filter(function(r){var value=String(r[CBAHI_COLS.complianceStatus]||'').trim();return ['Fully Met','Partially Met','Not Met','Not Applicable'].indexOf(value)>=0;});
+    assessedRows.forEach(function(r){var value=String(r[CBAHI_COLS.complianceStatus]||'').trim();if(value==='Fully Met')status.fully++;else if(value==='Partially Met')status.partial++;else if(value==='Not Met')status.notmet++;else if(value==='Not Applicable')status.na++;});
     var applicableRows=assessedRows.filter(function(r){return String(r[CBAHI_COLS.complianceStatus]||'').trim()!=='Not Applicable';});
     var score=applicableRows.reduce(function(sum,r){return sum+Number(r[CBAHI_COLS.score]||0);},0);
     var rate=applicableRows.length?Math.round((score/(applicableRows.length*2))*10000)/100:0;
     return{total:assessedRows.length,standards:Object.keys(standards).length,fully:status.fully,partial:status.partial,notmet:status.notmet,na:status.na,rate:rate,allRows:allRows.length};
   }
-  function cbahiAttentionRows(){
-    var map={};assessmentRows('cbahi',CBAHI_FMS_ROWS).forEach(function(r){var status=String(r[CBAHI_COLS.complianceStatus]||'');if(status!=='Not Met'&&status!=='Partially Met')return;var key=String(r[CBAHI_COLS.standard]||'Other');if(!map[key])map[key]={notmet:0,partial:0};if(status==='Not Met')map[key].notmet++;else map[key].partial++;});
+
+  function cbahiAttentionRows(dept){
+    var map={};cbahiRowsForDept(dept).forEach(function(r){var status=String(r[CBAHI_COLS.complianceStatus]||'');if(status!=='Not Met'&&status!=='Partially Met')return;var key=String(r[CBAHI_COLS.standard]||'Other');if(!map[key])map[key]={notmet:0,partial:0};if(status==='Not Met')map[key].notmet++;else map[key].partial++;});
     return Object.keys(map).map(function(k){return{label:k,total:map[k].notmet+map[k].partial,segments:[{label:L('cbahiNotMet'),value:map[k].notmet,color:chartPalette.coral},{label:L('cbahiPartiallyMet'),value:map[k].partial,color:chartPalette.amber}]};}).sort(function(a,b){return b.total-a.total;}).slice(0,10);
   }
   function cbahiTableHtml(){
@@ -2099,27 +2110,19 @@
     });
     return rows;
   }
-  function jciSummary(){
-    var rows=normalizedJciRows(),status={fully:0,notmet:0,na:0},standards={},applicable=[];
+  function jciSummary(dept){
+    var rows=jciRowsForDept(dept),status={fully:0,notmet:0,na:0},standards={},applicable=[];
     rows.forEach(function(r){if(r[CBAHI_COLS.standard])standards[r[CBAHI_COLS.standard]]=1;});
-    var assessedRows=rows.filter(function(r){
-      var value=String(r[CBAHI_COLS.complianceStatus]||'').trim();
-      return ['Fully Met','Not Met','Not Applicable'].indexOf(value)>=0;
-    });
-    assessedRows.forEach(function(r){
-      if(r[CBAHI_COLS.standard])standards[r[CBAHI_COLS.standard]]=1;
-      var value=String(r[CBAHI_COLS.complianceStatus]||'').trim();
-      if(value==='Fully Met'){status.fully++;applicable.push(r);}
-      else if(value==='Not Met'){status.notmet++;applicable.push(r);}
-      else if(value==='Not Applicable')status.na++;
-    });
+    var assessedRows=rows.filter(function(r){var value=String(r[CBAHI_COLS.complianceStatus]||'').trim();return ['Fully Met','Not Met','Not Applicable'].indexOf(value)>=0;});
+    assessedRows.forEach(function(r){if(r[CBAHI_COLS.standard])standards[r[CBAHI_COLS.standard]]=1;var value=String(r[CBAHI_COLS.complianceStatus]||'').trim();if(value==='Fully Met'){status.fully++;applicable.push(r);}else if(value==='Not Met'){status.notmet++;applicable.push(r);}else if(value==='Not Applicable')status.na++;});
     var score=applicable.reduce(function(sum,r){return sum+Number(r[CBAHI_COLS.score]||0);},0);
     var rate=applicable.length?Math.round((score/(applicable.length*2))*10000)/100:0;
     return{total:rows.length,assessed:assessedRows.length,standards:Object.keys(standards).length,fully:status.fully,notmet:status.notmet,na:status.na,rate:rate,allRows:rows.length};
   }
-  function jciAttentionRows(){
+
+  function jciAttentionRows(dept){
     var map={};
-    normalizedJciRows().forEach(function(r){
+    jciRowsForDept(dept).forEach(function(r){
       if(String(r[CBAHI_COLS.complianceStatus]||'')!=='Not Met')return;
       var key=String(r[CBAHI_COLS.standard]||'Other');
       map[key]=(map[key]||0)+1;
@@ -2681,6 +2684,9 @@
     }catch(_){return state;}
   };
   window._grcGetPageHtml=function(id){return pageHtml(id);};
+  window._grcGetExecutiveHtmlForDepartment=function(dept){return executivePage(dept,true);};
+  window._grcCanViewAllDepartments=canViewAllExecutiveDepartments;
+  window._grcGetCurrentDepartment=currentGrcDept;
   window._grcGetModules=function(){return modules.map(function(x){return{id:x.id,icon:x.icon,label:L(x.id)};});};
   window._grcGetActivePage=function(){return activeTab;};
 

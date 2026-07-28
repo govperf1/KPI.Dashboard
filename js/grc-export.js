@@ -70,6 +70,13 @@
     {id:'resources',title:'Operational & Resource Registers',items:[['actions','Action Plans'],['initiatives','Initiatives Register'],['reports','Reports Register'],['manuals','Manuals Register'],['guides','Guidelines Register']]},
     {id:'compliance',title:'Compliance Assessments',items:[['cbahi','CBAHI Assessment'],['jci','JCI Assessment']]}
   ];
+  var REPORT_GROUPS=[
+    {id:'governance',title:'Governance',items:[['gov_policies','Policies'],['gov_plans','Plans'],['gov_forms','Forms']]},
+    {id:'risk',title:'Risk Management',items:[['risk_register','Risk Register'],['risk_incidents','Incident Register'],['risk_codes','Emergency Codes']]},
+    {id:'compliance',title:'Compliance',items:[['overall','Overall Compliance'],['cbahi','CBAHI Assessment'],['jci','JCI Assessment']]},
+    {id:'resources',title:'Operational & Resource',items:[['reports','Reports'],['manuals','Manuals & Guidelines'],['initiatives','Initiatives']]}
+  ];
+  var REPORT_FIXED_DEPTS=[];
   function excelSelectable(){return Array.prototype.slice.call(document.querySelectorAll('[data-grc-excel-selectable]'));}
   function selectedCount(group){return Array.prototype.slice.call(document.querySelectorAll('input[data-grc-register-group="'+group.id+'"]')).filter(function(x){return x.checked;}).length;}
   function updateDropdownLabel(group){var label=document.getElementById('grcExcelDropLabel-'+group.id),n=selectedCount(group);if(label)label.textContent=n===group.items.length?'All selected':n+' selected';}
@@ -277,12 +284,59 @@
       return{title:title,node:clone,width:Number(clone.dataset.grcSourceWidth||sec.getBoundingClientRect().width||1280)};
     });
   }
+  function reportRole(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_');}
+  function reportCanViewAllDepartments(){var r=reportRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];if(typeof window._grcCanViewAllDepartments==='function')return !!window._grcCanViewAllDepartments();return r==='admin'||r==='super_admin'||p.indexOf('*')>=0||p.indexOf('view_all_departments')>=0||p.indexOf('view_grc_all_departments')>=0;}
+  function reportUserDept(){var d='';try{d=typeof window._grcGetCurrentDepartment==='function'?window._grcGetCurrentDepartment():window._fbDept||window.currentUserDept||'';}catch(_){}d=String(d||'').toLowerCase();if(d.indexOf('safe')>=0)return'safety';if(d.indexOf('maint')>=0)return'maintenance';if(d.indexOf('laund')>=0)return'laundry';if(d.indexOf('house')>=0)return'housekeeping';if(d.indexOf('project')>=0)return'projects';return'allFms';}
+  function reportSelectable(){return Array.prototype.slice.call(document.querySelectorAll('[data-grc-report-selectable]'));}
+  function reportSelectedCount(group){return Array.prototype.slice.call(document.querySelectorAll('input[data-grc-report-group="'+group.id+'"]')).filter(function(x){return x.checked;}).length;}
+  function updateReportDropdownLabel(group){var label=document.getElementById('grcReportDropLabel-'+group.id),n=reportSelectedCount(group);if(label)label.textContent=n===group.items.length?'All selected':n+' selected';}
+  function reportGroupHtml(group){
+    return'<div class="grc-export-compact-group"><button type="button" class="grc-export-dropdown-btn" onclick="window._grcToggleReportDropdown(\''+group.id+'\',event)"><span><b>'+esc(group.title)+'</b><small id="grcReportDropLabel-'+group.id+'">All selected</small></span><i>⌄</i></button><div id="grcReportDrop-'+group.id+'" class="grc-export-dropdown-menu"><label class="grc-export-check group-all"><input id="grcReportGroupAll-'+group.id+'" type="checkbox" checked onchange="window._grcToggleReportGroup(\''+group.id+'\',this.checked)"><span>Select all in this group</span></label>'+group.items.map(function(item){return'<label class="grc-export-check"><input data-grc-report-selectable data-grc-report-group="'+group.id+'" type="checkbox" name="grcReportItem" value="'+item[0]+'" checked onchange="window._grcSyncReportGroup(\''+group.id+'\')"><span>'+esc(item[1])+'</span></label>';}).join('')+'</div></div>';
+  }
+
+  window._grcToggleReportDropdown=function(id,e){if(e){e.preventDefault();e.stopPropagation();}document.querySelectorAll('.grc-export-dropdown-menu.is-open').forEach(function(x){if(x.id!=='grcReportDrop-'+id)x.classList.remove('is-open');});var m=document.getElementById('grcReportDrop-'+id);if(m)m.classList.toggle('is-open');};
+  window._grcToggleReportAll=function(on){reportSelectable().forEach(function(x){x.checked=!!on;});REPORT_GROUPS.forEach(function(g){var all=document.getElementById('grcReportGroupAll-'+g.id);if(all)all.checked=!!on;updateReportDropdownLabel(g);});};
+  window._grcToggleReportGroup=function(group,on){document.querySelectorAll('input[data-grc-report-group="'+group+'"]').forEach(function(x){x.checked=!!on;});window._grcSyncReportGroup(group);};
+  window._grcSyncReportGroup=function(group){var boxes=Array.prototype.slice.call(document.querySelectorAll('input[data-grc-report-group="'+group+'"]')),all=document.getElementById('grcReportGroupAll-'+group),g=REPORT_GROUPS.find(function(x){return x.id===group;});if(all){all.checked=boxes.length>0&&boxes.every(function(x){return x.checked;});all.indeterminate=boxes.some(function(x){return x.checked;})&&!all.checked;}if(g)updateReportDropdownLabel(g);window._grcSyncReportAll();};
+  window._grcSyncReportAll=function(){var boxes=reportSelectable(),all=document.getElementById('grcReportSelectAll');if(all){all.checked=boxes.length>0&&boxes.every(function(x){return x.checked;});all.indeterminate=boxes.some(function(x){return x.checked;})&&!all.checked;}};
   window._grcOpenReportSelector=async function(){
-    var page=await ensureExecutiveRendered();REPORT_PARTS=executiveReportParts(page);
-    var opts=REPORT_PARTS.map(function(p,i){return'<label class="grc-export-check"><input type="checkbox" name="grcReportSection" value="'+i+'" checked><span>'+esc((i+1)+'. '+p.title)+'</span></label>';}).join('');
-    if(!opts)opts='<div style="padding:12px;color:#8A4650">No Executive Command sections were found. Reload the page and try again.</div>';
-    overlay('GRC Executive Command Report','Choose the GRC sections to include. The report begins with Governance and uses the same official Performance report frame, header and footer.','<div class="grc-export-section"><h3>Report Sections</h3><div class="grc-export-check-grid">'+opts+'</div></div>','Build Report','window._grcGenerateReport()');
+    REPORT_FIXED_DEPTS=reportCanViewAllDepartments()?[]:[reportUserDept()];
+    var deptSection='';
+    if(reportCanViewAllDepartments()){
+      var deptChecks=DEPTS.map(function(d){return'<label class="grc-export-check"><input data-grc-report-selectable type="checkbox" name="grcReportDept" value="'+d[0]+'" checked onchange="window._grcSyncReportAll()"><span>'+d[1]+'</span></label>';}).join('');
+      deptSection='<div class="grc-export-section"><h3>Departments</h3><div class="grc-export-check-grid">'+deptChecks+'</div></div>';
+    }
+    var groups=REPORT_GROUPS.map(reportGroupHtml).join('');
+    var body='<label class="grc-export-select-all"><input id="grcReportSelectAll" type="checkbox" checked onchange="window._grcToggleReportAll(this.checked)"><span><b>Select All Options</b><small>Select or clear every available department and report section.</small></span></label>'+deptSection+'<div class="grc-export-section"><h3>Report Content</h3><p class="grc-export-help">Open each dropdown and choose one or more sections.</p><div class="grc-export-dropdown-grid">'+groups+'</div></div>';
+    overlay('GRC Executive Command Report','Choose departments first, then select the Governance, Risk, Compliance and resource content to include.',body,'Build Report','window._grcGenerateReport()');
   };
+  function reportDomainKey(part){var t=String(part&&part.title||'').toLowerCase();if(t.indexOf('governance')>=0)return'governance';if(t.indexOf('risk')>=0)return'risk';if(t.indexOf('overall compliance')>=0)return'overall';if(t.indexOf('cbahi')>=0)return'cbahi';if(t.indexOf('jci')>=0)return'jci';if(t.indexOf('report')>=0)return'reports';if(t.indexOf('manual')>=0||t.indexOf('guide')>=0)return'manuals';if(t.indexOf('initiative')>=0)return'initiatives';return'';}
+  function selectedSubIndexes(items,prefixes){var out=[];prefixes.forEach(function(p,i){if(items.indexOf(p)>=0)out.push(i);});return out;}
+  function filterDomainPart(part,key,items){
+    var node=part.node.cloneNode(true),keep=[];
+    if(key==='governance')keep=selectedSubIndexes(items,['gov_policies','gov_plans','gov_forms']);
+    if(key==='risk')keep=selectedSubIndexes(items,['risk_register','risk_incidents','risk_codes']);
+    if(key==='governance'||key==='risk')Array.prototype.slice.call(node.querySelectorAll('.grc-domain-section')).forEach(function(sec,i){if(keep.indexOf(i)<0)sec.remove();});
+    if((key==='governance'||key==='risk')&&!node.querySelector('.grc-domain-section'))return null;
+    return{title:part.title,node:node,width:part.width};
+  }
+  async function reportPartsForSelection(depts,items){
+    var allSelected=DEPTS.every(function(d){return depts.indexOf(d[0])>=0;}),renderDepts=allSelected?['allFms']:depts.slice(),out=[];
+    for(var d=0;d<renderDepts.length;d++){
+      var dept=renderDepts[d],html='';
+      if(typeof window._grcGetExecutiveHtmlForDepartment==='function')html=window._grcGetExecutiveHtmlForDepartment(dept)||'';
+      if(!html){var live=await ensureExecutiveRendered();html=live?live.innerHTML:'';}
+      var wrap=document.createElement('div');wrap.innerHTML=html;var parts=executiveReportParts(wrap),suffix=renderDepts.length>1?' — '+departmentTitle(dept):'';
+      parts.forEach(function(part){var key=reportDomainKey(part),include=false;
+        if(key==='governance')include=items.some(function(x){return x.indexOf('gov_')===0;});
+        else if(key==='risk')include=items.some(function(x){return x.indexOf('risk_')===0;});
+        else include=items.indexOf(key)>=0;
+        if(!include)return;var filtered=filterDomainPart(part,key,items);if(!filtered)return;filtered.title=filtered.title+suffix;out.push(filtered);
+      });
+    }
+    return out;
+  }
+
   function subsectionCandidates(node){
     var all=Array.prototype.slice.call(node.querySelectorAll('.grc-section-title,.grc-exec-ops-head h3'));
     return all.filter(function(h){
@@ -407,10 +461,15 @@
       #rptDocument #grcApp tfoot{display:table-footer-group!important}
     `;doc.appendChild(style);return doc;
   }
-  window._grcGenerateReport=function(){
-    var chosen=checked('grcReportSection').map(Number);if(!chosen.length){alert('Select at least one report section.');return;}
-    var doc=buildReportDocument(chosen);closeOverlay();
-    var ok=typeof window._qumcPrintReportDocument==='function'&&window._qumcPrintReportDocument(doc,{period:'GRC Executive Command · '+new Date().toLocaleDateString('en-GB'),orientation:'landscape'});
+  window._grcGenerateReport=async function(){
+    var items=checked('grcReportItem'),depts=REPORT_FIXED_DEPTS.length?REPORT_FIXED_DEPTS:checked('grcReportDept');
+    if(!items.length){alert('Select at least one report content option.');return;}
+    if(!depts.length){alert('Select at least one department.');return;}
+    REPORT_PARTS=await reportPartsForSelection(depts,items);
+    if(!REPORT_PARTS.length){alert('No report content was found for the selected options.');return;}
+    var chosen=REPORT_PARTS.map(function(_,i){return i;}),doc=buildReportDocument(chosen);closeOverlay();
+    var period=(depts.length===DEPTS.length?'All Departments':depts.map(departmentTitle).join(', '))+' · '+new Date().toLocaleDateString('en-GB');
+    var ok=typeof window._qumcPrintReportDocument==='function'&&window._qumcPrintReportDocument(doc,{period:'GRC Executive Command · '+period,orientation:'landscape'});
     if(!ok){alert('The Performance report print engine is not ready. Reload the page and try again.');return;}
     if(typeof window.addAudit==='function')window.addAudit('GRC_REPORT_PDF','Generated GRC Executive Command report');
   };
