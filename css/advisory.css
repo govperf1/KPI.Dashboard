@@ -201,3 +201,8 @@ body > .adv-modal-backdrop .adv-form-dependency > label{
   font-size:9.5px;
   font-weight:850;
 }
+
+/* v74 request dependencies */
+.adv-dependency-note{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #b9d8df;background:#f2fafb;border-radius:10px;color:#315d69;font-size:9px;line-height:1.55}
+.adv-dependency-note strong{color:#123f52}
+.adv-benchmark-type select{width:100%;padding:10px 11px;border:1px solid #c7d9df;border-radius:10px;background:#fff;color:#173f55;font:inherit}
