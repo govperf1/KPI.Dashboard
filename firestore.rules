@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v3 — QUMC KPI Dashboard + Department GRC
+// FIRESTORE SECURITY RULES v4 — QUMC KPI Dashboard + Department GRC
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -121,6 +121,18 @@ service cloud.firestore {
 
     function canWriteGrcRecord() {
       return admin();
+    }
+
+    function kpiOwnerDirectRiskStatusChange() {
+      return kpiOwner() &&
+        sameDepartment(resource.data.department) &&
+        request.resource.data.department == resource.data.department &&
+        request.resource.data.visibility == resource.data.visibility &&
+        request.resource.data.schemaVersion == resource.data.schemaVersion &&
+        request.resource.data.actionStatus in ['open', 'closed'] &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'actionStatus', 'updatedAt', 'updatedBy', 'updatedByEmail', 'cloudUpdatedAt'
+        ]);
     }
 
     // ── Users and role definitions ────────────────────────────────────
@@ -281,7 +293,7 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_manuals/{recordId} {
-      allow read: if canReadGrcRecord(resource.data);
+      allow read: if approved();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
@@ -289,7 +301,9 @@ service cloud.firestore {
     match /grc_risks/{recordId} {
       allow read: if canReadGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
-      allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow update: if
+        (canWriteGrcRecord() && validGrcRecord(request.resource.data)) ||
+        (validGrcRecord(request.resource.data) && kpiOwnerDirectRiskStatusChange());
       allow delete: if canWriteGrcRecord();
     }
     match /grc_incidents/{recordId} {
@@ -299,37 +313,37 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_codes/{recordId} {
-      allow read: if canReadGrcRecord(resource.data);
+      allow read: if approved();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_compliance/{recordId} {
-      allow read: if canReadGrcRecord(resource.data);
+      allow read: if approved();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_audits/{recordId} {
-      allow read: if canReadGrcRecord(resource.data);
+      allow read: if approved();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_actions/{recordId} {
-      allow read: if canReadGrcRecord(resource.data);
+      allow read: if approved();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_documents/{recordId} {
-      allow read: if canReadGrcRecord(resource.data);
+      allow read: if approved();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_initiatives/{recordId} {
-      allow read: if canReadGrcRecord(resource.data);
+      allow read: if approved();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
@@ -344,8 +358,8 @@ service cloud.firestore {
     function requesterFieldsOnly() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'status', 'message', 'details', 'messages', 'attachments',
-        'attachmentCount', 'completedAt', 'rating', 'ratingAt',
-        'updatedAt', 'updatedAtIso', 'updatedBy'
+        'attachmentCount', 'completedAt', 'closedAt', 'rating', 'ratingAt',
+        'workflowStage', 'closureReason', 'updatedAt', 'updatedAtIso', 'updatedBy'
       ]);
     }
 
@@ -373,7 +387,8 @@ service cloud.firestore {
     function validAdvisoryOwnerChange() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'status', 'messages', 'attachments', 'attachmentCount',
-        'completedAt', 'rating', 'ratingAt', 'updatedAt',
+        'completedAt', 'closedAt', 'rating', 'ratingAt',
+        'workflowStage', 'closureReason', 'updatedAt',
         'updatedAtIso', 'updatedBy'
       ]);
     }
@@ -383,7 +398,7 @@ service cloud.firestore {
         'status', 'messages', 'attachments', 'attachmentCount',
         'firstRespondedAt', 'respondedAt', 'responseMinutes',
         'completedAt', 'closedAt', 'rating', 'ratingAt',
-        'updatedAt', 'updatedAtIso', 'updatedBy'
+        'workflowStage', 'closureReason', 'updatedAt', 'updatedAtIso', 'updatedBy'
       ]);
     }
 
