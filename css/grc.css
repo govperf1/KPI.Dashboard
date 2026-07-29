@@ -1335,3 +1335,105 @@ body.grc-mode #grcApp>.footbar.grc-performance-footer{display:flex!important;vis
   border:1px solid #E2E8F0!important;
   color:#475569!important;
 }
+
+
+/* v102 — GRC Administration: restore dark settings icon; make opened panel white */
+#grcApp .grc-admin-settings-btn{
+  width:38px!important;
+  height:38px!important;
+  padding:0!important;
+  display:inline-grid!important;
+  place-items:center!important;
+  border-radius:10px!important;
+  border:1px solid #3A5063!important;
+  background:#192835!important;
+  color:#FFFFFF!important;
+  cursor:pointer!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06)!important;
+  flex:0 0 auto!important;
+}
+#grcApp .grc-admin-settings-btn:hover{
+  background:#21384A!important;
+  border-color:#4C687D!important;
+  color:#FFFFFF!important;
+}
+
+#_grcAdminCenterOv .grc-ac-shell{
+  background:#FFFFFF!important;
+  border:1px solid #D6E2EE!important;
+  color:#152538!important;
+  box-shadow:0 28px 90px rgba(15,23,42,.30)!important;
+}
+#_grcAdminCenterOv .grc-ac-head{
+  background:#FFFFFF!important;
+  border-bottom:1px solid #DCE6EB!important;
+}
+#_grcAdminCenterOv .grc-ac-title,
+#_grcAdminCenterOv .grc-ac-page-head h2{
+  color:#152538!important;
+}
+#_grcAdminCenterOv .grc-ac-sub,
+#_grcAdminCenterOv .grc-ac-page-head p{
+  color:#6B7C93!important;
+}
+#_grcAdminCenterOv .grc-ac-close{
+  background:#F1F5F8!important;
+  border:1px solid #D6E2EE!important;
+  color:#355768!important;
+}
+#_grcAdminCenterOv .grc-ac-close:hover{
+  background:#E8F0F4!important;
+  color:#152538!important;
+}
+#_grcAdminCenterOv .grc-ac-tabs{
+  background:#F7FAFC!important;
+  border-bottom:1px solid #DCE6EB!important;
+}
+#_grcAdminCenterOv .grc-ac-tab{
+  background:#FFFFFF!important;
+  border:1px solid #D6E2EE!important;
+  color:#5D7380!important;
+}
+#_grcAdminCenterOv .grc-ac-tab.on{
+  background:#EAF7FA!important;
+  border-color:#7ECAD7!important;
+  color:#08778A!important;
+}
+#_grcAdminCenterOv .grc-ac-body,
+#_grcAdminCenterOv .grc-ac-page{
+  background:#FFFFFF!important;
+  color:#152538!important;
+}
+#_grcAdminCenterOv .grc-ac-btn.secondary{
+  background:#EAF7FA!important;
+  border-color:#A7DDE5!important;
+  color:#08778A!important;
+}
+#_grcAdminCenterOv .grc-ac-table-wrap{
+  background:#FFFFFF!important;
+  border:1px solid #D6E2EE!important;
+}
+#_grcAdminCenterOv .grc-ac-table th{
+  background:#F1F5F8!important;
+  color:#52657A!important;
+  border-bottom:1px solid #D6E2EE!important;
+}
+#_grcAdminCenterOv .grc-ac-table td{
+  background:#FFFFFF!important;
+  color:#334E5C!important;
+  border-bottom:1px solid #E6EDF1!important;
+}
+#_grcAdminCenterOv .grc-ac-table tr:hover td{
+  background:#F5FAFB!important;
+}
+#_grcAdminCenterOv .grc-ac-comment,
+#_grcAdminCenterOv .grc-ac-filters select,
+#_grcAdminCenterOv .grc-ac-filters input{
+  background:#FFFFFF!important;
+  border:1px solid #C9D9E0!important;
+  color:#152538!important;
+}
+#_grcAdminCenterOv .grc-ac-filters label,
+#_grcAdminCenterOv .grc-ac-empty{
+  color:#647B88!important;
+}
