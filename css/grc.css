@@ -1188,3 +1188,52 @@ body.grc-mode #grcApp>.footbar.grc-performance-footer{display:flex!important;vis
     height:auto!important;
   }
 }
+
+
+/* v94 — dark executive/header treatment aligned with the reference control */
+#grcApp .grc-hero{
+  background:#192835!important;
+  border:1px solid #3A5063!important;
+  border-bottom:3px solid #0195AF!important;
+  box-shadow:0 10px 28px rgba(7,24,39,.18)!important;
+}
+#grcApp .grc-hero:after{display:none!important;}
+#grcApp .grc-exec-domain-head{
+  background:#192835!important;
+  border:1px solid #3A5063!important;
+  border-bottom:3px solid #0195AF!important;
+  border-radius:14px!important;
+  padding:15px 18px!important;
+  margin-bottom:18px!important;
+  box-shadow:0 7px 20px rgba(7,24,39,.13)!important;
+}
+#grcApp .grc-exec-domain-head h2{color:#FFFFFF!important;}
+#grcApp .grc-exec-domain-head p{color:rgba(226,232,240,.68)!important;}
+#grcApp .grc-exec-domain-kicker{
+  background:#0195AF!important;
+  border-color:#1FC4D7!important;
+  color:#FFFFFF!important;
+}
+#grcApp .grc-exec-domain-badge{
+  background:rgba(1,149,175,.18)!important;
+  border:1px solid rgba(49,197,220,.35)!important;
+  color:#64D9E8!important;
+}
+#grcApp .grc-admin-settings-btn{
+  width:38px!important;
+  height:38px!important;
+  padding:0!important;
+  display:inline-grid!important;
+  place-items:center!important;
+  border-radius:10px!important;
+  border:1px solid #3A5063!important;
+  background:#192835!important;
+  color:#fff!important;
+  cursor:pointer!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06)!important;
+  flex:0 0 auto!important;
+}
+#grcApp .grc-admin-settings-btn:hover{
+  background:#21384A!important;
+  border-color:#4C687D!important;
+}
