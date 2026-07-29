@@ -2589,3 +2589,24 @@ body.grc-mode .topbar,body.grc-mode .filter-strip,body.grc-mode .tabnav,body.grc
   border-color:rgba(1,149,175,.42)!important;color:#152538!important;
   box-shadow:0 14px 34px rgba(1,149,175,.15),inset 0 1px 0 rgba(255,255,255,.90)!important;
 }
+
+
+/* v98 — match Performance header/footer to QUMC logo navy exactly */
+:root{ --qumc-logo-navy: #142537; }
+.topbar{
+  background:var(--qumc-logo-navy)!important;
+}
+.topbar::after{
+  background:linear-gradient(90deg,
+    transparent 0%,
+    rgba(0,163,196,0.12) 10%,
+    rgba(0,191,224,0.56) 40%,
+    rgba(1,149,175,0.78) 50%,
+    rgba(0,191,224,0.56) 60%,
+    rgba(0,163,196,0.12) 90%,
+    transparent 100%)!important;
+}
+.footbar{
+  background:var(--qumc-logo-navy)!important;
+  box-shadow:0 -2px 16px rgba(20,37,55,.18)!important;
+}
