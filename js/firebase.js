@@ -451,6 +451,12 @@ window._selectPortal=async portal=>{
     function _advIso(){return new Date().toISOString();}
     function _advTsMs(v){if(!v)return 0;try{return v.toDate?v.toDate().getTime():new Date(v).getTime()||0;}catch(_){return 0;}}
     function _advIsFallbackRow(r){return !!(r&&(r.isReviewDevelopmentRequest===true||String(r.requestDomain||'')==='review_development'));}
+    function _advStatusKey(value){
+      value=String(value||'open').toLowerCase();
+      if(['closed','completed','cancelled','duplicate','out_of_scope','knowledge_guide'].includes(value))return'closed';
+      if(['in_progress','awaiting_requester_information','responded'].includes(value))return'in_progress';
+      return'open';
+    }
     function _advPublicShape(r){
       r=r||{};
       return {
@@ -459,7 +465,7 @@ window._selectPortal=async portal=>{
         relatedType:String(r.relatedType||''),relatedItems:Array.isArray(r.relatedItems)?r.relatedItems.map(function(x){return {type:String(x&&x.type||''),id:String(x&&x.id||''),code:String(x&&x.code||''),name:String(x&&x.name||'')};}):[],
         relatedNewText:String(r.relatedNewText||''),benchmarkType:String(r.benchmarkType||''),formDependencies:r.formDependencies&&typeof r.formDependencies==='object'?r.formDependencies:null,departmentKey:String(r.departmentKey||''),
         departmentCode:String(r.departmentCode||''),gender:String(r.gender||''),priority:String(r.priority||'Medium'),
-        status:String(r.status||'under_review'),createdAt:r.createdAt||r.createdAtIso||serverTimestamp(),updatedAt:r.updatedAt||r.updatedAtIso||serverTimestamp(),
+        status:_advStatusKey(r.status),workflowStage:String(r.workflowStage||r.status||'submitted'),closureReason:String(r.closureReason||''),createdAt:r.createdAt||r.createdAtIso||serverTimestamp(),updatedAt:r.updatedAt||r.updatedAtIso||serverTimestamp(),
         firstRespondedAt:r.firstRespondedAt||null,respondedAt:r.respondedAt||null,responseMinutes:r.responseMinutes==null?null:Number(r.responseMinutes),
         completedAt:r.completedAt||null,closedAt:r.closedAt||null,rating:r.rating==null?null:Number(r.rating),
         ratingAt:r.ratingAt||null,attachmentCount:Number(r.attachmentCount||0)
@@ -489,11 +495,14 @@ window._selectPortal=async portal=>{
       if(storage==='kpi_requests'){
         r.details=String(r.details||r.message||'');
         r.title=String(r.title||r.requestTitle||r.requestTypeLabel||'Review & Development Request');
-        r.status=String(r.status||'under_review')==='pending'?'under_review':String(r.status||'under_review');
+        r.status=String(r.status||'open')==='pending'?'open':String(r.status||'open');
         r.requestType=String(r.requestType||r.reviewRequestType||'edit_review');
         r.requestTypeLabel=String(r.requestTypeLabel||'');
         r.serviceType=String(r.serviceType||'record_request_review');
       }
+      var legacyStatus=String(r.status||'open');
+      if(!r.workflowStage)r.workflowStage=legacyStatus==='under_review'?'submitted':legacyStatus;
+      r.status=_advStatusKey(legacyStatus);
       r.id=id;r._storage=storage;return r;
     }
     async function _advLocateRequest(requestId){
@@ -555,7 +564,7 @@ window._selectPortal=async portal=>{
         category:String(payload.category||''),relatedType:String(payload.relatedType||''),
         relatedItems:Array.isArray(payload.relatedItems)?payload.relatedItems.map(function(x){return {type:String(x&&x.type||''),id:String(x&&x.id||''),code:String(x&&x.code||''),name:String(x&&x.name||'')};}):[],
         relatedNewText:String(payload.relatedNewText||''),benchmarkType:String(payload.benchmarkType||''),formDependencies:payload.formDependencies&&typeof payload.formDependencies==='object'?payload.formDependencies:null,title:String(payload.title||''),details:String(payload.details||''),
-        status:'under_review',messages:[],attachments:[],attachmentCount:0,firstRespondedAt:null,respondedAt:null,responseMinutes:null,completedAt:null,closedAt:null,rating:null,ratingAt:null,
+        status:'open',workflowStage:'submitted',closureReason:'',messages:[],attachments:[],attachmentCount:0,firstRespondedAt:null,respondedAt:null,responseMinutes:null,completedAt:null,closedAt:null,rating:null,ratingAt:null,
         createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:_advIso(),updatedAtIso:_advIso(),updatedBy:_advEmail(),code,counterFallback
       };
       let requestId=primaryRef.id,storage='advisory_requests',warning='';
@@ -573,7 +582,7 @@ window._selectPortal=async portal=>{
       if(file){
         if(storage==='advisory_requests'){
           try{const meta=await _advUploadFile(requestId,file,_advEmail());await updateDoc(doc(db,ADV_REQUESTS_COLLECTION,requestId),{attachments:arrayUnion(meta),attachmentCount:1,updatedAt:serverTimestamp()});try{await updateDoc(doc(db,ADV_PUBLIC_COLLECTION,requestId),{attachmentCount:1,updatedAt:serverTimestamp()});}catch(_){}}catch(fileError){warning=(warning?warning+' ':'')+'The request was submitted, but the attachment could not be uploaded.';console.warn('[Review Development] attachment upload failed',fileError&&fileError.code||fileError);}
-        }else warning=(warning?warning+' ':'')+'The request was submitted without the attachment because the compatible request channel does not support file chunks.';
+        }else warning=(warning?warning+' ':'')+'The request was submitted without the attachment. Please contact the administrator if the attachment is required.';
       }
       return {id:requestId,code,storage,warning};
     };
@@ -616,12 +625,15 @@ window._selectPortal=async portal=>{
       if(file&&current._storage==='advisory_requests'){try{const meta=await _advUploadFile(requestId,file,_advEmail());messageAttachments.push(meta);updates.attachments=arrayUnion(meta);updates.attachmentCount=Number(current.attachmentCount||0)+1;publicUpdates.attachmentCount=updates.attachmentCount;}catch(e){throw new Error('The response attachment could not be uploaded: '+String(e&&e.message||e));}}
       const firstResponseActions=['respond','request_info'];
       if(firstResponseActions.includes(action)&&!current.firstRespondedAt){const created=_advTsMs(current.createdAt)||Date.now(),mins=Math.max(0,Math.round((Date.now()-created)/60000));updates.firstRespondedAt=serverTimestamp();updates.responseMinutes=mins;publicUpdates.firstRespondedAt=serverTimestamp();publicUpdates.responseMinutes=mins;}
-      let status=current.status,messageText=String(data.text||'').trim();
-      if(action==='respond'){status='responded';updates.respondedAt=serverTimestamp();publicUpdates.respondedAt=serverTimestamp();}
-      else if(action==='request_info')status='awaiting_requester_information';
-      else if(action==='close'){if(current.status!=='completed')throw new Error('Only completed requests can be closed.');status='closed';updates.closedAt=serverTimestamp();publicUpdates.closedAt=serverTimestamp();}
-      else if(action==='duplicate')status='duplicate';else if(action==='out_of_scope')status='out_of_scope';else if(action==='knowledge_guide')status='knowledge_guide';else throw new Error('Unsupported action.');
-      updates.status=status;publicUpdates.status=status;
+      let status=_advStatusKey(current.status),workflowStage=String(current.workflowStage||current.status||'submitted'),closureReason=String(current.closureReason||''),messageText=String(data.text||'').trim();
+      if(action==='respond'){status='in_progress';workflowStage='responded';updates.respondedAt=serverTimestamp();publicUpdates.respondedAt=serverTimestamp();}
+      else if(action==='request_info'){status='in_progress';workflowStage='awaiting_requester_information';}
+      else if(action==='close'){if(status==='closed')throw new Error('This request is already closed.');status='closed';workflowStage='closed';closureReason='closed_by_admin';updates.closedAt=serverTimestamp();publicUpdates.closedAt=serverTimestamp();}
+      else if(action==='duplicate'){status='closed';workflowStage='closed';closureReason='duplicate';updates.closedAt=serverTimestamp();publicUpdates.closedAt=serverTimestamp();}
+      else if(action==='out_of_scope'){status='closed';workflowStage='closed';closureReason='out_of_scope';updates.closedAt=serverTimestamp();publicUpdates.closedAt=serverTimestamp();}
+      else if(action==='knowledge_guide'){status='closed';workflowStage='closed';closureReason='knowledge_guide';updates.closedAt=serverTimestamp();publicUpdates.closedAt=serverTimestamp();}
+      else throw new Error('Unsupported action.');
+      updates.status=status;updates.workflowStage=workflowStage;updates.closureReason=closureReason;publicUpdates.status=status;publicUpdates.workflowStage=workflowStage;publicUpdates.closureReason=closureReason;
       if(messageText||messageAttachments.length)updates.messages=arrayUnion({id:'msg_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),senderRole:_advRole(),senderName:String(window._fbName||'Admin'),senderEmail:_advEmail(),text:messageText,attachments:messageAttachments,createdAt:nowIso});
       await updateDoc(requestRef,updates);if(publicRef){try{await updateDoc(publicRef,publicUpdates);}catch(_){}}return true;
     };
@@ -630,20 +642,20 @@ window._selectPortal=async portal=>{
       data=data||{};const current=await _advAuthorizedRequest(requestId,false),requestRef=current._requestRef,publicRef=current._publicRef,updates={updatedAt:serverTimestamp(),updatedAtIso:_advIso(),updatedBy:_advEmail()},publicUpdates={updatedAt:serverTimestamp()},messageAttachments=[];
       if(file&&current._storage==='advisory_requests'){const meta=await _advUploadFile(requestId,file,_advEmail());messageAttachments.push(meta);updates.attachments=arrayUnion(meta);updates.attachmentCount=Number(current.attachmentCount||0)+1;publicUpdates.attachmentCount=updates.attachmentCount;}
       if(action==='clarify'){
-        if(current.status!=='awaiting_requester_information')throw new Error('This request is not waiting for clarification.');const text=String(data.text||'').trim();if(!text)throw new Error('Clarification is required.');updates.status='in_progress';publicUpdates.status='in_progress';updates.messages=arrayUnion({id:'msg_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),senderRole:_advRole(),senderName:String(window._fbName||'Requester'),senderEmail:_advEmail(),text,attachments:messageAttachments,createdAt:_advIso()});
-      }else if(action==='complete'){if(current.status!=='responded')throw new Error('The request must be in Responded status first.');updates.status='completed';updates.completedAt=serverTimestamp();publicUpdates.status='completed';publicUpdates.completedAt=serverTimestamp();}
-      else if(action==='cancel'){if(['completed','closed','duplicate','out_of_scope','knowledge_guide'].includes(current.status))throw new Error('This request can no longer be cancelled.');updates.status='cancelled';publicUpdates.status='cancelled';}
+        var stage=String(current.workflowStage||current.status||'');if(stage!=='awaiting_requester_information')throw new Error('This request is not waiting for clarification.');const text=String(data.text||'').trim();if(!text)throw new Error('Clarification is required.');updates.status='in_progress';updates.workflowStage='clarification_received';publicUpdates.status='in_progress';publicUpdates.workflowStage='clarification_received';updates.messages=arrayUnion({id:'msg_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),senderRole:_advRole(),senderName:String(window._fbName||'Requester'),senderEmail:_advEmail(),text,attachments:messageAttachments,createdAt:_advIso()});
+      }else if(action==='complete'){var currentStage=String(current.workflowStage||current.status||'');if(currentStage!=='responded')throw new Error('The request must have an admin response first.');updates.status='in_progress';updates.workflowStage='requester_confirmed';updates.completedAt=serverTimestamp();publicUpdates.status='in_progress';publicUpdates.workflowStage='requester_confirmed';publicUpdates.completedAt=serverTimestamp();}
+      else if(action==='cancel'){if(_advStatusKey(current.status)==='closed')throw new Error('This request can no longer be cancelled.');updates.status='closed';updates.workflowStage='closed';updates.closureReason='cancelled_by_requester';updates.closedAt=serverTimestamp();publicUpdates.status='closed';publicUpdates.workflowStage='closed';publicUpdates.closureReason='cancelled_by_requester';publicUpdates.closedAt=serverTimestamp();}
       else throw new Error('Unsupported action.');
       await updateDoc(requestRef,updates);if(publicRef){try{await updateDoc(publicRef,publicUpdates);}catch(_){}}return true;
     };
 
     window._advisoryRate=async function(requestId,rating){
-      const current=await _advAuthorizedRequest(requestId,false),n=Math.max(1,Math.min(5,Number(rating||0)));if(current.status!=='closed')throw new Error('Only closed requests can be rated.');if(Number(current.rating))throw new Error('This request has already been rated.');
+      const current=await _advAuthorizedRequest(requestId,false),n=Math.max(1,Math.min(5,Number(rating||0)));if(_advStatusKey(current.status)!=='closed')throw new Error('Only closed requests can be rated.');if(Number(current.rating))throw new Error('This request has already been rated.');
       const updates={rating:n,ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:_advIso(),updatedBy:_advEmail()};await updateDoc(current._requestRef,updates);if(current._publicRef){try{await updateDoc(current._publicRef,{rating:n,ratingAt:serverTimestamp(),updatedAt:serverTimestamp()});}catch(_){}}return true;
     };
 
     window._advisoryDownloadAttachment=async function(requestId,attachmentId,mimeType,chunkCount){
-      const current=await _advAuthorizedRequest(requestId,true);if(current._storage!=='advisory_requests')throw new Error('This request was saved through the compatible channel and has no stored attachment.');const chunks=[];
+      const current=await _advAuthorizedRequest(requestId,true);if(current._storage!=='advisory_requests')throw new Error('No stored attachment is available for this request.');const chunks=[];
       for(let i=0;i<Number(chunkCount||0);i++){const snap=await getDoc(doc(db,'advisory_attachments',_advChunkDocId(requestId,attachmentId,i)));if(!snap.exists())throw new Error('Attachment chunk is missing.');chunks.push(_advBase64ToBytes(String(snap.data().data||'')));}
       const total=chunks.reduce((n,x)=>n+x.length,0),out=new Uint8Array(total);let offset=0;chunks.forEach(x=>{out.set(x,offset);offset+=x.length;});return new Blob([out],{type:String(mimeType||'application/octet-stream')});
     };
@@ -688,6 +700,16 @@ window._selectPortal=async portal=>{
     function _grcRiskIsManager(){return _grcRiskRole()==='department_manager'||_grcRiskRole()==='dept_manager';}
     function _grcRiskIsSuper(){return _grcRiskRole()==='super_admin';}
     function _grcRiskIsAdmin(){return _grcRiskRole()==='admin'||_grcRiskIsSuper();}
+    window._grcRiskDirectStatusUpdate=async function(record,nextStatus){
+      if(_grcRiskRole()!=='kpi_owner')throw new Error('Only the KPI Owner can use direct risk status updates.');
+      record=record||{};nextStatus=String(nextStatus||'').toLowerCase();
+      if(!['open','closed'].includes(nextStatus))throw new Error('Only Open or Closed can be changed directly.');
+      const department=_grcCanonicalDepartment(record.department||_grcRiskDept());
+      if(!department||department!==_grcRiskDept())throw new Error('You can update risk status only for your department.');
+      const cloudId=_grcRegisterCloudId('risk',record),ref=doc(db,GRC_REGISTER_COLLECTIONS.risk,cloudId);
+      await updateDoc(ref,{actionStatus:nextStatus,updatedAt:_grcRiskIso(),updatedBy:String(window._fbName||window.currentUserName||_grcRiskEmail()),updatedByEmail:_grcRiskEmail(),cloudUpdatedAt:serverTimestamp()});
+      return true;
+    };
     function _grcRiskJson(v){try{return JSON.parse(JSON.stringify(v==null?null:v));}catch(_){return null;}}
     function _grcRiskIso(){return new Date().toISOString();}
     function _grcRiskDeptCode(d){return({maintenance:'MNT',safety:'SAF',housekeeping:'HSK',laundry:'LND',projects:'PRJ',division:'FMS',governance:'GOV'})[_grcCanonicalDepartment(d)]||'FMS';}
