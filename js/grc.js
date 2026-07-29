@@ -1854,6 +1854,13 @@
     });
     return members;
   }
+  function initiativeHasMemberFromDepartment(r,department){
+    var wanted=canonicalGrcDepartment(department);
+    if(!wanted||wanted==='allFms')return true;
+    return initiativePeople(r).some(function(member){
+      return canonicalGrcDepartment(member&&member.department)===wanted;
+    });
+  }
   function initiativePeopleCell(r,kind){
     var people=initiativePeople(r);
     if(!people.length)return'—';
@@ -1866,7 +1873,9 @@
     }).join('')+'</div>';
   }
   function selectedInitiativesRegisterTable(){
-    var rows=selectedInitiatives().map(function(r,index){
+    var departmentScope=isGrcAdmin()?'allFms':currentGrcDept();
+    var visibleInitiatives=selectedInitiatives().filter(function(r){return initiativeHasMemberFromDepartment(r,departmentScope);});
+    var rows=visibleInitiatives.map(function(r,index){
       var progress=initiativeProgress(r),execution=progress>=100||normalizeStatus(r.executionStatus)==='done'?(isAr()?'مكتملة':'Done'):(isAr()?'قيد التنفيذ':'In Progress');
       return'<tr><td class="grc-id">'+esc(initiativeCode(r,index))+'</td>'+
         '<td>'+esc(r.nameAr||'—')+'</td><td>'+esc(r.nameEn||'—')+'</td>'+
