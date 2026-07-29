@@ -4,8 +4,8 @@
    Review & Development Center requests.
    ===================================================================== */
 (function(){
-  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V84__)return;window.__QUMC_GRC_RISK_WORKFLOW_V84__=true;
-  var cache=[],unsub=null,startedFor='';
+  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V87__)return;window.__QUMC_GRC_RISK_WORKFLOW_V87__=true;
+  var cache=[],unsub=null,startedFor='',approvalNoticeKey='',approvalNoticeEntry=0,approvalNoticeTimer=null;
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function role(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
   function email(){return String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();}
@@ -14,15 +14,92 @@
   function isSuper(){return role()==='super_admin';}
   function isAdmin(){return role()==='admin'||isSuper();}
   function isOwner(){var r=role();return r==='risk_owner'||r==='platform_owner'||(Array.isArray(window._fbPerms)&&(window._fbPerms.indexOf('edit_risk_management')>=0||window._fbPerms.indexOf('*')>=0));}
+  function isNoticeOwner(){var r=role();return r==='risk_owner'||r==='platform_owner';}
   function statusLabel(s){var m={pending_manager:'Pending Department Manager Approval',pending_super_admin:'Pending Super Admin Approval',returned_requester:'Returned for Update',returned_manager:'Returned to Department Manager',rejected_manager:'Rejected by Department Manager',rejected_super_admin:'Rejected by Super Admin',published:'Published',cancelled:'Cancelled'};return m[s]||String(s||'—').replace(/_/g,' ');}
   function recordType(r){return String(r&&r.recordType||'risk').toLowerCase()==='incident'?'incident':'risk';}
   function recordLabel(r){return recordType(r)==='incident'?'Incident':'Risk';}
   function operationLabel(s,r){var label=recordLabel(r);return({add:'Add '+label,update:'Update '+label,delete:'Delete '+label})[s]||s||'—';}
   function tone(s){if(/^pending/.test(s)||/^returned/.test(s))return'warn';if(s==='published')return'good';if(/^rejected/.test(s)||s==='cancelled')return'bad';return'info';}
   function actionable(r){var s=String(r.status||'');if(isOwner())return s==='returned_requester'||s==='rejected_manager'||s==='rejected_super_admin';if(isManager())return s==='pending_manager'||s==='returned_manager';if(isSuper())return s==='pending_super_admin';return false;}
+  function approvalNoticeRows(){
+    return cache.filter(function(r){
+      var s=String(r&&r.status||'');
+      if(isSuper())return s==='pending_super_admin';
+      if(isManager())return s==='pending_manager'||s==='returned_manager';
+      if(isNoticeOwner())return ['pending_manager','pending_super_admin','returned_manager','returned_requester','rejected_manager','rejected_super_admin'].indexOf(s)>=0;
+      return false;
+    });
+  }
+  function approvalNoticeSignature(rows){
+    return [approvalNoticeEntry,role(),email(),rows.map(function(r){return String(r.id||'')+':'+String(r.status||'')+':'+String(r.updatedAtIso||r.updatedAtText||r.createdAtIso||'');}).join('|')].join('::');
+  }
+  function ensureApprovalNoticeStyles(){
+    if(document.getElementById('_grcApprovalNoticeStyles'))return;
+    var st=document.createElement('style');st.id='_grcApprovalNoticeStyles';st.textContent=`
+#_grcApprovalNoticeOv{position:fixed;inset:0;z-index:2147483655;display:flex;align-items:center;justify-content:center;padding:22px;background:rgba(7,24,39,.64);backdrop-filter:blur(7px);box-sizing:border-box}
+#_grcApprovalNoticeOv .grc-apn-dialog{width:min(920px,96vw);max-height:88vh;overflow:hidden;display:flex;flex-direction:column;background:linear-gradient(180deg,#fff,#f7fafb);border:1px solid rgba(255,255,255,.82);border-radius:22px;box-shadow:0 28px 86px rgba(7,24,39,.34)}
+#_grcApprovalNoticeOv .grc-apn-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:20px 22px 16px;border-bottom:1px solid #dce7eb;background:#fff}
+#_grcApprovalNoticeOv .grc-apn-head h2{margin:0;color:#173f5f;font-size:18px;font-weight:900}
+#_grcApprovalNoticeOv .grc-apn-head p{margin:5px 0 0;color:#647b88;font-size:11px;line-height:1.5}
+#_grcApprovalNoticeOv .grc-apn-close{width:36px;height:36px;border:1px solid #d9e4e9;border-radius:11px;background:#f4f8fa;color:#365568;font-size:21px;cursor:pointer}
+#_grcApprovalNoticeOv .grc-apn-body{padding:18px 22px;overflow:auto}
+#_grcApprovalNoticeOv .grc-apn-summary{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 16px;margin-bottom:14px;border:1px solid rgba(217,119,6,.24);border-radius:15px;background:rgba(255,247,237,.88)}
+#_grcApprovalNoticeOv .grc-apn-summary span{font-size:11px;font-weight:900;color:#7c4a10;text-transform:uppercase;letter-spacing:.045em}
+#_grcApprovalNoticeOv .grc-apn-summary b{font-size:14px;color:#b45309}
+#_grcApprovalNoticeOv .grc-apn-card{border:1px solid #dce6eb;border-radius:15px;padding:14px;background:#fff;margin-bottom:11px;box-shadow:0 7px 20px rgba(23,63,95,.05)}
+#_grcApprovalNoticeOv .grc-apn-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+#_grcApprovalNoticeOv .grc-apn-card strong{display:block;color:#173f5f;font-size:12px;font-weight:900}
+#_grcApprovalNoticeOv .grc-apn-card small{display:block;color:#6a808d;font-size:10px;margin-top:4px}
+#_grcApprovalNoticeOv .grc-apn-status{white-space:nowrap;padding:5px 9px;border-radius:999px;font-size:9.5px;font-weight:900;background:#fff4df;color:#a85c06;border:1px solid #f2d5a5}
+#_grcApprovalNoticeOv .grc-apn-status.bad{background:#fff0f1;color:#b3262d;border-color:#efc6c9}
+#_grcApprovalNoticeOv .grc-apn-meta{display:grid;grid-template-columns:110px minmax(0,1fr);gap:7px 12px;margin-top:12px;font-size:10.5px}
+#_grcApprovalNoticeOv .grc-apn-meta span{color:#718590}#_grcApprovalNoticeOv .grc-apn-meta b{color:#2f4f61;font-weight:800}
+#_grcApprovalNoticeOv .grc-apn-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:13px}
+#_grcApprovalNoticeOv .grc-apn-btn{border:0;border-radius:10px;padding:8px 13px;font-size:10.5px;font-weight:900;cursor:pointer}
+#_grcApprovalNoticeOv .grc-apn-btn.primary{background:#0f7f86;color:#fff}#_grcApprovalNoticeOv .grc-apn-btn.secondary{background:#eaf1f4;color:#294f61}
+#_grcApprovalNoticeOv .grc-apn-foot{display:flex;justify-content:flex-end;gap:9px;padding:14px 22px 18px;border-top:1px solid #dce7eb;background:#fff}
+@media(max-width:650px){#_grcApprovalNoticeOv{padding:10px}#_grcApprovalNoticeOv .grc-apn-dialog{max-height:94vh;border-radius:17px}#_grcApprovalNoticeOv .grc-apn-meta{grid-template-columns:1fr}#_grcApprovalNoticeOv .grc-apn-summary{align-items:flex-start;flex-direction:column}}
+`;document.head.appendChild(st);
+  }
+  function closeApprovalNotice(){var ov=document.getElementById('_grcApprovalNoticeOv');if(ov)ov.remove();}
+  function approvalNoticeTitle(){
+    if(isSuper())return isAr()?'طلبات اعتماد GRC بانتظار الموافقة النهائية':'GRC Requests Awaiting Final Approval';
+    if(isManager())return isAr()?'طلبات GRC بانتظار موافقتك':'GRC Requests Awaiting Your Approval';
+    return isAr()?'حالة طلباتك في GRC':'Your GRC Approval Requests';
+  }
+  function approvalNoticeSubtitle(){
+    if(isSuper())return isAr()?'راجع طلبات تعديل سجلات المخاطر والحوادث واعتمد النشر النهائي.':'Review Risk and Incident Register changes awaiting final publication approval.';
+    if(isManager())return isAr()?'راجع طلبات قسمك ثم وافق عليها أو أعدها إلى المالك للتعديل.':'Review your department requests and approve, return, or reject them.';
+    return isAr()?'تظهر هنا طلباتك التي ما زالت تحت الاعتماد أو تحتاج منك تعديلًا.':'These requests are still in approval or require an update from you.';
+  }
+  function approvalNoticeCard(r){
+    var s=String(r.status||''),bad=/^returned|^rejected/.test(s),target=r.targetRecordId||r.targetRiskId||r.proposedRecord&&r.proposedRecord.id||('New '+recordLabel(r));
+    var actionText=actionable(r)?(isAr()?'يحتاج إجراء':'Needs action'):(isAr()?'قيد الاعتماد':'In approval');
+    return '<article class="grc-apn-card"><div class="grc-apn-card-head"><div><strong>'+esc(r.requestCode||r.id)+'</strong><small>'+esc(operationLabel(r.operation,r))+' · '+esc(r.department||'')+'</small></div><span class="grc-apn-status '+(bad?'bad':'')+'">'+esc(statusLabel(s))+'</span></div><div class="grc-apn-meta"><span>'+esc(isAr()?'السجل':'Record')+'</span><b>'+esc(target)+'</b><span>'+esc(isAr()?'مقدم الطلب':'Submitted by')+'</span><b>'+esc(r.submittedByName||r.submittedByEmail||'—')+'</b><span>'+esc(isAr()?'الحالة':'Status')+'</span><b>'+esc(actionText)+'</b></div><div class="grc-apn-actions"><button class="grc-apn-btn secondary" onclick="window._grcRiskApprovalNoticeOpenRequest(\''+esc(r.id)+'\')">'+esc(isAr()?'عرض التفاصيل':'View details')+'</button></div>'+actions(r)+'</article>';
+  }
+  function renderApprovalNoticeBody(){
+    var ov=document.getElementById('_grcApprovalNoticeOv');if(!ov)return;
+    var rows=approvalNoticeRows(),body=ov.querySelector('.grc-apn-body');if(!body)return;
+    body.innerHTML='<div class="grc-apn-summary"><span>'+esc(isAr()?'حالة طلبات الاعتماد':'Approval request status')+'</span><b>'+rows.length+' '+esc(isAr()?'طلب يحتاج متابعة':'request(s) require attention')+'</b></div>'+rows.map(approvalNoticeCard).join('');
+    if(!rows.length)closeApprovalNotice();
+  }
+  function showApprovalNotice(force){
+    if(!document.body.classList.contains('grc-mode'))return;
+    if(!(isNoticeOwner()||isManager()||isSuper()))return;
+    var rows=approvalNoticeRows();if(!rows.length)return;
+    var key=approvalNoticeSignature(rows);if(!force&&approvalNoticeKey===key)return;approvalNoticeKey=key;
+    ensureApprovalNoticeStyles();closeApprovalNotice();
+    var ov=document.createElement('div');ov.id='_grcApprovalNoticeOv';ov.innerHTML='<section class="grc-apn-dialog" role="dialog" aria-modal="true" aria-labelledby="_grcApnTitle"><header class="grc-apn-head"><div><h2 id="_grcApnTitle">'+esc(approvalNoticeTitle())+'</h2><p>'+esc(approvalNoticeSubtitle())+'</p></div><button class="grc-apn-close" type="button" onclick="window._grcRiskApprovalNoticeClose()">×</button></header><main class="grc-apn-body"></main><footer class="grc-apn-foot"><button class="grc-apn-btn secondary" type="button" onclick="window._grcRiskApprovalNoticeClose()">'+esc(isAr()?'حسنًا':'Got it')+'</button><button class="grc-apn-btn primary" type="button" onclick="window._grcRiskApprovalNoticeOpenAll()">'+esc(isAr()?'فتح الطلبات':'Open requests')+'</button></footer></section>';
+    ov.addEventListener('click',function(e){if(e.target===ov)closeApprovalNotice();});document.body.appendChild(ov);renderApprovalNoticeBody();
+  }
+  function scheduleApprovalNotice(force){clearTimeout(approvalNoticeTimer);approvalNoticeTimer=setTimeout(function(){try{showApprovalNotice(!!force);}catch(e){console.warn('[GRC Approval Notice]',e);}},420);}
+  window._grcRiskApprovalNoticeClose=closeApprovalNotice;
+  window._grcRiskApprovalNoticeOpenAll=function(){closeApprovalNotice();window._grcRiskOpenProfile&&window._grcRiskOpenProfile();};
+  window._grcRiskApprovalNoticeOpenRequest=function(id){closeApprovalNotice();window._grcRiskOpenProfile&&window._grcRiskOpenProfile(id);};
+  window._grcRiskApprovalEntryNoticeReset=function(){approvalNoticeEntry++;approvalNoticeKey='';scheduleApprovalNotice(true);};
   function refreshBadge(){var n=cache.filter(actionable).length,el=document.getElementById('grcRiskNotifCount'),req=document.getElementById('grcRiskRequestCount'),profile=document.getElementById('_grcProfileRiskCount');if(el){el.textContent=String(n);el.style.display=n?'grid':'none';}if(req){req.textContent=String(cache.length);req.style.display=cache.length?'grid':'none';}if(profile)profile.textContent=String(n);}
-  function stop(){if(unsub)try{unsub();}catch(_){}unsub=null;startedFor='';cache=[];window.__grcRiskRequestCache=[];refreshBadge();var panel=document.getElementById('_grcRiskNotifPanel');if(panel)panel.remove();}
-  function start(){if(!document.body.classList.contains('grc-mode')){if(unsub||startedFor)stop();return;}var key=email()+'|'+role();if(!email()){cache=[];refreshBadge();return;}if(typeof window._grcRiskRequestsSubscribe!=='function'){cache=[];window.__grcRiskRequestCache=[];refreshBadge();return;}if(startedFor===key&&unsub)return;if(unsub)try{unsub();}catch(_){}startedFor=key;unsub=window._grcRiskRequestsSubscribe(function(rows,err){if(err)return;cache=Array.isArray(rows)?rows:[];window.__grcRiskRequestCache=cache;refreshBadge();var ov=document.getElementById('_grcRiskProfileOv');if(ov)renderProfileBody();});}
+  function stop(){if(unsub)try{unsub();}catch(_){}unsub=null;startedFor='';cache=[];window.__grcRiskRequestCache=[];refreshBadge();var panel=document.getElementById('_grcRiskNotifPanel');if(panel)panel.remove();closeApprovalNotice();}
+  function start(){if(!document.body.classList.contains('grc-mode')){if(unsub||startedFor)stop();return;}var key=email()+'|'+role();if(!email()){cache=[];refreshBadge();return;}if(typeof window._grcRiskRequestsSubscribe!=='function'){cache=[];window.__grcRiskRequestCache=[];refreshBadge();return;}if(startedFor===key&&unsub)return;if(unsub)try{unsub();}catch(_){}startedFor=key;unsub=window._grcRiskRequestsSubscribe(function(rows,err){if(err)return;cache=Array.isArray(rows)?rows:[];window.__grcRiskRequestCache=cache;refreshBadge();var ov=document.getElementById('_grcRiskProfileOv');if(ov)renderProfileBody();if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();scheduleApprovalNotice(false);});}
   function fieldRows(obj,type){obj=obj||{};var labels=type==='incident'?{id:'Incident ID',date:'Incident Date',category:'Category',contributingFactors:'Contributing Factors',investigationRequired:'Investigation Required',department:'Department',status:'Status'}:{id:'Risk ID',riskIdentified:'Risk Identified',riskCategory:'Risk Category',likelihood:'Likelihood',impact:'Impact',controlType:'Control Type',actionStatus:'Action Status',department:'Department'};return Object.keys(labels).map(function(k){return'<tr><th>'+labels[k]+'</th><td>'+esc(obj[k]==null?'—':obj[k])+'</td></tr>';}).join('');}
   function changedTable(r){var before=r.currentRecord||{},after=r.proposedRecord||{},keys=Array.isArray(r.changedFields)&&r.changedFields.length?r.changedFields:(recordType(r)==='incident'?['date','category','contributingFactors','investigationRequired','department','status']:['riskIdentified','riskCategory','likelihood','impact','controlType','actionStatus']);return'<table class="grc-risk-diff"><thead><tr><th>Field</th><th>Current Value</th><th>Proposed Value</th></tr></thead><tbody>'+keys.map(function(k){return'<tr><th>'+esc(k.replace(/([A-Z])/g,' $1'))+'</th><td>'+esc(before[k]==null?'—':before[k])+'</td><td>'+esc(after[k]==null?'—':after[k])+'</td></tr>';}).join('')+'</tbody></table>';}
   function actions(r){var s=String(r.status||''),html='';
@@ -99,7 +176,7 @@
   window._grcRiskDecision=async function(id,action){var r=cache.find(function(x){return String(x.id)===String(id);});if(!r)return;try{var note='';if(/return|reject/.test(action)){note=window.prompt('Enter the reason:','');if(note===null)return;if(!String(note).trim())throw new Error('A reason is required.');}if(action==='manager_approve')await window._grcRiskRequestManagerAction(id,'approve','');else if(action==='manager_return')await window._grcRiskRequestManagerAction(id,'return',note);else if(action==='manager_reject')await window._grcRiskRequestManagerAction(id,'reject',note);else if(action==='super_approve'){if(!window.confirm('Approve and publish this change in the '+recordLabel(r)+' Register?'))return;await window._grcRiskRequestSuperAction(id,'approve','');}else if(action==='super_return')await window._grcRiskRequestSuperAction(id,'return',note);else if(action==='super_reject')await window._grcRiskRequestSuperAction(id,'reject',note);else if(action==='cancel'){if(!window.confirm('Cancel this request?'))return;await window._grcRiskRequestCancel(id);}var d=document.getElementById('_grcRiskDetailsOv');if(d)d.remove();}catch(err){window.alert(String(err&&err.message||err));}};
   window._grcRiskEditResubmit=function(id){var r=cache.find(function(x){return String(x.id)===String(id);});if(!r)return;var d=document.getElementById('_grcRiskDetailsOv');if(d)d.remove();var p=document.getElementById('_grcRiskProfileOv');if(p)p.remove();if(typeof window._grcOpenRiskRequestResubmit==='function')window._grcOpenRiskRequestResubmit(r);};
   window._grcRiskOpenNotifications=function(ev){if(ev){ev.preventDefault();ev.stopPropagation();}start();var old=document.getElementById('_grcRiskNotifPanel');if(old){old.remove();return;}var btn=document.getElementById('grcRiskNotifBtn'),rect=btn&&btn.getBoundingClientRect(),rows=cache.filter(actionable),panel=document.createElement('div');panel.id='_grcRiskNotifPanel';panel.className='grc-risk-notif-panel';panel.style.top=((rect&&rect.bottom||70)+8)+'px';panel.style.right=Math.max(12,window.innerWidth-(rect&&rect.right||window.innerWidth-20))+'px';panel.innerHTML='<header><b>Risk & Incident Register Notifications</b><button onclick="document.getElementById(\'_grcRiskNotifPanel\').remove()">×</button></header><div>'+(rows.length?rows.map(function(r){return'<button onclick="document.getElementById(\'_grcRiskNotifPanel\').remove();window._grcRiskOpenProfile(\''+esc(r.id)+'\')"><strong>'+esc(r.requestCode||r.id)+'</strong><span>'+esc(statusLabel(r.status))+'</span></button>';}).join(''):'<p>No Risk or Incident Register actions require your attention.</p>')+'</div>';document.body.appendChild(panel);};
-  window._grcRiskRefreshUi=function(){start();refreshBadge();};
+  window._grcRiskRefreshUi=function(){start();refreshBadge();scheduleApprovalNotice(false);};
 
   window._grcRiskBindHeader=function(){
     var not=document.getElementById('grcRiskNotifBtn'),usr=document.querySelector('.grc-profile-trigger');

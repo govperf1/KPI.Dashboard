@@ -285,6 +285,7 @@ window._selectPortal=async portal=>{
         if(typeof window.applyRolePermissions==='function')window.applyRolePermissions(window._fbRole,window._fbDept,window._fbPerms);
         if(typeof window.updateUserBadge==='function')window.updateUserBadge(window._fbName,window._fbRole,window._fbPerms);
         if(typeof window._enterGRC==='function'){
+          if(typeof window._grcRiskApprovalEntryNoticeReset==='function')window._grcRiskApprovalEntryNoticeReset();
           window._enterGRC();
           console.log('[Auth] ✓ GRC portal entered for',window._fbRole,window._fbDept);
         }else{
