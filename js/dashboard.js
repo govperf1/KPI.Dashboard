@@ -337,7 +337,7 @@ function renderExec(){
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
           <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em" data-en="Current Performance" data-ar="الأداء الحالي">Current Performance</div>
         </div>
-        <div id="eis_current_perf" style="font-size:36px;font-weight:900;color:rgba(255,255,255,.85);font-family:var(--mono);line-height:1;margin-bottom:4px">—</div>
+        <div id="eis_current_perf" style="font-size:36px;font-weight:900;color:#4ADE80;font-family:var(--mono);line-height:1;margin-bottom:4px">—</div>
         <div style="font-size:9px;color:rgba(255,255,255,.40);margin-bottom:8px" data-en="Selected period average" data-ar="متوسط الفترة المحددة">Selected period average</div>
       </div>
       <div style="width:1px;height:60px;background:rgba(255,255,255,.10)"></div>
@@ -347,8 +347,8 @@ function renderExec(){
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.45)" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
           <div style="font-size:8px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.08em" data-en="Forecast YE" data-ar="التوقع السنوي">Forecast YE</div>
         </div>
-        <div id="eis_forecast" style="font-size:36px;font-weight:900;color:#0195af;font-family:var(--mono);line-height:1;margin-bottom:4px">—</div>
-        <div id="eis_forecast_badge" style="display:inline-block;font-size:8px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(1,149,175,.25);color:#0195af">—</div>
+        <div id="eis_forecast" style="font-size:36px;font-weight:900;color:#4ADE80;font-family:var(--mono);line-height:1;margin-bottom:4px">—</div>
+        <div id="eis_forecast_badge" style="display:inline-block;font-size:8px;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(74,222,128,.18);color:#86EFAC">—</div>
       </div>
       <div style="width:1px;height:60px;background:rgba(255,255,255,.10)"></div>
       <!-- Stat 6: At-Risk KPIs -->
@@ -656,7 +656,7 @@ function renderExec(){
     let _fcRes={exec:null,byDept:{},currentYear:null};try{if(typeof calcForecastYE==='function')_fcRes=calcForecastYE({scope:'organization'});}catch(_fce){console.warn('[Forecast]',_fce);}
     const _fcVal=_fcRes.exec;
     const _forecastTxt=_fcVal!==null?_fcVal.toFixed(2)+'%':'—';
-    const _fcColor=_fcVal!==null?(_fcVal>=80?'#15803D':_fcVal>=60?'#0195af':'#FBBF24'):'#64748B';
+    const _fcColor=_fcVal!==null?(_fcVal>=80?'#4ADE80':_fcVal>=60?'#0195af':'#FBBF24'):'#64748B';
     const _fe=document.getElementById('eis_forecast');
     if(_fe){
       _fe.textContent=_forecastTxt;_fe.style.color=_fcColor;
@@ -677,10 +677,10 @@ function renderExec(){
       const _perfVals=_perfKs.map(k=>qv(k)).filter(v=>v!==null&&v!==undefined&&typeof v==='number'&&isFinite(v));
       const _curPct=_perfVals.length?(_perfVals.reduce((a,b)=>a+b,0)/_perfVals.length):null;
       _curPerfEl.textContent=_curPct!==null?_curPct.toFixed(2)+'%':'—';
-      _curPerfEl.style.color=_curPct===null?'#64748B':_curPct>=80?'#15803D':_curPct>=60?'#0195af':'#FBBF24';
+      _curPerfEl.style.color=_curPct===null?'#64748B':_curPct>=80?'#4ADE80':_curPct>=60?'#0195af':'#FBBF24';
     }
     const _fb=document.getElementById('eis_forecast_badge');
-    if(_fb&&_fcVal!==null){_fb.innerHTML=tText(_fcVal>=80?'likely_to_meet_target':_fcVal>=60?'moderate_risk':'at_risk_label');_fb.style.color=_fcColor;_fb.style.background=_fcVal>=80?'rgba(22,163,74,.20)':_fcVal>=60?'rgba(1,149,175,.25)':'rgba(217,119,6,.25)';}
+    if(_fb&&_fcVal!==null){_fb.innerHTML=tText(_fcVal>=80?'likely_to_meet_target':_fcVal>=60?'moderate_risk':'at_risk_label');_fb.style.color=_fcColor;_fb.style.background=_fcVal>=80?'rgba(74,222,128,.18)':_fcVal>=60?'rgba(1,149,175,.25)':'rgba(217,119,6,.25)';}
     else if(_fb&&_fcVal===null){_fb.innerHTML='Insufficient data';_fb.style.color='#64748B';_fb.style.background='rgba(100,116,139,.20)';}
 
     /* At-Risk KPIs */
@@ -751,7 +751,7 @@ function _showForecastDrilldown(fcRes){
   if(prev){prev.remove();return;}
   var isAr=(typeof lang!=='undefined'&&lang==='ar');
   function _e(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');}
-  function _col(v){return (v===null||v===undefined||!isFinite(v))?'#64748b':v>=80?'#15803D':v>=60?'#0195af':'#FBBF24';}
+  function _col(v){return (v===null||v===undefined||!isFinite(v))?'#64748b':v>=80?'#4ADE80':v>=60?'#0195af':'#FBBF24';}
   var deptOrder=['maintenance','safety','housekeeping','projects'];
   var seen={};
   var entries=deptOrder.map(function(d){seen[d]=true;return{dept:d,fc:(fcRes.byDept&&fcRes.byDept[d]!==undefined)?fcRes.byDept[d]:null};});
@@ -1974,7 +1974,7 @@ function drilldept(d){
    ========================================================== */
 (function(){
   function _fmt(v){return (v!==null&&v!==undefined&&isFinite(v))?Number(v).toFixed(2)+'%':'—';}
-  function _col(v){return (v===null||v===undefined||!isFinite(v))?'#64748B':v>=80?'#15803D':v>=60?'#0195af':'#FBBF24';}
+  function _col(v){return (v===null||v===undefined||!isFinite(v))?'#64748B':v>=80?'#4ADE80':v>=60?'#0195af':'#FBBF24';}
   function _e(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
   function _deptName(d){var dm=(typeof DM!=='undefined'&&DM[d])||{en:d,ar:d};return (typeof lang!=='undefined'&&lang==='ar')?(dm.ar||dm.en):(dm.en||d);}
   window._showCurrentPerformanceDrilldown=function(res){
