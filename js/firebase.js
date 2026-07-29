@@ -180,6 +180,34 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const setUserDisplay=(name,role)=>{try{const n=cleanAccountName(name)||cleanAccountName(window._fbName)||cleanAccountName((window._fbUser||'').split('@')[0])||'';window._fbName=n;window.currentUserName=n;const ids=['_portalUserName','_userName','topUserName','profileName','profileNameRow'];ids.forEach(id=>{const e=ge(id);if(e)e.textContent=n;});const avIds=['_userAvatar','topUserAvatar','profileAvatar'];avIds.forEach(id=>{const av=ge(id);if(av)av.textContent=(n||'U')[0].toUpperCase();});if(role){const rl=ge('_userRole');if(rl)rl.textContent=role;}if(typeof window.updateUserBadge==='function')window.updateUserBadge(n,window._fbRole||role,window._fbPerms||[]);}catch(e){console.warn('[Auth] user display update skipped',e);}};
     const showEntryLoading=(msg)=>{try{let ov=ge('_perfEntryLoading');if(!ov){ov=document.createElement('div');ov.id='_perfEntryLoading';ov.style.cssText='position:fixed;inset:0;z-index:2147483646;background:rgba(239,243,248,.92);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;font-family:inherit;color:#152538';ov.innerHTML='<div style="background:#fff;border:1px solid rgba(15,23,42,.10);border-radius:18px;box-shadow:0 24px 60px rgba(15,23,42,.16);padding:20px 24px;text-align:center;min-width:220px"><div style="width:34px;height:34px;border-radius:50%;border:3px solid rgba(1,149,175,.18);border-top-color:#0195af;margin:0 auto 12px;animation:qumcSpin .85s linear infinite"></div><div id="_perfEntryLoadingText" style="font-size:12px;font-weight:900"></div></div>';document.body.appendChild(ov);let st=document.getElementById('qumc-entry-loading-style');if(!st){st=document.createElement('style');st.id='qumc-entry-loading-style';st.textContent='@keyframes qumcSpin{to{transform:rotate(360deg)}}';document.head.appendChild(st);}}const t=ge('_perfEntryLoadingText');if(t)t.textContent=msg||'Loading dashboard…';ov.style.display='flex';}catch(e){}};
     const hideEntryLoading=()=>{try{const ov=document.getElementById('_perfEntryLoading');if(ov)ov.remove();}catch(e){}};
+    window._closePortalAccessDenied=function(){try{const ov=document.getElementById('_portalAccessDenied');if(ov)ov.remove();document.body.classList.remove('portal-access-denied-open');}catch(e){}};
+    window._showPortalAccessDenied=function(portal){
+      portal=portal==='governance'?'grc':portal;
+      window._closePortalAccessDenied();
+      const ar=(window.lang==='ar'||document.documentElement.lang==='ar'||document.documentElement.dir==='rtl');
+      const platform=portal==='grc'?(ar?'منصة الحوكمة والمخاطر والامتثال':'GRC platform'):(ar?'منصة الأداء':'Performance platform');
+      const title=ar?'تعذر الوصول':'Access Restricted';
+      const message=ar?('صلاحيتك الحالية لا تسمح لك بالدخول إلى '+platform+'.'):('Your current role does not have access to the '+platform+'.');
+      const hint=ar?'يمكنك الرجوع واختيار المنصة المتاحة لصلاحيتك.':'Return and choose the platform available for your role.';
+      const back=ar?'العودة إلى المنصات':'Back to Platforms';
+      const ov=document.createElement('div');
+      ov.id='_portalAccessDenied';
+      ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');ov.setAttribute('aria-labelledby','_portalAccessDeniedTitle');
+      ov.style.cssText='position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:22px;background:rgba(4,16,35,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-family:inherit;';
+      ov.innerHTML='<div style="width:min(460px,calc(100vw - 34px));background:#fff;border:1px solid rgba(1,149,175,.28);border-radius:22px;padding:34px 30px 28px;text-align:center;box-shadow:0 30px 90px rgba(0,0,0,.38);color:#17384a;position:relative;">'
+        +'<div style="width:62px;height:62px;border-radius:18px;margin:0 auto 17px;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,#e7f8fb,#f4fbfc);border:1px solid rgba(1,149,175,.24);color:#0195af;font-size:30px;font-weight:900;">!</div>'
+        +'<div id="_portalAccessDeniedTitle" style="font-size:21px;line-height:1.25;font-weight:950;color:#12354a;margin-bottom:10px;">'+title+'</div>'
+        +'<div style="font-size:13px;line-height:1.8;font-weight:800;color:#526b7a;margin:0 auto 7px;max-width:360px;">'+message+'</div>'
+        +'<div style="font-size:11px;line-height:1.7;font-weight:700;color:#8295a1;margin:0 auto 22px;max-width:360px;">'+hint+'</div>'
+        +'<button type="button" id="_portalAccessDeniedBack" style="height:40px;min-width:170px;border:0;border-radius:12px;padding:0 18px;background:#123d59;color:#fff;font-family:inherit;font-size:11px;font-weight:900;cursor:pointer;box-shadow:0 10px 24px rgba(18,61,89,.22);">'+back+'</button>'
+        +'</div>';
+      document.body.classList.add('portal-access-denied-open');
+      document.body.appendChild(ov);
+      const close=()=>{window._closePortalAccessDenied();showPortal(window._fbName,window._fbRole);};
+      const btn=document.getElementById('_portalAccessDeniedBack');if(btn){btn.addEventListener('click',close);setTimeout(()=>btn.focus(),30);}
+      ov.addEventListener('click',e=>{if(e.target===ov)close();});
+      ov.addEventListener('keydown',e=>{if(e.key==='Escape')close();});
+    };
     const showLogin=()=>{console.log('[Auth] showLogin');/* Show overlay (already visible, but ensure it is) */const ao=ge('_authOverlay');if(ao){ao.style.display='flex';ao.style.alignItems='flex-end';ao.style.background='rgba(245,247,252,0)'}/* Hide loading spinner, show login form */const ld=ge('_authLoading');if(ld)ld.style.display='none';const lp=ge('_loginPanel');if(lp)lp.style.display='block';const po=ge('_portalOverlay');if(po)po.style.display='none';const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
     const showPortal=(name,role)=>{console.log('[Auth] showPortal:',name,role);const po=ge('_portalOverlay'),lo=ge('_authOverlay');if(lo)lo.style.display='none';if(po){po.style.display='flex';console.log('[Auth] _portalOverlay is now flex');}else{console.error('[Auth] PORTAL OVERLAY NOT FOUND');return;}const nm=ge('_portalUserName'),rl=ge('_portalUserRole');const realName=cleanAccountName(name)||cleanAccountName(window._fbName)||cleanAccountName((window._fbUser||'').split('@')[0])||'';if(nm)nm.textContent=realName;if(rl){const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'Risk Owner',platform_owner:'Performance & GRC Owner',viewer:'Viewer',user:'User'};rl.textContent=L[_normalizePortalRole(role)]||role;}setTimeout(_syncPortalCards,0);console.log('[Auth] Portal ready');};
     const setErr=msg=>{console.warn('[Auth] Error:',msg);const e=ge('_fbErr');if(e)e.textContent=msg;const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
@@ -207,8 +235,8 @@ window._selectPortal=async portal=>{
       portal=portal==='governance'?'grc':portal;
       console.log('[Auth] Selected:',portal);
       if(!_canAccessPortal(portal)){
-        alert(portal==='grc'?'Your role does not have access to the GRC platform.':'Your role does not have access to the Performance platform.');
-        showPortal(window._fbName,window._fbRole);
+        if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied(portal);
+        else alert(portal==='grc'?'Your role does not have access to the GRC platform.':'Your role does not have access to the Performance platform.');
         return;
       }
       window.__qumcActivePortal=portal;
