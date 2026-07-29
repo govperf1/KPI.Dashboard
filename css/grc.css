@@ -1190,11 +1190,11 @@ body.grc-mode #grcApp>.footbar.grc-performance-footer{display:flex!important;vis
 }
 
 
-/* v94 — dark executive/header treatment aligned with the reference control */
+/* v95 — GRC page headers aligned with the approved Review & Development Center banner */
 #grcApp .grc-hero{
-  background:#192835!important;
-  border:1px solid #3A5063!important;
-  border-bottom:3px solid #0195AF!important;
+  background:linear-gradient(135deg,#12344f 0%,#0e6072 100%)!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  border-bottom:3px solid #4cc3cb!important;
   box-shadow:0 10px 28px rgba(7,24,39,.18)!important;
 }
 #grcApp .grc-hero:after{display:none!important;}
@@ -1226,14 +1226,16 @@ body.grc-mode #grcApp>.footbar.grc-performance-footer{display:flex!important;vis
   display:inline-grid!important;
   place-items:center!important;
   border-radius:10px!important;
-  border:1px solid #3A5063!important;
-  background:#192835!important;
-  color:#fff!important;
+  border:1px solid rgba(226,248,255,.16)!important;
+  background:rgba(255,255,255,.075)!important;
+  color:rgba(248,254,255,.86)!important;
   cursor:pointer!important;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.06)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07)!important;
   flex:0 0 auto!important;
 }
 #grcApp .grc-admin-settings-btn:hover{
-  background:#21384A!important;
-  border-color:#4C687D!important;
+  background:rgba(1,149,175,.20)!important;
+  border-color:rgba(34,211,238,.38)!important;
+  color:#fff!important;
+  box-shadow:0 10px 24px rgba(1,149,175,.18),inset 0 1px 0 rgba(255,255,255,.10)!important;
 }
