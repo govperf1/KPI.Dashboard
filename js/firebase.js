@@ -160,6 +160,20 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       _applyAuditCloudLog([]);
       return true;
     };
+    window._clearGrcAuditFromFS=async function(){
+      if(!_auditCanView())throw new Error('access denied');
+      let remaining=[];
+      await runTransaction(db,async function(tx){
+        const snap=await tx.get(AUDIT_DOC_REF),data=snap.exists()?snap.data():{},log=Array.isArray(data.log)?data.log.slice():[];
+        remaining=log.filter(function(entry){
+          const portal=String(entry&&entry.portal||'').toLowerCase(),action=String(entry&&entry.action||'').toUpperCase();
+          return !(portal==='grc'||action.indexOf('GRC_')===0);
+        });
+        tx.set(AUDIT_DOC_REF,{log:remaining,clearedAt:serverTimestamp(),clearedBy:window._fbUser||'',updatedAt:serverTimestamp(),updatedBy:window._fbUser||''},{merge:true});
+      });
+      _applyAuditCloudLog(remaining);
+      return true;
+    };
     window._startAuditListener=function(){
       if(_auditListenerUnsub||!auth.currentUser||!_auditCanView())return;
       _auditListenerUnsub=onSnapshot(AUDIT_DOC_REF,function(snap){
