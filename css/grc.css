@@ -1190,7 +1190,7 @@ body.grc-mode #grcApp>.footbar.grc-performance-footer{display:flex!important;vis
 }
 
 
-/* v95 — GRC page headers aligned with the approved Review & Development Center banner */
+/* v96 — approved GRC headers, light Administration panel and incident status chart */
 #grcApp .grc-hero{
   background:linear-gradient(135deg,#12344f 0%,#0e6072 100%)!important;
   border:1px solid rgba(255,255,255,.08)!important;
@@ -1198,27 +1198,31 @@ body.grc-mode #grcApp>.footbar.grc-performance-footer{display:flex!important;vis
   box-shadow:0 10px 28px rgba(7,24,39,.18)!important;
 }
 #grcApp .grc-hero:after{display:none!important;}
+
+/* Inner Executive Command headers use the exact Executive Intelligence Summary palette. */
 #grcApp .grc-exec-domain-head{
-  background:#192835!important;
-  border:1px solid #3A5063!important;
-  border-bottom:3px solid #0195AF!important;
+  background:linear-gradient(135deg,#12344f 0%,#0e6072 100%)!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  border-bottom:3px solid #4cc3cb!important;
   border-radius:14px!important;
   padding:15px 18px!important;
   margin-bottom:18px!important;
-  box-shadow:0 7px 20px rgba(7,24,39,.13)!important;
+  box-shadow:0 7px 20px rgba(7,24,39,.16)!important;
 }
 #grcApp .grc-exec-domain-head h2{color:#FFFFFF!important;}
-#grcApp .grc-exec-domain-head p{color:rgba(226,232,240,.68)!important;}
+#grcApp .grc-exec-domain-head p{color:rgba(255,255,255,.66)!important;}
 #grcApp .grc-exec-domain-kicker{
   background:#0195AF!important;
-  border-color:#1FC4D7!important;
+  border-color:#4cc3cb!important;
   color:#FFFFFF!important;
 }
 #grcApp .grc-exec-domain-badge{
   background:rgba(1,149,175,.18)!important;
-  border:1px solid rgba(49,197,220,.35)!important;
-  color:#64D9E8!important;
+  border:1px solid rgba(76,195,203,.42)!important;
+  color:#8eeaf0!important;
 }
+
+/* Match the light Performance administration control. */
 #grcApp .grc-admin-settings-btn{
   width:38px!important;
   height:38px!important;
@@ -1226,16 +1230,81 @@ body.grc-mode #grcApp>.footbar.grc-performance-footer{display:flex!important;vis
   display:inline-grid!important;
   place-items:center!important;
   border-radius:10px!important;
-  border:1px solid rgba(226,248,255,.16)!important;
-  background:rgba(255,255,255,.075)!important;
-  color:rgba(248,254,255,.86)!important;
+  border:1px solid rgba(226,248,255,.20)!important;
+  background:rgba(255,255,255,.12)!important;
+  color:#FFFFFF!important;
   cursor:pointer!important;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.07)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12)!important;
   flex:0 0 auto!important;
 }
 #grcApp .grc-admin-settings-btn:hover{
-  background:rgba(1,149,175,.20)!important;
-  border-color:rgba(34,211,238,.38)!important;
+  background:rgba(255,255,255,.20)!important;
+  border-color:rgba(76,195,203,.58)!important;
   color:#fff!important;
-  box-shadow:0 10px 24px rgba(1,149,175,.18),inset 0 1px 0 rgba(255,255,255,.10)!important;
+  box-shadow:0 10px 24px rgba(1,149,175,.18),inset 0 1px 0 rgba(255,255,255,.14)!important;
 }
+
+/* GRC Administration uses the same light visual treatment as Performance Admin Control Panel. */
+#_grcAdminCenterOv .grc-ac-shell{
+  background:#FFFFFF!important;
+  border:1px solid #DCE6EB!important;
+  color:#173F55!important;
+  box-shadow:0 28px 90px rgba(7,24,39,.30)!important;
+}
+#_grcAdminCenterOv .grc-ac-head{
+  background:linear-gradient(180deg,#F6F9FB 0%,#FFFFFF 100%)!important;
+  border-bottom:1px solid #DCE6EB!important;
+}
+#_grcAdminCenterOv .grc-ac-title{color:#152538!important;}
+#_grcAdminCenterOv .grc-ac-sub{color:#6B7F8C!important;}
+#_grcAdminCenterOv .grc-ac-close{
+  border:1px solid #DCE6EB!important;
+  background:#FFFFFF!important;
+  color:#607481!important;
+}
+#_grcAdminCenterOv .grc-ac-close:hover{background:#FFF1F2!important;color:#B42332!important;border-color:#F3B6BD!important;}
+#_grcAdminCenterOv .grc-ac-tabs{
+  background:#F7FAFC!important;
+  border-bottom:1px solid #DCE6EB!important;
+}
+#_grcAdminCenterOv .grc-ac-tab{
+  background:#FFFFFF!important;
+  border:1px solid #DCE6EB!important;
+  color:#617784!important;
+}
+#_grcAdminCenterOv .grc-ac-tab.on{
+  background:#EAF8FA!important;
+  border-color:#85D2DB!important;
+  color:#007A96!important;
+  box-shadow:0 3px 10px rgba(1,149,175,.10)!important;
+}
+#_grcAdminCenterOv .grc-ac-body{background:#FFFFFF!important;}
+#_grcAdminCenterOv .grc-ac-page-head h2{color:#173F55!important;}
+#_grcAdminCenterOv .grc-ac-page-head p{color:#718692!important;}
+#_grcAdminCenterOv .grc-ac-table-wrap{
+  border:1px solid #DCE6EB!important;
+  background:#FFFFFF!important;
+}
+#_grcAdminCenterOv .grc-ac-table th{
+  background:#F3F7F9!important;
+  color:#607885!important;
+  border-bottom:1px solid #DCE6EB!important;
+}
+#_grcAdminCenterOv .grc-ac-table td{
+  color:#405B69!important;
+  border-bottom:1px solid #E7EEF1!important;
+}
+#_grcAdminCenterOv .grc-ac-table td b{color:#173F55!important;}
+#_grcAdminCenterOv .grc-ac-table tr:hover td{background:#F7FBFC!important;}
+#_grcAdminCenterOv .grc-ac-comment,
+#_grcAdminCenterOv .grc-ac-filters select,
+#_grcAdminCenterOv .grc-ac-filters input{
+  border:1px solid #CCDDE3!important;
+  background:#FFFFFF!important;
+  color:#173F55!important;
+}
+#_grcAdminCenterOv .grc-ac-filters label{color:#607885!important;}
+#_grcAdminCenterOv .grc-ac-empty{color:#718692!important;}
+
+/* Open incidents are red and closed incidents are green in the status donut. */
+#grcApp .grc-incident-status-chart .grc-donut-card{border-color:#DCE7EB!important;}
