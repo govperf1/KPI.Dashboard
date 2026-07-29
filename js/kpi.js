@@ -270,7 +270,7 @@ function applyRolePermissions(role,dept,perms){
   }, 300);
 
   /* ── Hide ALL edit controls for non-admin, non-kpi_owner ── */
-  if(!isAdmin && role!=='kpi_owner'){
+  if(!isAdmin && !['kpi_owner','platform_owner'].includes(role)){
     const s=document.createElement('style');s.id='_permStyle';
     /* Gap Analysis (openGap) stays VISIBLE/clickable for all roles —
        it is now a read-only view for non-owners. Only report/admin
@@ -283,7 +283,7 @@ function applyRolePermissions(role,dept,perms){
   }
 
   /* ── kpi_owner: show ONLY Gap Analysis buttons + inject quick-access bar ── */
-  if(role==='kpi_owner'){
+  if(['kpi_owner','platform_owner'].includes(role)){
     const sko=document.createElement('style');sko.id='_koStyle';
     sko.textContent=
       '[onclick*="rptStartEdit"],[onclick*="rptEdit"],[onclick*="saveAdmin"],' +
@@ -297,7 +297,7 @@ function applyRolePermissions(role,dept,perms){
   }
 
   /* ── Dept lock for users assigned to a specific department ── */
-  if((role==='department_manager'||role==='kpi_owner'||role==='viewer'||role==='gap_owner')&&dept){
+  if((role==='department_manager'||role==='kpi_owner'||role==='platform_owner'||role==='viewer'||role==='gap_owner')&&dept){
     window._lockedDept=dept;
     const orig=window.setF;
     window.setF=function(t,v,e){if(t==='dept'&&v!==dept&&v!=='all')return;if(orig)orig(t,v,e);};
@@ -388,7 +388,7 @@ function updateUserBadge(name, role){
   const rl=document.getElementById('_userRole');
   if(rl){
     const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',
-             department_manager:'Dept Manager',kpi_owner:'KPI Owner',viewer:'Viewer'};
+             department_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'Risk Owner',platform_owner:'Performance & GRC Owner',viewer:'Viewer'};
     rl.textContent=L[role]||role||'—';
     const c=role==='super_admin'||role==='admin'?'#F87171':
              role==='executive'?'#A78BFA':
@@ -1018,7 +1018,7 @@ function filt(){
     if(window._lockedDept && kDept !== window._lockedDept) return false;
 
     /* ── KPI Owner: show only assigned KPIs ── */
-    if(window._fbRole === 'kpi_owner'){
+    if(['kpi_owner','platform_owner'].includes(window._fbRole)){
       const assigned = window._fbAssignedKpis;
       if(Array.isArray(assigned) && assigned.length > 0 && !assigned.includes(kId)) return false;
     }

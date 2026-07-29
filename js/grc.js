@@ -15,7 +15,7 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__='20260728-grc-open-department-scope-v78';
+  window.__QUMC_GRC_BUILD__='20260729-owner-roles-v84';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
   var STATE_VERSION=13;
@@ -931,15 +931,15 @@
   function registerRecordBelongsToUser(record,type){return type==='risk'?riskRecordBelongsToUser(record):type==='incident'?incidentRecordBelongsToUser(record):false;}
   function nextIncidentIdForCurrentUser(){var d=currentGrcDept(),deptCode=({safety:'SAF',maintenance:'MNT',housekeeping:'HSK',laundry:'LND',projects:'PRJ'})[d]||'FMS',prefix='INC-'+deptCode+'-'+new Date().getFullYear()+'-',max=0;(state.incidents||[]).forEach(function(r){var raw=String(r.id||r.code||'').toUpperCase(),m=raw.match(/(\d+)$/);if(m)max=Math.max(max,Number(m[1])||0);});return prefix+String(max+1).padStart(3,'0');}
   function nextRegisterIdForCurrentUser(type){return type==='incident'?nextIncidentIdForCurrentUser():nextRiskIdForCurrentUser();}
-  function canSubmitRiskRequest(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return r==='kpi_owner'||p.indexOf('edit_risk_management')>=0||p.indexOf('*')>=0;}
-  function canSubmitIncidentRequest(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return r==='kpi_owner'||p.indexOf('edit_incident_register')>=0||p.indexOf('edit_risk_management')>=0||p.indexOf('*')>=0;}
+  function canSubmitRiskRequest(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return r==='risk_owner'||r==='platform_owner'||p.indexOf('edit_risk_management')>=0||p.indexOf('*')>=0;}
+  function canSubmitIncidentRequest(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return r==='risk_owner'||r==='platform_owner'||p.indexOf('edit_incident_register')>=0||p.indexOf('edit_risk_management')>=0||p.indexOf('*')>=0;}
   function canSubmitRegisterRequest(type){return type==='risk'?canSubmitRiskRequest():type==='incident'?canSubmitIncidentRequest():false;}
-  function canEnterGrc(){var r=normalizedRole();return ['super_admin','admin','executive','department_manager','kpi_owner','viewer','user'].indexOf(r)>=0||window.__QUMC_GRC_OPEN_TO_USERS__===true;}
+  function canEnterGrc(){if(typeof window._canAccessPortal==='function')return !!window._canAccessPortal('grc');var r=normalizedRole();return ['super_admin','admin','executive','department_manager','risk_owner','platform_owner','viewer','user'].indexOf(r)>=0||window.__QUMC_GRC_OPEN_TO_USERS__===true;}
   function canUseRiskCrud(){return isGrcAdmin()||canSubmitRiskRequest();}
   function L(k){var lang=isAr()?'ar':'en';return(labels[lang]&&labels[lang][k])||labels.en[k]||k;}
   function esc(v){return String(v==null?'':v).replace(/[&<>'"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];});}
   function currentName(){return String(window._fbName||window.currentUserName||(window._fbUser||'').split('@')[0]||'Super Admin');}
-  function roleText(){var r=normalizedRole(),m={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Department Manager',kpi_owner:'KPI Owner',viewer:'Viewer'};return m[r]||String(window._fbRole||window.currentUserRole||'Viewer');}
+  function roleText(){var r=normalizedRole(),m={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Department Manager',kpi_owner:'KPI Owner',risk_owner:'Risk Owner',platform_owner:'Performance & GRC Owner',viewer:'Viewer',user:'User'};return m[r]||String(window._fbRole||window.currentUserRole||'Viewer');}
   function today(){var d=new Date();d.setHours(0,0,0,0);return d;}
   function parseDate(v){if(!v)return null;var d=new Date(String(v).length===10?v+'T00:00:00':v);return isNaN(d.getTime())?null:d;}
   function dateText(v){var d=parseDate(v);if(!d)return'—';try{return new Intl.DateTimeFormat(isAr()?'ar-SA':'en-GB',{year:'numeric',month:'short',day:'numeric',hour:String(v).indexOf('T')>=0?'2-digit':undefined,minute:String(v).indexOf('T')>=0?'2-digit':undefined}).format(d);}catch(_){return String(v);}}
@@ -3204,7 +3204,7 @@
     return Array.from(new Set(Object.keys(before).concat(Object.keys(after)))).filter(function(k){return !ignored[k]&&JSON.stringify(before[k]===undefined?'':before[k])!==JSON.stringify(after[k]===undefined?'':after[k]);});
   }
   function _grcCanDirectRiskStatusChange(original,updated,map){
-    if(!map||map.type!=='risk'||normalizedRole()!=='kpi_owner')return false;
+    if(!map||map.type!=='risk'||['risk_owner','platform_owner'].indexOf(normalizedRole())<0)return false;
     var fields=_grcChangedRecordFields(original,updated),next=String(updated&&updated.actionStatus||'').toLowerCase();
     return fields.length===1&&fields[0]==='actionStatus'&&(next==='open'||next==='closed')&&registerRecordBelongsToUser(original,'risk');
   }
@@ -3344,7 +3344,7 @@
     setPerformanceChromeHidden(true);document.body.classList.remove('modal-mode');
   }
   window._exitGRC=function(){window._hideGRC();var bg=document.getElementById('_bgLayer'),po=document.getElementById('_portalOverlay'),auth=document.getElementById('_authOverlay');if(auth)auth.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
-  window._openGrcPortal=function(){window._enterGRC();};
+  window._openGrcPortal=function(){if(!canEnterGrc()){window.alert&&window.alert('Your role does not have access to the GRC platform.');return;}window._enterGRC();};
   window._enterGRC=function(){if(!canEnterGrc()){window._showGrcComingSoon();return;}activeTab=activeTab||'executive';closePerformanceUiForGrc();['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.remove('dashboard-mode','auth-mode','portal-mode','performance-advisory-mode');document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');render();if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();};
   window._closeGrcComingSoon=function(){var ov=document.getElementById('_grcComingSoon');if(ov)ov.remove();document.body.classList.remove('grc-coming-open');};
   window._showGrcComingSoon=function(){

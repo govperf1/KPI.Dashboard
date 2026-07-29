@@ -4,7 +4,7 @@
    Review & Development Center requests.
    ===================================================================== */
 (function(){
-  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V74__)return;window.__QUMC_GRC_RISK_WORKFLOW_V74__=true;
+  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V84__)return;window.__QUMC_GRC_RISK_WORKFLOW_V84__=true;
   var cache=[],unsub=null,startedFor='';
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function role(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
@@ -13,7 +13,7 @@
   function isManager(){return role()==='department_manager'||role()==='dept_manager';}
   function isSuper(){return role()==='super_admin';}
   function isAdmin(){return role()==='admin'||isSuper();}
-  function isOwner(){return role()==='kpi_owner'||(Array.isArray(window._fbPerms)&&window._fbPerms.indexOf('edit_risk_management')>=0);}
+  function isOwner(){var r=role();return r==='risk_owner'||r==='platform_owner'||(Array.isArray(window._fbPerms)&&(window._fbPerms.indexOf('edit_risk_management')>=0||window._fbPerms.indexOf('*')>=0));}
   function statusLabel(s){var m={pending_manager:'Pending Department Manager Approval',pending_super_admin:'Pending Super Admin Approval',returned_requester:'Returned for Update',returned_manager:'Returned to Department Manager',rejected_manager:'Rejected by Department Manager',rejected_super_admin:'Rejected by Super Admin',published:'Published',cancelled:'Cancelled'};return m[s]||String(s||'—').replace(/_/g,' ');}
   function recordType(r){return String(r&&r.recordType||'risk').toLowerCase()==='incident'?'incident':'risk';}
   function recordLabel(r){return recordType(r)==='incident'?'Incident':'Risk';}

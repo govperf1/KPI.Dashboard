@@ -3,11 +3,72 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     import { getFirestore,doc,getDoc,setDoc,addDoc,collection,serverTimestamp,onSnapshot,updateDoc,arrayUnion,query,where,orderBy,getDocs,deleteDoc,runTransaction } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     const firebaseConfig={apiKey:"AIzaSyAlLWZvsu4UbHn-LncFdrSHlbL3bIAG4no",authDomain:"qumc-kpi-dashboard-f10dd.firebaseapp.com",projectId:"qumc-kpi-dashboard-f10dd",storageBucket:"qumc-kpi-dashboard-f10dd.firebasestorage.app",messagingSenderId:"659971973475",appId:"1:659971973475:web:483116a0711008a6a97356"};
-    const DPERMS={super_admin:['*'],admin:['manage_users','view_all_departments','view_department','edit_kpi','edit_gap_analysis','edit_actions','edit_targets','approve_changes','lock_quarter','unlock_quarter','view_executive_intelligence','export_reports','manage_dashboard_settings','view_audit_trail'],executive:['view_all_departments','view_department','view_executive_intelligence','export_reports'],department_manager:['view_department','view_executive_intelligence','export_reports'],kpi_owner:['view_department','edit_gap_analysis','export_reports'],viewer:['view_department','export_reports']};
+    const DPERMS={
+      super_admin:['*'],
+      admin:['access_performance','access_grc','manage_users','view_all_departments','view_department','edit_kpi','edit_gap_analysis','edit_actions','edit_targets','approve_changes','lock_quarter','unlock_quarter','view_executive_intelligence','export_reports','manage_dashboard_settings','view_audit_trail'],
+      executive:['access_performance','access_grc','view_all_departments','view_department','view_executive_intelligence','export_reports'],
+      department_manager:['access_performance','access_grc','view_department','view_executive_intelligence','export_reports'],
+      kpi_owner:['access_performance','view_department','edit_kpi','edit_gap_analysis','export_reports'],
+      risk_owner:['access_grc','view_department','view_grc_department','view_shared_grc','edit_risk_management','edit_incident_register','update_risk_status','submit_risk_changes','export_reports'],
+      platform_owner:['access_performance','access_grc','view_department','view_grc_department','view_shared_grc','edit_kpi','edit_gap_analysis','edit_actions','edit_risk_management','edit_incident_register','update_risk_status','submit_risk_changes','export_reports'],
+      viewer:['access_performance','access_grc','view_department','export_reports'],
+      user:['access_performance','access_grc','view_department','export_reports']
+    };
+
+    const OWNER_ROLE_DEFINITIONS={
+      risk_owner:{
+        nameEn:'Risk Owner',nameAr:'مالك المخاطر',
+        description:'Department-scoped owner for the GRC Risk and Incident Registers.',
+        platforms:['grc'],systemRole:true,
+        permissions:DPERMS.risk_owner.slice()
+      },
+      platform_owner:{
+        nameEn:'Performance & GRC Owner',nameAr:'مالك الأداء والحوكمة والمخاطر',
+        description:'Department-scoped owner with access to both Performance and GRC.',
+        platforms:['performance','grc'],systemRole:true,
+        permissions:DPERMS.platform_owner.slice()
+      }
+    };
 
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
+
+    function _normalizePortalRole(value){return String(value||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
+    function _clientHasPerm(perm){const p=Array.isArray(window._fbPerms)?window._fbPerms:[];return p.includes('*')||p.includes(perm);}
+    function _canAccessPortal(portal){
+      portal=portal==='governance'?'grc':String(portal||'').toLowerCase();
+      const r=_normalizePortalRole(window._fbRole||window.currentUserRole),p=Array.isArray(window._fbPerms)?window._fbPerms:[];
+      if(p.includes('*'))return true;
+      if(portal==='performance'){
+        if(p.includes('access_performance'))return true;
+        return ['super_admin','admin','executive','department_manager','kpi_owner','platform_owner','viewer','user'].includes(r);
+      }
+      if(portal==='grc'){
+        if(p.includes('access_grc'))return true;
+        return ['super_admin','admin','executive','department_manager','risk_owner','platform_owner','viewer','user'].includes(r);
+      }
+      return false;
+    }
+    window._canAccessPortal=_canAccessPortal;
+    function _syncPortalCards(){
+      const performance=ge('_portalPerformanceCard'),grc=ge('_portalGrcCard'),grid=ge('_portalCardGrid');
+      const canPerformance=_canAccessPortal('performance'),canGrc=_canAccessPortal('grc');
+      if(performance)performance.style.display=canPerformance?'block':'none';
+      if(grc)grc.style.display=canGrc?'block':'none';
+      if(grid)grid.style.gridTemplateColumns=(canPerformance&&canGrc)?'1fr 1fr':'minmax(260px,420px)';
+      return {performance:canPerformance,grc:canGrc};
+    }
+    window._syncPortalCards=_syncPortalCards;
+    async function _ensureOwnerRoleDefinitions(){
+      if(_normalizePortalRole(window._fbRole)!=='super_admin'||!auth.currentUser)return false;
+      for(const [roleId,definition] of Object.entries(OWNER_ROLE_DEFINITIONS)){
+        const ref=doc(db,'config_roles',roleId),snap=await getDoc(ref);
+        if(!snap.exists())await setDoc(ref,Object.assign({},definition,{createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdBy:auth.currentUser.email||''}));
+      }
+      return true;
+    }
+    window._installOwnerRoles=_ensureOwnerRoleDefinitions;
 
 
     /* ── Shared Audit Trail ─────────────────────────────────────────────
@@ -120,7 +181,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const showEntryLoading=(msg)=>{try{let ov=ge('_perfEntryLoading');if(!ov){ov=document.createElement('div');ov.id='_perfEntryLoading';ov.style.cssText='position:fixed;inset:0;z-index:2147483646;background:rgba(239,243,248,.92);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;font-family:inherit;color:#152538';ov.innerHTML='<div style="background:#fff;border:1px solid rgba(15,23,42,.10);border-radius:18px;box-shadow:0 24px 60px rgba(15,23,42,.16);padding:20px 24px;text-align:center;min-width:220px"><div style="width:34px;height:34px;border-radius:50%;border:3px solid rgba(1,149,175,.18);border-top-color:#0195af;margin:0 auto 12px;animation:qumcSpin .85s linear infinite"></div><div id="_perfEntryLoadingText" style="font-size:12px;font-weight:900"></div></div>';document.body.appendChild(ov);let st=document.getElementById('qumc-entry-loading-style');if(!st){st=document.createElement('style');st.id='qumc-entry-loading-style';st.textContent='@keyframes qumcSpin{to{transform:rotate(360deg)}}';document.head.appendChild(st);}}const t=ge('_perfEntryLoadingText');if(t)t.textContent=msg||'Loading dashboard…';ov.style.display='flex';}catch(e){}};
     const hideEntryLoading=()=>{try{const ov=document.getElementById('_perfEntryLoading');if(ov)ov.remove();}catch(e){}};
     const showLogin=()=>{console.log('[Auth] showLogin');/* Show overlay (already visible, but ensure it is) */const ao=ge('_authOverlay');if(ao){ao.style.display='flex';ao.style.alignItems='flex-end';ao.style.background='rgba(245,247,252,0)'}/* Hide loading spinner, show login form */const ld=ge('_authLoading');if(ld)ld.style.display='none';const lp=ge('_loginPanel');if(lp)lp.style.display='block';const po=ge('_portalOverlay');if(po)po.style.display='none';const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
-    const showPortal=(name,role)=>{console.log('[Auth] showPortal:',name,role);const po=ge('_portalOverlay'),lo=ge('_authOverlay');if(lo)lo.style.display='none';if(po){po.style.display='flex';console.log('[Auth] _portalOverlay is now flex');}else{console.error('[Auth] PORTAL OVERLAY NOT FOUND');return;}const nm=ge('_portalUserName'),rl=ge('_portalUserRole');const realName=cleanAccountName(name)||cleanAccountName(window._fbName)||cleanAccountName((window._fbUser||'').split('@')[0])||'';if(nm)nm.textContent=realName;if(rl){const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',viewer:'Viewer'};rl.textContent=L[role]||role;}console.log('[Auth] Portal ready');};
+    const showPortal=(name,role)=>{console.log('[Auth] showPortal:',name,role);const po=ge('_portalOverlay'),lo=ge('_authOverlay');if(lo)lo.style.display='none';if(po){po.style.display='flex';console.log('[Auth] _portalOverlay is now flex');}else{console.error('[Auth] PORTAL OVERLAY NOT FOUND');return;}const nm=ge('_portalUserName'),rl=ge('_portalUserRole');const realName=cleanAccountName(name)||cleanAccountName(window._fbName)||cleanAccountName((window._fbUser||'').split('@')[0])||'';if(nm)nm.textContent=realName;if(rl){const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'Risk Owner',platform_owner:'Performance & GRC Owner',viewer:'Viewer',user:'User'};rl.textContent=L[_normalizePortalRole(role)]||role;}setTimeout(_syncPortalCards,0);console.log('[Auth] Portal ready');};
     const setErr=msg=>{console.warn('[Auth] Error:',msg);const e=ge('_fbErr');if(e)e.textContent=msg;const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
 
     window._doLogin=async()=>{
@@ -143,7 +204,13 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
 
     window._backToPortal=()=>{console.log('[Auth] Back to portal');const lo=document.getElementById('_authOverlay'),po=document.getElementById('_portalOverlay'),bg=document.getElementById('_bgLayer');if(lo)lo.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
 window._selectPortal=async portal=>{
+      portal=portal==='governance'?'grc':portal;
       console.log('[Auth] Selected:',portal);
+      if(!_canAccessPortal(portal)){
+        alert(portal==='grc'?'Your role does not have access to the GRC platform.':'Your role does not have access to the Performance platform.');
+        showPortal(window._fbName,window._fbRole);
+        return;
+      }
       window.__qumcActivePortal=portal;
       try{window._recordAuditDirect&&window._recordAuditDirect('PORTAL_OPEN','Opened portal: '+portal,null,portal,{portal:portal});}catch(_){ }
       if(portal==='performance'){
@@ -176,7 +243,7 @@ window._selectPortal=async portal=>{
             setTimeout(()=>{try{window.renderCurrent();}catch(_){} hideEntryLoading();},250);
           }else{ hideEntryLoading(); }
           /* KPI Owner: gap status popup */
-          if(window._fbRole==='kpi_owner' && typeof window.showKpoGapStatusPopup==='function'){
+          if(['kpi_owner','platform_owner'].includes(_normalizePortalRole(window._fbRole)) && typeof window.showKpoGapStatusPopup==='function'){
             setTimeout(()=>{try{window.showKpoGapStatusPopup();}catch(e){console.warn('[KPO]',e);}},700);
           }
         }
@@ -243,6 +310,7 @@ window._selectPortal=async portal=>{
         if(d.revokedPermissions)perms=perms.filter(p=>!d.revokedPermissions.includes(p));
         const realName=accountNameFrom(d,user,email);
         window._fbUser=email;window._fbEmail=email;window.currentUserEmail=email;window._fbRole=role;window.currentUserRole=role;window._fbDept=d.dept||null;window.currentUserDept=d.dept||null;window._fbPerms=perms;window._fbName=realName;window.currentUserName=realName;window._fbAssignedKpis=d.assignedKpis||null;
+        if(_normalizePortalRole(role)==='super_admin'){try{await _ensureOwnerRoleDefinitions();}catch(re){console.warn('[Roles] Owner role installation skipped:',re&&re.message||re);}}
         setUserDisplay(window._fbName,role);
         /* Shared audit: successful authentication + live audit sync for authorized viewers. */
         try{
@@ -696,12 +764,12 @@ window._selectPortal=async portal=>{
     function _grcRiskDept(){return _grcCanonicalDepartment(window._fbDept||window.currentUserDept||'');}
     window._grcCanonicalDepartment=window._grcCanonicalDepartment||_grcCanonicalDepartment;
     function _grcRiskPerms(){return Array.isArray(window._fbPerms)?window._fbPerms:[];}
-    function _grcRiskCanSubmit(recordType){recordType=String(recordType||'risk').toLowerCase();const p=_grcRiskPerms(),owner=_grcRiskRole()==='kpi_owner';if(recordType==='incident')return owner||p.includes('edit_incident_register')||p.includes('edit_risk_management')||p.includes('*');return owner||p.includes('edit_risk_management')||p.includes('*');}
+    function _grcRiskCanSubmit(recordType){recordType=String(recordType||'risk').toLowerCase();const p=_grcRiskPerms(),owner=['risk_owner','platform_owner'].includes(_grcRiskRole());if(recordType==='incident')return owner||p.includes('edit_incident_register')||p.includes('edit_risk_management')||p.includes('*');return owner||p.includes('edit_risk_management')||p.includes('*');}
     function _grcRiskIsManager(){return _grcRiskRole()==='department_manager'||_grcRiskRole()==='dept_manager';}
     function _grcRiskIsSuper(){return _grcRiskRole()==='super_admin';}
     function _grcRiskIsAdmin(){return _grcRiskRole()==='admin'||_grcRiskIsSuper();}
     window._grcRiskDirectStatusUpdate=async function(record,nextStatus){
-      if(_grcRiskRole()!=='kpi_owner')throw new Error('Only the KPI Owner can use direct risk status updates.');
+      if(!['risk_owner','platform_owner'].includes(_grcRiskRole()))throw new Error('Only the Risk Owner can use direct risk status updates.');
       record=record||{};nextStatus=String(nextStatus||'').toLowerCase();
       if(!['open','closed'].includes(nextStatus))throw new Error('Only Open or Closed can be changed directly.');
       const department=_grcCanonicalDepartment(record.department||_grcRiskDept());

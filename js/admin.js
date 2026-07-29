@@ -230,7 +230,7 @@ function openGapQuarter(id,qtr){
   const _gRole=window._fbRole||'';
   const _gAssigned=window._fbAssignedKpis;
   const _canEditGap=_gRole==='admin'||_gRole==='super_admin'||
-    (_gRole==='kpi_owner'&&(
+    (( _gRole==='kpi_owner'||_gRole==='platform_owner')&&(
       !Array.isArray(_gAssigned)||_gAssigned.length===0||_gAssigned.includes(id)
     ));
 
@@ -340,10 +340,10 @@ function openGapQuarter(id,qtr){
 /* ── KPI Owner Gap save — per KPI + Quarter ── */
 function saveGapKPO(kpiId,qtr){
   const role=window._fbRole||'';
-  if(role!=='kpi_owner'&&role!=='admin'&&role!=='super_admin'){
+  if(role!=='kpi_owner'&&role!=='platform_owner'&&role!=='admin'&&role!=='super_admin'){
     toast(' Access denied');return;
   }
-  if(role==='kpi_owner'){
+  if(role==='kpi_owner'||role==='platform_owner'){
     const assigned=window._fbAssignedKpis;
     if(Array.isArray(assigned)&&assigned.length>0&&!assigned.includes(kpiId)){
       toast(' You are not assigned to this KPI');return;
@@ -701,7 +701,7 @@ const pn=v=>{const n=(typeof _adminParseNumber==='function')?_adminParseNumber(v
    ============================================================ */
 function showKpoGapStatusPopup(){
   const role=window._fbRole||'';
-  if(role!=='kpi_owner')return;
+  if(role!=='kpi_owner'&&role!=='platform_owner')return;
   const assigned=window._fbAssignedKpis;
   const dept=window._fbDept||window._lockedDept||null;
 
@@ -3180,7 +3180,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   function userName(){return String(window._fbName||window.currentUserName||(email()?email().split('@')[0]:'User'));}
   function deptAlias(v){var x=String(v||'').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,'');if(!x)return'';if(x.indexOf('maintenance')>-1||x.indexOf('صيانة')>-1)return'maintenance';if(x.indexOf('safety')>-1||x.indexOf('سلامة')>-1)return'safety';if(x.indexOf('housekeeping')>-1||x.indexOf('cleaning')>-1||x.indexOf('hospitality')>-1||x.indexOf('نظافة')>-1||x.indexOf('فندقة')>-1)return'housekeeping';if(x.indexOf('project')>-1||x.indexOf('مشاريع')>-1||x.indexOf('المشاريع')>-1)return'projects';if(x.indexOf('governance')>-1||x.indexOf('حوكمة')>-1)return'governance';return x;}
   function dept(){return deptAlias(window._fbDept||window._lockedDept||window.currentUserDept||'');}
-  function isKpiOwner(){var r=role();return r==='kpi_owner'||r==='gap_owner';}
+  function isKpiOwner(){var r=role();return r==='kpi_owner'||r==='platform_owner'||r==='gap_owner';}
   function isManager(){var r=role();return r==='department_manager'||r==='dept_manager';}
   function isSuper(){var r=role();return r==='super_admin'||r==='superadmin'||r==='admin';}
   function kDept(k){return deptAlias(k&&(k.dept||k.department||k.departmentId||''));}
@@ -3395,7 +3395,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   function userName(){return String(window._fbName||window.currentUserName||(email()?email().split('@')[0]:'User'));}
   function deptAlias(v){var x=String(v||'').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,'');if(!x)return'';if(x.indexOf('maintenance')>-1||x.indexOf('صيانة')>-1)return'maintenance';if(x.indexOf('safety')>-1||x.indexOf('سلامة')>-1)return'safety';if(x.indexOf('housekeeping')>-1||x.indexOf('cleaning')>-1||x.indexOf('hospitality')>-1||x.indexOf('نظافة')>-1||x.indexOf('فندقة')>-1)return'housekeeping';if(x.indexOf('project')>-1||x.indexOf('مشاريع')>-1||x.indexOf('المشاريع')>-1)return'projects';if(x.indexOf('governance')>-1||x.indexOf('حوكمة')>-1)return'governance';return x;}
   function dept(){return deptAlias(window._fbDept||window._lockedDept||window.currentUserDept||'');}
-  function isOwner(){var r=role();return r==='kpi_owner'||r==='gap_owner';}
+  function isOwner(){var r=role();return r==='kpi_owner'||r==='platform_owner'||r==='gap_owner';}
   function isManager(){var r=role();return r==='department_manager'||r==='dept_manager';}
   function isSuper(){var r=role();return r==='super_admin'||r==='superadmin'||r==='admin';}
   function allKpis(){try{if(typeof window.allK==='function')return window.allK()||[];}catch(_){} return Array.isArray(window.KPIS)?window.KPIS:[];}
@@ -3481,7 +3481,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   function email(){return String(window._fbUser||window._fbEmail||window.currentUserEmail||'').toLowerCase().trim();}
   function deptAlias(v){var x=String(v||'').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,'');if(!x)return'';if(x.indexOf('maintenance')>-1||x.indexOf('صيانة')>-1)return'maintenance';if(x.indexOf('safety')>-1||x.indexOf('سلامة')>-1)return'safety';if(x.indexOf('housekeeping')>-1||x.indexOf('cleaning')>-1||x.indexOf('hospitality')>-1||x.indexOf('نظافة')>-1||x.indexOf('فندقة')>-1)return'housekeeping';if(x.indexOf('project')>-1||x.indexOf('مشاريع')>-1||x.indexOf('المشاريع')>-1)return'projects';if(x.indexOf('governance')>-1||x.indexOf('حوكمة')>-1)return'governance';return x;}
   function dept(){return deptAlias(window._fbDept||window._lockedDept||window.currentUserDept||'');}
-  function isOwner(){var r=role();return r==='kpi_owner'||r==='gap_owner';}
+  function isOwner(){var r=role();return r==='kpi_owner'||r==='platform_owner'||r==='gap_owner';}
   function isManager(){var r=role();return r==='department_manager'||r==='dept_manager';}
   function isSuper(){var r=role();return r==='super_admin'||r==='superadmin'||r==='admin';}
   function allKpis(){try{if(typeof window.allK==='function')return window.allK()||[];}catch(_){}try{return Array.isArray(window.KPIS)?window.KPIS:[];}catch(_){return[];}}
@@ -3603,7 +3603,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   function email(){return String(window._fbUser||window._fbEmail||window.currentUserEmail||'').toLowerCase().trim();}
   function deptAlias(v){var x=String(v||'').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,'');if(!x)return'';if(x.indexOf('maintenance')>-1||x.indexOf('صيانة')>-1)return'maintenance';if(x.indexOf('safety')>-1||x.indexOf('سلامة')>-1)return'safety';if(x.indexOf('housekeeping')>-1||x.indexOf('cleaning')>-1||x.indexOf('hospitality')>-1||x.indexOf('نظافة')>-1||x.indexOf('فندقة')>-1)return'housekeeping';if(x.indexOf('project')>-1||x.indexOf('مشاريع')>-1||x.indexOf('المشاريع')>-1)return'projects';if(x.indexOf('governance')>-1||x.indexOf('حوكمة')>-1)return'governance';return x;}
   function dept(){return deptAlias(window._fbDept||window._lockedDept||window.currentUserDept||'');}
-  function isOwner(){var r=role();return r==='kpi_owner'||r==='gap_owner';}
+  function isOwner(){var r=role();return r==='kpi_owner'||r==='platform_owner'||r==='gap_owner';}
   function isManager(){var r=role();return r==='department_manager'||r==='dept_manager';}
   function isSuper(){var r=role();return r==='super_admin'||r==='superadmin'||r==='admin';}
   function allKpis(){try{if(typeof window.allK==='function')return window.allK()||[];}catch(_){} return Array.isArray(window.KPIS)?window.KPIS:[];}
@@ -3899,7 +3899,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   function dept(){return deptAlias(window._fbDept||window._lockedDept||window.currentUserDept||'');}
   function isManager(){var r=role();return r==='department_manager'||r==='dept_manager';}
   function isSuper(){var r=role();return r==='super_admin'||r==='superadmin'||r==='admin';}
-  function isOwner(){var r=role();return r==='kpi_owner'||r==='gap_owner';}
+  function isOwner(){var r=role();return r==='kpi_owner'||r==='platform_owner'||r==='gap_owner';}
   function approvals(){if(!window.ST)window.ST={};if(!Array.isArray(ST.gapApprovals))ST.gapApprovals=[];return ST.gapApprovals;}
   function allKpis(){try{return typeof window.allK==='function'?window.allK():(Array.isArray(window.BASE)?window.BASE:[]);}catch(_){return [];} }
   function code(k){return String(k&&(k.id||k.kpiCode||k.code)||'');}
@@ -4006,7 +4006,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   function email(){return String(window._fbUser||window._fbEmail||window.currentUserEmail||'').toLowerCase().trim();}
   function deptAlias(v){var x=String(v||'').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]+/g,'');if(!x)return'';if(x.indexOf('maintenance')>-1||x.indexOf('صيانة')>-1)return'maintenance';if(x.indexOf('safety')>-1||x.indexOf('سلامة')>-1)return'safety';if(x.indexOf('housekeeping')>-1||x.indexOf('cleaning')>-1||x.indexOf('hospitality')>-1||x.indexOf('نظافة')>-1||x.indexOf('فندقة')>-1)return'housekeeping';if(x.indexOf('project')>-1||x.indexOf('مشاريع')>-1||x.indexOf('المشاريع')>-1)return'projects';if(x.indexOf('governance')>-1||x.indexOf('حوكمة')>-1)return'governance';return x;}
   function dept(){return deptAlias(window._fbDept||window._lockedDept||window.currentUserDept||'');}
-  function isOwner(){var r=role();return r==='kpi_owner'||r==='gap_owner';}
+  function isOwner(){var r=role();return r==='kpi_owner'||r==='platform_owner'||r==='gap_owner';}
   function isManager(){var r=role();return r==='department_manager'||r==='dept_manager';}
   function isSuper(){var r=role();return r==='super_admin'||r==='superadmin'||r==='admin';}
   function approvals(){return (window.ST&&Array.isArray(ST.gapApprovals))?ST.gapApprovals:[];}

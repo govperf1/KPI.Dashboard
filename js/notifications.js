@@ -275,7 +275,7 @@ function updateExecTrend(yr){
 /* -- Profile topbar helper only (legacy notification writes disabled) -- */
 (function(){
   function roleLabel(role){
-    return ({super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',gap_owner:'Gap Owner',viewer:'Viewer'})[role]||role||'—';
+    return ({super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'Risk Owner',platform_owner:'Performance & GRC Owner',gap_owner:'Gap Owner',viewer:'Viewer'})[role]||role||'—';
   }
   window.refreshUserTopbar=function(){
     try{
@@ -422,7 +422,7 @@ function updateExecTrend(yr){
     var r = role();
     if(!rawEmail() || !r) return false;
     if(isGlobalViewer()) return true;
-    if((r === 'kpi_owner' || r === 'gap_owner') && assigned().length) return true;
+    if((r === 'kpi_owner' || r === 'platform_owner' || r === 'gap_owner') && assigned().length) return true;
     return !!dept();
   }
   function state(){ try{ return window.ST || JSON.parse(localStorage.getItem('kpi_v3') || '{}') || {}; }catch(_){ return window.ST || {}; } }
@@ -461,7 +461,7 @@ function updateExecTrend(yr){
     if(isGlobalViewer()) return true;
     var r = role(), d = dept(), a = assigned(), kc = normKey(code(k)), kn = normKey(kname(k)), kd = kdept(k);
     /* KPI / Gap owners: exact assigned KPI first; if no assignment was configured, fall back to ownership/email then department. */
-    if(r === 'kpi_owner' || r === 'gap_owner'){
+    if(r === 'kpi_owner' || r === 'platform_owner' || r === 'gap_owner'){
       if(a.length){ if(kc && a.indexOf(kc)>-1) return true; if(kn && a.indexOf(kn)>-1) return true; if(extra && ownedBy(extra)) return true; return false; }
       if(extra && ownedBy(extra)) return true;
       if(k && ownedBy(k)) return true;
@@ -560,7 +560,7 @@ function updateExecTrend(yr){
         show = true; level = 'red'; meta = isAr()?'تم رفض طلب تحليل فجوة ضمن قسمك':'A Gap Analysis request in your department was rejected';
       }else if(isSuper() && stt.indexOf('rejected') === 0){
         show = true; level = 'red'; meta = isAr()?'تم رفض طلب تحليل فجوة':'A Gap Analysis request was rejected';
-      }else if((rr === 'kpi_owner' || rr === 'gap_owner') && String(rq.submittedByEmail || '').toLowerCase() === rawEmail() && /^(rejected|approved)/.test(stt)){
+      }else if((rr === 'kpi_owner' || rr === 'platform_owner' || rr === 'gap_owner') && String(rq.submittedByEmail || '').toLowerCase() === rawEmail() && /^(rejected|approved)/.test(stt)){
         show = true; level = stt === 'approved' ? 'blue' : 'red';
         meta = stt === 'approved' ? (isAr()?'تم اعتماد تحليل الفجوة وانعكس على الداشبورد':'Gap Analysis approved and posted to dashboard') : (isAr()?'تم رفض الطلب؛ أدخل بيانات تحليل الفجوة من جديد':'Request rejected; please re-enter the Gap Analysis data');
       }
@@ -575,7 +575,7 @@ function updateExecTrend(yr){
       });
     });
 
-    if(role() === 'kpi_owner' || role() === 'gap_owner'){
+    if(role() === 'kpi_owner' || role() === 'platform_owner' || role() === 'gap_owner'){
       (ks || []).forEach(function(k){
         if(!canSee(k)) return;
         ['q1','q2','q3','q4'].forEach(function(q){
@@ -609,7 +609,7 @@ function updateExecTrend(yr){
     var a=assigned();
     var c=normKey(n.kpiCode || ''), name=normKey(n.kpiName || n.title || '');
     var rr=role();
-    if(rr === 'kpi_owner' || rr === 'gap_owner'){
+    if(rr === 'kpi_owner' || rr === 'platform_owner' || rr === 'gap_owner'){
       if(a.length) return (c && a.indexOf(c)>-1) || (name && a.indexOf(name)>-1) || ownedBy(n);
       return ownedBy(n) || !!(d && nd && d === nd);
     }
@@ -691,7 +691,7 @@ function updateExecTrend(yr){
     panel.style.position='fixed'; panel.style.width=w+'px'; panel.style.top=(r.bottom+10)+'px'; panel.style.left=Math.max(12, Math.min(window.innerWidth-w-12, r.right-w))+'px'; panel.style.right='auto'; panel.style.zIndex='2147483646';
   }
   function closePanel(id){ var el=$(id); if(el){ el.style.display='none'; el.classList.remove('qumc-final-open','qumc-stay-open','qumc-profile-open'); } }
-  function roleLabel(r){ return ({super_admin:'Super Admin',superadmin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',dept_manager:'Dept Manager',kpi_owner:'KPI Owner',gap_owner:'Gap Owner',viewer:'Viewer'})[r] || r || '—'; }
+  function roleLabel(r){ return ({super_admin:'Super Admin',superadmin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',dept_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'Risk Owner',platform_owner:'Performance & GRC Owner',gap_owner:'Gap Owner',viewer:'Viewer'})[r] || r || '—'; }
   function refreshProfile(){
     var name=uname(), mail=rawEmail() || '—', r=roleLabel(role()), d=dept() || window._fbDept || '—';
     var ids={topUserName:name, topUserRole:r, profileName:name, profileEmail:mail, profileNameRow:name, profileRoleRow:r, profileDeptRow:d, profileLastLoginRow:'Current session'};
