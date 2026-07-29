@@ -54,9 +54,12 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     function _syncPortalCards(){
       const performance=ge('_portalPerformanceCard'),grc=ge('_portalGrcCard'),grid=ge('_portalCardGrid');
       const canPerformance=_canAccessPortal('performance'),canGrc=_canAccessPortal('grc');
-      if(performance)performance.style.display=canPerformance?'block':'none';
-      if(grc)grc.style.display=canGrc?'block':'none';
-      if(grid)grid.style.gridTemplateColumns=(canPerformance&&canGrc)?'1fr 1fr':'minmax(260px,420px)';
+      /* Always show both platform cards. Access is checked only after the user
+         selects a platform, so a KPI Owner can see GRC and receive the centered
+         access message, and a Risk Owner can see Performance the same way. */
+      if(performance){performance.style.display='block';performance.setAttribute('aria-disabled',canPerformance?'false':'true');performance.dataset.accessAllowed=canPerformance?'1':'0';}
+      if(grc){grc.style.display='block';grc.setAttribute('aria-disabled',canGrc?'false':'true');grc.dataset.accessAllowed=canGrc?'1':'0';}
+      if(grid)grid.style.gridTemplateColumns='1fr 1fr';
       return {performance:canPerformance,grc:canGrc};
     }
     window._syncPortalCards=_syncPortalCards;

@@ -726,16 +726,13 @@
   }
   var INITIATIVE_SEED=[{"id":"INIT-001","nameAr":"مركز بلاغات إدارة المرافق (FMS Division)","nameEn":"Facility Management Reporting Center (FMS Division)","department":"allFms","status":"proposed","team":[],"code":"INIT-001","executionStatus":"","progress":0},{"id":"INIT-002","nameAr":"مبادرة اكتمال الكادر التشغيلي","nameEn":"Operational Workforce Completion Initiative","department":"housekeeping","status":"proposed","team":[],"code":"INIT-002","executionStatus":"","progress":0},{"id":"INIT-003","nameAr":"مبادرة تعزيز جودة النظافة عبر رمز الاستجابة السريعة","nameEn":"Housekeeping Quality Enhancement via QR Code","department":"housekeeping","status":"proposed","team":[],"code":"INIT-003","executionStatus":"","progress":0},{"id":"INIT-004","nameAr":"مبادرة يوم الجودة الإداري الشهري","nameEn":"Monthly Administrative Quality Day Initiative","department":"housekeeping","status":"proposed","team":[],"code":"INIT-004","executionStatus":"","progress":0},{"id":"INIT-005","nameAr":"مبادرة تطوير التقارير الربعية لتجربة المريض","nameEn":"Patient Experience Quarterly Reports Development Initiative","department":"housekeeping","status":"proposed","team":[],"code":"INIT-005","executionStatus":"","progress":0},{"id":"INIT-006","nameAr":"مبادرة تصميم خريطة توجيه للمراجعين داخل المدينة الطبية","nameEn":"Medical City Wayfinding Map Initiative","department":"projects","status":"selected","team":[{"name":"م. مشاري الصعب","roleAr":"قائد الفريق","roleEn":"Team Leader","gender":"male","department":"safety"},{"name":"م. إبراهيم الصقيهي","roleAr":"عضو الفريق","roleEn":"Team Member","gender":"male","department":"projects"}],"code":"INIT-006","executionStatus":"in_progress","progress":0},{"id":"INIT-007","nameAr":"مبادرة تصميم حزام حمل لاسطوانات الغازات الطبية","nameEn":"Medical Gas Cylinder Carrying Belt Initiative","department":"maintenance","status":"selected","team":[{"name":"م. عبدالله الزوين","roleAr":"قائد الفريق","roleEn":"Team Leader","gender":"male","department":"maintenance"}],"code":"INIT-007","executionStatus":"in_progress","progress":0},{"id":"INIT-008","nameAr":"مبادرة إنشاء محطة غسيل عيون متنقلة","nameEn":"Mobile Eyewash Station Initiative","department":"housekeeping","status":"selected","team":[{"name":"م. عبدالله الزوين","roleAr":"قائد الفريق","roleEn":"Team Leader","gender":"male","department":"maintenance"},{"name":"م. عبدالوهاب الشتوي","roleAr":"عضو الفريق","roleEn":"Team Member","gender":"male","department":"maintenance"}],"code":"INIT-008","executionStatus":"in_progress","progress":0},{"id":"INIT-009","nameAr":"مبادرة تهوية الغرف المغلقة","nameEn":"Closed Rooms Ventilation Initiative","department":"maintenance","status":"proposed","team":[],"code":"INIT-009","executionStatus":"","progress":0},{"id":"INIT-010","nameAr":"مبادرة قياس مستوى الضجيج داخل منشآت المدينة الطبية","nameEn":"Medical City Noise Level Monitoring Initiative","department":"safety","status":"selected","team":[{"name":"أ. رغد المشيقح","roleAr":"قائد الفريق","roleEn":"Team Leader","gender":"female","department":"division"},{"name":"أ. لطيفة الحربي","roleAr":"عضو الفريق","roleEn":"Team Member","gender":"female","department":"housekeeping"}],"code":"INIT-010","executionStatus":"in_progress","progress":0}];
   var PROJECT_MANAGEMENT_INCIDENT_SEED=[{"id":"PMD-01","date":"2024-01-01","category":"Safety Hazard","contributingFactors":"Human error","investigationRequired":"no","department":"projects","responsibleDept":"projects","status":"closed"},{"id":"PMD-02","date":"2025-01-01","category":"Safety Hazard","contributingFactors":"Human error","investigationRequired":"no","department":"projects","responsibleDept":"projects","status":"closed"}];
+  function mergeProjectIncidentSeed(existing){
+    var rows=(Array.isArray(existing)?existing:[]).map(copyRecord),byId={};rows.forEach(function(r){byId[String(r&&r.id||r&&r.code||'').trim().toUpperCase()]=r;});
+    PROJECT_MANAGEMENT_INCIDENT_SEED.forEach(function(seed){var key=String(seed.id).toUpperCase(),old=byId[key];if(old){Object.keys(seed).forEach(function(k){if(old[k]===undefined||old[k]===null||old[k]==='')old[k]=seed[k];});}else{rows.push(copyRecord(seed));}});
+    return rows;
+  }
   var state=loadState();
-  state.incidents=Array.isArray(state.incidents)?state.incidents:[];
-  PROJECT_MANAGEMENT_INCIDENT_SEED.forEach(function(seed){
-    var existing=state.incidents.find(function(r){return String(r.id||'')===seed.id;});
-    if(existing){
-      Object.keys(seed).forEach(function(key){existing[key]=seed[key];});
-    }else{
-      state.incidents.push(JSON.parse(JSON.stringify(seed)));
-    }
-  });
+  state.incidents=mergeProjectIncidentSeed(state.incidents);
 
   var INITIATIVE_MEMBER_DEPARTMENTS={
     'م. عبدالله الزوين':'maintenance',
@@ -857,8 +854,16 @@
     var parts=grcCloudParts[collectionKey]||{},map={};Object.keys(parts).forEach(function(scope){(parts[scope]||[]).forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i);r._cloudId=id;r.cloudId=id;map[id]=r;});});
     var rows=Object.keys(map).map(function(id){return map[id];});
     if(collectionKey==='risks')rows=rows.map(normalizeRiskClassification);
-    if(collectionKey==='initiatives')rows=normalizeInitiativePeople(rows);
-    state[collectionKey]=rows;grcCloudMirror[collectionKey]={};rows.forEach(function(r,i){grcCloudMirror[collectionKey][grcCloudDocId(collectionKey,r,i)]=grcComparable(r);});
+    /* These approved baseline records were introduced after the first secure
+       migration. Keep them visible even when an older cloud collection does not
+       contain them yet; Admin/Super Admin also repairs the missing cloud docs. */
+    if(collectionKey==='incidents')rows=mergeProjectIncidentSeed(rows);
+    if(collectionKey==='initiatives')rows=mergeInitiativeSeed(rows);
+    state[collectionKey]=rows;grcCloudMirror[collectionKey]={};rows.forEach(function(r,i){
+      /* Only mirror records actually returned by Firestore. Baseline records that
+         are missing in the cloud must remain detectable by the repair routine. */
+      var id=grcCloudDocId(collectionKey,r,i);if(map[id])grcCloudMirror[collectionKey][id]=grcComparable(r);
+    });
   }
   function grcAllInitialScopesReady(){return Object.keys(GRC_COLLECTION_MAP).every(function(k){return grcInitialScopes[k]===true;});}
   function grcHandleCollectionSnapshot(collectionKey,scope,snapshot){
@@ -890,9 +895,25 @@
     })().catch(function(err){grcMigrationPromise=null;console.error('[GRC Secure Migration] failed',err);throw err;});return grcMigrationPromise;
   }
   window._grcRunSecureMigration=function(){return ensureReportBackend().then(function(b){return migrateLegacyGrcState(b,true);});};
+  async function ensureRequiredGrcBaselineRecords(b){
+    if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return false;
+    var required=[];
+    (PROJECT_MANAGEMENT_INCIDENT_SEED||[]).forEach(function(r,i){required.push({key:'incidents',record:r,index:i});});
+    (INITIATIVE_SEED||[]).forEach(function(r,i){required.push({key:'initiatives',record:r,index:i});});
+    var writes=[];
+    await Promise.all(required.map(async function(item){
+      var prepared=grcPrepareCloudRecord(item.key,item.record,item.index,b),ref=b.fs.doc(b.db,GRC_COLLECTION_MAP[item.key],prepared._cloudId),snap=await b.fs.getDoc(ref);
+      if(!snap.exists())writes.push({op:'set',ref:ref,data:prepared});
+    }));
+    if(writes.length){await grcCommitWrites(b,writes);try{window._recordAuditDirect&&window._recordAuditDirect('GRC_BASELINE_REPAIR','Added missing approved Incident and Initiative baseline records',null,{records:writes.length},{portal:'grc'});}catch(_){}}
+    return writes.length>0;
+  }
   function startSharedStateSync(){
     if(grcSyncStarted)return;ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;grcSyncStarted=true;enforceLocalGrcScope();
-      if(isGrcAdmin()){try{await migrateLegacyGrcState(b,false);}catch(err){console.error('[GRC Secure Migration] automatic migration did not complete',err);}}
+      if(isGrcAdmin()){
+        try{await migrateLegacyGrcState(b,false);}catch(err){console.error('[GRC Secure Migration] automatic migration did not complete',err);}
+        try{await ensureRequiredGrcBaselineRecords(b);}catch(err2){console.error('[GRC Baseline Repair] approved records could not be repaired',err2);}
+      }
       var canAll=canViewAllExecutiveDepartments(),dept=currentGrcDept();Object.keys(GRC_COLLECTION_MAP).forEach(function(key){var col=b.fs.collection(b.db,GRC_COLLECTION_MAP[key]);grcCloudParts[key]={};if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){grcListen(b,key,'all',col);}else{var expected=dept?2:1,received=0;grcInitialScopes[key]=false;var mark=function(){received++;if(received>=expected)grcInitialScopes[key]=true;};
           var sharedQ=b.fs.query(col,b.fs.where('visibility','==','shared'));var u1=b.fs.onSnapshot(sharedQ,function(snap){grcCloudParts[key].shared=grcDocsFromSnapshot(snap);mark();grcHandleCollectionSnapshot(key,'shared',snap);},function(err){console.error('[GRC Secure Sync] '+key+' shared failed',err);mark();});grcStateUnsubs.push(u1);
           if(dept){var ownQ=b.fs.query(col,b.fs.where('department','==',dept));var u2=b.fs.onSnapshot(ownQ,function(snap){grcCloudParts[key].department=grcDocsFromSnapshot(snap);mark();grcHandleCollectionSnapshot(key,'department',snap);},function(err){console.error('[GRC Secure Sync] '+key+' department failed',err);mark();});grcStateUnsubs.push(u2);}
@@ -1792,8 +1813,10 @@
   }
   function governancePage(){ensureOperationalPlanStyles();ensureGrcEnhancementStyles();var depts=isGrcAdmin()?departmentOrder:[currentGrcDept()].filter(Boolean);return hero('GRC · Governance',L('governanceTitle'),L('governanceDesc'))+sectionHead(L('departmentView'),isGrcAdmin()?L('departmentSectionsDesc'):deptName(currentGrcDept()))+'<div class="grc-department-stack">'+depts.map(governanceDepartmentPanel).join('')+'</div>';}
   function riskPage(){
-    if(!isGrcAdmin())return hero('GRC · Risk Management',L('riskTitle'),L('riskDesc'))+currentRiskRegisterBoard();
-    return hero('GRC · Risk Management',L('riskTitle'),L('riskDesc'))+sectionHead(L('departmentView'),L('departmentSectionsDesc'))+'<div class="grc-department-stack">'+departmentOrder.map(riskDepartmentPanel).join('')+'</div>';
+    var depts=isGrcAdmin()?departmentOrder:[currentGrcDept()].filter(function(d){return !!d&&d!=='division'&&d!=='governance';});
+    var subtitle=isGrcAdmin()?L('departmentSectionsDesc'):(depts.length?deptName(depts[0]):L('departmentRecords'));
+    var body=depts.length?depts.map(riskDepartmentPanel).join(''):'<div class="grc-empty">'+(isAr()?'لا توجد بيانات مرتبطة بقسم المستخدم.':'No department data is assigned to this user.')+'</div>';
+    return hero('GRC · Risk Management',L('riskTitle'),L('riskDesc'))+sectionHead(L('departmentView'),subtitle)+'<div class="grc-department-stack">'+body+'</div>';
   }
 
   function governanceRegistersBoard(){
@@ -1861,24 +1884,32 @@
       isAr()?'نسبة الإنجاز':'Progress'
     ],rows);
   }
-  function registerPage(){
-    if(!isGrcAdmin()){var d=currentGrcDept(),riskDept=d==='laundry'?'laundryRisk':d==='housekeeping'?'housekeepingRisk':d;return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+
-      '<section class="grc-registers-board">'+sectionHead(L('governanceRegisterGroup'),deptName(d))+
-      registerBlock('policy',L('policyRegister'),deptName(d),'',governanceTable('policies',d,'policy',false))+
-      registerBlock('plan',L('planRegister'),deptName(d),'',governanceTable('plans',d,'plan',false))+
-      registerBlock('form',L('internalForms'),deptName(d),'',formsTable(d,'internal',false))+
-      registerBlock('form',L('externalForms'),deptName(d),'',formsTable(d,'external',false))+'</section>'+
-      '<section class="grc-registers-board">'+sectionHead(L('riskRegisterGroup'),deptName(d))+
-      registerBlock('risk',L('riskRegister'),deptName(d),'',riskTable(riskDept,false))+
-      registerBlock('incident',L('incidentRegister'),deptName(d),'',incidentTable(d,false))+
-      registerBlock('code',L('codeRegister'),deptName(d),'',codeTable(d,false))+'</section>'; }
-    return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+governanceRegistersBoard()+riskRegistersBoard()+
-      '<section class="grc-registers-board">'+sectionHead(L('assuranceRegisterGroup'),L('registerDesc'))+
-      registerBlock('plan',L('actionsTitle'),L('allDepartments'),addBtn('action',L('addAction')),tableHtml('plan',['id','title','source','department','owner','dueDate','progress','status'],(state.actions||[]).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.source||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td><div style="display:flex;align-items:center;gap:7px"><div class="grc-progress"><span style="width:'+Math.max(0,Math.min(100,Number(r.progress||0)))+'%"></span></div><b>'+Number(r.progress||0)+'%</b></div></td><td>'+badge(r.status)+'</td></tr>';}).join('')))+
+  function assuranceRegistersBoard(){
+    var actionRows=(state.actions||[]).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.source||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td><div style="display:flex;align-items:center;gap:7px"><div class="grc-progress"><span style="width:'+Math.max(0,Math.min(100,Number(r.progress||0)))+'%"></span></div><b>'+Number(r.progress||0)+'%</b></div></td><td>'+badge(r.status)+'</td></tr>';}).join('');
+    return'<section class="grc-registers-board">'+sectionHead(L('assuranceRegisterGroup'),L('registerDesc'))+
+      registerBlock('plan',L('actionsTitle'),L('allDepartments'),isGrcAdmin()?addBtn('action',L('addAction')):'',tableHtml('plan',['id','title','source','department','owner','dueDate','progress','status'],actionRows))+
       registerBlock('policy',L('manualRegister'),L('guideManagerDesc'),isGrcAdmin()?'<button class="grc-btn primary" onclick="window._grcOpenGuideUpload()">＋ '+L('uploadGuide')+'</button>':'',guideRegisterTable())+
       registerBlock('policy',L('reportRegister'),L('reportRegisterDesc'),'',reportRegisterTable())+
-      registerBlock('plan',isAr()?'سجل المبادرات المختارة':'Selected Initiatives Register',isAr()?'بيانات المبادرات المختارة وفرق العمل':'Selected initiatives and team details','',selectedInitiativesRegisterTable())+'</section>';
+      registerBlock('plan',isAr()?'سجل المبادرات المختارة':'Selected Initiatives Register',isAr()?'بيانات المبادرات المختارة وفرق العمل':'Selected initiatives and team details',isGrcAdmin()?addBtn('initiative',isAr()?'إضافة مبادرة':'Add Initiative'):'',selectedInitiativesRegisterTable())+'</section>';
   }
+  function registerPage(){
+    if(!isGrcAdmin()){
+      var d=currentGrcDept(),riskDept=d==='laundry'?'laundryRisk':d==='housekeeping'?'housekeepingRisk':d;
+      return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+
+        '<section class="grc-registers-board">'+sectionHead(L('governanceRegisterGroup'),deptName(d))+
+        registerBlock('policy',L('policyRegister'),deptName(d),'',governanceTable('policies',d,'policy',false))+
+        registerBlock('plan',L('planRegister'),deptName(d),'',governanceTable('plans',d,'plan',false))+
+        registerBlock('form',L('internalForms'),deptName(d),'',formsTable(d,'internal',false))+
+        registerBlock('form',L('externalForms'),deptName(d),'',formsTable(d,'external',false))+'</section>'+
+        '<section class="grc-registers-board">'+sectionHead(L('riskRegisterGroup'),deptName(d))+
+        registerBlock('risk',L('riskRegister'),deptName(d),'',riskTable(riskDept,false))+
+        registerBlock('incident',L('incidentRegister'),deptName(d),'',incidentTable(d,false))+
+        registerBlock('code',L('codeRegister'),L('allDepartments'),'',codeTable('allFms',false))+'</section>'+
+        assuranceRegistersBoard();
+    }
+    return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+governanceRegistersBoard()+riskRegistersBoard()+assuranceRegistersBoard();
+  }
+
 
   var manualNav={level:'home',guideKey:null,version:null,language:null,recordId:null};
   function guideRecords(){return REPORT_LIBRARY.filter(function(r){return r.group==='guideline'||r.type==='guideline';});}

@@ -1,6 +1,6 @@
 /* ======================================================================
    QUMC Review & Development Center — Performance + GRC
-   Build: 2026-07-29 v83
+   Build: 2026-07-29 v89
    Request types:
    1) Existing Item Review & Update
    2) New Item Request
@@ -79,7 +79,20 @@
   function statusLabel(s){var key=statusKey(s);return STATUS_LABELS[key]||'Open';}
   function statusBadge(s){var key=statusKey(s);return'<span class="adv-status '+esc(key)+'">'+esc(STATUS_LABELS[key])+'</span>';}
   function stars(v){var n=Number(v||0);return n?'<span title="'+n+' out of 5">'+('★'.repeat(n))+('☆'.repeat(Math.max(0,5-n)))+'</span>':'—';}
-  function toast(message){var r=root()||document.body,old=r.querySelector&&r.querySelector('.adv-toast');if(old)old.remove();var e=document.createElement('div');e.className='adv-toast';e.textContent=message;r.appendChild(e);setTimeout(function(){e.remove();},3200);}
+  function toast(message){var r=root()||document.body,old=r.querySelector&&r.querySelector('.adv-toast');if(old)old.remove();var e=document.createElement('div');e.className='adv-toast';e.textContent=message;r.appendChild(e);setTimeout(function(){e.remove();},4200);}
+  function clearSubmitError(){var box=document.getElementById('advSubmitError');if(box){box.style.display='none';box.textContent='';}}
+  function showSubmitError(message){message=String(message||'Request submission failed.');var box=document.getElementById('advSubmitError');if(box){box.textContent=message;box.style.display='block';try{box.scrollIntoView({behavior:'smooth',block:'nearest'});}catch(_){}}toast(message);}
+  function friendlySubmitError(error){
+    var raw=String(error&&error.code||error&&error.message||error||'').trim(),text=raw.toLowerCase();
+    if(!navigator.onLine)return'No internet connection. Reconnect, then submit the request again.';
+    if(/submission-timeout|deadline-exceeded|timed out|timeout/.test(text))return'The request service did not respond in time. Check My Requests first; if the request is not listed, check the connection and submit it again.';
+    if(/permission-denied|missing or insufficient permissions/.test(text))return'Your account is not permitted to save this request. Ask the system administrator to verify the Review & Development Center Firestore permissions.';
+    if(/unauthenticated|not authenticated/.test(text))return'Your session is no longer active. Sign in again, then resubmit the request.';
+    if(/unavailable|network-request-failed|failed to fetch|offline/.test(text))return'The request service is temporarily unavailable. Check the connection and try again.';
+    if(/resource-exhausted|quota/.test(text))return'The request could not be saved because the database service limit was reached. Contact the system administrator.';
+    return raw||'The request could not be submitted. Review the entered data and try again.';
+  }
+  function submitWithTimeout(promise,ms){return Promise.race([promise,new Promise(function(_,reject){setTimeout(function(){reject(new Error('submission-timeout'));},ms||20000);})]);}
   function showSubmitSuccess(code,warning){var old=document.getElementById('advSubmitSuccess');if(old)old.remove();var ov=document.createElement('div');ov.id='advSubmitSuccess';ov.className='adv-success-backdrop';ov.innerHTML='<div class="adv-success-card" role="dialog" aria-modal="true" aria-labelledby="advSuccessTitle"><div class="adv-success-icon">✓</div><h2 id="advSuccessTitle">Request Submitted Successfully</h2><p>Your request has been received and its status is now <strong>Open</strong>.</p>'+(code?'<div class="adv-success-code"><span>Request Code</span><strong>'+esc(code)+'</strong></div>':'')+(warning?'<div class="adv-success-warning">'+esc(warning)+'</div>':'')+'<button type="button" class="adv-btn primary adv-success-ok" onclick="window._advCloseSubmitSuccess()">OK</button></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)window._advCloseSubmitSuccess();});setTimeout(function(){var b=ov.querySelector('button');if(b)b.focus();},20);}
   window._advCloseSubmitSuccess=function(){var x=document.getElementById('advSubmitSuccess');if(x)x.remove();};
   function apiReady(n){return typeof window[n]==='function';}
@@ -144,7 +157,7 @@
   function itemDef(value){return(ITEM_TYPES[currentPlatform]||[]).find(function(x){return x.value===value;})||null;}
   function optionsFor(def){var data=currentPlatform==='performance'?performanceOptions():grcOptions();return def&&Array.isArray(data[def.key])?data[def.key]:[];}
 
-  window._advOpenGuidanceRequest=function(){closeModal();document.body.classList.add('adv-modal-open');var dept=userDepartmentKey(),ov=document.createElement('div');ov.id='advModal';ov.className='adv-modal-backdrop';ov.innerHTML='<div class="adv-modal"><div class="adv-modal-head"><div><h2>New Review & Development Request</h2><p>'+PLATFORM_LABELS[currentPlatform]+' · '+esc(departmentName(dept))+'</p></div><button class="adv-modal-close" onclick="window._advCloseModal()">×</button></div><div class="adv-modal-body"><div class="adv-form"><div class="adv-field"><label>Request Type *</label><select id="advRequestType" onchange="window._advTypeChanged()"><option value="">Select request type</option><option value="edit_review">Existing Item Review & Update</option><option value="new">New Item Request</option></select></div><div class="adv-field" id="advItemTypeField" style="display:none"><label>Item Type *</label><select id="advItemType" onchange="window._advItemTypeChanged()"><option value="">Select item type</option></select></div><div class="adv-field full" id="advRelatedField" style="display:none"></div><div class="adv-field full"><label>Request Title *</label><input id="advTitle" placeholder="Enter a concise request title"></div><div class="adv-field full"><label>Request Details *</label><textarea id="advDetails" placeholder="Describe the review, proposed update, or new item requirement"></textarea></div><div class="adv-field"><label>Priority</label><select id="advPriority"><option>Low</option><option selected>Medium</option><option>High</option></select></div><div class="adv-field full"><label>Attachment (optional)</label><input id="advAttachment" type="file"><small>Maximum file size: 5 MB.</small></div></div></div><div class="adv-modal-actions"><button class="adv-btn ghost" onclick="window._advCloseModal()">Cancel</button><button id="advSubmitBtn" class="adv-btn primary" onclick="window._advSubmitConsultation()">Submit Request</button></div></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)closeModal();});};
+  window._advOpenGuidanceRequest=function(){closeModal();document.body.classList.add('adv-modal-open');var dept=userDepartmentKey(),ov=document.createElement('div');ov.id='advModal';ov.className='adv-modal-backdrop';ov.innerHTML='<div class="adv-modal"><div class="adv-modal-head"><div><h2>New Review & Development Request</h2><p>'+PLATFORM_LABELS[currentPlatform]+' · '+esc(departmentName(dept))+'</p></div><button class="adv-modal-close" onclick="window._advCloseModal()">×</button></div><div class="adv-modal-body"><div class="adv-form"><div class="adv-field"><label>Request Type *</label><select id="advRequestType" onchange="window._advTypeChanged()"><option value="">Select request type</option><option value="edit_review">Existing Item Review & Update</option><option value="new">New Item Request</option></select></div><div class="adv-field" id="advItemTypeField" style="display:none"><label>Item Type *</label><select id="advItemType" onchange="window._advItemTypeChanged()"><option value="">Select item type</option></select></div><div class="adv-field full" id="advRelatedField" style="display:none"></div><div class="adv-field full"><label>Request Title *</label><input id="advTitle" placeholder="Enter a concise request title"></div><div class="adv-field full"><label>Request Details *</label><textarea id="advDetails" placeholder="Describe the review, proposed update, or new item requirement"></textarea></div><div class="adv-field"><label>Priority</label><select id="advPriority"><option>Low</option><option selected>Medium</option><option>High</option></select></div><div class="adv-field full"><label>Attachment (optional)</label><input id="advAttachment" type="file"><small>Maximum file size: 5 MB.</small></div></div></div><div id="advSubmitError" class="adv-error" style="display:none;margin:0 18px 12px"></div><div class="adv-modal-actions"><button class="adv-btn ghost" onclick="window._advCloseModal()">Cancel</button><button id="advSubmitBtn" class="adv-btn primary" onclick="window._advSubmitConsultation()">Submit Request</button></div></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)closeModal();});};
   window._advTypeChanged=function(){var type=String((document.getElementById('advRequestType')||{}).value||''),field=document.getElementById('advItemTypeField'),sel=document.getElementById('advItemType'),related=document.getElementById('advRelatedField');if(!field||!sel)return;if(!type){field.style.display='none';sel.innerHTML='<option value="">Select item type</option>';if(related){related.style.display='none';related.innerHTML='';}return;}field.style.display='flex';sel.innerHTML='<option value="">Select item type</option>'+(ITEM_TYPES[currentPlatform]||[]).map(function(x){return'<option value="'+x.value+'">'+esc(x.label)+'</option>';}).join('');if(related){related.style.display='none';related.innerHTML='';}};
   function relatedOptionList(name,label,options,requiredText){
     return'<div class="adv-form-dependency"><label>'+esc(label)+' '+(requiredText||'')+'</label><div class="adv-related-list">'+(options.length?options.map(function(x){var val=encodeURIComponent(JSON.stringify(x));return'<label class="adv-related-option"><input type="checkbox" name="'+name+'" value="'+esc(val)+'"><span><b>'+esc(x.code||x.id||'')+'</b>'+esc(x.name||x.label||'')+'</span></label>';}).join(''):'<div class="adv-empty" style="padding:14px">No records are available for your department.</div>')+'</div></div>';
@@ -175,25 +188,32 @@
   function selectedItemsByName(name){return Array.prototype.map.call(document.querySelectorAll('input[name="'+name+'"]:checked'),function(x){try{return JSON.parse(decodeURIComponent(x.value));}catch(_){return null;}}).filter(Boolean);}
   function selectedRelatedItems(){return selectedItemsByName('advRelatedItem').concat(selectedItemsByName('advRelatedPolicy'),selectedItemsByName('advRelatedPlan'));}
   window._advSubmitConsultation=async function(){
+    clearSubmitError();
     var type=String((document.getElementById('advRequestType')||{}).value||''),itemValue=String((document.getElementById('advItemType')||{}).value||''),def=itemDef(itemValue),title=String((document.getElementById('advTitle')||{}).value||'').trim(),details=String((document.getElementById('advDetails')||{}).value||'').trim(),priority=String((document.getElementById('advPriority')||{}).value||'Medium'),file=(document.getElementById('advAttachment')||{}).files&&document.getElementById('advAttachment').files[0],primaryItems=selectedItemsByName('advRelatedItem'),policyItems=selectedItemsByName('advRelatedPolicy'),planItems=selectedItemsByName('advRelatedPlan'),formDependencyType=String((document.getElementById('advFormDependencyType')||{}).value||''),relatedItems=primaryItems.concat(policyItems,planItems),relatedNewText=String((document.getElementById('advRelatedNewText')||{}).value||'').trim(),isForm=currentPlatform==='grc'&&def&&def.value==='form',isBenchmark=currentPlatform==='performance'&&def&&def.value==='benchmark',benchmarkType=String((document.getElementById('advBenchmarkType')||{}).value||''),submitBtn=document.getElementById('advSubmitBtn');
-    if(!type||!def||!title||!details){toast('Complete the request type, item type, title and details.');return;}
-    if(type==='edit_review'&&!primaryItems.length){toast('Select at least one existing record.');return;}
-    if(type==='new'&&!relatedNewText){toast('Enter the proposed new item name.');return;}
-    if(isForm&&!formDependencyType){toast('Choose whether the form is linked to a Policy / Procedure or a Plan.');return;}
-    if(isForm&&formDependencyType==='policy'&&!policyItems.length){toast('Select at least one related Policy / Procedure for the form.');return;}
-    if(isForm&&formDependencyType==='plan'&&!planItems.length){toast('Select at least one related Plan for the form.');return;}
-    if(isBenchmark&&!benchmarkType){toast('Select Internal Benchmark or External Benchmark.');return;}
-    if(file&&file.size>5*1024*1024){toast('The attachment must be 5 MB or smaller.');return;}
-    if(!apiReady('_advisorySubmit')){toast('Request service is still loading. Reload the page and try again.');return;}
-    var dept=userDepartmentKey(),oldText=submitBtn&&submitBtn.textContent;
+    function stop(reason){showSubmitError(reason);return false;}
+    if(!type)return stop('Select the request type first.');
+    if(!def)return stop('Select the item type first.');
+    if(!title)return stop('Enter the request title.');
+    if(!details)return stop('Enter the request details.');
+    if(type==='edit_review'&&!primaryItems.length)return stop('Select at least one existing record.');
+    if(type==='new'&&!relatedNewText)return stop('Enter the proposed new item name.');
+    if(isForm&&!formDependencyType)return stop('Choose whether the form is linked to a Policy / Procedure or a Plan.');
+    if(isForm&&formDependencyType==='policy'&&!policyItems.length)return stop('Select at least one related Policy / Procedure for the form.');
+    if(isForm&&formDependencyType==='plan'&&!planItems.length)return stop('Select at least one related Plan for the form.');
+    if(isBenchmark&&!benchmarkType)return stop('Select Internal Benchmark or External Benchmark.');
+    if(file&&file.size>5*1024*1024)return stop('The attachment must be 5 MB or smaller.');
+    if(!navigator.onLine)return stop('No internet connection. Reconnect, then submit the request again.');
+    if(!apiReady('_advisorySubmit'))return stop('The request service is still loading. Reload the page and try again.');
+    var dept=userDepartmentKey(),oldText=submitBtn&&submitBtn.textContent,submitted=false;
     if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='Submitting…';}
     try{
-      var result=await window._advisorySubmit({platform:currentPlatform,departmentKey:dept,departmentCode:departmentCode(dept),priority:priority,serviceType:'record_request_review',requestType:type,requestTypeLabel:TYPE_LABELS[type],category:def.label,title:title,details:details,relatedType:def.label,relatedItems:relatedItems,relatedNewText:type==='new'?relatedNewText:'',formDependencies:isForm?{dependencyType:formDependencyType,policies:policyItems,plans:planItems}:null,benchmarkType:isBenchmark?benchmarkType:''},file||null);
-      audit('REVIEW_DEVELOPMENT_REQUEST_SUBMIT','Submitted '+currentPlatform+' request '+(result&&result.code||''));closeModal();currentView='requests';await loadRecords();showSubmitSuccess(result&&result.code||'',result&&result.warning||'');
+      var result=await submitWithTimeout(window._advisorySubmit({platform:currentPlatform,departmentKey:dept,departmentCode:departmentCode(dept),priority:priority,serviceType:'record_request_review',requestType:type,requestTypeLabel:TYPE_LABELS[type],category:def.label,title:title,details:details,relatedType:def.label,relatedItems:relatedItems,relatedNewText:type==='new'?relatedNewText:'',formDependencies:isForm?{dependencyType:formDependencyType,policies:policyItems,plans:planItems}:null,benchmarkType:isBenchmark?benchmarkType:''},file||null),20000);
+      if(!result||(!result.id&&!result.code))throw new Error('The request service returned no confirmation number.');
+      submitted=true;audit('REVIEW_DEVELOPMENT_REQUEST_SUBMIT','Submitted '+currentPlatform+' request '+(result.code||result.id||''));closeModal();currentView='requests';await loadRecords();showSubmitSuccess(result.code||result.id||'',result.warning||'');
     }catch(e){
-      var msg=String(e&&e.message||e||'Request submission failed.');
-      if(/permission-denied|missing or insufficient permissions/i.test(msg))msg='The request could not be saved through either available request channel. Check Firestore access for kpi_requests and reload the page.';
-      toast(msg);if(submitBtn){submitBtn.disabled=false;submitBtn.textContent=oldText||'Submit Request';}
+      showSubmitError(friendlySubmitError(e));
+    }finally{
+      if(!submitted&&submitBtn){submitBtn.disabled=false;submitBtn.textContent=oldText||'Submit Request';}
     }
   };
 
