@@ -178,3 +178,34 @@ body.kpi-owner [class*="orange"], body.kpi_owner [class*="orange"], body.kpi-own
 #aiWin:not(.open){display:none;}
 body:not(.dashboard-ready) #aiFloatBtn,
 body:not(.dashboard-ready) #aiWin{display:none!important;}
+
+
+/* v88 — Performance Back button exactly matches the approved GRC light-glass button. */
+.footbar button.footer-back-glass,
+button#backPortalBtn.footer-back-glass{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:7px!important;
+  min-width:78px!important;
+  height:34px!important;
+  padding:0 14px!important;
+  border-radius:14px!important;
+  border:1px solid rgba(1,149,175,.24)!important;
+  background:linear-gradient(135deg,rgba(255,255,255,.92),rgba(240,249,252,.70))!important;
+  box-shadow:0 10px 26px rgba(15,23,42,.08),inset 0 1px 0 rgba(255,255,255,.78)!important;
+  backdrop-filter:blur(14px)!important;
+  -webkit-backdrop-filter:blur(14px)!important;
+  color:#152538!important;
+  font-family:inherit!important;
+  font-size:11px!important;
+  font-weight:900!important;
+  letter-spacing:.01em!important;
+}
+.footbar button.footer-back-glass:hover,
+button#backPortalBtn.footer-back-glass:hover{
+  transform:translateY(-1px)!important;
+  border-color:rgba(1,149,175,.42)!important;
+  background:linear-gradient(135deg,rgba(255,255,255,.98),rgba(231,248,252,.86))!important;
+  box-shadow:0 14px 34px rgba(1,149,175,.15),inset 0 1px 0 rgba(255,255,255,.90)!important;
+}
