@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v4 — QUMC KPI Dashboard + Department GRC
+// FIRESTORE SECURITY RULES v5 — QUMC Performance + GRC Owner Roles
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -67,7 +67,25 @@ service cloud.firestore {
     }
 
     function kpiOwner() {
-      return approved() && role() == 'kpi_owner';
+      return approved() && role() in ['kpi_owner', 'platform_owner'];
+    }
+
+    function riskOwner() {
+      return approved() && role() in ['risk_owner', 'platform_owner'];
+    }
+
+    function canAccessPerformance() {
+      return approved() && (
+        role() in ['super_admin', 'admin', 'executive', 'department_manager', 'kpi_owner', 'platform_owner', 'viewer', 'user'] ||
+        hasPerm('access_performance')
+      );
+    }
+
+    function canAccessGrc() {
+      return approved() && (
+        role() in ['super_admin', 'admin', 'executive', 'department_manager', 'risk_owner', 'platform_owner', 'viewer', 'user'] ||
+        hasPerm('access_grc')
+      );
     }
 
     function ownEmail(value) {
@@ -112,7 +130,7 @@ service cloud.firestore {
     }
 
     function canReadGrcRecord(data) {
-      return approved() && (
+      return canAccessGrc() && (
         viewAllGrcDepartments() ||
         sharedGrcRecord(data) ||
         (('department' in data) && sameDepartment(data.department))
@@ -124,7 +142,7 @@ service cloud.firestore {
     }
 
     function kpiOwnerDirectRiskStatusChange() {
-      return kpiOwner() &&
+      return riskOwner() &&
         sameDepartment(resource.data.department) &&
         request.resource.data.department == resource.data.department &&
         request.resource.data.visibility == resource.data.visibility &&
@@ -157,14 +175,14 @@ service cloud.firestore {
 
     // ── Performance KPI records ───────────────────────────────────────
     match /kpi_data/{docId} {
-      allow read: if approved() && (
+      allow read: if canAccessPerformance() && (
         admin() || executive() || hasPerm('view_all_departments') ||
         (('dept' in resource.data) && sameDepartment(resource.data.dept))
       );
-      allow create: if hasPerm('edit_kpi') &&
+      allow create: if canAccessPerformance() && hasPerm('edit_kpi') &&
         request.resource.data.dept is string &&
         (admin() || sameDepartment(request.resource.data.dept));
-      allow update: if hasPerm('edit_kpi') &&
+      allow update: if canAccessPerformance() && hasPerm('edit_kpi') &&
         resource.data.dept is string && request.resource.data.dept is string &&
         (admin() || sameDepartment(resource.data.dept)) &&
         request.resource.data.dept == resource.data.dept;
@@ -172,28 +190,28 @@ service cloud.firestore {
     }
 
     match /kpi_changes/{changeId} {
-      allow read: if approved();
-      allow create: if approved() && hasPerm('edit_kpi') &&
+      allow read: if canAccessPerformance();
+      allow create: if canAccessPerformance() && hasPerm('edit_kpi') &&
         (!('userEmail' in request.resource.data) || ownEmail(request.resource.data.userEmail));
       allow update: if hasPerm('approve_changes');
       allow delete: if admin();
     }
 
     match /quarter_locks/{lockId} {
-      allow read: if approved();
-      allow create, update: if hasPerm('lock_quarter') || hasPerm('unlock_quarter');
+      allow read: if canAccessPerformance();
+      allow create, update: if canAccessPerformance() && (hasPerm('lock_quarter') || hasPerm('unlock_quarter'));
       allow delete: if superAdmin();
     }
 
     match /gap_analysis/{docId} {
-      allow read: if approved() && (
+      allow read: if canAccessPerformance() && (
         admin() || executive() || hasPerm('view_all_departments') ||
         (('dept' in resource.data) && sameDepartment(resource.data.dept))
       );
-      allow create: if hasPerm('edit_gap_analysis') &&
+      allow create: if canAccessPerformance() && hasPerm('edit_gap_analysis') &&
         request.resource.data.dept is string &&
         (admin() || sameDepartment(request.resource.data.dept));
-      allow update: if hasPerm('edit_gap_analysis') &&
+      allow update: if canAccessPerformance() && hasPerm('edit_gap_analysis') &&
         resource.data.dept is string && request.resource.data.dept is string &&
         (admin() || sameDepartment(resource.data.dept)) &&
         request.resource.data.dept == resource.data.dept;
@@ -201,14 +219,14 @@ service cloud.firestore {
     }
 
     match /action_plans/{docId} {
-      allow read: if approved() && (
+      allow read: if canAccessPerformance() && (
         admin() || executive() || hasPerm('view_all_departments') ||
         (('dept' in resource.data) && sameDepartment(resource.data.dept))
       );
-      allow create: if hasPerm('edit_actions') &&
+      allow create: if canAccessPerformance() && hasPerm('edit_actions') &&
         request.resource.data.dept is string &&
         (admin() || sameDepartment(request.resource.data.dept));
-      allow update: if hasPerm('edit_actions') &&
+      allow update: if canAccessPerformance() && hasPerm('edit_actions') &&
         resource.data.dept is string && request.resource.data.dept is string &&
         (admin() || sameDepartment(resource.data.dept)) &&
         request.resource.data.dept == resource.data.dept;
@@ -230,8 +248,8 @@ service cloud.firestore {
 
     // ── Existing dashboard documents ─────────────────────────────────
     match /kpi_dashboard/state {
-      allow read: if approved();
-      allow create, update: if approved() && (
+      allow read: if canAccessPerformance();
+      allow create, update: if canAccessPerformance() && (
         admin() || hasPerm('edit_kpi') || hasPerm('edit_gap_analysis') ||
         hasPerm('edit_actions') || hasPerm('edit_targets') ||
         hasPerm('approve_changes') || hasPerm('lock_quarter') ||
@@ -257,19 +275,19 @@ service cloud.firestore {
 
     // Shared approved report/manual/compliance PDF libraries.
     match /kpi_dashboard/grc_reports_index {
-      allow read: if approved();
+      allow read: if canAccessGrc();
       allow write: if admin();
     }
     match /kpi_dashboard/grc_compliance_documents_index {
-      allow read: if approved();
+      allow read: if canAccessGrc();
       allow write: if admin();
     }
     match /kpi_dashboard/grc_operational_plans_index {
-      allow read: if approved();
+      allow read: if canAccessGrc();
       allow write: if admin();
     }
     match /kpi_dashboard/{chunkId} {
-      allow read: if approved() && chunkId.matches('grc_report_.*');
+      allow read: if canAccessGrc() && chunkId.matches('grc_report_.*');
       allow write: if admin() && chunkId.matches('grc_report_.*');
     }
 
@@ -293,7 +311,7 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_manuals/{recordId} {
-      allow read: if approved();
+      allow read: if canAccessGrc();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
@@ -313,37 +331,37 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_codes/{recordId} {
-      allow read: if approved();
+      allow read: if canAccessGrc();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_compliance/{recordId} {
-      allow read: if approved();
+      allow read: if canAccessGrc();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_audits/{recordId} {
-      allow read: if approved();
+      allow read: if canAccessGrc();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_actions/{recordId} {
-      allow read: if approved();
+      allow read: if canAccessGrc();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_documents/{recordId} {
-      allow read: if approved();
+      allow read: if canAccessGrc();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_initiatives/{recordId} {
-      allow read: if approved();
+      allow read: if canAccessGrc();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
@@ -372,13 +390,13 @@ service cloud.firestore {
     }
 
     match /grc_requests/{requestId} {
-      allow create: if approved() && ownEmail(request.resource.data.userEmail) &&
+      allow create: if canAccessGrc() && ownEmail(request.resource.data.userEmail) &&
         (
           !('department' in request.resource.data) ||
           request.resource.data.department == '' ||
           sameDepartment(request.resource.data.department)
         );
-      allow read: if approved() && (admin() || ownEmail(resource.data.userEmail));
+      allow read: if canAccessGrc() && (admin() || ownEmail(resource.data.userEmail));
       allow update: if admin();
       allow delete: if superAdmin();
     }
@@ -452,8 +470,8 @@ service cloud.firestore {
 
     // ── Risk and Incident approval workflow ──────────────────────────
     function canSubmitRiskRequest() {
-      return approved() && (
-        kpiOwner() || hasPerm('edit_risk_management') ||
+      return canAccessGrc() && (
+        riskOwner() || hasPerm('edit_risk_management') ||
         hasPerm('edit_incident_register')
       );
     }
@@ -493,7 +511,7 @@ service cloud.firestore {
         request.resource.data.operation in ['add', 'update', 'delete'] &&
         request.resource.data.status == 'pending_manager';
 
-      allow read: if approved() && (
+      allow read: if canAccessGrc() && (
         admin() ||
         ownEmail(resource.data.submittedByEmail) ||
         (departmentManager() && sameDepartment(resource.data.department))

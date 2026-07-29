@@ -118,13 +118,13 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <div style="width:36px;height:2px;background:linear-gradient(90deg,#0195af,#4ADE80);border-radius:2px;margin:10px auto 4px"></div>
 <div style="font-size:9px;color:rgba(255,255,255,.35)">Qassim University Medical City · Facility Management &amp; Safety Division</div>
 </div>
-<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%;max-width:520px">
-<div onclick="window._selectPortal('performance')" onmouseout="this.style.background='rgba(255,255,255,.10)';this.style.borderColor='rgba(255,255,255,.25)';this.style.transform='none'" onmouseover="this.style.background='rgba(74,222,128,.18)';this.style.borderColor='#4ADE80';this.style.transform='translateY(-5px)'" style="background:rgba(255,255,255,.10);border:1.5px solid rgba(255,255,255,.25);border-radius:20px;padding:36px 24px;text-align:center;cursor:pointer;transition:all .22s;box-shadow:0 8px 32px rgba(0,0,0,.25)">
+<div id="_portalCardGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%;max-width:520px">
+<div id="_portalPerformanceCard" onclick="window._selectPortal('performance')" onmouseout="this.style.background='rgba(255,255,255,.10)';this.style.borderColor='rgba(255,255,255,.25)';this.style.transform='none'" onmouseover="this.style.background='rgba(74,222,128,.18)';this.style.borderColor='#4ADE80';this.style.transform='translateY(-5px)'" style="background:rgba(255,255,255,.10);border:1.5px solid rgba(255,255,255,.25);border-radius:20px;padding:36px 24px;text-align:center;cursor:pointer;transition:all .22s;box-shadow:0 8px 32px rgba(0,0,0,.25)">
 <div style="width:56px;height:56px;border-radius:16px;background:rgba(74,222,128,.18);margin:0 auto 16px;display:flex;align-items:center;justify-content:center"><svg fill="none" height="28" stroke="#4ADE80" stroke-linecap="round" stroke-width="2" viewbox="0 0 24 24" width="28"><rect height="14" rx="2" width="20" x="2" y="3"></rect><line x1="8" x2="16" y1="21" y2="21"></line><line x1="12" x2="12" y1="17" y2="21"></line><polyline points="6 9 9 12 13 9 17 6"></polyline></svg></div>
 <div style="font-size:17px;font-weight:900;color:#fff;margin-bottom:7px">Performance</div>
 <div style="font-size:10px;color:rgba(255,255,255,.40);line-height:1.6">KPI Dashboard<br/>Performance Tracking</div>
 </div>
-<div onclick="if(typeof window._openGrcPortal==='function'){window._openGrcPortal()}else if(typeof window._selectPortal==='function'){window._selectPortal('governance')}" onmouseout="this.style.background='rgba(255,255,255,.10)';this.style.borderColor='rgba(255,255,255,.25)';this.style.transform='none'" onmouseover="this.style.background='rgba(1,149,175,.18)';this.style.borderColor='#0195af';this.style.transform='translateY(-5px)'" style="background:rgba(255,255,255,.10);border:1.5px solid rgba(255,255,255,.25);border-radius:20px;padding:36px 24px;text-align:center;cursor:pointer;transition:all .22s;box-shadow:0 8px 32px rgba(0,0,0,.25)">
+<div id="_portalGrcCard" onclick="if(typeof window._openGrcPortal==='function'){window._openGrcPortal()}else if(typeof window._selectPortal==='function'){window._selectPortal('governance')}" onmouseout="this.style.background='rgba(255,255,255,.10)';this.style.borderColor='rgba(255,255,255,.25)';this.style.transform='none'" onmouseover="this.style.background='rgba(1,149,175,.18)';this.style.borderColor='#0195af';this.style.transform='translateY(-5px)'" style="background:rgba(255,255,255,.10);border:1.5px solid rgba(255,255,255,.25);border-radius:20px;padding:36px 24px;text-align:center;cursor:pointer;transition:all .22s;box-shadow:0 8px 32px rgba(0,0,0,.25)">
 <div style="width:56px;height:56px;border-radius:16px;background:rgba(1,149,175,.20);margin:0 auto 16px;display:flex;align-items:center;justify-content:center"><svg fill="none" height="28" stroke="#0195af" stroke-linecap="round" stroke-width="2" viewbox="0 0 24 24" width="28"><rect height="3" rx="1" width="20" x="2" y="18"></rect><rect height="3" rx="1" width="20" x="2" y="3"></rect><rect height="12" width="2" x="4" y="6"></rect><rect height="12" width="2" x="11" y="6"></rect><rect height="12" width="2" x="18" y="6"></rect></svg></div>
 <div style="font-size:17px;font-weight:900;color:#fff;margin-bottom:7px">GRC</div>
 <div data-ar="الحوكمة · إدارة المخاطر&lt;br&gt;والالتزام" data-en="Governance · Risk Management&lt;br&gt;&amp; Compliance" style="font-size:10px;color:rgba(255,255,255,.40);line-height:1.6">Governance · Risk Management<br/>&amp; Compliance</div>
@@ -777,18 +777,18 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
      ═══════════════════════════════════════════════════════ -->
 
 <!-- Firebase module (ES import syntax — must be type=module) -->
-<script type="module" src="js/firebase.js?v=20260729-v83"></script>
+<script type="module" src="js/firebase.js?v=20260729-v84"></script>
 
 <!-- Application modules (loaded in dependency order) -->
-<script src="js/kpi.js?v=20260709-shared-audit-v1"></script>
+<script src="js/kpi.js?v=20260729-v84"></script>
 <script src="js/translations.js?v=20260727-v67"></script>
-<script src="js/dashboard.js?v=20260705-yoy-latest-quarter"></script>
-<script src="js/reports.js?v=20260726-grc-rootfix-v63"></script>
-<script src="js/admin.js?v=20260623-emergency-loadfix-v1"></script>
-<script src="js/notifications.js?v=20260709-shared-audit-v1"></script>
+<script src="js/dashboard.js?v=20260729-v84"></script>
+<script src="js/reports.js?v=20260729-v84"></script>
+<script src="js/admin.js?v=20260729-v84"></script>
+<script src="js/notifications.js?v=20260729-v84"></script>
 <script src="js/auth.js?v=20260623-emergency-loadfix-v1"></script>
-<script src="js/grc.js?v=20260729-v83"></script>
-<script src="js/grc-risk-workflow.js?v=20260728-v74"></script>
+<script src="js/grc.js?v=20260729-v84"></script>
+<script src="js/grc-risk-workflow.js?v=20260729-v84"></script>
 <script src="js/grc-chat.js?v=20260727-v67"></script>
 <script src="js/grc-export.js?v=20260728-v81"></script>
 <script src="js/advisory.js?v=20260729-v83"></script>

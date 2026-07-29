@@ -1,0 +1,75 @@
+إعداد أدوار Risk Owner وPerformance & GRC Owner — النسخة v84
+===============================================================
+
+الأدوار الجديدة
+---------------
+1) risk_owner
+   الاسم الظاهر: Risk Owner
+   المنصة: GRC فقط
+   النطاق: القسم المحدد في users/{email}.dept
+   الصلاحيات: Risk Register وIncident Register، وتغيير حالة الخطر Open/Closed مباشرة.
+   أي تعديل آخر يمر بمسار الاعتماد.
+
+2) platform_owner
+   الاسم الظاهر: Performance & GRC Owner
+   المنصات: Performance وGRC
+   النطاق: القسم المحدد في users/{email}.dept
+   في Performance يتعامل مثل KPI Owner.
+   في GRC يتعامل مثل Risk Owner.
+
+طريقة التطبيق
+-------------
+1. استبدلي ملفات المنصة الموجودة داخل ZIP.
+2. انسخي محتوى firestore.rules إلى:
+   Firebase Console → Firestore Database → Rules
+   ثم اضغطي Publish.
+3. سجلي الخروج ثم ادخلي بحساب Super Admin مرة واحدة.
+   النظام سينشئ تلقائيًا إن لم تكن موجودة:
+   config_roles/risk_owner
+   config_roles/platform_owner
+4. من Firestore Database افتحي مجموعة users ثم مستند المستخدم، واسندي أحد الدورين.
+
+مثال Risk Owner لقسم السلامة
+----------------------------
+users/user@example.com
+{
+  "approved": true,
+  "role": "risk_owner",
+  "dept": "safety"
+}
+
+مثال Owner للمنصتين لقسم الصيانة
+--------------------------------
+users/user@example.com
+{
+  "approved": true,
+  "role": "platform_owner",
+  "dept": "maintenance",
+  "assignedKpis": ["MNT-01", "MNT-02"]
+}
+
+حقل assignedKpis اختياري:
+- عند وجوده، يرى Platform Owner مؤشرات KPI المحددة فقط داخل قسمه.
+- عند حذفه أو تركه مصفوفة فارغة، يرى جميع مؤشرات KPI التابعة لقسمه.
+
+قيم الأقسام المعتمدة
+--------------------
+maintenance
+safety
+housekeeping
+laundry
+projects
+governance
+division
+
+النتيجة المتوقعة
+----------------
+- KPI Owner: تظهر له بطاقة Performance فقط.
+- Risk Owner: تظهر له بطاقة GRC فقط.
+- Performance & GRC Owner: تظهر له البطاقتان.
+- لا يمكن تجاوز بطاقة المنصة المخفية باستدعاء الرابط أو الدالة مباشرة؛ قواعد Firestore تمنع قراءة منصة غير مصرح بها.
+
+التحقق
+------
+بعد تسجيل الدخول بحساب Super Admin، تأكدي من وجود المستندين تحت config_roles.
+بعد تغيير دور مستخدم، يجب أن يسجل خروجًا ثم دخولًا حتى يتم تحميل الدور والصلاحيات الجديدة.
