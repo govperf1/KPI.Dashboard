@@ -1278,11 +1278,11 @@ body.grc-mode #grcApp>.footbar.grc-performance-footer{display:flex!important;vis
   border-radius:17px!important;
   padding:24px 26px!important;
   background:
-    radial-gradient(circle at 88% 18%,rgba(96,165,250,.18),transparent 28%),
-    linear-gradient(120deg,#152538 0%,#1E3E6A 62%,#075E73 100%)!important;
-  border:1px solid rgba(255,255,255,.08)!important;
-  border-bottom:4px solid #00A3C4!important;
-  box-shadow:0 14px 34px rgba(21,37,56,.18)!important;
+    radial-gradient(circle at 88% 18%,rgba(255,255,255,.05),transparent 28%),
+    linear-gradient(120deg,#123850 0%,#124B61 60%,#0E6277 100%)!important;
+  border:1px solid rgba(255,255,255,.06)!important;
+  border-bottom:3px solid #15B8D6!important;
+  box-shadow:0 14px 34px rgba(18,56,80,.16)!important;
 }
 #grcApp .grc-hero:after{
   display:block!important;
@@ -1290,7 +1290,7 @@ body.grc-mode #grcApp>.footbar.grc-performance-footer{display:flex!important;vis
   position:absolute!important;
   width:260px!important;
   height:260px!important;
-  border:45px solid rgba(255,255,255,.04)!important;
+  border:45px solid rgba(255,255,255,.045)!important;
   border-radius:50%!important;
   right:-90px!important;
   top:-120px!important;
