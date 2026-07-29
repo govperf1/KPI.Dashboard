@@ -239,13 +239,14 @@
     list.sort(function(a,b){return Number(b.year)-Number(a.year)||Number(b.quarter||0)-Number(a.quarter||0)||String(a.type).localeCompare(String(b.type));});
     REPORT_LIBRARY=list;reportLibraryLoaded=true;reportLibraryLoading=false;reportLibraryError='';
   }
+  function refreshManualsNavCount(){try{var n=countFor('manuals');Array.prototype.forEach.call(document.querySelectorAll('#grcApp .grc-page-tab'),function(tab){var action=String(tab.getAttribute('onclick')||'');if(action.indexOf("'manuals'")<0)return;var badge=tab.querySelector('.tab-badge');if(badge)badge.textContent=String(n);});}catch(_e){}}
   function ensureReportIndexListener(b){
     if(reportIndexUnsub)return;
     reportIndexUnsub=b.fs.onSnapshot(reportIndexRef(b),function(snap){
-      applyReportIndex(snap.exists()?snap.data():{reports:[]});
-      if(activeTab==='reports'||activeTab==='manuals')render();
+      applyReportIndex(snap.exists()?snap.data():{reports:[]});refreshManualsNavCount();
+      if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
     },function(err){
-      console.error('[GRC Reports] live sync failed',err);reportLibraryError=String(err&&err.code||err&&err.message||err||'sync-failed');reportLibraryLoaded=true;reportLibraryLoading=false;if(activeTab==='reports'||activeTab==='manuals')render();
+      console.error('[GRC Reports] live sync failed',err);reportLibraryError=String(err&&err.code||err&&err.message||err||'sync-failed');reportLibraryLoaded=true;reportLibraryLoading=false;if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
     });
   }
   function loadReportLibrary(force){
@@ -257,11 +258,11 @@
       ensureReportIndexListener(b);
       return b.fs.getDoc(reportIndexRef(b));
     }).then(function(snap){
-      applyReportIndex(snap.exists()?snap.data():{reports:[]});
-      if(activeTab==='reports'||activeTab==='manuals')render();
+      applyReportIndex(snap.exists()?snap.data():{reports:[]});refreshManualsNavCount();
+      if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
       return REPORT_LIBRARY;
     }).catch(function(err){
-      console.error('[GRC Reports] load failed',err);reportLibraryLoading=false;reportLibraryLoaded=true;reportLibraryError=String(err&&err.code||err&&err.message||err||'load-failed');if(activeTab==='reports'||activeTab==='manuals')render();return REPORT_LIBRARY;
+      console.error('[GRC Reports] load failed',err);reportLibraryLoading=false;reportLibraryLoaded=true;reportLibraryError=String(err&&err.code||err&&err.message||err||'load-failed');if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();return REPORT_LIBRARY;
     });
   }
   function loadReportManifest(){loadReportLibrary(false);}
@@ -964,7 +965,8 @@
     if(key==='governance')return state.policies.length+state.plans.length+state.forms.length;
     if(key==='risk')return state.risks.length+state.incidents.length+state.codes.length;
     if(key==='compliance')return CBAHI_FMS_ROWS.length+COMPLIANCE_DOCUMENT_SEED.length+(Array.isArray(state.compliance)?state.compliance.length:0);
-    if(key==='register')return countFor('governance')+countFor('risk')+state.manuals.length+state.compliance.length+state.audits.length+state.actions.length;
+    if(key==='manuals'){var guideCount=0;try{guideCount=Object.keys(guideGroups()).length;}catch(_e){}return guideCount||(Array.isArray(state.manuals)?state.manuals.length:0);}
+    if(key==='register')return countFor('governance')+countFor('risk')+countFor('manuals')+state.compliance.length+state.audits.length+state.actions.length;
     return Array.isArray(state[key])?state[key].length:0;
   }
   function recordExpiryDate(r){return parseDate(r.expiryDate||r.reviewDate||r.endDate||r.validUntil||r.expirationDate);}
