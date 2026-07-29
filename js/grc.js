@@ -2065,7 +2065,7 @@
     if(dept==='laundry')return raw.indexOf('laund')>=0;
     return raw.indexOf(dept)>=0;
   }
-  function cbahiRowsForDept(dept){return cbahiRowsForDept(dept).filter(function(r){return assessmentRowMatchesDept(r,dept);});}
+  function cbahiRowsForDept(dept){return assessmentRows('cbahi',CBAHI_FMS_ROWS).filter(function(r){return assessmentRowMatchesDept(r,dept);});}
   function jciRowsForDept(dept){return normalizedJciRows().filter(function(r){return assessmentRowMatchesDept(r,dept);});}
   function cbahiSummary(dept){
     var status={fully:0,partial:0,notmet:0,na:0},standards={};
