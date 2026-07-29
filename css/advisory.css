@@ -104,16 +104,14 @@
 :is(#grcApp,#performanceAdvisoryRoot) .adv-message.admin{background:#eff9fa;border-color:#cde8eb}.adv-message.requester{background:#f8f7fc;border-color:#e4def2}
 :is(#grcApp,#performanceAdvisoryRoot) .adv-message-head{display:flex;justify-content:space-between;gap:12px;font-size:8px;color:#7b8f99;margin-bottom:6px}.adv-message-body{font-size:9.5px;line-height:1.6;color:#35515f;white-space:pre-wrap}
 :is(#grcApp,#performanceAdvisoryRoot) .adv-stars{display:flex;gap:5px;direction:ltr}.adv-star{width:35px;height:35px;border:1px solid #e3d29b;border-radius:10px;background:#fffaf0;color:#d69e16;font-size:18px;cursor:pointer}
-:is(#grcApp,#performanceAdvisoryRoot) .adv-management-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 :is(#grcApp,#performanceAdvisoryRoot) .adv-chip-list{display:flex;gap:6px;flex-wrap:wrap}.adv-chip{display:inline-flex;padding:5px 8px;border-radius:999px;background:#eef6f7;color:#3c6570;border:1px solid #d3e7e9;font-size:8px}
-:is(#grcApp,#performanceAdvisoryRoot) .adv-workflow{display:grid;gap:8px}.adv-workflow-step{display:grid;grid-template-columns:28px minmax(0,1fr);gap:9px;align-items:start}.adv-workflow-step b{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;background:#e9f6f7;color:#147f8d;font-size:9px}.adv-workflow-step strong{display:block;font-size:9.5px;color:#315665}.adv-workflow-step span{display:block;font-size:8px;color:#7b8e98;margin-top:2px;line-height:1.45}
 :is(#grcApp,#performanceAdvisoryRoot) .adv-loading{padding:42px;text-align:center;color:#718692;font-size:10px}.adv-loading:before{content:"";display:block;width:27px;height:27px;border:3px solid #dcebed;border-top-color:#1596a5;border-radius:50%;margin:0 auto 10px;animation:advSpin .8s linear infinite}@keyframes advSpin{to{transform:rotate(360deg)}}
 :is(#grcApp,#performanceAdvisoryRoot) .adv-toast{position:fixed;left:22px;bottom:22px;z-index:2147483646;max-width:360px;padding:11px 14px;border-radius:11px;background:#173f55;color:#fff;font-size:9.5px;box-shadow:0 16px 42px rgba(0,0,0,.25)}
 :is(#grcApp,#performanceAdvisoryRoot) .adv-error{padding:11px 13px;border:1px solid #edc0c6;border-radius:11px;background:#fff2f3;color:#9e2c3a;font-size:9px;margin-bottom:11px}
 :is(#grcApp,#performanceAdvisoryRoot) .adv-personal-note{padding:10px 12px;border:1px solid #f1d69a;border-radius:11px;background:#fff8e7;color:#775100;font-size:9px;margin-bottom:11px;line-height:1.5}
 :is(#grcApp,#performanceAdvisoryRoot) .adv-attachment{display:inline-flex;align-items:center;gap:7px;padding:7px 9px;border:1px solid #d7e5e9;border-radius:9px;background:#f7fbfc;color:#315d68;font-size:8.5px;margin:3px;cursor:pointer}
 @media(max-width:1250px){:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-grid{grid-template-columns:repeat(3,minmax(130px,1fr))}}
-@media(max-width:900px){:is(#grcApp,#performanceAdvisoryRoot) .adv-module-grid{grid-template-columns:1fr}:is(#grcApp,#performanceAdvisoryRoot) .adv-grid-2,:is(#grcApp,#performanceAdvisoryRoot) .adv-action-grid,:is(#grcApp,#performanceAdvisoryRoot) .adv-management-grid{grid-template-columns:1fr}:is(#grcApp,#performanceAdvisoryRoot) .adv-detail-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:900px){:is(#grcApp,#performanceAdvisoryRoot) .adv-module-grid{grid-template-columns:1fr}:is(#grcApp,#performanceAdvisoryRoot) .adv-grid-2,:is(#grcApp,#performanceAdvisoryRoot) .adv-action-grid{grid-template-columns:1fr}:is(#grcApp,#performanceAdvisoryRoot) .adv-detail-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:620px){:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-grid{grid-template-columns:repeat(2,minmax(120px,1fr))}:is(#grcApp,#performanceAdvisoryRoot) .adv-form{grid-template-columns:1fr}:is(#grcApp,#performanceAdvisoryRoot) .adv-field.full{grid-column:auto}:is(#grcApp,#performanceAdvisoryRoot) .adv-detail-grid{grid-template-columns:1fr}:is(#grcApp,#performanceAdvisoryRoot) .adv-filters>*{width:100%;min-width:0}}
 
 
@@ -222,3 +220,40 @@ body > .adv-modal-backdrop .adv-form-dependency > label{
 .adv-success-warning{margin:0 0 15px;padding:9px 11px;border-radius:9px;background:#fff8e8;border:1px solid #f0dfb4;color:#7a5a13;font-size:10px;line-height:1.5}
 .adv-success-ok{min-width:116px;justify-content:center}
 @media(max-width:700px){.adv-success-card{padding:24px 18px}.adv-success-code{align-items:flex-start;flex-direction:column;gap:4px}}
+
+
+/* v83 — split request dashboards, simplified 3-state workflow, and staged Form dependency selector */
+:is(#grcApp,#performanceAdvisoryRoot) .adv-type-dashboard{
+  margin:14px 0;
+  padding:15px;
+  border:1px solid #dce7eb;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 5px 18px rgba(17,52,70,.045);
+}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-type-dashboard + .adv-type-dashboard{margin-top:12px;}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-type-dashboard-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:12px;
+}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-type-dashboard-head h3{margin:0;color:#173f55;font-size:12px;font-weight:900;}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-type-dashboard-head p{margin:4px 0 0;color:#748995;font-size:8.5px;line-height:1.45;}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-type-dashboard-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:12px;}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-status-summary-3{grid-template-columns:repeat(3,minmax(0,1fr));}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-status-tile.open{background:#f4f8fb;border-color:#dce8ee;color:#31596b;}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-status-tile.in-progress{background:#fff8e8;border-color:#f0ddb1;color:#8a6214;}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-status-tile.closed{background:#eaf7f1;border-color:#c9e7da;color:#177454;}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-status.open,
+body > .adv-modal-backdrop .adv-status.open{background:#eef4f7;color:#456675;border-color:#d5e2e8;}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-status.in_progress,
+body > .adv-modal-backdrop .adv-status.in_progress{background:#fff4d8;color:#8b6100;border-color:#efdba7;}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-status.closed,
+body > .adv-modal-backdrop .adv-status.closed{background:#e7f6ef;color:#187554;border-color:#c6e5d7;}
+body > .adv-modal-backdrop #advFormDependencyOptions{margin-top:3px;}
+body > .adv-modal-backdrop .adv-form-dependency > select{width:100%;box-sizing:border-box;border:1px solid #cfdee3;border-radius:11px;background:#fff;color:#173f55;padding:10px 11px;font:inherit;font-size:10px;outline:none;}
+body > .adv-modal-backdrop .adv-form-dependency > select:focus{border-color:#4baeb9;box-shadow:0 0 0 3px rgba(75,174,185,.12);}
+@media(max-width:900px){:is(#grcApp,#performanceAdvisoryRoot) .adv-type-dashboard-metrics{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:560px){:is(#grcApp,#performanceAdvisoryRoot) .adv-type-dashboard-metrics,:is(#grcApp,#performanceAdvisoryRoot) .adv-status-summary-3{grid-template-columns:1fr;}}
