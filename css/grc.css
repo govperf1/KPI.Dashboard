@@ -1226,16 +1226,17 @@ body.grc-mode #grcApp>.footbar.grc-performance-footer{display:flex!important;vis
   display:inline-grid!important;
   place-items:center!important;
   border-radius:10px!important;
-  border:1px solid #3A5063!important;
-  background:#192835!important;
-  color:#fff!important;
+  border:1px solid #D6E2EE!important;
+  background:#FFFFFF!important;
+  color:#152538!important;
   cursor:pointer!important;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.06)!important;
+  box-shadow:0 4px 12px rgba(21,37,56,.08), inset 0 1px 0 rgba(255,255,255,.9)!important;
   flex:0 0 auto!important;
 }
 #grcApp .grc-admin-settings-btn:hover{
-  background:#21384A!important;
-  border-color:#4C687D!important;
+  background:#F7FAFC!important;
+  border-color:#BFD2DF!important;
+  color:#152538!important;
 }
 
 
@@ -1269,4 +1270,68 @@ body.grc-mode #grcApp>.footbar.grc-performance-footer{display:flex!important;vis
 }
 #grcApp .grc-performance-footer{
   box-shadow:0 -2px 16px rgba(20,37,55,.18)!important;
+}
+
+
+/* v99 — restore internal GRC page banners; logo-color change remains header/footer only */
+#grcApp .grc-hero{
+  border-radius:17px!important;
+  padding:24px 26px!important;
+  background:
+    radial-gradient(circle at 88% 18%,rgba(96,165,250,.18),transparent 28%),
+    linear-gradient(120deg,#152538 0%,#1E3E6A 62%,#075E73 100%)!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  border-bottom:4px solid #00A3C4!important;
+  box-shadow:0 14px 34px rgba(21,37,56,.18)!important;
+}
+#grcApp .grc-hero:after{
+  display:block!important;
+  content:""!important;
+  position:absolute!important;
+  width:260px!important;
+  height:260px!important;
+  border:45px solid rgba(255,255,255,.04)!important;
+  border-radius:50%!important;
+  right:-90px!important;
+  top:-120px!important;
+}
+#grcApp .grc-exec-domain-head{
+  display:flex!important;
+  align-items:flex-start!important;
+  justify-content:space-between!important;
+  gap:16px!important;
+  background:transparent!important;
+  border:0!important;
+  border-bottom:1px solid #EEF2F6!important;
+  border-radius:0!important;
+  padding:3px 0 17px!important;
+  margin-bottom:18px!important;
+  box-shadow:none!important;
+}
+#grcApp .grc-exec-domain-head h2{
+  color:#152538!important;
+  font-size:18px!important;
+}
+#grcApp .grc-exec-domain-head p{
+  color:#7A8B9D!important;
+  font-size:9.5px!important;
+  max-width:760px!important;
+}
+#grcApp .grc-exec-domain-kicker{
+  width:40px!important;
+  height:40px!important;
+  border-radius:12px!important;
+  background:#ECFEFF!important;
+  border:0!important;
+  color:#007A96!important;
+}
+#grcApp .risk-domain .grc-exec-domain-kicker{
+  background:#EFF6FF!important;
+  color:#1E3E6A!important;
+}
+#grcApp .grc-exec-domain-badge{
+  padding:7px 12px!important;
+  background:#F7FAFC!important;
+  border:1px solid #E2E8F0!important;
+  color:#475569!important;
 }
