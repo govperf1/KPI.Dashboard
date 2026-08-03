@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v7 — QUMC Performance + GRC Owner Roles
+// FIRESTORE SECURITY RULES v8 — QUMC Performance + GRC Owner Roles
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -97,7 +97,20 @@ service cloud.firestore {
     }
 
     function ownEmail(value) {
-      return signedIn() && value == request.auth.token.email;
+      return signedIn() && value is string &&
+        value.lower() == request.auth.token.email.lower();
+    }
+
+    function ownUid(value) {
+      return signedIn() && value is string && value == request.auth.uid;
+    }
+
+    function rawUserDepartment(value) {
+      return approved() && value is string && (
+        (('deptKey' in userData()) && value == userData().deptKey) ||
+        (('dept' in userData()) && value == userData().dept) ||
+        (('department' in userData()) && value == userData().department)
+      );
     }
 
     // Accept current user-document labels while secure records use canonical keys.
@@ -166,6 +179,22 @@ service cloud.firestore {
 
     function canWriteGrcRecord() {
       return admin();
+    }
+
+    // Action Status is the only Risk field that a Risk Owner may publish
+    // directly. Every other Risk field still requires the approval workflow.
+    function directRiskStatusChange() {
+      return canAccessGrc() &&
+        (riskOwner() || hasPerm('submit_risk_changes') || hasPerm('edit_risk_management')) &&
+        sameDepartment(resource.data.department) &&
+        request.resource.data.department == resource.data.department &&
+        request.resource.data.visibility == resource.data.visibility &&
+        request.resource.data.schemaVersion == resource.data.schemaVersion &&
+        request.resource.data.actionStatus is string &&
+        request.resource.data.actionStatus.lower() in ['open', 'closed'] &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'actionStatus', 'updatedAt', 'updatedBy', 'updatedByEmail', 'cloudUpdatedAt'
+        ]);
     }
 
     // ── Users and role definitions ────────────────────────────────────
@@ -334,10 +363,9 @@ service cloud.firestore {
     match /grc_risks/{recordId} {
       allow read: if canReadDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
-      // Risk Owners never publish directly. Add/update/status/delete changes are
-      // submitted to grc_risk_requests and only Admin/Super Admin can write the
-      // published register document after approval.
-      allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
+      allow update: if
+        (canWriteGrcRecord() && validGrcRecord(request.resource.data)) ||
+        (validGrcRecord(request.resource.data) && directRiskStatusChange());
       allow delete: if canWriteGrcRecord();
     }
     match /grc_incidents/{recordId} {
@@ -492,6 +520,27 @@ service cloud.firestore {
       );
     }
 
+    function riskRequestOwner(data) {
+      return
+        (('submittedByUid' in data) && ownUid(data.submittedByUid)) ||
+        (('submittedByEmail' in data) && ownEmail(data.submittedByEmail));
+    }
+
+    function riskRequestDepartment(data) {
+      return
+        (('department' in data) && sameDepartment(data.department)) ||
+        (('departmentKey' in data) && sameDepartment(data.departmentKey)) ||
+        (('departmentRaw' in data) && rawUserDepartment(data.departmentRaw));
+    }
+
+    function validRiskStatusOverride(data) {
+      return data.recordId is string &&
+        data.department is string &&
+        data.actionStatus is string &&
+        data.actionStatus.lower() in ['open', 'closed'] &&
+        data.schemaVersion == 1;
+    }
+
     function riskRequesterChange() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'proposedRecord', 'changedFields', 'requesterNote', 'managerNote',
@@ -521,29 +570,49 @@ service cloud.firestore {
 
     match /grc_risk_requests/{requestId} {
       allow create: if canSubmitRiskRequest() &&
-        ownEmail(request.resource.data.submittedByEmail) &&
-        sameDepartment(request.resource.data.department) &&
+        riskRequestOwner(request.resource.data) &&
+        riskRequestDepartment(request.resource.data) &&
         request.resource.data.recordType in ['risk', 'incident'] &&
         request.resource.data.operation in ['add', 'update', 'delete'] &&
         request.resource.data.status == 'pending_manager';
 
       allow read: if canAccessGrc() && (
         admin() ||
-        ownEmail(resource.data.submittedByEmail) ||
-        (departmentManager() && sameDepartment(resource.data.department))
+        riskRequestOwner(resource.data) ||
+        (departmentManager() && riskRequestDepartment(resource.data))
       );
 
       allow update: if
         (
-          approved() && ownEmail(resource.data.submittedByEmail) &&
+          approved() && riskRequestOwner(resource.data) &&
           riskRequesterChange() && validRequesterRiskTransition()
         ) ||
         (
-          departmentManager() && sameDepartment(resource.data.department) &&
+          departmentManager() && riskRequestDepartment(resource.data) &&
           riskManagerChange() && validManagerRiskTransition()
         ) || superAdmin();
 
       allow delete: if superAdmin();
+    }
+
+    // Direct Open/Closed state for approved baseline risks that pre-date the
+    // per-record cloud migration. This collection stores status only; it cannot
+    // be used to add or edit Risk Register content.
+    match /grc_risk_status/{recordId} {
+      allow read: if canAccessGrc() && (
+        viewAllGrcDepartments() ||
+        (('department' in resource.data) && sameDepartment(resource.data.department)) ||
+        (('departmentRaw' in resource.data) && rawUserDepartment(resource.data.departmentRaw))
+      );
+      allow create, update: if canSubmitRiskRequest() &&
+        validRiskStatusOverride(request.resource.data) &&
+        riskRequestDepartment(request.resource.data) &&
+        request.resource.data.keys().hasOnly([
+          'recordId', 'cloudId', 'department', 'departmentRaw', 'actionStatus',
+          'updatedAt', 'updatedAtIso', 'updatedBy', 'updatedByEmail',
+          'updatedByUid', 'schemaVersion'
+        ]);
+      allow delete: if admin();
     }
 
     match /grc_risk_request_counters/{counterId} {
