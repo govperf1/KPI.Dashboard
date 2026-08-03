@@ -799,7 +799,25 @@
   var GRC_GLOBAL_READ_COLLECTIONS={manuals:true,codes:true,compliance:true,audits:true,actions:true,documents:true,initiatives:true};
   var grcStateUnsubs=[],grcStateSaveTimer=null,grcApplyingRemote=false,grcSyncStarted=false,grcCloudReady=false;
   var grcCloudParts={},grcCloudMirror={},grcInitialScopes={},grcMigrationPromise=null,grcPendingCloudSave=false;
-  var grcRiskStatusOverrides={},grcRiskStatusUnsub=null;
+  var grcRiskStatusOverrides={},grcRiskStatusUnsub=null,grcSyncScopeKey='';
+
+  function grcSyncIdentityKey(){
+    var email=String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();
+    var role=String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_');
+    var dept=currentGrcDept();
+    var all=canViewAllExecutiveDepartments()?'all':'scoped';
+    return[email,role,dept,all].join('|');
+  }
+  function stopSharedStateSync(){
+    grcStateUnsubs.splice(0).forEach(function(u){try{u&&u();}catch(_){}});
+    if(grcRiskStatusUnsub){try{grcRiskStatusUnsub();}catch(_){}grcRiskStatusUnsub=null;}
+    grcSyncStarted=false;grcCloudReady=false;grcCloudParts={};grcCloudMirror={};grcInitialScopes={};grcPendingCloudSave=false;grcSyncScopeKey='';
+  }
+  window._grcRestartSecureSync=function(){
+    var wanted=grcSyncIdentityKey();
+    if(grcSyncStarted&&grcSyncScopeKey===wanted)return;
+    stopSharedStateSync();startSharedStateSync();
+  };
 
   function grcSharedStateRef(b){return b.fs.doc(b.db,'kpi_dashboard',GRC_SHARED_STATE_DOC);}
   function grcMigrationRef(b){return b.fs.doc(b.db,'grc_meta',GRC_MIGRATION_DOC);}
@@ -893,6 +911,18 @@
       var id=grcCloudDocId(collectionKey,r,i);if(map[id])grcCloudMirror[collectionKey][id]=grcComparable(r);
     });
   }
+  window._grcApplyPublishedRegisterRecord=function(recordType,operation,record){
+    var key=String(recordType||'risk').toLowerCase()==='incident'?'incidents':'risks',op=String(operation||'').toLowerCase(),r=copyRecord(record||{}),rows=(state[key]||[]).slice();
+    var cloudId=String(r._cloudId||r.cloudId||''),recordKey=String(r.id||r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    function same(x,i){var xid=String(x&&x._cloudId||x&&x.cloudId||''),xkey=String(x&&x.id||x&&x.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');return(cloudId&&xid===cloudId)||(recordKey&&xkey===recordKey);}
+    var at=rows.findIndex(same);
+    if(op==='delete'){if(at>=0)rows.splice(at,1);}
+    else{if(key==='risks')r=normalizeRiskClassification(r);if(at>=0)rows[at]=Object.assign({},rows[at],r);else rows.push(r);}
+    state[key]=rows;if(key==='risks')state.risks=applyRiskStatusOverrides(state.risks);state=repairGovernanceCodeState(state);enforceLocalGrcScope();
+    try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}
+    renderAtSamePosition(grcViewportPosition());
+  };
+
   function grcAllInitialScopesReady(){return Object.keys(GRC_COLLECTION_MAP).every(function(k){return grcInitialScopes[k]===true;});}
   function grcHandleCollectionSnapshot(collectionKey,scope,snapshot){
     grcCloudParts[collectionKey]=grcCloudParts[collectionKey]||{};grcCloudParts[collectionKey][scope]=grcDocsFromSnapshot(snapshot);grcInitialScopes[collectionKey]=true;
@@ -949,7 +979,18 @@
     grcRiskStatusUnsub=b.fs.onSnapshot(qref,function(snap){var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});grcRiskStatusOverrides=next;if(grcCloudParts.risks){grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}grcApplyingRemote=false;renderAtSamePosition(grcViewportPosition());}},function(err){console.warn('[GRC Risk Status] sync failed',err);});
   }
   function startSharedStateSync(){
-    if(grcSyncStarted)return;ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;grcSyncStarted=true;enforceLocalGrcScope();
+    var profileEmail=String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();
+    var wanted=grcSyncIdentityKey(),deptNow=currentGrcDept(),canAllNow=canViewAllExecutiveDepartments();
+    /* Firebase Auth can become ready before the Firestore user profile. Do not
+       lock the GRC sync into an empty department scope. Wait until the resolved
+       profile (role + department) is available, then bind the live listeners. */
+    if(!profileEmail)return;
+    if(!canAllNow&&!deptNow)return;
+    if(grcSyncStarted&&grcSyncScopeKey===wanted)return;
+    if(grcSyncStarted&&grcSyncScopeKey!==wanted)stopSharedStateSync();
+    ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;
+      var actual=grcSyncIdentityKey();if(actual!==wanted){stopSharedStateSync();setTimeout(startSharedStateSync,0);return;}
+      grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
       if(isGrcAdmin()){
         try{await migrateLegacyGrcState(b,false);}catch(err){console.error('[GRC Secure Migration] automatic migration did not complete',err);}
         try{await ensureRequiredGrcBaselineRecords(b);}catch(err2){console.error('[GRC Baseline Repair] approved records could not be repaired',err2);}
