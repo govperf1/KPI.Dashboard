@@ -337,13 +337,13 @@
   function positiveStatus(v){return /active|valid|available|complete|completed|closed|met|compliant|approved|published/i.test(String(v||''))&&!/not met|non.?compliant|invalid|expired/i.test(String(v||''));}
   function attentionStatus(v){return /expired|invalid|open|pending|high|critical|not met|partial|overdue|failed|rejected/i.test(String(v||''));}
   function metric(label,value,note,tone){return'<article class="grc-exec-metric '+(tone||'')+'"><span>'+esc(label)+'</span><strong>'+esc(value)+'</strong><small>'+esc(note||'')+'</small></article>';}
-  function barChart(title,counts,tone){var entries=Object.keys(counts||{}).map(function(k){return[k,Number(counts[k]||0)];}).filter(function(x){return x[1]>0;}).sort(function(a,b){return b[1]-a[1];}),max=Math.max(1,...entries.map(function(x){return x[1];}));return'<article class="grc-exec-chart '+(tone||'')+'"><div class="grc-exec-chart-head"><h3>'+esc(title)+'</h3><span>'+sumValues(counts)+' total</span></div><div class="grc-exec-bars">'+(entries.length?entries.slice(0,9).map(function(x){return'<div><label>'+esc(x[0])+'</label><i><b style="width:'+Math.max(4,Math.round(x[1]/max*100))+'%"></b></i><strong>'+x[1]+'</strong></div>';}).join(''):'<p class="grc-exec-empty">No data available for the selected scope.</p>')+'</div></article>';}
+  function barChart(title,counts,tone,extraClass){var entries=Object.keys(counts||{}).map(function(k){return[k,Number(counts[k]||0)];}).filter(function(x){return x[1]>0;}).sort(function(a,b){return b[1]-a[1];}),max=Math.max(1,...entries.map(function(x){return x[1];}));return'<article class="grc-exec-chart '+(extraClass||'')+' '+(tone||'')+'"><div class="grc-exec-chart-head"><h3>'+esc(title)+'</h3><span>'+sumValues(counts)+' total</span></div><div class="grc-exec-bars">'+(entries.length?entries.slice(0,9).map(function(x){return'<div><label>'+esc(x[0])+'</label><i><b style="width:'+Math.max(4,Math.round(x[1]/max*100))+'%"></b></i><strong>'+x[1]+'</strong></div>';}).join(''):'<p class="grc-exec-empty">No data available for the selected scope.</p>')+'</div></article>';}
   function coloredBarChart(title,counts,colorMap){var entries=Object.keys(counts||{}).map(function(k){return[k,Number(counts[k]||0)];}).filter(function(x){return x[1]>0;}),max=Math.max(1,...entries.map(function(x){return x[1];}));return'<article class="grc-exec-chart"><div class="grc-exec-chart-head"><h3>'+esc(title)+'</h3><span>'+sumValues(counts)+' total</span></div><div class="grc-exec-bars grc-exec-colored-bars">'+(entries.length?entries.map(function(x){var c=colorMap&&colorMap[String(x[0]).toLowerCase()]||'#0195af';return'<div><label><i class="grc-exec-color-dot" style="background:'+c+'"></i>'+esc(x[0])+'</label><i><b style="width:'+Math.max(4,Math.round(x[1]/max*100))+'%;background:'+c+'"></b></i><strong>'+x[1]+'</strong></div>';}).join(''):'<p class="grc-exec-empty">No data available for the selected scope.</p>')+'</div></article>';}
   function emergencyCodeName(r){var raw=String(r&& (r.codeType||r.emergencyCode||r.codeName||r.category)||'Other').trim().toLowerCase();if(raw.indexOf('brown')>=0)return'Brown Code';if(raw.indexOf('orange')>=0)return'Orange Code';if(raw.indexOf('red')>=0)return'Red Code';if(raw.indexOf('blue')>=0)return'Blue Code';if(raw.indexOf('yellow')>=0)return'Yellow Code';if(raw.indexOf('pink')>=0)return'Pink Code';return raw?raw.replace(/\b\w/g,function(c){return c.toUpperCase();}):'Other';}
   function emergencyCodeMetrics(rows){rows=Array.isArray(rows)?rows:[];var real=rows.filter(function(r){return /real/i.test(String(r.type||r.codeMode||''));}).length,drill=rows.filter(function(r){return /drill/i.test(String(r.type||r.codeMode||''));}).length,successful=rows.filter(function(r){return /successful|success|closed/i.test(reportStatus(r));}).length,failed=rows.filter(function(r){return /failed|failure|open/i.test(reportStatus(r));}).length;return{total:rows.length,real:real,drill:drill,successful:successful,failed:failed,failedRate:successful+failed?Math.round(failed/(successful+failed)*100):0};}
   function emergencyColorPanel(number,label,rows,tone,color){var m=emergencyCodeMetrics(rows);return'<div class="grc-exec-subsection grc-exec-code-color-panel" style="--code-color:'+color+'">'+subSectionHead(number,label,'Emergency-code activity, mode and outcome metrics for '+label.toLowerCase()+'.')+overviewBlock([metric('Total Codes',m.total,'Emergency-code records','navy'),metric('Real Code',m.real,'Actual emergency events','purple'),metric('Drill Code',m.drill,'Simulation and drill events','navy'),metric('Successful Code',m.successful,'Successful outcomes','teal'),metric('Failed Code',m.failed,'Failed outcomes','red'),metric('Failed Codes Rate',m.failedRate+'%','Failed ÷ successful and failed','amber')],[donutChart(label+' Mode',{Real:m.real,Drill:m.drill},m.total),donutChart(label+' Outcome',{Successful:m.successful,Failed:m.failed},m.total)])+'</div>';}
 
-  function donutChart(title,segments,center){var entries=Object.keys(segments||{}).map(function(k){return[k,Number(segments[k]||0)];}).filter(function(x){return x[1]>0;}),total=entries.reduce(function(n,x){return n+x[1];},0),colors=['#0195af','#153f55','#d89a2b','#7a5aa6','#cf5f69','#52a47c'],cursor=0,parts=[];entries.forEach(function(x,i){var end=total?cursor+(x[1]/total*100):cursor;parts.push(colors[i%colors.length]+' '+cursor.toFixed(2)+'% '+end.toFixed(2)+'%');cursor=end;});return'<article class="grc-exec-chart"><div class="grc-exec-chart-head"><h3>'+esc(title)+'</h3><span>'+total+' total</span></div><div class="grc-exec-donut-wrap"><div class="grc-exec-donut" style="background:conic-gradient('+(parts.length?parts.join(','):'#e7eef1 0 100%')+')"><div><strong>'+esc(center==null?total:center)+'</strong><span>Total</span></div></div><div class="grc-exec-legend">'+(entries.length?entries.map(function(x,i){return'<div><i style="background:'+colors[i%colors.length]+'"></i><span>'+esc(x[0])+'</span><strong>'+x[1]+'</strong></div>';}).join(''):'<p class="grc-exec-empty">No data</p>')+'</div></div></article>';}
+  function donutChart(title,segments,center,extraClass){var entries=Object.keys(segments||{}).map(function(k){return[k,Number(segments[k]||0)];}).filter(function(x){return x[1]>0;}),total=entries.reduce(function(n,x){return n+x[1];},0),colors=['#0195af','#153f55','#d89a2b','#7a5aa6','#cf5f69','#52a47c'],cursor=0,parts=[];entries.forEach(function(x,i){var end=total?cursor+(x[1]/total*100):cursor;parts.push(colors[i%colors.length]+' '+cursor.toFixed(2)+'% '+end.toFixed(2)+'%');cursor=end;});return'<article class="grc-exec-chart '+(extraClass||'')+'"><div class="grc-exec-chart-head"><h3>'+esc(title)+'</h3><span>'+total+' total</span></div><div class="grc-exec-donut-wrap"><div class="grc-exec-donut" style="background:conic-gradient('+(parts.length?parts.join(','):'#e7eef1 0 100%')+')"><div><strong>'+esc(center==null?total:center)+'</strong><span>Total</span></div></div><div class="grc-exec-legend">'+(entries.length?entries.map(function(x,i){return'<div><i style="background:'+colors[i%colors.length]+'"></i><span>'+esc(x[0])+'</span><strong>'+x[1]+'</strong></div>';}).join(''):'<p class="grc-exec-empty">No data</p>')+'</div></div></article>';}
   function reportHeatMap(rows){var counts={};(rows||[]).forEach(function(r){var l=Number(r.likelihood),i=Number(r.impact);if(l>=1&&l<=5&&i>=1&&i<=5)counts[l+'-'+i]=(counts[l+'-'+i]||0)+1;});var cells='';for(var l=5;l>=1;l--){for(var i=1;i<=5;i++){var score=l*i,tone=score>=15?'critical':score>=8?'high':score>=4?'medium':'low';cells+='<div class="'+tone+'"><small>'+l+'×'+i+'</small><strong>'+Number(counts[l+'-'+i]||0)+'</strong><span>'+score+'</span></div>';}}return'<article class="grc-exec-chart grc-exec-heat"><div class="grc-exec-chart-head"><h3>Risk Heat Map</h3><span>Likelihood × Impact</span></div><div class="grc-exec-heat-grid">'+cells+'</div><div class="grc-exec-heat-legend"><span class="low">Low 1–3</span><span class="medium">Medium 4–7</span><span class="high">High 8–14</span><span class="critical">Critical 15–25</span></div></article>';}
   function sectionHead(number,title,description,selectedLabels){return'<div class="grc-exec-section-head"><span>'+number+'</span><div><small>'+esc(String(title||'').toUpperCase())+'</small><h2>'+esc(title)+'</h2><p>'+esc(description)+'</p>'+(selectedLabels&&selectedLabels.length?'<div class="grc-exec-tags">'+selectedLabels.map(function(x){return'<b>'+esc(x)+'</b>';}).join('')+'</div>':'')+'</div></div>';}
   function selectedLabels(group,items){return group.items.filter(function(x){return items.indexOf(x[0])>=0;}).map(function(x){return x[1];});}
@@ -425,7 +425,7 @@
     rows.forEach(function(r){var members=initiativeMembers(r),fallback=Number(r.participants||r.participantCount||0);if(!members.length&&fallback){totalParticipants+=fallback;var rd=departmentTitle(r.department||'allFms');deptParticipants[rd]=(deptParticipants[rd]||0)+fallback;}members.forEach(function(m){totalParticipants++;var g=String(m.gender||'').toLowerCase();if(g==='female')gender.Female++;else if(g==='male')gender.Male++;var raw=normalizeDept(m.department||r.department||'');var d=raw==='maintenance'?'Maintenance':raw==='safety'?'Safety':(raw==='housekeeping'||raw==='laundry')?'Housekeeping':raw.indexOf('project')>=0?'Project Management':'FMS Division';deptParticipants[d]=(deptParticipants[d]||0)+1;});});
     var initiativeStatus={Proposed:proposed,Selected:selected},participantMetrics=[metric('Total Participants',totalParticipants,'Recorded participants','navy'),metric('Female',gender.Female,'Female participants','purple'),metric('Male',gender.Male,'Male participants','teal')];Object.keys(deptParticipants).forEach(function(d){participantMetrics.push(metric(d,deptParticipants[d],'Participants','navy'));});
     return'<section class="grc-exec-section">'+sectionHead(number,'Initiatives','An executive overview of improvement initiatives, implementation progress and participation across Facility Management & Safety departments.',labels)+
-      '<div class="grc-exec-subsection">'+subSectionHead(number+'.1','Participants','Participant distribution by gender and department.')+overviewBlock(participantMetrics,[barChart('Participants by Department',deptParticipants,'teal'),donutChart('Participants by Gender',gender,totalParticipants)])+'</div>'+
+      '<div class="grc-exec-subsection">'+subSectionHead(number+'.1','Participants','Participant distribution by gender and department.')+overviewBlock(participantMetrics,[barChart('Participants by Department',deptParticipants,'teal','grc-exec-participant-chart'),donutChart('Participants by Gender',gender,totalParticipants,'grc-exec-participant-chart')])+'</div>'+
       '<div class="grc-exec-subsection">'+subSectionHead(number+'.2','Initiatives','Proposed, selected and implementation progress of improvement initiatives.')+overviewBlock([
         metric('Total Initiatives',rows.length,'Registered initiatives','navy'),metric('Proposed Initiatives',proposed,'Proposed initiatives','amber'),metric('Selected Initiatives',selected,'Selected initiatives','teal'),metric('Done',done,'Completed selected initiatives','teal'),metric('In Progress',inProgress,'Selected initiatives in progress','amber'),metric('Completion Rate',avg+'%','Average progress of selected initiatives','purple')
       ],[donutChart('Initiative Status',initiativeStatus,rows.length),barChart('Initiatives by Department',departmentCounts(rows),'teal')])+'</div></section>';
@@ -490,6 +490,58 @@
     margin-right:0!important;
   }
 }`;
+    /* v106 — portrait report visual polish: equal participant chart cards,
+       compact border-free subsections, and full-width aligned overview cards. */
+    style.textContent += `
+.grc-exec-subsection{
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  padding:0!important;
+  margin-top:16px!important;
+}
+.grc-exec-subsection-head{padding:0 0 9px!important;}
+.grc-exec-overview-grid{
+  display:grid!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:12px!important;
+  align-items:stretch!important;
+}
+.grc-exec-overview-grid>.grc-exec-metric{
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:center!important;
+  width:100%!important;
+  min-width:0!important;
+  min-height:104px!important;
+  margin:0!important;
+}
+.grc-exec-chart-grid{align-items:stretch!important;}
+.grc-exec-participant-chart{
+  height:220px!important;
+  min-height:220px!important;
+  max-height:220px!important;
+  overflow:hidden!important;
+}
+.grc-exec-participant-chart .grc-exec-bars{min-height:148px!important;align-content:center!important;}
+.grc-exec-participant-chart .grc-exec-donut-wrap{height:158px!important;align-items:center!important;}
+@media print{
+  .grc-exec-overview-grid>.grc-exec-metric{
+    display:flex!important;
+    width:100%!important;
+    margin:0!important;
+  }
+  .grc-exec-participant-chart{
+    display:inline-block!important;
+    vertical-align:top!important;
+    width:calc(50% - 6px)!important;
+    height:220px!important;
+    min-height:220px!important;
+    max-height:220px!important;
+  }
+}
+`;
     doc.appendChild(style);return doc;}
 
   function cleanupGrcReportPrint(){
