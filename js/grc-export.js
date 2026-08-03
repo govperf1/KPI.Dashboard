@@ -542,6 +542,143 @@
   }
 }
 `;
+    /* v109 — unify every GRC report chart with the compact participant-chart layout.
+       All chart cards use the same dimensions, title/total alignment, internal
+       spacing, bar density and donut proportions so paired charts stay balanced. */
+    style.textContent += `
+.grc-exec-chart-grid{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  align-items:stretch!important;
+  gap:12px!important;
+}
+.grc-exec-chart{
+  height:220px!important;
+  min-height:220px!important;
+  max-height:220px!important;
+  padding:13px 14px!important;
+  border:1px solid #d7e5ea!important;
+  border-radius:11px!important;
+  background:#fbfdfe!important;
+  overflow:hidden!important;
+  display:flex!important;
+  flex-direction:column!important;
+  box-sizing:border-box!important;
+}
+.grc-exec-chart-head{
+  min-height:24px!important;
+  margin-bottom:8px!important;
+  flex:0 0 auto!important;
+}
+.grc-exec-chart-head h3{
+  font-size:13px!important;
+  line-height:1.2!important;
+  color:#153f55!important;
+}
+.grc-exec-chart-head span{
+  font-size:8px!important;
+  line-height:1!important;
+  white-space:nowrap!important;
+}
+.grc-exec-bars{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  display:grid!important;
+  align-content:center!important;
+  gap:5px!important;
+}
+.grc-exec-bars>div{
+  grid-template-columns:minmax(88px,128px) 1fr 24px!important;
+  gap:7px!important;
+  min-height:14px!important;
+}
+.grc-exec-bars label{
+  font-size:9px!important;
+  line-height:1.15!important;
+}
+.grc-exec-bars i{
+  height:8px!important;
+}
+.grc-exec-bars strong{
+  font-size:9px!important;
+}
+.grc-exec-donut-wrap{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  height:auto!important;
+  display:grid!important;
+  grid-template-columns:118px minmax(0,1fr)!important;
+  gap:14px!important;
+  align-items:center!important;
+  justify-content:center!important;
+}
+.grc-exec-donut{
+  width:118px!important;
+  height:118px!important;
+  margin:auto!important;
+}
+.grc-exec-donut>div{
+  width:72px!important;
+  height:72px!important;
+}
+.grc-exec-donut strong{font-size:22px!important;}
+.grc-exec-donut span{font-size:8px!important;}
+.grc-exec-legend{
+  align-content:center!important;
+  gap:5px!important;
+  min-width:0!important;
+}
+.grc-exec-legend>div{
+  grid-template-columns:9px minmax(0,1fr) 25px!important;
+  gap:6px!important;
+  font-size:9px!important;
+}
+.grc-exec-legend i{width:9px!important;height:9px!important;}
+.grc-exec-heat{
+  justify-content:flex-start!important;
+}
+.grc-exec-heat-grid{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  align-content:center!important;
+  gap:4px!important;
+}
+.grc-exec-heat-grid>div{
+  min-height:27px!important;
+  padding:4px!important;
+}
+.grc-exec-heat-legend{
+  flex:0 0 auto!important;
+  margin-top:6px!important;
+  flex-wrap:wrap!important;
+}
+/* participant pair now simply inherits the same universal chart sizing */
+.grc-exec-participant-chart{
+  height:220px!important;
+  min-height:220px!important;
+  max-height:220px!important;
+}
+.grc-exec-participant-chart .grc-exec-bars{min-height:0!important;}
+.grc-exec-participant-chart .grc-exec-donut-wrap{height:auto!important;}
+@media print{
+  .grc-exec-chart-grid{
+    display:block!important;
+    font-size:0!important;
+    width:100%!important;
+  }
+  .grc-exec-chart{
+    display:inline-flex!important;
+    vertical-align:top!important;
+    width:calc(50% - 6px)!important;
+    height:220px!important;
+    min-height:220px!important;
+    max-height:220px!important;
+    margin:0 12px 12px 0!important;
+    break-inside:avoid-page!important;
+    page-break-inside:avoid!important;
+  }
+  .grc-exec-chart:nth-child(even){margin-right:0!important;}
+}
+`;
     doc.appendChild(style);return doc;}
 
   function cleanupGrcReportPrint(){
