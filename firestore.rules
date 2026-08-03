@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v5 — QUMC Performance + GRC Owner Roles
+// FIRESTORE SECURITY RULES v7 — QUMC Performance + GRC Owner Roles
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -63,7 +63,10 @@ service cloud.firestore {
     }
 
     function departmentManager() {
-      return approved() && role() == 'department_manager';
+      return approved() && role() in [
+        'department_manager', 'dept_manager', 'departmentmanager',
+        'Department Manager', 'department manager', 'Dept Manager', 'dept manager'
+      ];
     }
 
     function kpiOwner() {
@@ -71,19 +74,24 @@ service cloud.firestore {
     }
 
     function riskOwner() {
-      return approved() && role() in ['risk_owner', 'platform_owner'];
+      return approved() && role() in [
+        'risk_owner', 'riskowner', 'grc_owner', 'platform_owner',
+        'Risk Owner', 'risk owner', 'Risk-Owner',
+        'GRC Owner', 'grc owner',
+        'Platform Owner', 'platform owner'
+      ];
     }
 
     function canAccessPerformance() {
       return approved() && (
-        role() in ['super_admin', 'admin', 'executive', 'department_manager', 'kpi_owner', 'platform_owner', 'viewer', 'user'] ||
+        role() in ['super_admin', 'admin', 'executive', 'department_manager', 'dept_manager', 'departmentmanager', 'Department Manager', 'department manager', 'kpi_owner', 'platform_owner', 'Platform Owner', 'platform owner', 'viewer', 'user'] ||
         hasPerm('access_performance')
       );
     }
 
     function canAccessGrc() {
       return approved() && (
-        role() in ['super_admin', 'admin', 'executive', 'department_manager', 'risk_owner', 'platform_owner', 'viewer', 'user'] ||
+        role() in ['super_admin', 'admin', 'executive', 'department_manager', 'dept_manager', 'departmentmanager', 'Department Manager', 'department manager', 'risk_owner', 'riskowner', 'Risk Owner', 'risk owner', 'grc_owner', 'GRC Owner', 'grc owner', 'platform_owner', 'Platform Owner', 'platform owner', 'viewer', 'user'] ||
         hasPerm('access_grc')
       );
     }
@@ -96,25 +104,37 @@ service cloud.firestore {
     function userDeptIn(values) {
       return approved() && (
         (('deptKey' in userData()) && userData().deptKey in values) ||
-        (('dept' in userData()) && userData().dept in values)
+        (('dept' in userData()) && userData().dept in values) ||
+        (('department' in userData()) && userData().department in values)
       );
     }
 
     function sameDepartment(dept) {
       return
         ((('deptKey' in userData()) && dept == userData().deptKey) ||
-         (('dept' in userData()) && dept == userData().dept)) ||
-        (dept == 'safety' && userDeptIn(['safety', 'Safety', 'Safety Department', 'Safety Management'])) ||
-        (dept == 'maintenance' && userDeptIn(['maintenance', 'Maintenance', 'Maintenance Department'])) ||
-        (dept == 'housekeeping' && userDeptIn(['housekeeping', 'Housekeeping', 'Housekeeping Department', 'Cleaning'])) ||
-        (dept == 'laundry' && userDeptIn(['laundry', 'Laundry', 'Laundry Department'])) ||
-        (dept == 'projects' && userDeptIn(['projects', 'Projects', 'Project Management', 'Projects Management'])) ||
-        (dept == 'governance' && userDeptIn(['governance', 'Governance', 'Governance & Performance', 'Governance and Performance'])) ||
-        (dept == 'division' && userDeptIn(['division', 'FMS Division', 'Facility Management & Safety Division', 'Facilities & Safety Division']));
+         (('dept' in userData()) && dept == userData().dept) ||
+         (('department' in userData()) && dept == userData().department)) ||
+        (dept in ['safety', 'Safety', 'Safety Department', 'Safety Management', 'Safety Management Department'] && userDeptIn(['safety', 'Safety', 'Safety Department', 'Safety Management', 'Safety Management Department'])) ||
+        (dept in ['maintenance', 'Maintenance', 'Maintenance Department', 'Maintenance Management', 'Maintenance Management Department'] && userDeptIn(['maintenance', 'Maintenance', 'Maintenance Department', 'Maintenance Management', 'Maintenance Management Department'])) ||
+        (dept in ['housekeeping', 'Housekeeping', 'Housekeeping Department', 'Housekeeping Management', 'Cleaning'] && userDeptIn(['housekeeping', 'Housekeeping', 'Housekeeping Department', 'Housekeeping Management', 'Cleaning'])) ||
+        (dept in ['laundry', 'Laundry', 'Laundry Department', 'Laundry Management'] && userDeptIn(['laundry', 'Laundry', 'Laundry Department', 'Laundry Management'])) ||
+        (dept in ['projects', 'project', 'Projects', 'Project', 'project_management', 'projects_management', 'project management', 'projects management', 'Project Management', 'Projects Management', 'Project Management Department', 'Projects Management Department', 'Projects Department', 'Project Department', 'PM'] && userDeptIn(['projects', 'project', 'Projects', 'Project', 'project_management', 'projects_management', 'project management', 'projects management', 'Project Management', 'Projects Management', 'Project Management Department', 'Projects Management Department', 'Projects Department', 'Project Department', 'PM'])) ||
+        (dept in ['governance', 'Governance', 'Governance & Performance', 'Governance and Performance'] && userDeptIn(['governance', 'Governance', 'Governance & Performance', 'Governance and Performance'])) ||
+        (dept in ['division', 'FMS Division', 'Facility Management & Safety Division', 'Facilities & Safety Division'] && userDeptIn(['division', 'FMS Division', 'Facility Management & Safety Division', 'Facilities & Safety Division']));
+    }
+
+    function hasAssignedOperationalDepartment() {
+      return userDeptIn([
+        'safety', 'Safety', 'Safety Department', 'Safety Management', 'Safety Management Department',
+        'maintenance', 'Maintenance', 'Maintenance Department', 'Maintenance Management', 'Maintenance Management Department',
+        'housekeeping', 'Housekeeping', 'Housekeeping Department', 'Housekeeping Management', 'Cleaning',
+        'laundry', 'Laundry', 'Laundry Department', 'Laundry Management',
+        'projects', 'project', 'Projects', 'Project', 'project_management', 'projects_management', 'project management', 'projects management', 'Project Management', 'Projects Management', 'Project Management Department', 'Projects Management Department', 'Projects Department', 'Project Department', 'PM'
+      ]);
     }
 
     function viewAllGrcDepartments() {
-      return admin() || executive() || hasPerm('view_grc_all_departments');
+      return admin() || (!hasAssignedOperationalDepartment() && (executive() || hasPerm('view_grc_all_departments')));
     }
 
     function sharedGrcRecord(data) {
@@ -137,20 +157,15 @@ service cloud.firestore {
       );
     }
 
-    function canWriteGrcRecord() {
-      return admin();
+    function canReadDepartmentGrcRecord(data) {
+      return canAccessGrc() && (
+        viewAllGrcDepartments() ||
+        (('department' in data) && sameDepartment(data.department))
+      );
     }
 
-    function kpiOwnerDirectRiskStatusChange() {
-      return riskOwner() &&
-        sameDepartment(resource.data.department) &&
-        request.resource.data.department == resource.data.department &&
-        request.resource.data.visibility == resource.data.visibility &&
-        request.resource.data.schemaVersion == resource.data.schemaVersion &&
-        request.resource.data.actionStatus in ['open', 'closed'] &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'actionStatus', 'updatedAt', 'updatedBy', 'updatedByEmail', 'cloudUpdatedAt'
-        ]);
+    function canWriteGrcRecord() {
+      return admin();
     }
 
     // ── Users and role definitions ────────────────────────────────────
@@ -293,19 +308,19 @@ service cloud.firestore {
 
     // ── Department-scoped GRC register collections ───────────────────
     match /grc_policies/{recordId} {
-      allow read: if canReadGrcRecord(resource.data);
+      allow read: if canReadDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_plans/{recordId} {
-      allow read: if canReadGrcRecord(resource.data);
+      allow read: if canReadDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_forms/{recordId} {
-      allow read: if canReadGrcRecord(resource.data);
+      allow read: if canReadDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
@@ -317,15 +332,16 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_risks/{recordId} {
-      allow read: if canReadGrcRecord(resource.data);
+      allow read: if canReadDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
-      allow update: if
-        (canWriteGrcRecord() && validGrcRecord(request.resource.data)) ||
-        (validGrcRecord(request.resource.data) && kpiOwnerDirectRiskStatusChange());
+      // Risk Owners never publish directly. Add/update/status/delete changes are
+      // submitted to grc_risk_requests and only Admin/Super Admin can write the
+      // published register document after approval.
+      allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_incidents/{recordId} {
-      allow read: if canReadGrcRecord(resource.data);
+      allow read: if canReadDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
@@ -471,8 +487,8 @@ service cloud.firestore {
     // ── Risk and Incident approval workflow ──────────────────────────
     function canSubmitRiskRequest() {
       return canAccessGrc() && (
-        riskOwner() || hasPerm('edit_risk_management') ||
-        hasPerm('edit_incident_register')
+        riskOwner() || hasPerm('submit_risk_changes') ||
+        hasPerm('edit_risk_management') || hasPerm('edit_incident_register')
       );
     }
 
