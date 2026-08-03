@@ -800,6 +800,13 @@
   var grcStateUnsubs=[],grcStateSaveTimer=null,grcApplyingRemote=false,grcSyncStarted=false,grcCloudReady=false;
   var grcCloudParts={},grcCloudMirror={},grcInitialScopes={},grcMigrationPromise=null,grcPendingCloudSave=false;
   var grcRiskStatusOverrides={},grcRiskStatusUnsub=null,grcSyncScopeKey='';
+  /* Published approval requests are also kept as a live department-scoped
+     projection. This is an intentional fallback for any browser whose secure
+     register listener was bound before the user's department profile finished
+     loading. The final approved record is therefore reflected immediately in
+     the register and all dashboard calculations for every user in that
+     department, not only for the Super Admin who published it. */
+  var grcPublishedWorkflowRequests={risks:[],incidents:[]};
 
   function grcSyncIdentityKey(){
     var email=String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();
@@ -889,6 +896,72 @@
     var byRecord={};Object.keys(grcRiskStatusOverrides||{}).forEach(function(id){var o=grcRiskStatusOverrides[id]||{},rk=String(o.recordId||'').toUpperCase().replace(/[^A-Z0-9]/g,'');if(rk)byRecord[rk]=o;});
     return (rows||[]).map(function(r,i){var cloudId=grcCloudDocId('risks',r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,''),o=grcRiskStatusOverrides[cloudId]||byRecord[rk];if(!o)return r;var st=String(o.actionStatus||'').toLowerCase();if(st!=='open'&&st!=='closed')return r;var rd=canonicalGrcDepartment(r&&r.department),od=canonicalGrcDepartment(o.department);if(rd&&od&&rd!==od)return r;return Object.assign({},r,{actionStatus:st,_statusOverride:true,_statusUpdatedAt:o.updatedAtIso||''});});
   }
+  function grcWorkflowRequestTime(request){
+    request=request||{};
+    var iso=String(request.updatedAtIso||request.createdAtIso||'');
+    if(iso)return iso;
+    var ts=request.publishedAt||request.updatedAt||request.createdAt;
+    if(ts&&typeof ts.toDate==='function')try{return ts.toDate().toISOString();}catch(_){}
+    if(ts&&typeof ts.seconds==='number')return new Date(ts.seconds*1000).toISOString();
+    return'';
+  }
+  function grcWorkflowIdentity(record){
+    record=record||{};
+    return{
+      cloud:String(record._cloudId||record.cloudId||''),
+      key:String(record.id||record.code||record.riskId||'').toUpperCase().replace(/[^A-Z0-9]/g,'')
+    };
+  }
+  function grcApplyPublishedWorkflowOverlay(collectionKey,rows){
+    if(collectionKey!=='risks'&&collectionKey!=='incidents')return rows||[];
+    var requests=(grcPublishedWorkflowRequests[collectionKey]||[]).slice().sort(function(a,b){return grcWorkflowRequestTime(a).localeCompare(grcWorkflowRequestTime(b));});
+    if(!requests.length)return rows||[];
+    var out=(rows||[]).map(copyRecord);
+    requests.forEach(function(request){
+      if(String(request&&request.status||'')!=='published')return;
+      var op=String(request.operation||'').toLowerCase();
+      var record=copyRecord(request.finalRecord||(op==='delete'?request.currentRecord:request.proposedRecord)||{});
+      if(!record||(!record.id&&!record.code&&!record._cloudId&&!record.cloudId))return;
+      var identity=grcWorkflowIdentity(record),targetKey=String(request.targetRecordId||request.targetRiskId||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+      var index=out.findIndex(function(existing){var x=grcWorkflowIdentity(existing);return(identity.cloud&&x.cloud===identity.cloud)||(identity.key&&x.key===identity.key)||(targetKey&&x.key===targetKey);});
+      if(op==='delete'){
+        if(index>=0)out.splice(index,1);
+        return;
+      }
+      record.department=canonicalGrcDepartment(record.department||request.department||request.departmentKey);
+      record._workflowPublished=true;
+      record._workflowRequestId=String(request.id||request.requestCode||'');
+      if(collectionKey==='risks')record=normalizeRiskClassification(record);
+      if(index>=0)out[index]=Object.assign({},out[index],record);
+      else out.push(record);
+    });
+    return out;
+  }
+  function grcSetPublishedWorkflowRequests(rows){
+    var mine=currentGrcDept(),all=canViewAllExecutiveDepartments(),next={risks:[],incidents:[]};
+    (Array.isArray(rows)?rows:[]).forEach(function(request){
+      if(!request||String(request.status||'')!=='published')return;
+      var dept=canonicalGrcDepartment(request.departmentKey||request.department||request.departmentRaw);
+      if(!all&&(!mine||dept!==mine))return;
+      var key=String(request.recordType||'risk').toLowerCase()==='incident'?'incidents':'risks';
+      next[key].push(request);
+    });
+    grcPublishedWorkflowRequests=next;
+    grcApplyingRemote=true;
+    ['risks','incidents'].forEach(function(key){
+      if(grcCloudParts[key]&&Object.keys(grcCloudParts[key]).length)grcApplyCloudCollection(key);
+      else state[key]=grcApplyPublishedWorkflowOverlay(key,state[key]||[]);
+    });
+    state=repairGovernanceCodeState(state);enforceLocalGrcScope();
+    try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}
+    grcApplyingRemote=false;
+    renderAtSamePosition(grcViewportPosition());
+  }
+  window._grcApplyPublishedWorkflowRequests=grcSetPublishedWorkflowRequests;
+  document.addEventListener('grc:riskRequestsUpdated',function(event){
+    try{grcSetPublishedWorkflowRequests(event&&event.detail&&event.detail.rows||event&&event.detail||[]);}catch(err){console.warn('[GRC Published Register Projection]',err);}
+  });
+
   function grcApplyCloudCollection(collectionKey){
     var parts=grcCloudParts[collectionKey]||{},map={},tombstones={};Object.keys(parts).forEach(function(scope){(parts[scope]||[]).forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');r._cloudId=id;r.cloudId=id;if(r&&r.deleted===true){tombstones[id]=1;if(rk)tombstones[rk]=1;return;}map[id]=r;});});
     var rows=Object.keys(map).map(function(id){return map[id];});
@@ -898,12 +971,13 @@
          migration is missing department rows (notably Projects Management). */
       var seededRiskState=defaultState();seededRiskState.risks=rows;rows=applyRiskRegisterSeed(seededRiskState).risks;
       rows=rows.filter(function(r,i){var id=grcCloudDocId('risks',r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');return !tombstones[id]&&!tombstones[rk];});
+      rows=grcApplyPublishedWorkflowOverlay('risks',rows);
       rows=applyRiskStatusOverrides(rows);
     }
     /* These approved baseline records were introduced after the first secure
        migration. Keep them visible even when an older cloud collection does not
        contain them yet; Admin/Super Admin also repairs the missing cloud docs. */
-    if(collectionKey==='incidents'){rows=mergeProjectIncidentSeed(rows);rows=rows.filter(function(r,i){var id=grcCloudDocId('incidents',r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');return !tombstones[id]&&!tombstones[rk];});}
+    if(collectionKey==='incidents'){rows=mergeProjectIncidentSeed(rows);rows=rows.filter(function(r,i){var id=grcCloudDocId('incidents',r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');return !tombstones[id]&&!tombstones[rk];});rows=grcApplyPublishedWorkflowOverlay('incidents',rows);}
     if(collectionKey==='initiatives')rows=mergeInitiativeSeed(rows);
     state[collectionKey]=rows;grcCloudMirror[collectionKey]={};rows.forEach(function(r,i){
       /* Only mirror records actually returned by Firestore. Baseline records that
@@ -3607,7 +3681,7 @@
     window._clearGrcAuditFromFS().then(function(){window._grcAdminRenderAudit();if(window.toast)window.toast('GRC audit log cleared.');}).catch(function(err){window.alert(String(err&&err.message||err));});
   };
 
-  document.addEventListener('DOMContentLoaded',function(){ensureApp();startSharedStateSync();});
+  document.addEventListener('DOMContentLoaded',function(){ensureApp();startSharedStateSync();setTimeout(function(){if(Array.isArray(window.__grcRiskRequestCache)&&window.__grcRiskRequestCache.length)grcSetPublishedWorkflowRequests(window.__grcRiskRequestCache);},0);});
 })();
 
 (function(){
