@@ -604,10 +604,18 @@ service cloud.firestore {
         (('department' in resource.data) && sameDepartment(resource.data.department)) ||
         (('departmentRaw' in resource.data) && rawUserDepartment(resource.data.departmentRaw))
       );
-      allow create, update: if canSubmitRiskRequest() &&
+      allow create: if canSubmitRiskRequest() &&
         validRiskStatusOverride(request.resource.data) &&
         riskRequestDepartment(request.resource.data) &&
         request.resource.data.keys().hasOnly([
+          'recordId', 'cloudId', 'department', 'departmentRaw', 'actionStatus',
+          'updatedAt', 'updatedAtIso', 'updatedBy', 'updatedByEmail',
+          'updatedByUid', 'schemaVersion'
+        ]);
+      allow update: if canSubmitRiskRequest() &&
+        validRiskStatusOverride(request.resource.data) &&
+        riskRequestDepartment(request.resource.data) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'recordId', 'cloudId', 'department', 'departmentRaw', 'actionStatus',
           'updatedAt', 'updatedAtIso', 'updatedBy', 'updatedByEmail',
           'updatedByUid', 'schemaVersion'
