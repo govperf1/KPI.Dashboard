@@ -813,20 +813,11 @@ window._selectPortal=async portal=>{
     function _grcRiskDept(){return _grcCanonicalDepartment(window._fbDept||window.currentUserDept||'');}
     window._grcCanonicalDepartment=window._grcCanonicalDepartment||_grcCanonicalDepartment;
     function _grcRiskPerms(){return Array.isArray(window._fbPerms)?window._fbPerms:[];}
-    function _grcRiskCanSubmit(recordType){recordType=String(recordType||'risk').toLowerCase();const p=_grcRiskPerms(),owner=['risk_owner','grc_owner','platform_owner'].includes(_grcRiskRole());if(recordType==='incident')return owner||p.includes('edit_incident_register')||p.includes('edit_risk_management')||p.includes('*');return owner||p.includes('edit_risk_management')||p.includes('*');}
+    function _grcRiskCanSubmit(recordType){recordType=String(recordType||'risk').toLowerCase();const p=_grcRiskPerms(),owner=['risk_owner','grc_owner','platform_owner'].includes(_grcRiskRole()),workflow=p.includes('submit_risk_changes');if(recordType==='incident')return owner||workflow||p.includes('edit_incident_register')||p.includes('edit_risk_management')||p.includes('*');return owner||workflow||p.includes('edit_risk_management')||p.includes('*');}
     function _grcRiskIsManager(){return _grcRiskRole()==='department_manager'||_grcRiskRole()==='dept_manager';}
     function _grcRiskIsSuper(){return _grcRiskRole()==='super_admin';}
     function _grcRiskIsAdmin(){return _grcRiskRole()==='admin'||_grcRiskIsSuper();}
-    window._grcRiskDirectStatusUpdate=async function(record,nextStatus){
-      if(!['risk_owner','grc_owner','platform_owner'].includes(_grcRiskRole()))throw new Error('Only the Risk Owner can use direct risk status updates.');
-      record=record||{};nextStatus=String(nextStatus||'').toLowerCase();
-      if(!['open','closed'].includes(nextStatus))throw new Error('Only Open or Closed can be changed directly.');
-      const department=_grcCanonicalDepartment(record.department||_grcRiskDept());
-      if(!department||department!==_grcRiskDept())throw new Error('You can update risk status only for your department.');
-      const cloudId=_grcRegisterCloudId('risk',record),ref=doc(db,GRC_REGISTER_COLLECTIONS.risk,cloudId);
-      await updateDoc(ref,{actionStatus:nextStatus,updatedAt:_grcRiskIso(),updatedBy:String(window._fbName||window.currentUserName||_grcRiskEmail()),updatedByEmail:_grcRiskEmail(),cloudUpdatedAt:serverTimestamp()});
-      return true;
-    };
+    window._grcRiskDirectStatusUpdate=async function(){throw new Error('Risk status changes must be submitted through the approval workflow.');};
     function _grcRiskJson(v){try{return JSON.parse(JSON.stringify(v==null?null:v));}catch(_){return null;}}
     function _grcRiskIso(){return new Date().toISOString();}
     function _grcRiskDeptCode(d){return({maintenance:'MNT',safety:'SAF',housekeeping:'HSK',laundry:'LND',projects:'PRJ',division:'FMS',governance:'GOV'})[_grcCanonicalDepartment(d)]||'FMS';}

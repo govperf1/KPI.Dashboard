@@ -806,13 +806,30 @@
   function grcSafeDocPart(value){var out=String(value||'').trim().replace(/[^A-Za-z0-9_-]+/g,'_').replace(/^_+|_+$/g,'');return(out||'record').slice(0,86);}
   function grcRecordDepartment(collectionKey,record){
     record=record||{};var raw=String(record.department||record.responsibleDept||record.responsibleDepartment||'').trim();
-    var id=String(record.id||record.code||'').toUpperCase().replace(/\s+/g,'');
+    var identity=String(record.id||record.code||'').toUpperCase(),id=identity.replace(/\s+/g,'');
+    /* Department inference is a fallback for older register rows that were saved
+       before the department field was normalized. Explicit department values
+       still take precedence, except for the historical Laundry risk prefix. */
     if(collectionKey==='risks'&&/^LUND/.test(id))return'laundry';
     if(collectionKey==='risks'&&/^HK/.test(id))return'housekeeping';
     if(/^(all\s*fms|allfms|division|governance|governanceDept)$/i.test(raw.replace(/[&/_-]+/g,' ')))return'division';
     var d=canonicalGrcDepartment(raw);
-    if(!d||d==='allfms'||d==='all_fms'||d==='governance'||d==='division')return'division';
-    return d;
+    if(d&&d!=='allfms'&&d!=='all_fms'&&d!=='governance'&&d!=='division')return d;
+    if(collectionKey==='risks'){
+      var riskDept=departmentFromRiskCode(identity);if(riskDept)return riskDept;
+    }
+    if(/^PMD[-_ ]?\d+/i.test(identity)||/^INC[-_ ]?(PRJ|PM)[-_ ]?/i.test(identity))return'projects';
+    if(/^INC[-_ ]?SAF[-_ ]?/i.test(identity))return'safety';
+    if(/^INC[-_ ]?MNT[-_ ]?/i.test(identity))return'maintenance';
+    if(/^INC[-_ ]?(HSK|HK)[-_ ]?/i.test(identity))return'housekeeping';
+    if(/^INC[-_ ]?LND[-_ ]?/i.test(identity))return'laundry';
+    var code=' '+identity.replace(/[\/_.]+/g,'-')+' ';
+    if(/(?:^|[- ])(?:PRJ|PM)(?:[- ]|$)/.test(code))return'projects';
+    if(/(?:^|[- ])SAF(?:[- ]|$)/.test(code))return'safety';
+    if(/(?:^|[- ])(?:MNT|MINT)(?:[- ]|$)/.test(code))return'maintenance';
+    if(/(?:^|[- ])(?:HSK|HK)(?:[- ]|$)/.test(code))return'housekeeping';
+    if(/(?:^|[- ])(?:LND|LUND)(?:[- ]|$)/.test(code))return'laundry';
+    return'division';
   }
   function grcRecordVisibility(collectionKey,record){return grcRecordDepartment(collectionKey,record)==='division'?'shared':'department';}
   function grcCloudDocId(collectionKey,record,index){
@@ -852,7 +869,12 @@
   function grcApplyCloudCollection(collectionKey){
     var parts=grcCloudParts[collectionKey]||{},map={};Object.keys(parts).forEach(function(scope){(parts[scope]||[]).forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i);r._cloudId=id;r.cloudId=id;map[id]=r;});});
     var rows=Object.keys(map).map(function(id){return map[id];});
-    if(collectionKey==='risks')rows=rows.map(normalizeRiskClassification);
+    if(collectionKey==='risks'){
+      rows=rows.map(normalizeRiskClassification);
+      /* Keep the approved baseline Risk Register visible if an older secure
+         migration is missing department rows (notably Projects Management). */
+      var seededRiskState=defaultState();seededRiskState.risks=rows;rows=applyRiskRegisterSeed(seededRiskState).risks;
+    }
     /* These approved baseline records were introduced after the first secure
        migration. Keep them visible even when an older cloud collection does not
        contain them yet; Admin/Super Admin also repairs the missing cloud docs. */
@@ -897,6 +919,9 @@
   async function ensureRequiredGrcBaselineRecords(b){
     if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return false;
     var required=[];
+    /* Repair any baseline Risk Register rows that were absent from an older
+       secure migration so department-scoped users receive their full register. */
+    (RISK_REGISTER_SEED||[]).forEach(function(r,i){required.push({key:'risks',record:r,index:i});});
     (PROJECT_MANAGEMENT_INCIDENT_SEED||[]).forEach(function(r,i){required.push({key:'incidents',record:r,index:i});});
     (INITIATIVE_SEED||[]).forEach(function(r,i){required.push({key:'initiatives',record:r,index:i});});
     var writes=[];
@@ -904,7 +929,7 @@
       var prepared=grcPrepareCloudRecord(item.key,item.record,item.index,b),ref=b.fs.doc(b.db,GRC_COLLECTION_MAP[item.key],prepared._cloudId),snap=await b.fs.getDoc(ref);
       if(!snap.exists())writes.push({op:'set',ref:ref,data:prepared});
     }));
-    if(writes.length){await grcCommitWrites(b,writes);try{window._recordAuditDirect&&window._recordAuditDirect('GRC_BASELINE_REPAIR','Added missing approved Incident and Initiative baseline records',null,{records:writes.length},{portal:'grc'});}catch(_){}}
+    if(writes.length){await grcCommitWrites(b,writes);try{window._recordAuditDirect&&window._recordAuditDirect('GRC_BASELINE_REPAIR','Added missing approved Risk, Incident and Initiative baseline records',null,{records:writes.length},{portal:'grc'});}catch(_){}}
     return writes.length>0;
   }
   function startSharedStateSync(){
@@ -913,7 +938,7 @@
         try{await migrateLegacyGrcState(b,false);}catch(err){console.error('[GRC Secure Migration] automatic migration did not complete',err);}
         try{await ensureRequiredGrcBaselineRecords(b);}catch(err2){console.error('[GRC Baseline Repair] approved records could not be repaired',err2);}
       }
-      var canAll=canViewAllExecutiveDepartments(),dept=currentGrcDept(),rawDept=String(window._fbDept||window.currentUserDept||'').trim();Object.keys(GRC_COLLECTION_MAP).forEach(function(key){var col=b.fs.collection(b.db,GRC_COLLECTION_MAP[key]);grcCloudParts[key]={};if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){grcListen(b,key,'all',col);}else{var aliasMap={safety:['safety','Safety','Safety Department','Safety Management'],maintenance:['maintenance','Maintenance','Maintenance Department'],housekeeping:['housekeeping','Housekeeping','Housekeeping Department','Cleaning'],laundry:['laundry','Laundry','Laundry Department'],projects:['projects','Projects','Project Management','Projects Management']},deptValues=(aliasMap[dept]||[]).slice();if(dept&&deptValues.indexOf(dept)<0)deptValues.unshift(dept);if(rawDept&&deptValues.indexOf(rawDept)<0)deptValues.push(rawDept);deptValues=deptValues.filter(function(v,i,a){return v&&a.indexOf(v)===i;});var expected=deptValues.length,received=0;grcInitialScopes[key]=expected===0;var mark=function(){received++;if(received>=expected)grcInitialScopes[key]=true;};
+      var canAll=canViewAllExecutiveDepartments(),dept=currentGrcDept(),rawDept=String(window._fbDept||window.currentUserDept||'').trim();Object.keys(GRC_COLLECTION_MAP).forEach(function(key){var col=b.fs.collection(b.db,GRC_COLLECTION_MAP[key]);grcCloudParts[key]={};if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){grcListen(b,key,'all',col);}else{var aliasMap={safety:['safety','Safety','Safety Department','Safety Management','Safety Management Department'],maintenance:['maintenance','Maintenance','Maintenance Department','Maintenance Management','Maintenance Management Department'],housekeeping:['housekeeping','Housekeeping','Housekeeping Department','Housekeeping Management','Cleaning'],laundry:['laundry','Laundry','Laundry Department','Laundry Management'],projects:['projects','project','Projects','Project','project_management','projects_management','project management','projects management','Project Management','Projects Management','Project Management Department','Projects Management Department','Projects Department','Project Department','PM']},deptValues=(aliasMap[dept]||[]).slice();if(dept&&deptValues.indexOf(dept)<0)deptValues.unshift(dept);if(rawDept&&deptValues.indexOf(rawDept)<0)deptValues.push(rawDept);deptValues=deptValues.filter(function(v,i,a){return v&&a.indexOf(v)===i;});var expected=deptValues.length,received=0;grcInitialScopes[key]=expected===0;var mark=function(){received++;if(received>=expected)grcInitialScopes[key]=true;};
           deptValues.forEach(function(deptValue,i){var ownQ=b.fs.query(col,b.fs.where('department','==',deptValue)),scope='department_'+i;var u=b.fs.onSnapshot(ownQ,function(snap){grcCloudParts[key][scope]=grcDocsFromSnapshot(snap);mark();grcHandleCollectionSnapshot(key,scope,snap);},function(err){console.error('[GRC Secure Sync] '+key+' '+scope+' failed',err);mark();if(grcAllInitialScopesReady())grcCloudReady=true;});grcStateUnsubs.push(u);});
         }});
     }).catch(function(err){grcSyncStarted=false;console.error('[GRC Secure Sync] init failed',err);});
@@ -3245,7 +3270,7 @@
     return fields.length===1&&fields[0]==='actionStatus'&&(next==='open'||next==='closed')&&registerRecordBelongsToUser(original,'risk');
   }
   async function _grcSaveInlineEdit(block,map){
-    var records=state[map.collection]||[],changed=false,requests=[],directStatusUpdates=[];
+    var records=state[map.collection]||[],changed=false,requests=[];
     _grcDataRows(block).forEach(function(row){
       var index=Number(row.dataset.grcRecordIndex);if(!isFinite(index)||!records[index])return;
       var original=records[index],updated=Object.assign({},original);
@@ -3258,17 +3283,13 @@
       var comparableOld=JSON.stringify(Object.assign({},original,{updatedAt:undefined,updatedBy:undefined})),comparableNew=JSON.stringify(Object.assign({},updated,{updatedAt:undefined,updatedBy:undefined}));
       if(comparableOld===comparableNew)return;
       if(canSubmitRegisterRequest(map.type)&&!isGrcAdmin()){
-        if(_grcCanDirectRiskStatusChange(original,updated,map))directStatusUpdates.push({index:index,original:original,updated:updated});
-        else requests.push({recordType:map.type,currentRecord:original,proposedRecord:updated,targetRiskId:original.id||original.code,targetRecordId:original.id||original.code,department:currentGrcDept()});
+        /* Every Risk/Incident change goes through the approval workflow,
+           including Open/Closed status changes. Nothing is published directly
+           from a Risk Owner account. */
+        requests.push({recordType:map.type,currentRecord:original,proposedRecord:updated,targetRiskId:original.id||original.code,targetRecordId:original.id||original.code,department:currentGrcDept()});
       }else{records[index]=updated;changed=true;}
     });
     try{
-      if(directStatusUpdates.length){
-        if(typeof window._grcRiskDirectStatusUpdate!=='function')throw new Error(isAr()?'خدمة تحديث حالة الخطر غير جاهزة.':'Direct risk status service is not ready.');
-        for(var d=0;d<directStatusUpdates.length;d++){var item=directStatusUpdates[d];await window._grcRiskDirectStatusUpdate(item.original,item.updated.actionStatus);records[item.index]=item.updated;}
-        state[map.collection]=records;
-        window.toast&&window.toast(isAr()?'تم تحديث حالة الخطر مباشرة.':'Risk status updated directly.');
-      }
       if(requests.length){
         if(typeof window._grcRiskRequestSubmit!=='function')throw new Error(isAr()?'خدمة طلبات السجلات غير جاهزة.':'Register approval service is not ready.');
         for(var i=0;i<requests.length;i++)await window._grcRiskRequestSubmit('update',requests[i]);
