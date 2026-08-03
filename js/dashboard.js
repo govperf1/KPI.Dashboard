@@ -271,7 +271,7 @@ function renderExec(){
 
 <!-- === EXECUTIVE SUMMARY === -->
 <div class="c12" style="padding:0;background:transparent;box-shadow:none;border:none;margin-bottom:14px">
-  <div id="execIntelBar" style="background:linear-gradient(135deg,#12344f 0%,#0e6072 100%);border:1px solid rgba(255,255,255,.08);border-bottom:3px solid #4cc3cb;border-radius:14px;padding:0;box-shadow:0 4px 24px rgba(10,22,48,.30);overflow:hidden">
+  <div id="execIntelBar" style="background:#192835;border:1px solid #3A5063;border-bottom:3px solid #0195AF;border-radius:14px;padding:0;box-shadow:0 4px 24px rgba(10,22,48,.30);overflow:hidden">
     <!-- Top row: status + 6 stats -->
     <div style="display:grid;grid-template-columns:auto 1px minmax(100px,1fr) 1px minmax(100px,1fr) 1px minmax(100px,1fr) 1px minmax(100px,1fr) 1px minmax(100px,1fr) 1px minmax(100px,1fr) 1px minmax(100px,1fr);grid-auto-flow:column;align-items:center;border-bottom:1px solid rgba(14,116,144,.12);overflow-x:auto">
       <!-- Status block -->

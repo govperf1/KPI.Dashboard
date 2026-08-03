@@ -1669,6 +1669,7 @@ function _showUserRequestsPanel(){
     if(!reqId) return;
     var cmtEl=document.getElementById('cmt_'+reqId);
     var comment=cmtEl?cmtEl.value.trim():'';
+    if(status==='rejected'&&!comment){toast(isAr?'سبب الرفض مطلوب':'A rejection reason is required');if(cmtEl)cmtEl.focus();return;}
     if(typeof window._kpiRequestsRespond!=='function'){toast('Requests API unavailable');return;}
     window._kpiRequestsRespond(reqId,status,comment).then(function(){
       toast((status==='approved'?(isAr?'✓ تمت الموافقة':'✓ Approved'):(isAr?'✕ تم الرفض':'✕ Rejected')));
