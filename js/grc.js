@@ -799,6 +799,7 @@
   var GRC_GLOBAL_READ_COLLECTIONS={manuals:true,codes:true,compliance:true,audits:true,actions:true,documents:true,initiatives:true};
   var grcStateUnsubs=[],grcStateSaveTimer=null,grcApplyingRemote=false,grcSyncStarted=false,grcCloudReady=false;
   var grcCloudParts={},grcCloudMirror={},grcInitialScopes={},grcMigrationPromise=null,grcPendingCloudSave=false;
+  var grcRiskStatusOverrides={},grcRiskStatusUnsub=null;
 
   function grcSharedStateRef(b){return b.fs.doc(b.db,'kpi_dashboard',GRC_SHARED_STATE_DOC);}
   function grcMigrationRef(b){return b.fs.doc(b.db,'grc_meta',GRC_MIGRATION_DOC);}
@@ -866,19 +867,25 @@
     return JSON.stringify(a)!==JSON.stringify(b);
   }
   function grcDocsFromSnapshot(snapshot){var rows=[];snapshot.forEach(function(d){var r=grcSerializable(d.data()||{});r._cloudId=d.id;r.cloudId=d.id;rows.push(r);});return rows;}
+  function applyRiskStatusOverrides(rows){
+    var byRecord={};Object.keys(grcRiskStatusOverrides||{}).forEach(function(id){var o=grcRiskStatusOverrides[id]||{},rk=String(o.recordId||'').toUpperCase().replace(/[^A-Z0-9]/g,'');if(rk)byRecord[rk]=o;});
+    return (rows||[]).map(function(r,i){var cloudId=grcCloudDocId('risks',r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,''),o=grcRiskStatusOverrides[cloudId]||byRecord[rk];if(!o)return r;var st=String(o.actionStatus||'').toLowerCase();if(st!=='open'&&st!=='closed')return r;var rd=canonicalGrcDepartment(r&&r.department),od=canonicalGrcDepartment(o.department);if(rd&&od&&rd!==od)return r;return Object.assign({},r,{actionStatus:st,_statusOverride:true,_statusUpdatedAt:o.updatedAtIso||''});});
+  }
   function grcApplyCloudCollection(collectionKey){
-    var parts=grcCloudParts[collectionKey]||{},map={};Object.keys(parts).forEach(function(scope){(parts[scope]||[]).forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i);r._cloudId=id;r.cloudId=id;map[id]=r;});});
+    var parts=grcCloudParts[collectionKey]||{},map={},tombstones={};Object.keys(parts).forEach(function(scope){(parts[scope]||[]).forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');r._cloudId=id;r.cloudId=id;if(r&&r.deleted===true){tombstones[id]=1;if(rk)tombstones[rk]=1;return;}map[id]=r;});});
     var rows=Object.keys(map).map(function(id){return map[id];});
     if(collectionKey==='risks'){
       rows=rows.map(normalizeRiskClassification);
       /* Keep the approved baseline Risk Register visible if an older secure
          migration is missing department rows (notably Projects Management). */
       var seededRiskState=defaultState();seededRiskState.risks=rows;rows=applyRiskRegisterSeed(seededRiskState).risks;
+      rows=rows.filter(function(r,i){var id=grcCloudDocId('risks',r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');return !tombstones[id]&&!tombstones[rk];});
+      rows=applyRiskStatusOverrides(rows);
     }
     /* These approved baseline records were introduced after the first secure
        migration. Keep them visible even when an older cloud collection does not
        contain them yet; Admin/Super Admin also repairs the missing cloud docs. */
-    if(collectionKey==='incidents')rows=mergeProjectIncidentSeed(rows);
+    if(collectionKey==='incidents'){rows=mergeProjectIncidentSeed(rows);rows=rows.filter(function(r,i){var id=grcCloudDocId('incidents',r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');return !tombstones[id]&&!tombstones[rk];});}
     if(collectionKey==='initiatives')rows=mergeInitiativeSeed(rows);
     state[collectionKey]=rows;grcCloudMirror[collectionKey]={};rows.forEach(function(r,i){
       /* Only mirror records actually returned by Firestore. Baseline records that
@@ -932,12 +939,19 @@
     if(writes.length){await grcCommitWrites(b,writes);try{window._recordAuditDirect&&window._recordAuditDirect('GRC_BASELINE_REPAIR','Added missing approved Risk, Incident and Initiative baseline records',null,{records:writes.length},{portal:'grc'});}catch(_){}}
     return writes.length>0;
   }
+  function startRiskStatusOverrideSync(b){
+    if(grcRiskStatusUnsub){try{grcRiskStatusUnsub();}catch(_){}grcRiskStatusUnsub=null;}
+    var col=b.fs.collection(b.db,'grc_risk_status'),qref=col,raw=String(window._fbDept||window.currentUserDept||'').trim();
+    if(!canViewAllExecutiveDepartments()&&raw)qref=b.fs.query(col,b.fs.where('departmentRaw','==',raw));
+    grcRiskStatusUnsub=b.fs.onSnapshot(qref,function(snap){var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});grcRiskStatusOverrides=next;if(grcCloudParts.risks){grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}grcApplyingRemote=false;renderAtSamePosition(grcViewportPosition());}},function(err){console.warn('[GRC Risk Status] sync failed',err);});
+  }
   function startSharedStateSync(){
     if(grcSyncStarted)return;ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;grcSyncStarted=true;enforceLocalGrcScope();
       if(isGrcAdmin()){
         try{await migrateLegacyGrcState(b,false);}catch(err){console.error('[GRC Secure Migration] automatic migration did not complete',err);}
         try{await ensureRequiredGrcBaselineRecords(b);}catch(err2){console.error('[GRC Baseline Repair] approved records could not be repaired',err2);}
       }
+      startRiskStatusOverrideSync(b);
       var canAll=canViewAllExecutiveDepartments(),dept=currentGrcDept(),rawDept=String(window._fbDept||window.currentUserDept||'').trim();Object.keys(GRC_COLLECTION_MAP).forEach(function(key){var col=b.fs.collection(b.db,GRC_COLLECTION_MAP[key]);grcCloudParts[key]={};if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){grcListen(b,key,'all',col);}else{var aliasMap={safety:['safety','Safety','Safety Department','Safety Management','Safety Management Department'],maintenance:['maintenance','Maintenance','Maintenance Department','Maintenance Management','Maintenance Management Department'],housekeeping:['housekeeping','Housekeeping','Housekeeping Department','Housekeeping Management','Cleaning'],laundry:['laundry','Laundry','Laundry Department','Laundry Management'],projects:['projects','project','Projects','Project','project_management','projects_management','project management','projects management','Project Management','Projects Management','Project Management Department','Projects Management Department','Projects Department','Project Department','PM']},deptValues=(aliasMap[dept]||[]).slice();if(dept&&deptValues.indexOf(dept)<0)deptValues.unshift(dept);if(rawDept&&deptValues.indexOf(rawDept)<0)deptValues.push(rawDept);deptValues=deptValues.filter(function(v,i,a){return v&&a.indexOf(v)===i;});var expected=deptValues.length,received=0;grcInitialScopes[key]=expected===0;var mark=function(){received++;if(received>=expected)grcInitialScopes[key]=true;};
           deptValues.forEach(function(deptValue,i){var ownQ=b.fs.query(col,b.fs.where('department','==',deptValue)),scope='department_'+i;var u=b.fs.onSnapshot(ownQ,function(snap){grcCloudParts[key][scope]=grcDocsFromSnapshot(snap);mark();grcHandleCollectionSnapshot(key,scope,snap);},function(err){console.error('[GRC Secure Sync] '+key+' '+scope+' failed',err);mark();if(grcAllInitialScopesReady())grcCloudReady=true;});grcStateUnsubs.push(u);});
         }});
@@ -3270,7 +3284,7 @@
     return fields.length===1&&fields[0]==='actionStatus'&&(next==='open'||next==='closed')&&registerRecordBelongsToUser(original,'risk');
   }
   async function _grcSaveInlineEdit(block,map){
-    var records=state[map.collection]||[],changed=false,requests=[];
+    var records=state[map.collection]||[],changed=false,requests=[],directStatusUpdates=[];
     _grcDataRows(block).forEach(function(row){
       var index=Number(row.dataset.grcRecordIndex);if(!isFinite(index)||!records[index])return;
       var original=records[index],updated=Object.assign({},original);
@@ -3283,13 +3297,25 @@
       var comparableOld=JSON.stringify(Object.assign({},original,{updatedAt:undefined,updatedBy:undefined})),comparableNew=JSON.stringify(Object.assign({},updated,{updatedAt:undefined,updatedBy:undefined}));
       if(comparableOld===comparableNew)return;
       if(canSubmitRegisterRequest(map.type)&&!isGrcAdmin()){
-        /* Every Risk/Incident change goes through the approval workflow,
-           including Open/Closed status changes. Nothing is published directly
-           from a Risk Owner account. */
-        requests.push({recordType:map.type,currentRecord:original,proposedRecord:updated,targetRiskId:original.id||original.code,targetRecordId:original.id||original.code,department:currentGrcDept()});
+        /* Action Status is the one Risk field that may be changed directly.
+           It bypasses approval only when it is the ONLY changed field and the
+           new value is Open/Closed. Any other Risk change, and all Incident
+           changes, continue through the approval workflow. */
+        if(_grcCanDirectRiskStatusChange(original,updated,map))directStatusUpdates.push({index:index,original:original,updated:updated});
+        else requests.push({recordType:map.type,currentRecord:original,proposedRecord:updated,targetRiskId:original.id||original.code,targetRecordId:original.id||original.code,department:currentGrcDept()});
       }else{records[index]=updated;changed=true;}
     });
     try{
+      if(directStatusUpdates.length){
+        if(typeof window._grcRiskDirectStatusUpdate!=='function')throw new Error(isAr()?'خدمة تحديث حالة الخطر غير جاهزة.':'Direct risk status service is not ready.');
+        for(var d=0;d<directStatusUpdates.length;d++){
+          var item=directStatusUpdates[d];
+          await window._grcRiskDirectStatusUpdate(item.original,item.updated.actionStatus);
+          records[item.index]=item.updated;
+        }
+        state[map.collection]=records;
+        window.toast&&window.toast(isAr()?'تم تحديث حالة الخطر مباشرة بدون مسار اعتماد.':'Risk status updated directly without approval.');
+      }
       if(requests.length){
         if(typeof window._grcRiskRequestSubmit!=='function')throw new Error(isAr()?'خدمة طلبات السجلات غير جاهزة.':'Register approval service is not ready.');
         for(var i=0;i<requests.length;i++)await window._grcRiskRequestSubmit('update',requests[i]);
