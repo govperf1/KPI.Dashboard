@@ -913,7 +913,7 @@ window._selectPortal=async portal=>{
       return{requestId:requestRef.id,requestCode:requestCode};
     };
     window._grcRiskRequestResubmit=async function(requestId,proposedRecord,note){
-      if(!_grcRiskCanSubmit('risk')&&!_grcRiskCanSubmit('incident'))throw new Error('Access denied.');const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(!_grcRiskOwnsRequest(r))throw new Error('Access denied.');if(!['returned_requester','rejected_manager','rejected_super_admin'].includes(String(r.status||'')))throw new Error('This request cannot be resubmitted.');
+      if(!_grcRiskCanSubmit('risk')&&!_grcRiskCanSubmit('incident'))throw new Error('Access denied.');const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(!_grcRiskOwnsRequest(r))throw new Error('Access denied.');if(String(r.status||'')!=='returned_requester')throw new Error('Only a request returned for update can be edited and resubmitted.');
       const proposed=_grcRiskJson(proposedRecord||r.proposedRecord),now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status:'pending_manager',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'Resubmitted')});
       await updateDoc(ref,{proposedRecord:proposed,changedFields:_grcRiskChangedFields(r.currentRecord,proposed),status:'pending_manager',requesterNote:String(note||r.requesterNote||''),managerNote:'',superAdminNote:'',updatedAt:serverTimestamp(),updatedAtIso:now,history});return true;
     };
@@ -992,10 +992,18 @@ window._selectPortal=async portal=>{
       if(_grcRiskRequestUnsub){_grcRiskRequestUnsub();_grcRiskRequestUnsub=null;}if(!_grcRiskEmail()||!db)return function(){};
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
       if(_grcRiskIsAdmin())qrefs.push(col);
-      else if(_grcRiskIsManager()){
-        const raw=_grcRiskRawDept(),key=_grcRiskDept();if(raw)qrefs.push(query(col,where('departmentRaw','==',raw)));if(key){qrefs.push(query(col,where('departmentKey','==',key)));qrefs.push(query(col,where('department','==',key)));}
-      }else{
-        if(_grcRiskUid())qrefs.push(query(col,where('submittedByUid','==',_grcRiskUid())));qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
+      else{
+        /* Every GRC user assigned to a department receives that department's
+           Risk/Incident workflow activity. This keeps additions, updates,
+           returns, rejections and publication notifications visible to the
+           whole assigned department, while Firestore rules still prevent
+           cross-department reads. Own-request queries are retained as a
+           compatibility fallback for older request documents. */
+        const raw=_grcRiskRawDept(),key=_grcRiskDept();
+        if(raw)qrefs.push(query(col,where('departmentRaw','==',raw)));
+        if(key){qrefs.push(query(col,where('departmentKey','==',key)));qrefs.push(query(col,where('department','==',key)));}
+        if(_grcRiskUid())qrefs.push(query(col,where('submittedByUid','==',_grcRiskUid())));
+        qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
       }
       const sources={},unsubs=[],failed={};let successCount=0;
       function emit(){callback(_grcRiskMergeRows(Object.keys(sources).map(k=>sources[k])));}

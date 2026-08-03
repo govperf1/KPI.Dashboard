@@ -4,7 +4,7 @@
    Review & Development Center requests.
    ===================================================================== */
 (function(){
-  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V111__)return;window.__QUMC_GRC_RISK_WORKFLOW_V111__=true;
+  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V112__)return;window.__QUMC_GRC_RISK_WORKFLOW_V112__=true;
   var cache=[],unsub=null,startedFor='',approvalNoticeKey='',approvalNoticeEntry=0,approvalNoticeTimer=null;
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function role(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
@@ -15,18 +15,19 @@
   function isAdmin(){return role()==='admin'||isSuper();}
   function isOwner(){var r=role();return r==='risk_owner'||r==='grc_owner'||r==='platform_owner'||(Array.isArray(window._fbPerms)&&(window._fbPerms.indexOf('edit_risk_management')>=0||window._fbPerms.indexOf('*')>=0));}
   function isNoticeOwner(){var r=role();return r==='risk_owner'||r==='grc_owner'||r==='platform_owner';}
+  function ownRequest(r){return String(r&&r.submittedByEmail||'').toLowerCase().trim()===email();}
   function statusLabel(s){var m={pending_manager:'Pending Department Manager Approval',pending_super_admin:'Pending Super Admin Approval',returned_requester:'Returned for Update',returned_manager:'Returned to Department Manager',rejected_manager:'Rejected by Department Manager',rejected_super_admin:'Rejected by Super Admin',published:'Published',cancelled:'Cancelled'};return m[s]||String(s||'—').replace(/_/g,' ');}
   function recordType(r){return String(r&&r.recordType||'risk').toLowerCase()==='incident'?'incident':'risk';}
   function recordLabel(r){return recordType(r)==='incident'?'Incident':'Risk';}
   function operationLabel(s,r){var label=recordLabel(r);return({add:'Add '+label,update:'Update '+label,delete:'Delete '+label})[s]||s||'—';}
   function tone(s){if(/^pending/.test(s)||/^returned/.test(s))return'warn';if(s==='published')return'good';if(/^rejected/.test(s)||s==='cancelled')return'bad';return'info';}
-  function actionable(r){var s=String(r.status||'');if(isOwner())return s==='returned_requester'||s==='rejected_manager'||s==='rejected_super_admin';if(isManager())return s==='pending_manager'||s==='returned_manager';if(isSuper())return s==='pending_super_admin';return false;}
+  function actionable(r){var s=String(r.status||'');if(isOwner())return ownRequest(r)&&s==='returned_requester';if(isManager())return s==='pending_manager'||s==='returned_manager';if(isSuper())return s==='pending_super_admin';return false;}
   function approvalNoticeRows(){
     return cache.filter(function(r){
       var s=String(r&&r.status||'');
       if(isSuper())return s==='pending_super_admin';
       if(isManager())return s==='pending_manager'||s==='returned_manager';
-      if(isNoticeOwner())return ['pending_manager','pending_super_admin','returned_manager','returned_requester','rejected_manager','rejected_super_admin'].indexOf(s)>=0;
+      if(isNoticeOwner())return ownRequest(r)&&['pending_manager','pending_super_admin','returned_manager','returned_requester'].indexOf(s)>=0;
       return false;
     });
   }
@@ -118,8 +119,8 @@
   function actions(r){var s=String(r.status||''),html='';
     if(isManager()&&(s==='pending_manager'||s==='returned_manager'))html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_approve\',this)">Approve & Forward</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_return\',this)">Return for Update</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_reject\',this)">Reject</button>';
     if(isSuper()&&s==='pending_super_admin')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_approve\',this)">Approve & Publish</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_return\',this)">Return to Department Manager</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_reject\',this)">Reject</button>';
-    if(isOwner()&&(s==='returned_requester'||s==='rejected_manager'||s==='rejected_super_admin'))html='<button class="grc-risk-action good" onclick="window._grcRiskEditResubmit(\''+esc(r.id)+'\')">Edit & Resubmit</button>';
-    if(isOwner()&&s==='pending_manager')html='<button class="grc-risk-action bad ghost" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'cancel\',this)">Cancel Request</button>';
+    if(isOwner()&&ownRequest(r)&&s==='returned_requester')html='<button class="grc-risk-action good" onclick="window._grcRiskEditResubmit(\''+esc(r.id)+'\')">Edit & Resubmit</button>';
+    if(isOwner()&&ownRequest(r)&&s==='pending_manager')html='<button class="grc-risk-action bad ghost" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'cancel\',this)">Cancel Request</button>';
     return html?'<div class="grc-risk-request-actions">'+html+'</div>'+inlineDecisionShell():'';
   }
   function card(r){var label=recordLabel(r),target=r.targetRecordId||r.targetRiskId||r.proposedRecord&&r.proposedRecord.id||('New '+label);return'<article class="grc-risk-request-card"><div class="grc-risk-card-head"><div><strong>'+esc(r.requestCode||r.id)+'</strong><small>'+esc(operationLabel(r.operation,r))+' · '+esc(r.department||'')+'</small></div><span class="grc-risk-status '+tone(r.status)+'">'+esc(statusLabel(r.status))+'</span></div><div class="grc-risk-card-grid"><span>'+label+'</span><b>'+esc(target)+'</b><span>Submitted by</span><b>'+esc(r.submittedByName||r.submittedByEmail||'—')+'</b><span>Submitted</span><b>'+esc(r.createdAtText||r.createdAtIso||'—')+'</b><span>Last update</span><b>'+esc(r.updatedAtText||r.updatedAtIso||'—')+'</b></div><button class="grc-risk-details-btn" onclick="window._grcRiskShowDetails(\''+esc(r.id)+'\')">View Request Details</button>'+actions(r)+'</article>';}
