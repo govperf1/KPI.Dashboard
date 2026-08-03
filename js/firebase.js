@@ -798,8 +798,18 @@ window._selectPortal=async portal=>{
     const GRC_REGISTER_SCHEMA_VERSION=2;
     function _grcRegisterHash(text){let h=2166136261,s=String(text||'');for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return(h>>>0).toString(36);}
     function _grcRegisterSafeId(value){const out=String(value||'').trim().replace(/[^A-Za-z0-9_-]+/g,'_').replace(/^_+|_+$/g,'');return(out||'record').slice(0,86);}
-    function _grcRegisterCloudId(recordType,record){record=record||{};const existing=String(record._cloudId||record.cloudId||'').trim();if(existing)return _grcRegisterSafeId(existing);const key=recordType==='incident'?'incidents':'risks',identity=String(record.id||record.code||record.riskId||'record');return _grcRegisterSafeId(identity)+'_'+_grcRegisterHash(key+'|'+identity);}
-    function _grcRegisterCloudRecord(recordType,record,department,cloudId,revisionIso){const out=_grcRiskJson(record||{}),key=recordType==='incident'?'incidents':'risks',dept=_grcCanonicalDepartment(department||out.department),revision=String(revisionIso||out.publishedAtIso||out.updatedAtIso||_grcRiskIso());out._cloudId=cloudId;out.cloudId=cloudId;out.department=dept;out.visibility='department';out.recordType=key;out.schemaVersion=GRC_REGISTER_SCHEMA_VERSION;out.updatedByEmail=_grcRiskEmail();out.cloudUpdatedAt=serverTimestamp();out.updatedAtIso=revision;out.publishedAtIso=revision;out.publicationRevision=revision;if(!out.createdByEmail)out.createdByEmail=String(out.createdBy||_grcRiskEmail());return out;}
+    function _grcRegisterCloudId(recordType,record){
+      record=record||{};const key=recordType==='incident'?'incidents':'risks',identity=String(record.id||record.code||record.riskId||'').trim();
+      /* One deterministic document per register business ID. Do not preserve a
+         legacy _cloudId because that recreates duplicate Risk/Incident rows. */
+      if(identity)return _grcRegisterSafeId(identity)+'_'+_grcRegisterHash(key+'|'+identity);
+      const existing=String(record._cloudId||record.cloudId||'').trim();if(existing)return _grcRegisterSafeId(existing);
+      return _grcRegisterSafeId('record')+'_'+_grcRegisterHash(key+'|record');
+    }
+    function _grcRegisterCloudRecord(recordType,record,department,cloudId,revisionIso,revisionSource){
+      const out=_grcRiskJson(record||{}),key=recordType==='incident'?'incidents':'risks',dept=_grcCanonicalDepartment(department||out.department),revision=String(revisionIso||out.publicationRevision||out.publishedAtIso||out.updatedAtIso||_grcRiskIso());
+      out._cloudId=cloudId;out.cloudId=cloudId;out.department=dept;out.visibility='department';out.recordType=key;out.schemaVersion=GRC_REGISTER_SCHEMA_VERSION;out.canonicalDocument=true;out.revisionSource=String(revisionSource||out.revisionSource||'workflow');out.updatedByEmail=_grcRiskEmail();out.cloudUpdatedAt=serverTimestamp();out.updatedAtIso=revision;out.publishedAtIso=revision;out.publicationRevision=revision;delete out._sourceCloudId;delete out._fromCache;if(!out.createdByEmail)out.createdByEmail=String(out.createdBy||_grcRiskEmail());return out;
+    }
     function _grcRegisterBusinessKey(record){return _grcRiskKey(record&& (record.id||record.code||record.riskId));}
     async function _grcRegisterRemoveLegacyDuplicates(recordType,record,keepCloudId){
       if(!_grcRiskIsAdmin()||!record)return 0;
@@ -860,6 +870,11 @@ window._selectPortal=async portal=>{
     };
     function _grcRiskJson(v){try{return JSON.parse(JSON.stringify(v==null?null:v));}catch(_){return null;}}
     function _grcRiskIso(){return new Date().toISOString();}
+    function _grcRevisionMillis(value){
+      if(!value)return 0;if(typeof value==='number')return Number(value)||0;if(typeof value==='string'){const n=Date.parse(value);return Number.isFinite(n)?n:0;}if(typeof value.toMillis==='function')try{return Number(value.toMillis())||0;}catch(_){}if(typeof value.toDate==='function')try{return value.toDate().getTime()||0;}catch(_){}if(typeof value.seconds==='number')return(Number(value.seconds)||0)*1000+Math.floor((Number(value.nanoseconds)||0)/1000000);return 0;
+    }
+    function _grcRecordExplicitRevisionMillis(record){record=record||{};return Math.max(_grcRevisionMillis(record.publicationRevision),_grcRevisionMillis(record.publishedAtIso),_grcRevisionMillis(record.updatedAtIso),_grcRevisionMillis(record.publishedAt),_grcRevisionMillis(record.updatedAt),_grcRevisionMillis(record.createdAtIso),_grcRevisionMillis(record.createdAt));}
+    function _grcRecordRevisionMillis(record){const explicit=_grcRecordExplicitRevisionMillis(record);return explicit||_grcRevisionMillis(record&&record.cloudUpdatedAt);}
     function _grcRiskDeptCode(d){return({maintenance:'MNT',safety:'SAF',housekeeping:'HSK',laundry:'LND',projects:'PRJ',division:'FMS',governance:'GOV'})[_grcCanonicalDepartment(d)]||'FMS';}
     function _grcRiskKey(v){return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');}
     function _grcRiskRecordKey(r){return _grcRiskKey(r&& (r.id||r.code));}
@@ -945,13 +960,15 @@ window._selectPortal=async portal=>{
     async function _grcRepairProjectIncidentIds(){
       if(!_grcRiskIsAdmin()||!db)return 0;
       const snap=await getDocs(collection(db,GRC_REGISTER_COLLECTIONS.incident)),rows=[];
-      snap.forEach(d=>rows.push(Object.assign({_cloudId:d.id,cloudId:d.id},d.data()||{})));
+      snap.forEach(d=>rows.push(Object.assign({_sourceCloudId:d.id,_cloudId:d.id,cloudId:d.id},d.data()||{})));
       const normalized=_grcNormalizeProjectIncidentIds(rows);let changed=0;
       for(const record of normalized){
         if(_grcCanonicalDepartment(record.department||record.responsibleDept)!=='projects'||record.deleted===true)continue;
-        const original=rows.find(x=>String(x._cloudId||x.cloudId)===String(record._cloudId||record.cloudId));
+        const original=rows.find(x=>String(x._sourceCloudId||x._cloudId||x.cloudId)===String(record._sourceCloudId||record._cloudId||record.cloudId));
         if(!original||String(original.id||original.code||'')===String(record.id||record.code||''))continue;
-        await setDoc(doc(db,GRC_REGISTER_COLLECTIONS.incident,String(record._cloudId||record.cloudId)),Object.assign({},record,{updatedAt:serverTimestamp(),updatedAtIso:_grcRiskIso(),updatedByEmail:_grcRiskEmail()}),{merge:true});changed++;
+        const now=_grcRiskIso(),canonicalId=_grcRegisterCloudId('incident',record),canonicalRef=doc(db,GRC_REGISTER_COLLECTIONS.incident,canonicalId),canonicalSnap=await getDoc(canonicalRef),sourceMs=_grcRecordRevisionMillis(original),canonicalMs=canonicalSnap.exists()?_grcRecordRevisionMillis(canonicalSnap.data()||{}):0;
+        if(!canonicalSnap.exists()||sourceMs>=canonicalMs){const candidate=_grcRegisterCloudRecord('incident',Object.assign({},record,{legacyIncidentId:record.legacyIncidentId||String(original.id||original.code||''),updatedAt:now}),record.department,canonicalId,now,'id_normalization');await setDoc(canonicalRef,candidate,{merge:false});changed++;}
+        const oldId=String(original._sourceCloudId||original._cloudId||original.cloudId||'');if(oldId&&oldId!==canonicalId){await deleteDoc(doc(db,GRC_REGISTER_COLLECTIONS.incident,oldId));changed++;}
       }
       return changed;
     }
@@ -962,30 +979,27 @@ window._selectPortal=async portal=>{
       const who=_grcRiskEmail();if(!force&&_grcPublishedRepairFor===who)return 0;
       const snap=await getDocs(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('status','==','published'))),rows=[];
       snap.forEach(d=>rows.push(Object.assign({id:d.id},d.data()||{})));
-      rows.sort((a,b)=>String(a.updatedAtIso||a.createdAtIso||'').localeCompare(String(b.updatedAtIso||b.createdAtIso||'')));
+      rows.sort((a,b)=>String(a.publishedAtIso||a.updatedAtIso||a.createdAtIso||'').localeCompare(String(b.publishedAtIso||b.updatedAtIso||b.createdAtIso||'')));
       let repaired=0;
       for(const request of rows){
         const recordType=String(request.recordType||'risk').toLowerCase()==='incident'?'incident':'risk',operation=String(request.operation||'').toLowerCase();
         if(!['add','update','delete'].includes(operation))continue;
-        const base=_grcRiskJson(request.finalRecord||(operation==='delete'?request.currentRecord:request.proposedRecord)||{});
-        if(!base)continue;
-        const identity=operation==='add'?(request.proposedRecord||base):(request.currentRecord||base),cloudId=_grcRegisterCloudId(recordType,identity),ref=doc(db,GRC_REGISTER_COLLECTIONS[recordType],cloudId),existing=await getDoc(ref),now=_grcRiskIso();
+        const base=_grcRiskJson(request.finalRecord||(operation==='delete'?request.currentRecord:request.proposedRecord)||{});if(!base)continue;
+        const identity=operation==='add'?(request.proposedRecord||base):(request.currentRecord||base),cloudId=_grcRegisterCloudId(recordType,identity),ref=doc(db,GRC_REGISTER_COLLECTIONS[recordType],cloudId),existing=await getDoc(ref),now=_grcRiskIso(),revision=String(request.publishedAtIso||request.updatedAtIso||request.createdAtIso||now),requestMs=_grcRevisionMillis(revision),current=existing.exists()?(existing.data()||{}):null,currentExplicitMs=_grcRecordExplicitRevisionMillis(current);
+        /* This repair is only for missing/stale publication writes. A later
+           direct Admin edit is authoritative and must never be rolled back by
+           replaying an older Published request during a future Admin login. */
+        if(current&&currentExplicitMs>=requestMs)continue;
         if(operation==='delete'){
-          if(existing.exists()&&existing.data().deleted===true)continue;
-          const revision=String(request.publishedAtIso||request.updatedAtIso||now),old=existing.exists()?(existing.data()||{}):base,tomb=_grcRegisterCloudRecord(recordType,Object.assign({},old,base,{id:old.id||base.id,code:old.code||base.code,deleted:true,deletedAt:revision,updatedAt:revision,updatedBy:request.superAdminEmail||_grcRiskEmail()}),request.department,cloudId,revision);
+          const old=current||base,tomb=_grcRegisterCloudRecord(recordType,Object.assign({},old,base,{id:old.id||base.id,code:old.code||base.code,deleted:true,deletedAt:revision,updatedAt:revision,updatedBy:request.superAdminEmail||_grcRiskEmail()}),request.department,cloudId,revision,'workflow');
           tomb.deleted=true;tomb.deletedAt=revision;await setDoc(ref,tomb,{merge:false});await _grcRegisterRemoveLegacyDuplicates(recordType,tomb,cloudId);repaired++;
         }else{
-          const revision=String(request.publishedAtIso||request.updatedAtIso||now),desired=_grcRegisterCloudRecord(recordType,Object.assign({},base,{deleted:false}),request.department,cloudId,revision);delete desired.deleted;delete desired.deletedAt;
-          const current=existing.exists()?(existing.data()||{}):null;
-          const clean=v=>{const x=_grcRiskJson(v||{});delete x.cloudUpdatedAt;delete x.updatedByEmail;return x;};
-          if(current&&JSON.stringify(clean(current))===JSON.stringify(clean(desired)))continue;
+          const desired=_grcRegisterCloudRecord(recordType,Object.assign({},base,{deleted:false}),request.department,cloudId,revision,'workflow');delete desired.deleted;delete desired.deletedAt;
           await setDoc(ref,desired,{merge:false});await _grcRegisterRemoveLegacyDuplicates(recordType,desired,cloudId);repaired++;
         }
       }
       try{repaired+=await _grcRepairProjectIncidentIds();}catch(idRepairErr){console.warn('[GRC Incident ID Repair]',idRepairErr);}
-      _grcPublishedRepairFor=who;
-      if(repaired&&typeof window._grcRestartSecureSync==='function')window._grcRestartSecureSync(true);
-      return repaired;
+      _grcPublishedRepairFor=who;if(repaired&&typeof window._grcRestartSecureSync==='function')window._grcRestartSecureSync(true);return repaired;
     };
 
     window._grcRiskRequestManagerAction=async function(requestId,action,note){
@@ -998,9 +1012,9 @@ window._selectPortal=async portal=>{
         let published=null,recordType='risk';await runTransaction(db,async tx=>{
           const rs=await tx.get(requestRef);if(!rs.exists())throw new Error('Request not found.');const request=Object.assign({id:rs.id,recordType:'risk'},rs.data());if(String(request.status||'')!=='pending_super_admin')throw new Error('This request is not awaiting final approval.');
           recordType=String(request.recordType||'risk').toLowerCase()==='incident'?'incident':'risk';const operation=String(request.operation||'').toLowerCase(),current=_grcRiskJson(request.currentRecord||{}),proposed=_grcRiskJson(request.proposedRecord||{}),cloudId=_grcRegisterCloudId(recordType,operation==='add'?proposed:current),recordRef=doc(db,GRC_REGISTER_COLLECTIONS[recordType],cloudId),existing=await tx.get(recordRef),now=_grcRiskIso(),statusRef=recordType==='risk'?doc(db,GRC_RISK_STATUS_COLLECTION,cloudId):null;
-          if(operation==='add'){if(existing.exists()&&existing.data().deleted!==true)throw new Error((recordType==='incident'?'Incident':'Risk')+' record already exists.');published=_grcRegisterCloudRecord(recordType,proposed,request.department,cloudId,now);published.createdAt=published.createdAt||now;published.createdBy=published.createdBy||request.submittedByName||request.submittedByEmail;delete published.deleted;delete published.deletedAt;tx.set(recordRef,published,{merge:false});if(statusRef)tx.delete(statusRef);}
-          else if(operation==='update'){const old=existing.exists()&&existing.data().deleted!==true?(existing.data()||{}):current;published=_grcRegisterCloudRecord(recordType,Object.assign({},old,proposed,{id:old.id||proposed.id,code:old.code||proposed.code,createdAt:old.createdAt||proposed.createdAt,createdBy:old.createdBy||proposed.createdBy,updatedAt:now,updatedBy:_grcRiskEmail()}),request.department,cloudId,now);delete published.deleted;delete published.deletedAt;tx.set(recordRef,published,{merge:false});if(statusRef)tx.delete(statusRef);}
-          else if(operation==='delete'){const old=existing.exists()?(existing.data()||{}):current;published=Object.assign({_cloudId:cloudId,cloudId:cloudId},old);const tombstone=_grcRegisterCloudRecord(recordType,Object.assign({},old,{id:old.id||current.id,code:old.code||current.code,deleted:true,deletedAt:now,updatedAt:now,updatedBy:_grcRiskEmail()}),request.department,cloudId,now);tombstone.deleted=true;tombstone.deletedAt=now;tx.set(recordRef,tombstone,{merge:false});if(statusRef)tx.delete(statusRef);}
+          if(operation==='add'){if(existing.exists()&&existing.data().deleted!==true)throw new Error((recordType==='incident'?'Incident':'Risk')+' record already exists.');published=_grcRegisterCloudRecord(recordType,proposed,request.department,cloudId,now,'workflow');published.createdAt=published.createdAt||now;published.createdBy=published.createdBy||request.submittedByName||request.submittedByEmail;delete published.deleted;delete published.deletedAt;tx.set(recordRef,published,{merge:false});if(statusRef)tx.delete(statusRef);}
+          else if(operation==='update'){const old=existing.exists()&&existing.data().deleted!==true?(existing.data()||{}):current;published=_grcRegisterCloudRecord(recordType,Object.assign({},old,proposed,{id:old.id||proposed.id,code:old.code||proposed.code,createdAt:old.createdAt||proposed.createdAt,createdBy:old.createdBy||proposed.createdBy,updatedAt:now,updatedBy:_grcRiskEmail()}),request.department,cloudId,now,'workflow');delete published.deleted;delete published.deletedAt;tx.set(recordRef,published,{merge:false});if(statusRef)tx.delete(statusRef);}
+          else if(operation==='delete'){const old=existing.exists()?(existing.data()||{}):current;published=Object.assign({_cloudId:cloudId,cloudId:cloudId},old);const tombstone=_grcRegisterCloudRecord(recordType,Object.assign({},old,{id:old.id||current.id,code:old.code||current.code,deleted:true,deletedAt:now,updatedAt:now,updatedBy:_grcRiskEmail()}),request.department,cloudId,now,'workflow');tombstone.deleted=true;tombstone.deletedAt=now;tx.set(recordRef,tombstone,{merge:false});if(statusRef)tx.delete(statusRef);}
           else throw new Error('Unsupported '+recordType+' request operation.');
           const history=Array.isArray(request.history)?request.history.slice():[];history.push({status:'published',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'')});tx.set(requestRef,{status:'published',recordType,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:String(note||''),finalRecord:published,publishedRiskId:recordType==='risk'?String(published&&published.id||''):'',publishedRecordId:String(published&&published.id||''),publishedCloudId:String(published&& (published._cloudId||published.cloudId)||''),approvedAt:serverTimestamp(),publishedAt:serverTimestamp(),publishedAtIso:now,updatedAt:serverTimestamp(),updatedAtIso:now,history},{merge:true});
         });

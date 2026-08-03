@@ -819,7 +819,7 @@
   // Governance and Risk remain department-scoped. Shared operational modules are visible to every approved GRC user.
   var GRC_GLOBAL_READ_COLLECTIONS={manuals:true,codes:true,compliance:true,audits:true,actions:true,documents:true,initiatives:true};
   var grcStateUnsubs=[],grcStateSaveTimer=null,grcApplyingRemote=false,grcSyncStarted=false,grcCloudReady=false;
-  var grcCloudParts={},grcCloudMirror={},grcInitialScopes={},grcCollectionScopeReady={},grcMigrationPromise=null,grcPendingCloudSave=false;
+  var grcCloudParts={},grcCloudMirror={},grcCloudDuplicates={},grcCloudEverHydrated={},grcInitialScopes={},grcCollectionScopeReady={},grcCollectionScopeFailed={},grcMigrationPromise=null,grcPendingCloudSave=false;
   var grcRiskStatusOverrides={},grcRiskStatusUnsub=null,grcSyncScopeKey='';
   /* Published approval requests are also kept as a live department-scoped
      projection. This is an intentional fallback for any browser whose secure
@@ -839,7 +839,7 @@
   function stopSharedStateSync(){
     grcStateUnsubs.splice(0).forEach(function(u){try{u&&u();}catch(_){}});
     if(grcRiskStatusUnsub){try{grcRiskStatusUnsub();}catch(_){}grcRiskStatusUnsub=null;}
-    grcSyncStarted=false;grcCloudReady=false;grcCloudParts={};grcCloudMirror={};grcInitialScopes={};grcCollectionScopeReady={};grcPendingCloudSave=false;grcSyncScopeKey='';
+    grcSyncStarted=false;grcCloudReady=false;grcCloudParts={};grcCloudMirror={};grcCloudDuplicates={};grcCloudEverHydrated={};grcInitialScopes={};grcCollectionScopeReady={};grcCollectionScopeFailed={};grcPendingCloudSave=false;grcSyncScopeKey='';
   }
   window._grcRestartSecureSync=function(force){
     var wanted=grcSyncIdentityKey();
@@ -880,20 +880,33 @@
   }
   function grcRecordVisibility(collectionKey,record){return grcRecordDepartment(collectionKey,record)==='division'?'shared':'department';}
   function grcCloudDocId(collectionKey,record,index){
-    record=record||{};var existing=String(record._cloudId||record.cloudId||'').trim();if(existing)return grcSafeDocPart(existing);
+    record=record||{};
+    /* Risk and Incident registers must have exactly one canonical Firestore
+       document per business ID. Older builds preserved arbitrary _cloudId
+       values, which allowed multiple documents for the same register row and
+       caused department users to alternate between old and new copies. */
+    if(collectionKey==='risks'||collectionKey==='incidents'){
+      var businessIdentity=String(record.id||record.code||record.riskId||'').trim();
+      if(businessIdentity)return grcSafeDocPart(businessIdentity)+'_'+grcHash(collectionKey+'|'+businessIdentity);
+    }
+    var existing=String(record._cloudId||record.cloudId||'').trim();if(existing)return grcSafeDocPart(existing);
     var identity=String(record.id||record.code||record.requirementId||record.standard||record.nameEn||record.nameAr||record.name||record.title||record.riskIdentified||('row_'+index));
     return grcSafeDocPart(identity)+'_'+grcHash(collectionKey+'|'+identity);
   }
   function grcSerializable(value){try{return JSON.parse(JSON.stringify(value||{}));}catch(_){return{};}}
   function grcPrepareCloudRecord(collectionKey,record,index,b){
     var out=grcSerializable(record),id=grcCloudDocId(collectionKey,out,index);out._cloudId=id;out.cloudId=id;
+    delete out._sourceCloudId;delete out._fromCache;delete out._statusOverride;delete out._statusUpdatedAt;delete out._workflowPublished;delete out._workflowRequestId;delete out._workflowPublishedAt;
     out.department=grcRecordDepartment(collectionKey,out);out.visibility=grcRecordVisibility(collectionKey,out);out.recordType=collectionKey;out.schemaVersion=GRC_SCHEMA_VERSION;
-    out.updatedByEmail=String(window._fbUser||b&&b.auth&&b.auth.currentUser&&b.auth.currentUser.email||'').toLowerCase();
+    if(collectionKey==='risks'||collectionKey==='incidents')out.canonicalDocument=true;
+    if(!out.updatedByEmail)out.updatedByEmail=String(window._fbUser||b&&b.auth&&b.auth.currentUser&&b.auth.currentUser.email||'').toLowerCase();
     if(!out.createdByEmail)out.createdByEmail=out.updatedByEmail;
     if(b&&b.fs&&b.fs.serverTimestamp)out.cloudUpdatedAt=b.fs.serverTimestamp();
     return out;
   }
-  function grcComparable(record){var out=grcSerializable(record);delete out.cloudUpdatedAt;delete out._cloudLoadedAt;return out;}
+  function grcComparable(record){
+    var out=grcSerializable(record);delete out.cloudUpdatedAt;delete out._cloudLoadedAt;delete out._sourceCloudId;delete out._fromCache;delete out._statusOverride;delete out._statusUpdatedAt;delete out._workflowPublished;delete out._workflowRequestId;delete out._workflowPublishedAt;return out;
+  }
   function grcRecordsEqual(a,b){try{return JSON.stringify(grcComparable(a))===JSON.stringify(grcComparable(b));}catch(_){return false;}}
   function grcRecordAllowedLocally(collectionKey,record){
     if(canViewAllExecutiveDepartments()||GRC_GLOBAL_READ_COLLECTIONS[collectionKey])return true;
@@ -912,14 +925,16 @@
     var b=(cleaned&&Array.isArray(cleaned.risks)?cleaned.risks:[]).map(function(r){return[String(r&&r.id||r&&r.code||''),Number(r&&r.riskScore)||0,normalizeStatus(r&&r.riskLevel)];});
     return JSON.stringify(a)!==JSON.stringify(b);
   }
-  function grcDocsFromSnapshot(snapshot){var rows=[];snapshot.forEach(function(d){var r=grcSerializable(d.data()||{});r._cloudId=d.id;r.cloudId=d.id;rows.push(r);});return rows;}
+  function grcDocsFromSnapshot(snapshot){
+    var rows=[];snapshot.forEach(function(d){var r=grcSerializable(d.data()||{});r._sourceCloudId=d.id;r._cloudId=d.id;r.cloudId=d.id;r._fromCache=!!(snapshot.metadata&&snapshot.metadata.fromCache);rows.push(r);});return rows;
+  }
   function applyRiskStatusOverrides(rows){
     var byRecord={};Object.keys(grcRiskStatusOverrides||{}).forEach(function(id){var o=grcRiskStatusOverrides[id]||{},rk=String(o.recordId||'').toUpperCase().replace(/[^A-Z0-9]/g,'');if(rk)byRecord[rk]=o;});
     return (rows||[]).map(function(r,i){var cloudId=grcCloudDocId('risks',r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,''),o=grcRiskStatusOverrides[cloudId]||byRecord[rk];if(!o)return r;var st=String(o.actionStatus||'').toLowerCase();if(st!=='open'&&st!=='closed')return r;var rd=canonicalGrcDepartment(r&&r.department),od=canonicalGrcDepartment(o.department);if(rd&&od&&rd!==od)return r;return Object.assign({},r,{actionStatus:st,_statusOverride:true,_statusUpdatedAt:o.updatedAtIso||''});});
   }
   function grcWorkflowRequestTime(request){
     request=request||{};
-    var iso=String(request.updatedAtIso||request.createdAtIso||'');
+    var iso=String(request.publishedAtIso||request.updatedAtIso||request.createdAtIso||'');
     if(iso)return iso;
     var ts=request.publishedAt||request.updatedAt||request.createdAt;
     if(ts&&typeof ts.toDate==='function')try{return ts.toDate().toISOString();}catch(_){}
@@ -942,18 +957,25 @@
     if(typeof value.seconds==='number')return(Number(value.seconds)||0)*1000+Math.floor((Number(value.nanoseconds)||0)/1000000);
     return 0;
   }
-  function grcRecordFreshness(record){
+  function grcRecordExplicitRevision(record){
     record=record||{};
     return Math.max(
+      grcTimestampMillis(record.publicationRevision),
+      grcTimestampMillis(record.revisionAtIso),
       grcTimestampMillis(record._workflowPublishedAt),
       grcTimestampMillis(record.publishedAtIso),
       grcTimestampMillis(record.updatedAtIso),
       grcTimestampMillis(record.publishedAt),
-      grcTimestampMillis(record.cloudUpdatedAt),
       grcTimestampMillis(record.updatedAt),
       grcTimestampMillis(record.createdAtIso),
       grcTimestampMillis(record.createdAt)
     );
+  }
+  function grcRecordFreshness(record){
+    /* cloudUpdatedAt is a delivery timestamp, not a business revision. It is
+       only comparable when BOTH records have no explicit content revision. */
+    var explicit=grcRecordExplicitRevision(record);
+    return explicit||grcTimestampMillis(record&&record.cloudUpdatedAt);
   }
   function grcRegisterBusinessKey(record){
     var x=grcWorkflowIdentity(record||{});
@@ -961,14 +983,25 @@
   }
   function grcPreferRegisterRecord(current,candidate){
     if(!current)return candidate;
-    var a=grcRecordFreshness(current),b=grcRecordFreshness(candidate);
+    var ae=grcRecordExplicitRevision(current),be=grcRecordExplicitRevision(candidate);
+    /* An approved/direct revision always outranks a transport-only legacy row,
+       even when that legacy row was migrated to Firestore more recently. */
+    if(!!be!==!!ae)return be?candidate:current;
+    var a=ae||grcTimestampMillis(current&&current.cloudUpdatedAt),b=be||grcTimestampMillis(candidate&&candidate.cloudUpdatedAt);
     if(b!==a)return b>a?candidate:current;
-    var aw=current&&current._workflowPublished?1:0,bw=candidate&&candidate._workflowPublished?1:0;
-    if(bw!==aw)return bw>aw?candidate:current;
     var av=Number(current&&current.schemaVersion)||0,bv=Number(candidate&&candidate.schemaVersion)||0;
     if(bv!==av)return bv>av?candidate:current;
-    /* When timestamps tie, prefer the later snapshot entry. Firestore query
-       aliases can temporarily return both a legacy and a canonical document. */
+    var ac=current&&current.canonicalDocument===true?1:0,bc=candidate&&candidate.canonicalDocument===true?1:0;
+    if(bc!==ac)return bc>ac?candidate:current;
+    var aw=current&&current._workflowPublished?1:0,bw=candidate&&candidate._workflowPublished?1:0;
+    if(bw!==aw)return bw>aw?candidate:current;
+    /* A delete at the same explicit revision wins over an active legacy copy,
+       preventing a removed row from being resurrected by an older alias. */
+    var ad=current&&current.deleted===true?1:0,bd=candidate&&candidate.deleted===true?1:0;
+    if(bd!==ad)return bd>ad?candidate:current;
+    var canonicalId=grcCloudDocId(String(candidate&&candidate.recordType||current&&current.recordType||''),candidate||current,0);
+    var as=String(current&&current._sourceCloudId||current&&current._cloudId||''),bs=String(candidate&&candidate._sourceCloudId||candidate&&candidate._cloudId||'');
+    if(canonicalId){if(bs===canonicalId&&as!==canonicalId)return candidate;if(as===canonicalId&&bs!==canonicalId)return current;}
     return candidate;
   }
   function grcDeduplicateRegisterRows(collectionKey,rows){
@@ -993,17 +1026,21 @@
       if(!record||(!record.id&&!record.code&&!record._cloudId&&!record.cloudId))return;
       var identity=grcWorkflowIdentity(record),targetKey=String(request.targetRecordId||request.targetRiskId||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
       var index=out.findIndex(function(existing){var x=grcWorkflowIdentity(existing);return(identity.cloud&&x.cloud===identity.cloud)||(identity.key&&x.key===identity.key)||(targetKey&&x.key===targetKey);});
+      var workflowTime=grcWorkflowRequestTime(request),workflowMs=grcTimestampMillis(workflowTime),existing=index>=0?out[index]:null,canonicalId=grcCloudDocId(collectionKey,record,0),mirrorRecord=grcCloudMirror[collectionKey]&&grcCloudMirror[collectionKey][canonicalId];if(!mirrorRecord){var workflowBusinessKey=grcRegisterBusinessKey(record);Object.keys(grcCloudMirror[collectionKey]||{}).some(function(id){var candidate=grcCloudMirror[collectionKey][id];if(grcRegisterBusinessKey(candidate)===workflowBusinessKey){mirrorRecord=candidate;return true;}return false;});}var existingExplicit=Math.max(grcRecordExplicitRevision(existing),grcRecordExplicitRevision(mirrorRecord));
+      /* Published requests are only a delivery fallback. Only an equal/newer
+         explicit register revision may block them. A later Firestore delivery
+         timestamp on legacy content is never allowed to roll back approval. */
+      if((existing||mirrorRecord)&&existingExplicit>=workflowMs&&workflowMs>0)return;
       if(op==='delete'){
         if(index>=0)out.splice(index,1);
         return;
       }
-      var workflowTime=grcWorkflowRequestTime(request);
       record.department=canonicalGrcDepartment(record.department||request.department||request.departmentKey);
       record._workflowPublished=true;
       record._workflowRequestId=String(request.id||request.requestCode||'');
       record._workflowPublishedAt=workflowTime;
-      if(workflowTime&&grcTimestampMillis(record.updatedAtIso)<grcTimestampMillis(workflowTime))record.updatedAtIso=workflowTime;
-      if(workflowTime)record.publishedAtIso=workflowTime;
+      if(workflowTime&&grcTimestampMillis(record.updatedAtIso)<workflowMs)record.updatedAtIso=workflowTime;
+      if(workflowTime){record.publishedAtIso=workflowTime;record.publicationRevision=workflowTime;}
       if(collectionKey==='risks')record=normalizeRiskClassification(record);
       if(index>=0)out[index]=Object.assign({},out[index],record);
       else out.push(record);
@@ -1047,31 +1084,48 @@
   });
 
   function grcApplyCloudCollection(collectionKey){
-    var parts=grcCloudParts[collectionKey]||{},map={},tombstones={},rawRows=[];Object.keys(parts).forEach(function(scope){(parts[scope]||[]).forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');r._cloudId=id;r.cloudId=id;if(r&&r.deleted===true){tombstones[id]=1;if(rk)tombstones[rk]=1;return;}map[id]=r;rawRows.push(r);});});
-    /* Multiple historical cloud documents may represent the same register ID.
-       Resolve them by business ID and revision timestamp before seeding or
-       filtering, so an old duplicate can never overwrite an approved update. */
-    var rows=grcDeduplicateRegisterRows(collectionKey,rawRows);
-    if(collectionKey==='risks'){
-      rows=rows.map(normalizeRiskClassification);
-      /* Keep the approved baseline Risk Register visible if an older secure
-         migration is missing department rows (notably Projects Management). */
-      var seededRiskState=defaultState();seededRiskState.risks=rows;rows=applyRiskRegisterSeed(seededRiskState).risks;
-      rows=rows.filter(function(r,i){var id=grcCloudDocId('risks',r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');return !tombstones[id]&&!tombstones[rk];});
-      rows=grcApplyPublishedWorkflowOverlay('risks',rows);
-      rows=grcDeduplicateRegisterRows('risks',rows);
-      rows=applyRiskStatusOverrides(rows);
+    var parts=grcCloudParts[collectionKey]||{},rawRows=[];
+    Object.keys(parts).forEach(function(scope){(parts[scope]||[]).forEach(function(r){rawRows.push(copyRecord(r));});});
+
+    if(collectionKey==='risks'||collectionKey==='incidents'){
+      /* Resolve active rows and tombstones together by business ID and revision.
+         The old implementation removed a row when ANY historical tombstone was
+         present and later re-added seed data, which made approved edits appear
+         briefly and then revert for scoped users. Firestore is now the only
+         authority after hydration. */
+      var winners={},order=[],duplicateMap={};
+      rawRows.forEach(function(record){
+        var key=grcRegisterBusinessKey(record),canonicalId=grcCloudDocId(collectionKey,record,0),sourceId=String(record._sourceCloudId||record._cloudId||record.cloudId||canonicalId);
+        record._sourceCloudId=sourceId;record._cloudId=canonicalId;record.cloudId=canonicalId;record.recordType=collectionKey;
+        if(!Object.prototype.hasOwnProperty.call(winners,key))order.push(key);
+        winners[key]=grcPreferRegisterRecord(winners[key],record);
+        duplicateMap[canonicalId]=duplicateMap[canonicalId]||[];
+        if(sourceId&&duplicateMap[canonicalId].indexOf(sourceId)<0)duplicateMap[canonicalId].push(sourceId);
+      });
+      var rows=[];grcCloudMirror[collectionKey]={};grcCloudDuplicates[collectionKey]=duplicateMap;
+      order.forEach(function(key){
+        var winner=winners[key];if(!winner)return;
+        var canonicalId=grcCloudDocId(collectionKey,winner,0);winner._cloudId=canonicalId;winner.cloudId=canonicalId;
+        grcCloudMirror[collectionKey][canonicalId]=grcComparable(winner);
+        if(winner.deleted===true)return;
+        delete winner.deleted;delete winner.deletedAt;
+        rows.push(winner);
+      });
+      rows=grcDeduplicateRegisterRows(collectionKey,rows);
+      rows=grcApplyPublishedWorkflowOverlay(collectionKey,rows);
+      rows=grcDeduplicateRegisterRows(collectionKey,rows);
+      if(collectionKey==='risks')rows=applyRiskStatusOverrides(rows.map(normalizeRiskClassification));
+      if(collectionKey==='incidents')rows=normalizeProjectIncidentIds(rows);
+      state[collectionKey]=rows;
+      grcCloudEverHydrated[collectionKey]=true;
+      return;
     }
-    /* These approved baseline records were introduced after the first secure
-       migration. Keep them visible even when an older cloud collection does not
-       contain them yet; Admin/Super Admin also repairs the missing cloud docs. */
-    if(collectionKey==='incidents'){rows=mergeProjectIncidentSeed(rows);rows=rows.filter(function(r,i){var id=grcCloudDocId('incidents',r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');return !tombstones[id]&&!tombstones[rk];});rows=grcApplyPublishedWorkflowOverlay('incidents',rows);rows=grcDeduplicateRegisterRows('incidents',rows);}
+
+    var map={},tombstones={};rawRows.forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');r._cloudId=id;r.cloudId=id;if(r&&r.deleted===true){tombstones[id]=1;if(rk)tombstones[rk]=1;return;}map[id]=r;});
+    var rows=Object.keys(map).map(function(id){return map[id];});
     if(collectionKey==='initiatives')rows=mergeInitiativeSeed(rows);
-    state[collectionKey]=rows;grcCloudMirror[collectionKey]={};rows.forEach(function(r,i){
-      /* Only mirror records actually returned by Firestore. Baseline records that
-         are missing in the cloud must remain detectable by the repair routine. */
-      var id=grcCloudDocId(collectionKey,r,i);if(map[id])grcCloudMirror[collectionKey][id]=grcComparable(r);
-    });
+    state[collectionKey]=rows;grcCloudMirror[collectionKey]={};rows.forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i);if(map[id])grcCloudMirror[collectionKey][id]=grcComparable(r);});
+    grcCloudEverHydrated[collectionKey]=true;
   }
   window._grcApplyPublishedRegisterRecord=function(recordType,operation,record){
     var key=String(recordType||'risk').toLowerCase()==='incident'?'incidents':'risks',op=String(operation||'').toLowerCase(),r=copyRecord(record||{}),rows=(state[key]||[]).slice();
@@ -1080,15 +1134,16 @@
     var at=rows.findIndex(same);
     if(op==='delete'){if(at>=0)rows.splice(at,1);}
     else{if(key==='risks')r=normalizeRiskClassification(r);if(at>=0)rows[at]=Object.assign({},rows[at],r);else rows.push(r);}
-    if(key==='incidents')rows=mergeProjectIncidentSeed(rows);state[key]=rows;if(key==='risks')state.risks=applyRiskStatusOverrides(state.risks);state=repairGovernanceCodeState(state);enforceLocalGrcScope();
+    if(key==='incidents')rows=normalizeProjectIncidentIds(rows);state[key]=rows;if(key==='risks')state.risks=applyRiskStatusOverrides(state.risks);state=repairGovernanceCodeState(state);enforceLocalGrcScope();
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}
     renderAtSamePosition(grcViewportPosition());
   };
 
   function grcAllInitialScopesReady(){return Object.keys(GRC_COLLECTION_MAP).every(function(k){return grcInitialScopes[k]===true;});}
+  function grcAllInitialScopesHealthy(){return Object.keys(grcCollectionScopeFailed).every(function(k){return Object.keys(grcCollectionScopeFailed[k]||{}).length===0;});}
   function grcConfigureCollectionScopes(collectionKey,scopes){
     var expected={};(scopes||[]).forEach(function(scope){expected[scope]=true;});
-    grcCollectionScopeReady[collectionKey]={expected:expected,received:{}};
+    grcCollectionScopeReady[collectionKey]={expected:expected,received:{}};grcCollectionScopeFailed[collectionKey]={};
     grcInitialScopes[collectionKey]=Object.keys(expected).length===0;
   }
   function grcMarkCollectionScopeReady(collectionKey,scope){
@@ -1101,16 +1156,34 @@
   function grcApplyReadyCollection(collectionKey){
     if(!grcInitialScopes[collectionKey])return;
     grcApplyingRemote=true;grcApplyCloudCollection(collectionKey);state=repairGovernanceCodeState(state);enforceLocalGrcScope();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}grcApplyingRemote=false;
-    if(grcAllInitialScopesReady()){grcCloudReady=true;if(grcPendingCloudSave){grcPendingCloudSave=false;queueSharedStateSave(true);}}
+    if(grcAllInitialScopesReady()&&grcAllInitialScopesHealthy()){grcCloudReady=true;if(grcPendingCloudSave){grcPendingCloudSave=false;queueSharedStateSave(true);}}else grcCloudReady=false;
     renderAtSamePosition(grcViewportPosition());
   }
   function grcHandleCollectionSnapshot(collectionKey,scope,snapshot){
-    grcCloudParts[collectionKey]=grcCloudParts[collectionKey]||{};grcCloudParts[collectionKey][scope]=grcDocsFromSnapshot(snapshot);
+    grcCloudParts[collectionKey]=grcCloudParts[collectionKey]||{};
+    var incoming=grcDocsFromSnapshot(snapshot),existing=grcCloudParts[collectionKey][scope]||[];
+    /* Never let a stale local-cache snapshot replace a newer server snapshot.
+       Merge cached rows monotonically by source document and revision; a later
+       authoritative server snapshot still replaces the complete query scope. */
+    if(grcCollectionScopeFailed[collectionKey])delete grcCollectionScopeFailed[collectionKey][scope];
+    if(snapshot.metadata&&snapshot.metadata.fromCache&&existing.length&&(collectionKey==='risks'||collectionKey==='incidents')){
+      var bySource={};existing.forEach(function(r){bySource[String(r._sourceCloudId||r._cloudId||r.cloudId||'')]=r;});
+      incoming.forEach(function(r){var id=String(r._sourceCloudId||r._cloudId||r.cloudId||'');bySource[id]=grcPreferRegisterRecord(bySource[id],r);});
+      grcCloudParts[collectionKey][scope]=Object.keys(bySource).map(function(id){return bySource[id];});
+    }else grcCloudParts[collectionKey][scope]=incoming;
     if(!grcMarkCollectionScopeReady(collectionKey,scope))return;
     grcApplyReadyCollection(collectionKey);
   }
   function grcListen(b,collectionKey,scope,qref){
-    var unsub=b.fs.onSnapshot(qref,function(snap){grcHandleCollectionSnapshot(collectionKey,scope,snap);},function(err){console.error('[GRC Secure Sync] '+collectionKey+' '+scope+' failed',err);grcCloudParts[collectionKey]=grcCloudParts[collectionKey]||{};grcCloudParts[collectionKey][scope]=[];if(grcMarkCollectionScopeReady(collectionKey,scope))grcApplyReadyCollection(collectionKey);});
+    var unsub=b.fs.onSnapshot(qref,{includeMetadataChanges:true},function(snap){grcHandleCollectionSnapshot(collectionKey,scope,snap);},function(err){
+      console.error('[GRC Secure Sync] '+collectionKey+' '+scope+' failed',err);
+      grcCloudParts[collectionKey]=grcCloudParts[collectionKey]||{};
+      /* A temporary permission/network error must not clear a previously
+         confirmed register snapshot and expose stale localStorage/seed data. */
+      grcCollectionScopeFailed[collectionKey]=grcCollectionScopeFailed[collectionKey]||{};grcCollectionScopeFailed[collectionKey][scope]=true;
+      if(!Object.prototype.hasOwnProperty.call(grcCloudParts[collectionKey],scope))grcCloudParts[collectionKey][scope]=[];
+      if(grcMarkCollectionScopeReady(collectionKey,scope))grcApplyReadyCollection(collectionKey);
+    });
     grcStateUnsubs.push(unsub);
   }
   async function grcAnySecureRecords(b){
@@ -1119,14 +1192,45 @@
   async function grcCommitWrites(b,writes){
     for(var start=0;start<writes.length;start+=400){var batch=b.fs.writeBatch(b.db);writes.slice(start,start+400).forEach(function(w){if(w.op==='delete')batch.delete(w.ref);else batch.set(w.ref,w.data,{merge:false});});await batch.commit();}
   }
+  async function consolidateGrcRegisterCollections(b){
+    if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return 0;
+    var changed=0;
+    for(var ki=0;ki<2;ki++){
+      var key=ki===0?'risks':'incidents',snap=await b.fs.getDocs(b.fs.collection(b.db,GRC_COLLECTION_MAP[key])),groups={};
+      snap.forEach(function(d){var r=grcSerializable(d.data()||{});r._sourceCloudId=d.id;r._cloudId=d.id;r.cloudId=d.id;r.recordType=key;var business=grcRegisterBusinessKey(r);groups[business]=groups[business]||[];groups[business].push(r);});
+      var writes=[];
+      Object.keys(groups).forEach(function(business){
+        var list=groups[business],winner=null;list.forEach(function(r){winner=grcPreferRegisterRecord(winner,r);});if(!winner)return;
+        var canonicalId=grcCloudDocId(key,winner,0),sourceId=String(winner._sourceCloudId||winner._cloudId||winner.cloudId||''),clean=grcSerializable(winner);
+        clean._cloudId=canonicalId;clean.cloudId=canonicalId;clean.canonicalDocument=true;clean.department=grcRecordDepartment(key,clean);clean.visibility=grcRecordVisibility(key,clean);clean.recordType=key;clean.schemaVersion=GRC_SCHEMA_VERSION;delete clean._sourceCloudId;delete clean._fromCache;
+        /* Consolidation changes storage shape only; it must not manufacture a
+           new business revision for legacy content. Otherwise an old row can
+           appear newer than a real approval and block it from being repaired. */
+        if(!clean.revisionSource)clean.revisionSource=grcRecordExplicitRevision(clean)?'existing':'legacy_consolidation';
+        clean.cloudUpdatedAt=b.fs.serverTimestamp();if(!clean.updatedByEmail)clean.updatedByEmail=String(window._fbUser||'').toLowerCase();
+        var canonicalExisting=list.find(function(r){return String(r._sourceCloudId||'')===canonicalId;});
+        if(!canonicalExisting||!grcRecordsEqual(clean,canonicalExisting))writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],canonicalId),data:clean});
+        list.forEach(function(r){var oldId=String(r._sourceCloudId||r._cloudId||r.cloudId||'');if(oldId&&oldId!==canonicalId)writes.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],oldId)});});
+      });
+      if(writes.length){await grcCommitWrites(b,writes);changed+=writes.length;}
+    }
+    if(changed)try{window._recordAuditDirect&&window._recordAuditDirect('GRC_REGISTER_CONSOLIDATION','Consolidated Risk and Incident registers into canonical documents',null,{writes:changed},{portal:'grc'});}catch(_){}
+    return changed;
+  }
+  window._grcConsolidateRegisterCollections=function(){return ensureReportBackend().then(consolidateGrcRegisterCollections);};
   async function migrateLegacyGrcState(b,force){
     if(!isGrcAdmin())return false;if(grcMigrationPromise&&!force)return grcMigrationPromise;
     grcMigrationPromise=(async function(){
       var marker=await b.fs.getDoc(grcMigrationRef(b));if(marker.exists()&&marker.data().status==='completed'&&!force)return false;
       await b.fs.setDoc(grcMigrationRef(b),{status:'running',schemaVersion:GRC_SCHEMA_VERSION,startedAt:b.fs.serverTimestamp(),startedBy:String(window._fbUser||'')},{merge:true});
-      var legacySnap=await b.fs.getDoc(grcSharedStateRef(b)),source=legacySnap.exists()?cleanSharedState(legacySnap.data()):cleanSharedState(state),writes=[],counts={};
-      Object.keys(GRC_COLLECTION_MAP).forEach(function(key){var arr=Array.isArray(source[key])?source[key]:[];counts[key]=arr.length;arr.forEach(function(record,index){var prepared=grcPrepareCloudRecord(key,record,index,b),id=prepared._cloudId;writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],id),data:prepared});});});
-      await grcCommitWrites(b,writes);await b.fs.setDoc(grcMigrationRef(b),{status:'completed',schemaVersion:GRC_SCHEMA_VERSION,legacyDocument:'kpi_dashboard/'+GRC_SHARED_STATE_DOC,counts:counts,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+      var legacySnap=await b.fs.getDoc(grcSharedStateRef(b)),source=legacySnap.exists()?cleanSharedState(legacySnap.data()):cleanSharedState(state),writes=[],counts={},candidates=[];
+      Object.keys(GRC_COLLECTION_MAP).forEach(function(key){var arr=Array.isArray(source[key])?source[key]:[];counts[key]=arr.length;arr.forEach(function(record,index){var prepared=grcPrepareCloudRecord(key,record,index,b),id=prepared._cloudId;prepared.revisionSource=prepared.revisionSource||'legacy_migration';candidates.push({key:key,id:id,ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],id),data:prepared});});});
+      /* Migration is import-only. Never blindly overwrite a live canonical
+         document. Risk/Incident rows update only when the imported record has
+         a genuinely newer explicit business revision; other records are only
+         created when missing. */
+      await Promise.all(candidates.map(async function(item){var existing=await b.fs.getDoc(item.ref);if(!existing.exists()){writes.push({op:'set',ref:item.ref,data:item.data});return;}if(item.key==='risks'||item.key==='incidents'){var current=grcSerializable(existing.data()||{}),incoming=grcSerializable(item.data||{}),preferred=grcPreferRegisterRecord(current,incoming);if(preferred===incoming&&grcRecordExplicitRevision(incoming)>grcRecordExplicitRevision(current))writes.push({op:'set',ref:item.ref,data:item.data});}}));
+      await grcCommitWrites(b,writes);await b.fs.setDoc(grcMigrationRef(b),{status:'completed',schemaVersion:GRC_SCHEMA_VERSION,legacyDocument:'kpi_dashboard/'+GRC_SHARED_STATE_DOC,counts:counts,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
       try{window._recordAuditDirect&&window._recordAuditDirect('GRC_SECURE_MIGRATION','Migrated the GRC shared document to department-scoped collections',null,counts,{portal:'grc'});}catch(_){}
       return true;
     })().catch(function(err){grcMigrationPromise=null;console.error('[GRC Secure Migration] failed',err);throw err;});return grcMigrationPromise;
@@ -1172,6 +1276,7 @@
       grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
       if(isGrcAdmin()){
         try{await migrateLegacyGrcState(b,false);}catch(err){console.error('[GRC Secure Migration] automatic migration did not complete',err);}
+        try{await consolidateGrcRegisterCollections(b);}catch(err1){console.error('[GRC Register Consolidation] duplicate records could not be consolidated',err1);}
         try{await ensureRequiredGrcBaselineRecords(b);}catch(err2){console.error('[GRC Baseline Repair] approved records could not be repaired',err2);}
       }
       startRiskStatusOverrideSync(b);
@@ -1192,8 +1297,35 @@
   }
   async function flushSecureState(){
     if(grcApplyingRemote||!isGrcAdmin())return false;if(!grcCloudReady){grcPendingCloudSave=true;return false;}
-    var b=await ensureReportBackend();if(!b.auth.currentUser)throw new Error('not-authenticated');var writes=[];
-    Object.keys(GRC_COLLECTION_MAP).forEach(function(key){var current={},arr=Array.isArray(state[key])?state[key]:[];arr.forEach(function(record,index){var prepared=grcPrepareCloudRecord(key,record,index,b),id=prepared._cloudId;record._cloudId=id;record.cloudId=id;current[id]=grcComparable(prepared);var previous=(grcCloudMirror[key]||{})[id];if(!previous||!grcRecordsEqual(current[id],previous))writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],id),data:prepared});});Object.keys(grcCloudMirror[key]||{}).forEach(function(id){if(!current[id])writes.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],id)});});});
+    var b=await ensureReportBackend();if(!b.auth.currentUser)throw new Error('not-authenticated');var writes=[],now=new Date().toISOString();
+    Object.keys(GRC_COLLECTION_MAP).forEach(function(key){
+      var current={},arr=Array.isArray(state[key])?state[key]:[],isRegister=key==='risks'||key==='incidents';
+      arr.forEach(function(record,index){
+        var canonicalId=grcCloudDocId(key,record,index),previous=(grcCloudMirror[key]||{})[canonicalId],prepared=grcPrepareCloudRecord(key,record,index,b),beforeComparable=grcComparable(prepared),changed=!previous||previous.deleted===true||!grcRecordsEqual(beforeComparable,previous);
+        if(isRegister&&changed){
+          record._cloudId=canonicalId;record.cloudId=canonicalId;record.updatedAt=now;record.updatedAtIso=now;record.publishedAtIso=now;record.publicationRevision=now;record.revisionSource='direct_admin';record.canonicalDocument=true;record.updatedByEmail=String(window._fbUser||'').toLowerCase();
+          prepared=grcPrepareCloudRecord(key,record,index,b);prepared.updatedAt=now;prepared.updatedAtIso=now;prepared.publishedAtIso=now;prepared.publicationRevision=now;prepared.revisionSource='direct_admin';prepared.canonicalDocument=true;prepared.updatedByEmail=String(window._fbUser||'').toLowerCase();delete prepared.deleted;delete prepared.deletedAt;
+          writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],canonicalId),data:prepared});
+          if(key==='risks'&&previous&&normalizeStatus(previous.actionStatus)!==normalizeStatus(record.actionStatus))writes.push({op:'delete',ref:b.fs.doc(b.db,'grc_risk_status',canonicalId)});
+        }else if(!isRegister&&changed){prepared.updatedByEmail=String(window._fbUser||'').toLowerCase();prepared.cloudUpdatedAt=b.fs.serverTimestamp();writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],canonicalId),data:prepared});}
+        current[canonicalId]=grcComparable(prepared);
+        if(isRegister){
+          (grcCloudDuplicates[key]&&grcCloudDuplicates[key][canonicalId]||[]).forEach(function(sourceId){if(sourceId&&sourceId!==canonicalId)writes.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],sourceId)});});
+        }
+      });
+      Object.keys(grcCloudMirror[key]||{}).forEach(function(id){
+        if(current[id])return;var previous=grcCloudMirror[key][id]||{};
+        if(isRegister){
+          if(previous.deleted===true)return;
+          var tomb=grcSerializable(previous),revision=now;tomb._cloudId=id;tomb.cloudId=id;tomb.canonicalDocument=true;tomb.department=grcRecordDepartment(key,tomb);tomb.visibility=grcRecordVisibility(key,tomb);tomb.recordType=key;tomb.schemaVersion=GRC_SCHEMA_VERSION;tomb.deleted=true;tomb.deletedAt=revision;tomb.updatedAt=revision;tomb.updatedAtIso=revision;tomb.publishedAtIso=revision;tomb.publicationRevision=revision;tomb.revisionSource='direct_admin';tomb.updatedByEmail=String(window._fbUser||'').toLowerCase();tomb.cloudUpdatedAt=b.fs.serverTimestamp();delete tomb._sourceCloudId;delete tomb._fromCache;
+          writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],id),data:tomb});
+          if(key==='risks')writes.push({op:'delete',ref:b.fs.doc(b.db,'grc_risk_status',id)});
+          (grcCloudDuplicates[key]&&grcCloudDuplicates[key][id]||[]).forEach(function(sourceId){if(sourceId&&sourceId!==id)writes.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],sourceId)});});
+        }else writes.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],id)});
+      });
+    });
+    /* De-duplicate identical batch operations generated by alias cleanup. */
+    var unique=[],seen={};writes.forEach(function(w){var path=String(w.ref&&w.ref.path||''),sig=w.op+'|'+path;if(seen[sig]){if(w.op==='set')unique[seen[sig]-1]=w;return;}seen[sig]=unique.length+1;unique.push(w);});writes=unique;
     if(!writes.length)return true;await grcCommitWrites(b,writes);return true;
   }
   function queueSharedStateSave(immediate){
