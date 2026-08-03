@@ -871,10 +871,15 @@ window._selectPortal=async portal=>{
     function _grcRegisterNextId(records,department,requested,recordType){
       recordType=String(recordType||'risk').toLowerCase();
       const requestedKey=_grcRiskKey(requested);if(requestedKey&&!records.some(r=>_grcRiskRecordKey(r)===requestedKey))return String(requested).trim();
-      const dept=String(department||'').toLowerCase();
+      const dept=_grcCanonicalDepartment(department);
       if(recordType==='incident'){
-        const deptCode=_grcRiskDeptCode(dept),year=new Date().getFullYear(),prefix='INC-'+deptCode+'-'+year+'-';let max=0;
-        records.forEach(r=>{const raw=String(r&&r.id||r&&r.code||'').toUpperCase(),m=raw.match(/(\d+)$/);if(m)max=Math.max(max,Number(m[1])||0);});
+        let max=0;
+        if(dept==='projects'){
+          records.forEach(r=>{if(_grcCanonicalDepartment(r&& (r.department||r.responsibleDept))!=='projects')return;const raw=String(r&&r.id||r&&r.code||'').toUpperCase(),m=raw.match(/^PMD[- ]?(\d+)$/);if(m)max=Math.max(max,Number(m[1])||0);});
+          return'PMD-'+String(max+1).padStart(2,'0');
+        }
+        const deptCode=_grcRiskDeptCode(dept),year=new Date().getFullYear(),prefix='INC-'+deptCode+'-'+year+'-';
+        records.forEach(r=>{if(_grcCanonicalDepartment(r&& (r.department||r.responsibleDept))!==dept)return;const raw=String(r&&r.id||r&&r.code||'').toUpperCase(),m=raw.match(/(\d+)$/);if(m)max=Math.max(max,Number(m[1])||0);});
         return prefix+String(max+1).padStart(3,'0');
       }
       let prefix=({safety:'SAF',maintenance:'MNT',projects:'PM',laundry:'LUND'})[dept]||'HK';
@@ -930,6 +935,28 @@ window._selectPortal=async portal=>{
     window._grcRiskRequestCancel=async function(requestId){
       const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(!_grcRiskOwnsRequest(r))throw new Error('Access denied.');if(!['pending_manager','returned_requester'].includes(String(r.status||'')))throw new Error('This request can no longer be cancelled.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status:'cancelled',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:'Cancelled by requester'});await updateDoc(ref,{status:'cancelled',updatedAt:serverTimestamp(),updatedAtIso:now,history});return true;
     };
+    function _grcNormalizeProjectIncidentIds(records){
+      const rows=(Array.isArray(records)?records:[]).map(r=>_grcRiskJson(r||{})),used=new Set(),candidates=[];
+      rows.forEach(r=>{if(_grcCanonicalDepartment(r.department||r.responsibleDept)!=='projects'||r.deleted===true)return;const raw=String(r.id||r.code||'').trim().toUpperCase(),m=raw.match(/^PMD[- ]?(\d+)$/);if(m){const n=Number(m[1])||0;used.add(n);r.id='PMD-'+String(n).padStart(2,'0');if(!r.code||/^INC-PRJ-/i.test(String(r.code)))r.code=r.id;}else candidates.push(r);});
+      candidates.sort((a,b)=>(String(a.date||a.createdAtIso||a.publishedAtIso||a.updatedAtIso||'')+'|'+String(a.id||a.code||'')).localeCompare(String(b.date||b.createdAtIso||b.publishedAtIso||b.updatedAtIso||'')+'|'+String(b.id||b.code||'')));
+      let next=1;candidates.forEach(r=>{while(used.has(next))next++;const oldId=String(r.id||r.code||'').trim(),newId='PMD-'+String(next).padStart(2,'0');if(oldId&&oldId!==newId&&!r.legacyIncidentId)r.legacyIncidentId=oldId;r.id=newId;r.code=newId;used.add(next++);});
+      return rows;
+    }
+    async function _grcRepairProjectIncidentIds(){
+      if(!_grcRiskIsAdmin()||!db)return 0;
+      const snap=await getDocs(collection(db,GRC_REGISTER_COLLECTIONS.incident)),rows=[];
+      snap.forEach(d=>rows.push(Object.assign({_cloudId:d.id,cloudId:d.id},d.data()||{})));
+      const normalized=_grcNormalizeProjectIncidentIds(rows);let changed=0;
+      for(const record of normalized){
+        if(_grcCanonicalDepartment(record.department||record.responsibleDept)!=='projects'||record.deleted===true)continue;
+        const original=rows.find(x=>String(x._cloudId||x.cloudId)===String(record._cloudId||record.cloudId));
+        if(!original||String(original.id||original.code||'')===String(record.id||record.code||''))continue;
+        await setDoc(doc(db,GRC_REGISTER_COLLECTIONS.incident,String(record._cloudId||record.cloudId)),Object.assign({},record,{updatedAt:serverTimestamp(),updatedAtIso:_grcRiskIso(),updatedByEmail:_grcRiskEmail()}),{merge:true});changed++;
+      }
+      return changed;
+    }
+    window._grcRiskRepairProjectIncidentIds=_grcRepairProjectIncidentIds;
+
     window._grcRiskRepairPublishedRequests=async function(force){
       if(!_grcRiskIsAdmin()||!db)return 0;
       const who=_grcRiskEmail();if(!force&&_grcPublishedRepairFor===who)return 0;
@@ -955,6 +982,7 @@ window._selectPortal=async portal=>{
           await setDoc(ref,desired,{merge:false});await _grcRegisterRemoveLegacyDuplicates(recordType,desired,cloudId);repaired++;
         }
       }
+      try{repaired+=await _grcRepairProjectIncidentIds();}catch(idRepairErr){console.warn('[GRC Incident ID Repair]',idRepairErr);}
       _grcPublishedRepairFor=who;
       if(repaired&&typeof window._grcRestartSecureSync==='function')window._grcRestartSecureSync(true);
       return repaired;

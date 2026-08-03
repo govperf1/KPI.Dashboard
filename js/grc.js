@@ -726,10 +726,31 @@
   }
   var INITIATIVE_SEED=[{"id":"INIT-001","nameAr":"مركز بلاغات إدارة المرافق (FMS Division)","nameEn":"Facility Management Reporting Center (FMS Division)","department":"allFms","status":"proposed","team":[],"code":"INIT-001","executionStatus":"","progress":0},{"id":"INIT-002","nameAr":"مبادرة اكتمال الكادر التشغيلي","nameEn":"Operational Workforce Completion Initiative","department":"housekeeping","status":"proposed","team":[],"code":"INIT-002","executionStatus":"","progress":0},{"id":"INIT-003","nameAr":"مبادرة تعزيز جودة النظافة عبر رمز الاستجابة السريعة","nameEn":"Housekeeping Quality Enhancement via QR Code","department":"housekeeping","status":"proposed","team":[],"code":"INIT-003","executionStatus":"","progress":0},{"id":"INIT-004","nameAr":"مبادرة يوم الجودة الإداري الشهري","nameEn":"Monthly Administrative Quality Day Initiative","department":"housekeeping","status":"proposed","team":[],"code":"INIT-004","executionStatus":"","progress":0},{"id":"INIT-005","nameAr":"مبادرة تطوير التقارير الربعية لتجربة المريض","nameEn":"Patient Experience Quarterly Reports Development Initiative","department":"housekeeping","status":"proposed","team":[],"code":"INIT-005","executionStatus":"","progress":0},{"id":"INIT-006","nameAr":"مبادرة تصميم خريطة توجيه للمراجعين داخل المدينة الطبية","nameEn":"Medical City Wayfinding Map Initiative","department":"projects","status":"selected","team":[{"name":"م. مشاري الصعب","roleAr":"قائد الفريق","roleEn":"Team Leader","gender":"male","department":"safety"},{"name":"م. إبراهيم الصقيهي","roleAr":"عضو الفريق","roleEn":"Team Member","gender":"male","department":"projects"}],"code":"INIT-006","executionStatus":"in_progress","progress":0},{"id":"INIT-007","nameAr":"مبادرة تصميم حزام حمل لاسطوانات الغازات الطبية","nameEn":"Medical Gas Cylinder Carrying Belt Initiative","department":"maintenance","status":"selected","team":[{"name":"م. عبدالله الزوين","roleAr":"قائد الفريق","roleEn":"Team Leader","gender":"male","department":"maintenance"}],"code":"INIT-007","executionStatus":"in_progress","progress":0},{"id":"INIT-008","nameAr":"مبادرة إنشاء محطة غسيل عيون متنقلة","nameEn":"Mobile Eyewash Station Initiative","department":"housekeeping","status":"selected","team":[{"name":"م. عبدالله الزوين","roleAr":"قائد الفريق","roleEn":"Team Leader","gender":"male","department":"maintenance"},{"name":"م. عبدالوهاب الشتوي","roleAr":"عضو الفريق","roleEn":"Team Member","gender":"male","department":"maintenance"}],"code":"INIT-008","executionStatus":"in_progress","progress":0},{"id":"INIT-009","nameAr":"مبادرة تهوية الغرف المغلقة","nameEn":"Closed Rooms Ventilation Initiative","department":"maintenance","status":"proposed","team":[],"code":"INIT-009","executionStatus":"","progress":0},{"id":"INIT-010","nameAr":"مبادرة قياس مستوى الضجيج داخل منشآت المدينة الطبية","nameEn":"Medical City Noise Level Monitoring Initiative","department":"safety","status":"selected","team":[{"name":"أ. رغد المشيقح","roleAr":"قائد الفريق","roleEn":"Team Leader","gender":"female","department":"division"},{"name":"أ. لطيفة الحربي","roleAr":"عضو الفريق","roleEn":"Team Member","gender":"female","department":"housekeeping"}],"code":"INIT-010","executionStatus":"in_progress","progress":0}];
   var PROJECT_MANAGEMENT_INCIDENT_SEED=[{"id":"PMD-01","date":"2024-01-01","category":"Safety Hazard","contributingFactors":"Human error","investigationRequired":"no","department":"projects","responsibleDept":"projects","status":"closed"},{"id":"PMD-02","date":"2025-01-01","category":"Safety Hazard","contributingFactors":"Human error","investigationRequired":"no","department":"projects","responsibleDept":"projects","status":"closed"}];
+  function normalizeProjectIncidentIds(existing){
+    var rows=(Array.isArray(existing)?existing:[]).map(copyRecord),used={},candidates=[];
+    rows.forEach(function(r){
+      var dept=canonicalGrcDepartment(r&& (r.department||r.responsibleDept)),raw=String(r&& (r.id||r.code)||'').trim().toUpperCase(),m=raw.match(/^PMD[- ]?(\d+)$/);
+      if(dept!=='projects')return;
+      if(m){used[Number(m[1])||0]=true;r.id='PMD-'+String(Number(m[1])||0).padStart(2,'0');if(!r.code||/^INC-PRJ-/i.test(String(r.code)))r.code=r.id;}
+      else candidates.push(r);
+    });
+    candidates.sort(function(a,b){
+      var ak=String(a.date||a.createdAtIso||a.publishedAtIso||a.updatedAtIso||'')+'|'+String(a.id||a.code||''),bk=String(b.date||b.createdAtIso||b.publishedAtIso||b.updatedAtIso||'')+'|'+String(b.id||b.code||'');
+      return ak.localeCompare(bk);
+    });
+    var next=1;
+    candidates.forEach(function(r){
+      while(used[next])next++;
+      var oldId=String(r.id||r.code||'').trim(),newId='PMD-'+String(next).padStart(2,'0');
+      if(oldId&&oldId!==newId&&!r.legacyIncidentId)r.legacyIncidentId=oldId;
+      r.id=newId;r.code=newId;used[next]=true;next++;
+    });
+    return rows;
+  }
   function mergeProjectIncidentSeed(existing){
     var rows=(Array.isArray(existing)?existing:[]).map(copyRecord),byId={};rows.forEach(function(r){byId[String(r&&r.id||r&&r.code||'').trim().toUpperCase()]=r;});
     PROJECT_MANAGEMENT_INCIDENT_SEED.forEach(function(seed){var key=String(seed.id).toUpperCase(),old=byId[key];if(old){Object.keys(seed).forEach(function(k){if(old[k]===undefined||old[k]===null||old[k]==='')old[k]=seed[k];});}else{rows.push(copyRecord(seed));}});
-    return rows;
+    return normalizeProjectIncidentIds(rows);
   }
   var state=loadState();
   state.incidents=mergeProjectIncidentSeed(state.incidents);
@@ -1059,7 +1080,7 @@
     var at=rows.findIndex(same);
     if(op==='delete'){if(at>=0)rows.splice(at,1);}
     else{if(key==='risks')r=normalizeRiskClassification(r);if(at>=0)rows[at]=Object.assign({},rows[at],r);else rows.push(r);}
-    state[key]=rows;if(key==='risks')state.risks=applyRiskStatusOverrides(state.risks);state=repairGovernanceCodeState(state);enforceLocalGrcScope();
+    if(key==='incidents')rows=mergeProjectIncidentSeed(rows);state[key]=rows;if(key==='risks')state.risks=applyRiskStatusOverrides(state.risks);state=repairGovernanceCodeState(state);enforceLocalGrcScope();
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}
     renderAtSamePosition(grcViewportPosition());
   };
@@ -1200,7 +1221,7 @@
 
   function incidentRecordBelongsToUser(record){var d=currentGrcDept(),rd=canonicalGrcDepartment(record&&record.department||record&&record.responsibleDept||record&&record.responsibleDepartment);return !!d&&rd===d;}
   function registerRecordBelongsToUser(record,type){return type==='risk'?riskRecordBelongsToUser(record):type==='incident'?incidentRecordBelongsToUser(record):false;}
-  function nextIncidentIdForCurrentUser(){var d=currentGrcDept(),deptCode=({safety:'SAF',maintenance:'MNT',housekeeping:'HSK',laundry:'LND',projects:'PRJ'})[d]||'FMS',prefix='INC-'+deptCode+'-'+new Date().getFullYear()+'-',max=0;(state.incidents||[]).forEach(function(r){var raw=String(r.id||r.code||'').toUpperCase(),m=raw.match(/(\d+)$/);if(m)max=Math.max(max,Number(m[1])||0);});return prefix+String(max+1).padStart(3,'0');}
+  function nextIncidentIdForCurrentUser(){var d=currentGrcDept(),max=0;if(d==='projects'){(state.incidents||[]).forEach(function(r){if(canonicalGrcDepartment(r.department||r.responsibleDept)!=='projects')return;var raw=String(r.id||r.code||'').toUpperCase(),m=raw.match(/^PMD[- ]?(\d+)$/);if(m)max=Math.max(max,Number(m[1])||0);});return'PMD-'+String(max+1).padStart(2,'0');}var deptCode=({safety:'SAF',maintenance:'MNT',housekeeping:'HSK',laundry:'LND'})[d]||'FMS',prefix='INC-'+deptCode+'-'+new Date().getFullYear()+'-';(state.incidents||[]).forEach(function(r){if(canonicalGrcDepartment(r.department||r.responsibleDept)!==d)return;var raw=String(r.id||r.code||'').toUpperCase(),m=raw.match(/(\d+)$/);if(m)max=Math.max(max,Number(m[1])||0);});return prefix+String(max+1).padStart(3,'0');}
   function nextRegisterIdForCurrentUser(type){return type==='incident'?nextIncidentIdForCurrentUser():nextRiskIdForCurrentUser();}
   function canSubmitRiskRequest(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return r==='risk_owner'||r==='grc_owner'||r==='platform_owner'||p.indexOf('edit_risk_management')>=0||p.indexOf('*')>=0;}
   function canSubmitIncidentRequest(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return r==='risk_owner'||r==='grc_owner'||r==='platform_owner'||p.indexOf('edit_incident_register')>=0||p.indexOf('edit_risk_management')>=0||p.indexOf('*')>=0;}
