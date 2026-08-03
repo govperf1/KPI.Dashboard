@@ -828,23 +828,17 @@ window._selectPortal=async portal=>{
       if(!_grcRiskCanSubmit('risk'))throw new Error('You do not have permission to update Risk status.');
       record=record||{};nextStatus=String(nextStatus||'').trim().toLowerCase();
       if(!['open','closed'].includes(nextStatus))throw new Error('Action Status can only be Open or Closed.');
-      const department=_grcCanonicalDepartment(record.department||_grcRiskDept());
-      if(!department||department!==_grcRiskDept())throw new Error('You can update Risk status only for your assigned department.');
-      const cloudId=_grcRegisterCloudId('risk',record),ref=doc(db,GRC_REGISTER_COLLECTIONS.risk,cloudId),now=_grcRiskIso();
-      const update={actionStatus:nextStatus,updatedAt:now,updatedBy:String(window._fbName||window.currentUserName||_grcRiskEmail()),updatedByEmail:_grcRiskEmail(),cloudUpdatedAt:serverTimestamp()};
-      const snap=await getDoc(ref);
-      if(snap.exists()){
-        await updateDoc(ref,update);
-      }else{
-        /* Older baseline rows may be visible locally before they have been
-           migrated to grc_risks. Persist only the approved direct-status
-           override rather than allowing a Risk Owner to create a full Risk. */
-        await setDoc(doc(db,GRC_RISK_STATUS_COLLECTION,cloudId),{
-          recordId:String(record.id||record.code||''),cloudId:cloudId,department:department,departmentRaw:_grcRiskRawDept(),
-          actionStatus:nextStatus,updatedAt:serverTimestamp(),updatedAtIso:now,updatedBy:String(window._fbName||window.currentUserName||_grcRiskEmail()),
-          updatedByEmail:_grcRiskEmail(),updatedByUid:_grcRiskUid(),schemaVersion:1
-        },{merge:true});
-      }
+      const department=_grcCanonicalDepartment(record.department||_grcRiskDept()),myDepartment=_grcRiskDept();
+      if(!department||!myDepartment||department!==myDepartment)throw new Error('You can update Risk status only for your assigned department.');
+      const cloudId=_grcRegisterCloudId('risk',record),now=_grcRiskIso();
+      /* Always persist direct Open/Closed changes in the dedicated status
+         override collection. This avoids legacy grc_risks documents whose
+         older schema cannot be updated by a Risk Owner under secure rules. */
+      await setDoc(doc(db,GRC_RISK_STATUS_COLLECTION,cloudId),{
+        recordId:String(record.id||record.code||''),cloudId:cloudId,department:department,departmentRaw:_grcRiskRawDept(),
+        actionStatus:nextStatus,updatedAt:serverTimestamp(),updatedAtIso:now,updatedBy:String(window._fbName||window.currentUserName||_grcRiskEmail()),
+        updatedByEmail:_grcRiskEmail(),updatedByUid:_grcRiskUid(),schemaVersion:1
+      },{merge:true});
       try{window._recordAuditDirect&&window._recordAuditDirect('GRC_RISK_STATUS_UPDATE','Risk Action Status changed directly',record,Object.assign({},record,{actionStatus:nextStatus}),{portal:'grc',dept:department,recordType:'risk'});}catch(_){}
       return true;
     };

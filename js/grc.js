@@ -941,8 +941,11 @@
   }
   function startRiskStatusOverrideSync(b){
     if(grcRiskStatusUnsub){try{grcRiskStatusUnsub();}catch(_){}grcRiskStatusUnsub=null;}
-    var col=b.fs.collection(b.db,'grc_risk_status'),qref=col,raw=String(window._fbDept||window.currentUserDept||'').trim();
-    if(!canViewAllExecutiveDepartments()&&raw)qref=b.fs.query(col,b.fs.where('departmentRaw','==',raw));
+    var col=b.fs.collection(b.db,'grc_risk_status'),qref=col,dept=currentGrcDept();
+    /* Subscribe by canonical department so every user assigned to the same
+       department receives the same direct Open/Closed status, even if their
+       user profile uses a different display label such as Project Management. */
+    if(!canViewAllExecutiveDepartments()&&dept)qref=b.fs.query(col,b.fs.where('department','==',dept));
     grcRiskStatusUnsub=b.fs.onSnapshot(qref,function(snap){var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});grcRiskStatusOverrides=next;if(grcCloudParts.risks){grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}grcApplyingRemote=false;renderAtSamePosition(grcViewportPosition());}},function(err){console.warn('[GRC Risk Status] sync failed',err);});
   }
   function startSharedStateSync(){
@@ -3024,6 +3027,9 @@
   function statusOptions(kind){
     if(kind==='policy')return[['active',L('active')],['draft',L('draft')],['underReview',L('underReview')],['expired',L('expired')],['archived',L('archived')]];
     if(['plan','form','manual','document'].indexOf(kind)>=0)return[['valid',L('valid')],['invalid',L('invalid')],['active',L('active')],['draft',L('draft')],['underReview',L('underReview')],['expired',L('expired')],['archived',L('archived')]];
+    /* Risk Action Status and Incident Status intentionally have only two
+       operational states. In Progress is not a valid register option. */
+    if(kind==='risk'||kind==='incident')return[['open',L('open')],['closed',L('closed')]];
     return[['open',L('open')],['inProgress',L('inProgress')],['closed',L('closed')]];
   }
   function defaultDeptFor(type,deptOverride){if(deptOverride&&departmentOrder.indexOf(deptOverride)>=0)return deptOverride;if(['policy','plan','form'].indexOf(type)>=0)return'maintenance';if(['risk','incident','code'].indexOf(type)>=0)return'safety';return'maintenance';}
@@ -3273,21 +3279,59 @@
       });
     });
     _grcSetInlineActions(block,map,'edit');
+    Array.prototype.forEach.call(block.querySelectorAll('.grc-inline-input'),function(input){
+      input.addEventListener('input',function(){_grcRefreshInlineSaveLabel(block,map);});
+      input.addEventListener('change',function(){_grcRefreshInlineSaveLabel(block,map);});
+    });
+    _grcRefreshInlineSaveLabel(block,map);
+  }
+  function _grcRefreshInlineSaveLabel(block,map){
+    var btn=block&&block.querySelector('[data-grc-inline-action="save"]');if(!btn)return;
+    var sendMode=canSubmitRegisterRequest(map.type)&&!isGrcAdmin();
+    if(!sendMode){btn.textContent='✓ '+(isAr()?'حفظ التعديلات':'Save Changes');return;}
+    if(map.type!=='risk'){btn.textContent='✓ '+(isAr()?'إرسال التعديلات للاعتماد':'Send Changes for Approval');return;}
+    var records=state[map.collection]||[],any=false,directOnly=true;
+    _grcDataRows(block).forEach(function(row){
+      var index=Number(row.dataset.grcRecordIndex);if(!isFinite(index)||!records[index])return;
+      var fields=_grcInlineChangedInputFields(row,records[index]);if(!fields.length)return;any=true;
+      if(fields.some(function(f){return f!=='actionStatus';}))directOnly=false;
+    });
+    btn.textContent='✓ '+(any&&directOnly?(isAr()?'حفظ حالة الخطر':'Save Risk Status'):(isAr()?'إرسال التعديلات للاعتماد':'Send Changes for Approval'));
   }
   function _grcChangedRecordFields(before,after){
     before=before||{};after=after||{};var ignored={updatedAt:1,updatedBy:1,updatedByEmail:1,cloudUpdatedAt:1,_cloudLoadedAt:1};
     return Array.from(new Set(Object.keys(before).concat(Object.keys(after)))).filter(function(k){return !ignored[k]&&JSON.stringify(before[k]===undefined?'':before[k])!==JSON.stringify(after[k]===undefined?'':after[k]);});
   }
-  function _grcCanDirectRiskStatusChange(original,updated,map){
-    if(!map||map.type!=='risk'||['risk_owner','grc_owner','platform_owner'].indexOf(normalizedRole())<0)return false;
-    var fields=_grcChangedRecordFields(original,updated),next=String(updated&&updated.actionStatus||'').toLowerCase();
+  function _grcInlineChangedInputFields(row,original){
+    original=original||{};var fields=[];
+    Array.prototype.forEach.call(row.querySelectorAll('.grc-inline-input'),function(input){
+      var fieldName=input.getAttribute('data-field'),value=input.value,oldValue=original[fieldName];
+      if(['likelihood','impact','progress'].indexOf(fieldName)>=0){value=Number(value||0);oldValue=Number(oldValue||0);}
+      else if(fieldName==='actionStatus'||fieldName==='status'){value=normalizeStatus(value);oldValue=normalizeStatus(oldValue);}
+      else{value=String(value==null?'':value);oldValue=String(oldValue==null?'':oldValue);}
+      if(value!==oldValue)fields.push(fieldName);
+    });
+    return fields;
+  }
+  function _grcCanDirectRiskStatusChange(original,updated,map,editedFields){
+    if(!map||map.type!=='risk'||!canSubmitRiskRequest())return false;
+    var fields=Array.isArray(editedFields)?editedFields:_grcChangedRecordFields(original,updated),next=normalizeStatus(updated&&updated.actionStatus||'');
     return fields.length===1&&fields[0]==='actionStatus'&&(next==='open'||next==='closed')&&registerRecordBelongsToUser(original,'risk');
+  }
+  function _grcShowRiskStatusConfirmation(item,count){
+    var old=document.getElementById('_grcRiskStatusConfirm');if(old)old.remove();
+    var status=normalizeStatus(item&&item.updated&&item.updated.actionStatus||''),record=item&&item.original||{},label=record.id||record.code||L('riskRegister'),multiple=Number(count||0)>1;
+    var title=isAr()?'تم تحديث حالة الخطر':'Risk Status Updated';
+    var message=multiple?(isAr()?('تم تحديث حالة '+count+' مخاطر بنجاح بدون إرسال طلب اعتماد.'):('The status of '+count+' risks was updated successfully without an approval request.')):(isAr()?('تم تغيير حالة '+label+' إلى '+L(status)+' مباشرة بدون إرسال طلب اعتماد.'):('The status of '+label+' was changed to '+L(status)+' directly, with no approval request required.'));
+    var ov=document.createElement('div');ov.id='_grcRiskStatusConfirm';ov.className='grc-modal-backdrop grc-status-confirm-backdrop';
+    ov.innerHTML='<div class="grc-modal grc-status-confirm-modal" role="dialog" aria-modal="true"><div class="grc-status-confirm-icon">✓</div><div class="grc-status-confirm-title">'+esc(title)+'</div><div class="grc-status-confirm-text">'+esc(message)+'</div><button type="button" class="grc-primary-btn grc-status-confirm-ok">'+(isAr()?'حسنًا':'OK')+'</button></div>';
+    document.body.appendChild(ov);var close=function(){ov.remove();};ov.querySelector('.grc-status-confirm-ok').onclick=close;ov.addEventListener('click',function(e){if(e.target===ov)close();});
   }
   async function _grcSaveInlineEdit(block,map){
     var records=state[map.collection]||[],changed=false,requests=[],directStatusUpdates=[];
     _grcDataRows(block).forEach(function(row){
       var index=Number(row.dataset.grcRecordIndex);if(!isFinite(index)||!records[index])return;
-      var original=records[index],updated=Object.assign({},original);
+      var original=records[index],updated=Object.assign({},original),editedFields=_grcInlineChangedInputFields(row,original);
       Array.prototype.forEach.call(row.querySelectorAll('.grc-inline-input'),function(input){
         var fieldName=input.getAttribute('data-field'),value=input.value;
         if(['likelihood','impact','progress'].indexOf(fieldName)>=0)value=Number(value||0);
@@ -3301,7 +3345,7 @@
            It bypasses approval only when it is the ONLY changed field and the
            new value is Open/Closed. Any other Risk change, and all Incident
            changes, continue through the approval workflow. */
-        if(_grcCanDirectRiskStatusChange(original,updated,map))directStatusUpdates.push({index:index,original:original,updated:updated});
+        if(_grcCanDirectRiskStatusChange(original,updated,map,editedFields))directStatusUpdates.push({index:index,original:original,updated:updated});
         else requests.push({recordType:map.type,currentRecord:original,proposedRecord:updated,targetRiskId:original.id||original.code,targetRecordId:original.id||original.code,department:currentGrcDept()});
       }else{records[index]=updated;changed=true;}
     });
@@ -3314,7 +3358,8 @@
           records[item.index]=item.updated;
         }
         state[map.collection]=records;
-        window.toast&&window.toast(isAr()?'تم تحديث حالة الخطر مباشرة بدون مسار اعتماد.':'Risk status updated directly without approval.');
+        try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}
+        _grcShowRiskStatusConfirmation(directStatusUpdates[directStatusUpdates.length-1],directStatusUpdates.length);
       }
       if(requests.length){
         if(typeof window._grcRiskRequestSubmit!=='function')throw new Error(isAr()?'خدمة طلبات السجلات غير جاهزة.':'Register approval service is not ready.');
