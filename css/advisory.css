@@ -4,7 +4,7 @@
    English-only service page shared by Performance and GRC. Two request types only.
    ====================================================================== */
 :is(#grcApp,#performanceAdvisoryRoot) .adv-shell{display:flex;flex-direction:column;gap:18px}
-:is(#grcApp,#performanceAdvisoryRoot) .adv-hero{background:linear-gradient(135deg,#12344f 0%,#0e6072 100%);border-bottom-color:#4cc3cb}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-hero{background:#192835!important;border:1px solid #3A5063!important;border-bottom:3px solid #0195AF!important;box-shadow:0 10px 28px rgba(7,24,39,.18)!important}
 :is(#grcApp,#performanceAdvisoryRoot) .adv-hero .grc-eyebrow{color:#9fe7ec}
 :is(#grcApp,#performanceAdvisoryRoot) .adv-privacy-note{display:flex;align-items:flex-start;gap:10px;padding:13px 15px;border:1px solid #cce8ea;border-radius:13px;background:#f2fbfb;color:#315c68;font-size:10px;line-height:1.65}
 :is(#grcApp,#performanceAdvisoryRoot) .adv-privacy-note strong{display:block;color:#173f55;font-size:11px;margin-bottom:2px}
@@ -257,3 +257,7 @@ body > .adv-modal-backdrop .adv-form-dependency > select{width:100%;box-sizing:b
 body > .adv-modal-backdrop .adv-form-dependency > select:focus{border-color:#4baeb9;box-shadow:0 0 0 3px rgba(75,174,185,.12);}
 @media(max-width:900px){:is(#grcApp,#performanceAdvisoryRoot) .adv-type-dashboard-metrics{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:560px){:is(#grcApp,#performanceAdvisoryRoot) .adv-type-dashboard-metrics,:is(#grcApp,#performanceAdvisoryRoot) .adv-status-summary-3{grid-template-columns:1fr;}}
+
+/* v103 — Review & Development dashboard supports expanded KPI set */
+:is(#grcApp,#performanceAdvisoryRoot) .adv-metric-grid{grid-template-columns:repeat(auto-fit,minmax(145px,1fr))!important}
+:is(#grcApp,#performanceAdvisoryRoot) .adv-type-dashboard-metrics{grid-template-columns:repeat(auto-fit,minmax(145px,1fr))!important}
