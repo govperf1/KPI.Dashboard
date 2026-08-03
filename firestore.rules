@@ -557,7 +557,7 @@ service cloud.firestore {
 
     function validRequesterRiskTransition() {
       return
-        (resource.data.status in ['returned_requester', 'rejected_manager', 'rejected_super_admin'] &&
+        (resource.data.status == 'returned_requester' &&
           request.resource.data.status == 'pending_manager') ||
         (resource.data.status in ['pending_manager', 'returned_requester'] &&
           request.resource.data.status == 'cancelled');
@@ -576,10 +576,13 @@ service cloud.firestore {
         request.resource.data.operation in ['add', 'update', 'delete'] &&
         request.resource.data.status == 'pending_manager';
 
+      // Request activity is visible to every authorized GRC user in the
+      // same assigned department so department notifications stay in sync.
+      // Cross-department access remains blocked by riskRequestDepartment().
       allow read: if canAccessGrc() && (
         admin() ||
         riskRequestOwner(resource.data) ||
-        (departmentManager() && riskRequestDepartment(resource.data))
+        riskRequestDepartment(resource.data)
       );
 
       allow update: if
