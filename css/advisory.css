@@ -261,3 +261,42 @@ body > .adv-modal-backdrop .adv-form-dependency > select:focus{border-color:#4ba
 /* v103 — Review & Development dashboard supports expanded KPI set */
 :is(#grcApp,#performanceAdvisoryRoot) .adv-metric-grid{grid-template-columns:repeat(auto-fit,minmax(145px,1fr))!important}
 :is(#grcApp,#performanceAdvisoryRoot) .adv-type-dashboard-metrics{grid-template-columns:repeat(auto-fit,minmax(145px,1fr))!important}
+
+
+/* v106 — high-visibility required-field validation for Review & Development requests */
+body > .adv-modal-backdrop .adv-field.adv-field-invalid > input,
+body > .adv-modal-backdrop .adv-field.adv-field-invalid > select,
+body > .adv-modal-backdrop .adv-field.adv-field-invalid > textarea,
+body > .adv-modal-backdrop .adv-form-dependency.adv-field-invalid > select,
+body > .adv-modal-backdrop .adv-form-dependency.adv-field-invalid > textarea,
+body > .adv-modal-backdrop [aria-invalid="true"]{
+  border:2px solid #dc2626!important;
+  background:#fff7f7!important;
+  box-shadow:0 0 0 3px rgba(220,38,38,.12)!important;
+}
+body > .adv-modal-backdrop .adv-field.adv-field-invalid > label,
+body > .adv-modal-backdrop .adv-form-dependency.adv-field-invalid > label{
+  color:#b91c1c!important;
+}
+body > .adv-modal-backdrop #advRelatedField.adv-field-invalid .adv-related-list,
+body > .adv-modal-backdrop #advRelatedField.adv-field-invalid .adv-form-dependency,
+body > .adv-modal-backdrop #advRelatedField.adv-field-invalid textarea{
+  border:2px solid #dc2626!important;
+  background:#fff7f7!important;
+  box-shadow:0 0 0 3px rgba(220,38,38,.10)!important;
+}
+body > .adv-modal-backdrop #advSubmitError.adv-error{
+  display:none;
+  flex-direction:column;
+  gap:3px;
+  border:2px solid #dc2626!important;
+  background:#fef2f2!important;
+  color:#991b1b!important;
+  border-radius:11px!important;
+  padding:10px 12px!important;
+  font-size:9.5px!important;
+  font-weight:700!important;
+  line-height:1.45!important;
+}
+body > .adv-modal-backdrop #advSubmitError.adv-error strong{font-size:10px!important;color:#b91c1c!important;font-weight:950!important}
+body > .adv-modal-backdrop #advSubmitError.adv-error span{color:#991b1b!important}
