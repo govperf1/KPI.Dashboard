@@ -400,3 +400,14 @@ body>.adv-modal-backdrop .adv-rating-comment{display:block!important;width:100%!
 body>.adv-modal-backdrop .adv-rating-comment:focus{border-color:#D6A62E!important;box-shadow:0 0 0 3px rgba(214,166,46,.12)!important}
 body>.adv-modal-backdrop .adv-rating-error{color:#DC2626!important;font-size:9px!important;font-weight:850!important;margin:5px 0!important}
 body>.adv-modal-backdrop .adv-rating-card .adv-btn.primary{background:#087E8C!important;border-color:#087E8C!important;color:#fff!important;border-radius:8px!important;padding:8px 13px!important;font-size:9px!important;font-weight:900!important}
+
+
+/* v121 — polished success action shown outside the platform root */
+body > .adv-success-backdrop .adv-success-ok{
+  min-width:128px!important;height:42px!important;padding:0 22px!important;border:0!important;border-radius:12px!important;
+  background:linear-gradient(135deg,#087e8c,#12a7b5)!important;color:#fff!important;font:inherit!important;
+  font-size:10.5px!important;font-weight:900!important;cursor:pointer!important;
+  box-shadow:0 10px 24px rgba(8,126,140,.22)!important;transition:transform .16s ease,box-shadow .16s ease!important;
+}
+body > .adv-success-backdrop .adv-success-ok:hover{transform:translateY(-1px)!important;box-shadow:0 13px 29px rgba(8,126,140,.29)!important}
+body > .adv-success-backdrop .adv-success-ok:focus{outline:3px solid rgba(18,167,181,.18)!important;outline-offset:2px!important}

@@ -1311,3 +1311,36 @@ body.grc-mode #grcApp>.footbar.grc-performance-footer{display:flex!important;vis
 #_grcAdminCenterOv .grc-ac-table td [style*="color:#e2e8f0"],#_grcAdminCenterOv .grc-ac-table td [style*="color:#fff"]{color:#152538!important}
 #_grcAdminCenterOv .grc-ac-table td [style*="color:#627989"]{color:#64748B!important}
 #_grcAdminCenterOv .grc-ac-stars{color:#D69E16!important;letter-spacing:1px!important}
+
+
+/* v121 — professional in-platform confirmation for direct Risk status updates */
+body > .grc-status-confirm-backdrop{
+  position:fixed!important;inset:0!important;z-index:2147483658!important;
+  display:grid!important;place-items:center!important;padding:22px!important;
+  background:rgba(7,24,39,.58)!important;backdrop-filter:blur(7px)!important;-webkit-backdrop-filter:blur(7px)!important;
+}
+body > .grc-status-confirm-backdrop .grc-status-confirm-modal{
+  width:min(440px,calc(100vw - 36px))!important;box-sizing:border-box!important;
+  padding:28px 28px 24px!important;text-align:center!important;border-radius:22px!important;
+  background:linear-gradient(180deg,#fff,#f8fbfc)!important;border:1px solid #d3e3e9!important;
+  box-shadow:0 30px 88px rgba(7,24,39,.30)!important;color:#17384a!important;
+}
+body > .grc-status-confirm-backdrop .grc-status-confirm-icon{
+  width:62px!important;height:62px!important;border-radius:50%!important;margin:0 auto 15px!important;
+  display:grid!important;place-items:center!important;background:#e7f7ef!important;color:#16885f!important;
+  border:1px solid #bfe6d3!important;font-size:31px!important;font-weight:950!important;
+}
+body > .grc-status-confirm-backdrop .grc-status-confirm-title{
+  margin:0 0 8px!important;font-size:19px!important;line-height:1.25!important;font-weight:950!important;color:#173f55!important;
+}
+body > .grc-status-confirm-backdrop .grc-status-confirm-text{
+  margin:0 auto 20px!important;max-width:350px!important;font-size:12px!important;line-height:1.65!important;color:#607985!important;
+}
+body > .grc-status-confirm-backdrop .grc-status-confirm-ok{
+  min-width:126px!important;height:42px!important;border:0!important;border-radius:12px!important;
+  background:linear-gradient(135deg,#087e8c,#12a7b5)!important;color:#fff!important;
+  font:inherit!important;font-size:10.5px!important;font-weight:900!important;cursor:pointer!important;
+  box-shadow:0 10px 24px rgba(8,126,140,.22)!important;transition:.16s ease!important;
+}
+body > .grc-status-confirm-backdrop .grc-status-confirm-ok:hover{transform:translateY(-1px)!important;box-shadow:0 13px 28px rgba(8,126,140,.28)!important}
+body > .grc-status-confirm-backdrop .grc-status-confirm-ok:focus{outline:3px solid rgba(18,167,181,.18)!important;outline-offset:2px!important}
