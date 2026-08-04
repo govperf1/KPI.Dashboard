@@ -206,7 +206,8 @@
   var REPORT_LIBRARY=[];
   var reportNav={group:null,type:null,year:null,quarter:null};
   var reportLibraryLoaded=false,reportLibraryLoading=false,reportLibraryError='';
-  var reportBackendPromise=null,reportIndexUnsub=null;
+  var reportBackendPromise=null,reportIndexUnsub=null,reportRetryTimer=null,reportRetryCount=0;
+  var REPORT_LIBRARY_CACHE_KEY='grc_report_library_cache_v2';
   var reportBlobCache={};
   var REPORT_INDEX_DOC='grc_reports_index';
   var REPORT_CHUNK_BYTES=512*1024; /* base64 remains safely below Firestore's 1 MiB document limit */
@@ -222,7 +223,7 @@
     ]).then(function(mods){
       var appMod=mods[0],authMod=mods[1],fsMod=mods[2];
       var fbApp=appMod.getApps().length?appMod.getApp():appMod.initializeApp(REPORT_FIREBASE_CONFIG);
-      return{app:fbApp,auth:authMod.getAuth(fbApp),db:fsMod.getFirestore(fbApp),fs:fsMod};
+      return{app:fbApp,auth:authMod.getAuth(fbApp),authApi:authMod,db:fsMod.getFirestore(fbApp),fs:fsMod};
     });
     return reportBackendPromise;
   }
@@ -233,6 +234,31 @@
     d=d||{};var type=String(d.type||''),year=Number(d.year||0),quarter=d.quarter==null?null:Number(d.quarter),chunkCount=Number(d.chunkCount||0);
     if(!d.id||!type||!year||chunkCount<1)return null;
     return{id:String(d.id),group:String(d.group||((type.indexOf('annual')===0)?'annual':'quarterly')),type:type,year:year,quarter:quarter,pages:Number(d.pages||0),fileName:String(d.fileName||''),fileSize:Number(d.fileSize||0),titleEn:String(d.titleEn||''),titleAr:String(d.titleAr||''),uploadedBy:String(d.uploadedBy||''),chunkCount:chunkCount,chunkKey:String(d.chunkKey||d.id),version:Number(d.version||0),code:canonicalGovernanceCode(String(d.code||'')),language:String(d.language||'en'),versionLabel:String(d.versionLabel||'1.0'),issueDate:String(d.issueDate||''),owner:String(d.owner||'Governance & Performance'),guideKey:String(d.guideKey||''),status:String(d.status||'active'),source:'firestore-chunks'};
+  }
+  function saveReportLibraryCache(list){
+    try{localStorage.setItem(REPORT_LIBRARY_CACHE_KEY,JSON.stringify(Array.isArray(list)?list:[]));}catch(_e){}
+  }
+  function restoreReportLibraryCache(){
+    try{
+      var raw=localStorage.getItem(REPORT_LIBRARY_CACHE_KEY);if(!raw)return false;
+      var parsed=JSON.parse(raw);if(!Array.isArray(parsed))return false;
+      var list=parsed.map(reportRecord).filter(Boolean);
+      if(!list.length)return false;
+      list.sort(function(a,b){return Number(b.year)-Number(a.year)||Number(b.quarter||0)-Number(a.quarter||0)||String(a.type).localeCompare(String(b.type));});
+      REPORT_LIBRARY=list;reportLibraryLoaded=true;reportLibraryLoading=false;reportLibraryError='';reportRetryCount=0;if(reportRetryTimer){clearTimeout(reportRetryTimer);reportRetryTimer=null;}saveReportLibraryCache(list);return true;
+    }catch(_e){return false;}
+  }
+  function waitForReportAuth(b){
+    if(b&&b.auth&&b.auth.currentUser)return Promise.resolve(b.auth.currentUser);
+    return new Promise(function(resolve,reject){
+      var settled=false,unsub=null,timer=setTimeout(function(){if(settled)return;settled=true;try{if(unsub)unsub();}catch(_){}reject(new Error('not-authenticated'));},7000);
+      try{unsub=b.authApi.onAuthStateChanged(b.auth,function(user){if(!user||settled)return;settled=true;clearTimeout(timer);try{if(unsub)unsub();}catch(_){}resolve(user);},function(err){if(settled)return;settled=true;clearTimeout(timer);try{if(unsub)unsub();}catch(_){}reject(err);});}catch(err){clearTimeout(timer);reject(err);}
+    });
+  }
+  function scheduleReportRetry(){
+    if(reportRetryTimer)return;
+    var delay=Math.min(15000,1200*Math.pow(1.7,Math.min(reportRetryCount,5)));reportRetryCount++;
+    reportRetryTimer=setTimeout(function(){reportRetryTimer=null;reportLibraryLoaded=false;reportLibraryError='';loadReportLibrary(true);},delay);
   }
   function applyReportIndex(raw){
     var list=(raw&&Array.isArray(raw.reports)?raw.reports:[]).map(reportRecord).filter(Boolean);
@@ -246,23 +272,22 @@
       applyReportIndex(snap.exists()?snap.data():{reports:[]});refreshManualsNavCount();
       if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
     },function(err){
-      console.error('[GRC Reports] live sync failed',err);reportLibraryError=String(err&&err.code||err&&err.message||err||'sync-failed');reportLibraryLoaded=true;reportLibraryLoading=false;if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
+      console.error('[GRC Reports] live sync failed',err);reportLibraryError=String(err&&err.code||err&&err.message||err||'sync-failed');reportLibraryLoading=false;if(!REPORT_LIBRARY.length)restoreReportLibraryCache();reportLibraryLoaded=REPORT_LIBRARY.length>0;scheduleReportRetry();if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
     });
   }
   function loadReportLibrary(force){
     if(reportLibraryLoading)return Promise.resolve(REPORT_LIBRARY);
     if(reportLibraryLoaded&&!force)return Promise.resolve(REPORT_LIBRARY);
     reportLibraryLoading=true;reportLibraryError='';
+    if(!REPORT_LIBRARY.length)restoreReportLibraryCache();
     return ensureReportBackend().then(function(b){
-      if(!b.auth.currentUser)throw new Error('not-authenticated');
-      ensureReportIndexListener(b);
-      return b.fs.getDoc(reportIndexRef(b));
+      return waitForReportAuth(b).then(function(){ensureReportIndexListener(b);return b.fs.getDoc(reportIndexRef(b));});
     }).then(function(snap){
       applyReportIndex(snap.exists()?snap.data():{reports:[]});refreshManualsNavCount();
       if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
       return REPORT_LIBRARY;
     }).catch(function(err){
-      console.error('[GRC Reports] load failed',err);reportLibraryLoading=false;reportLibraryLoaded=true;reportLibraryError=String(err&&err.code||err&&err.message||err||'load-failed');if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();return REPORT_LIBRARY;
+      console.error('[GRC Reports] load failed',err);reportLibraryLoading=false;reportLibraryError=String(err&&err.code||err&&err.message||err||'load-failed');if(!REPORT_LIBRARY.length)restoreReportLibraryCache();reportLibraryLoaded=REPORT_LIBRARY.length>0;scheduleReportRetry();if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();return REPORT_LIBRARY;
     });
   }
   function loadReportManifest(){loadReportLibrary(false);}
@@ -2764,7 +2789,7 @@
   function complianceBackButton(){
     if(!complianceNavAuthority)return'';
     var target=complianceNavDocument?"window._grcComplianceAuthority('"+complianceJsArg(complianceNavAuthority)+"')":"window._grcComplianceHome()";
-    return'<div class="grc-report-back-row grc-compliance-back-row"><button type="button" class="grc-btn ghost" onclick="'+target+'">← '+L('backOneLevel')+'</button></div>';
+    return'<div class="grc-report-back-row grc-compliance-back-row"><button type="button" class="grc-upload-primary grc-compliance-back-btn" onclick="'+target+'">← '+L('backOneLevel')+'</button></div>';
   }
   function compliancePage(){
     ensureComplianceStyles();ensureGrcEnhancementStyles();if(!complianceLibraryLoaded&&!complianceLibraryLoading)loadComplianceLibrary(false);
@@ -2859,8 +2884,10 @@
   function reportBackButton(){return'<div class="grc-report-back-row"><button type="button" class="grc-btn ghost" onclick="window._grcReportBack()">← '+L('backOneLevel')+'</button></div>'; }
   function reportsPage(){ensureOperationalPlanStyles();
     var content=hero('GRC · Reporting',L('reportsTitle'),L('reportsDesc'))+(reportNav.group?reportBackButton():'')+reportAdminToolbar()+reportBreadcrumb();
-    if(!reportLibraryLoaded){loadReportLibrary(false);return content+'<div class="grc-report-loading">'+L('reportsLoading')+'</div>';}
-    if(reportLibraryError)return content+'<div class="grc-report-error">'+L('reportLoadError')+'<div style="margin-top:12px"><button class="grc-upload-primary" onclick="window._grcRefreshReports()">'+L('refreshReports')+'</button></div></div>';
+    if(!reportLibraryLoaded){loadReportLibrary(false);if(!REPORT_LIBRARY.length)return content+'<div class="grc-report-loading">'+L('reportsLoading')+'</div>';reportLibraryLoaded=true;}
+    /* A transient Firestore/auth error must never replace the report library with an error panel.
+       Keep the last synchronized library visible and retry silently in the background. */
+    if(reportLibraryError)scheduleReportRetry();
     if(!reportNav.group)return content+reportTopCards()+reportMetricsAndCharts();
     if(!reportNav.type)return content+sectionHead(L('selectReportType'),L(reportNav.group==='annual'?'annualReports':'quarterlyReports'))+'<div class="grc-report-type-grid">'+reportTypeCards(reportNav.group)+'</div>';
     if(!reportNav.year)return content+sectionHead(L('selectYear'),reportTypeLabel(reportNav.type))+'<div class="grc-report-year-grid">'+reportYearCards(reportNav.type)+'</div>';
@@ -2876,7 +2903,7 @@
   }
   function reportTypeFromForm(group,kind){return group==='annual'?(kind==='executive'?'annualExecutive':'annualReport'):(kind==='executive'?'quarterlyExecutive':'quarterlyReport');}
   function reportIdFor(type,year,quarter){return type+'_'+Number(year)+'_'+(quarter?('q'+Number(quarter)):'annual');}
-  window._grcRefreshReports=function(){reportLibraryLoaded=false;reportLibraryError='';loadReportLibrary(true);render();};
+  window._grcRefreshReports=function(){reportLibraryError='';loadReportLibrary(true);render();};
   window._grcOpenReportUpload=function(existingId){
     if(!isGrcAdmin())return;
     var existing=existingId?REPORT_LIBRARY.find(function(r){return String(r.id)===String(existingId);}):null;
@@ -2949,7 +2976,7 @@
   window._grcReportYear=function(year){reportNav.year=Number(year);reportNav.quarter=null;render();};
   window._grcReportQuarter=function(q){reportNav.quarter=Number(q);render();};
   
-  function ensureOperationalPlanStyles(){if(document.getElementById('_grcOperationalPlanStyles'))return;var st=document.createElement('style');st.id='_grcOperationalPlanStyles';st.textContent='#_grcOperationalPlanModal .grc-modal{width:min(96vw,1320px);height:min(94vh,920px);display:flex;flex-direction:column;}#_grcOperationalPlanModal .grc-modal-body{overflow:auto;flex:1;}.grc-op-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0;}.grc-op-card{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:20px;border:1px solid #d8e5ec;border-radius:18px;background:linear-gradient(180deg,#fff,#f7fbfd);box-shadow:0 8px 24px rgba(20,55,77,.07);cursor:pointer;text-align:inherit;color:#17394d;}.grc-op-card:hover{transform:translateY(-2px);border-color:#8ecdd3}.grc-op-card strong{font-size:17px}.grc-op-card small{color:#6b8291}.grc-op-card .grc-report-availability{margin-top:auto}.grc-op-back{margin-bottom:12px}.grc-form-scope-panel{margin-top:18px;padding:18px;border:1px solid #dce7ed;border-radius:20px;background:linear-gradient(180deg,#fff,#f8fbfd)}.grc-report-back-row{display:flex;justify-content:flex-start;margin:0 0 12px}.grc-compliance-authority-card p{line-height:1.5;}';document.head.appendChild(st);}
+  function ensureOperationalPlanStyles(){if(document.getElementById('_grcOperationalPlanStyles'))return;var st=document.createElement('style');st.id='_grcOperationalPlanStyles';st.textContent='#_grcOperationalPlanModal .grc-modal{width:min(96vw,1320px);height:min(94vh,920px);display:flex;flex-direction:column;}#_grcOperationalPlanModal .grc-modal-body{overflow:auto;flex:1;}.grc-op-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:18px 0;}.grc-op-card{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:20px;border:1px solid #d8e5ec;border-radius:18px;background:linear-gradient(180deg,#fff,#f7fbfd);box-shadow:0 8px 24px rgba(20,55,77,.07);cursor:pointer;text-align:inherit;color:#17394d;}.grc-op-card:hover{transform:translateY(-2px);border-color:#8ecdd3}.grc-op-card strong{font-size:17px}.grc-op-card small{color:#6b8291}.grc-op-card .grc-report-availability{margin-top:auto}.grc-op-back{margin-bottom:12px}.grc-form-scope-panel{margin-top:18px;padding:18px;border:1px solid #dce7ed;border-radius:20px;background:linear-gradient(180deg,#fff,#f8fbfd)}.grc-report-back-row{display:flex;justify-content:flex-start;margin:0 0 12px}.grc-compliance-back-btn{min-height:42px!important;padding:0 18px!important;border-radius:13px!important;background:linear-gradient(135deg,#147f8d,#1aa6b3)!important;color:#fff!important;border:0!important;box-shadow:0 8px 18px rgba(20,127,141,.2)!important;font-size:12px!important;font-weight:900!important}.grc-compliance-back-btn:hover{transform:translateY(-1px);box-shadow:0 11px 22px rgba(20,127,141,.25)!important}.grc-compliance-authority-card p{line-height:1.5;}';document.head.appendChild(st);}
   function opPlanTitle(record){if(record)return isAr()?(record.titleAr||record.titleEn):(record.titleEn||record.titleAr);if(opPlanNav.scope==='division')return L('divisionPlan')+' · '+opPlanNav.year;return deptName(opPlanNav.department)+' · '+opPlanNav.year;}
   function opPlanModalBody(){if(!opPlanLibraryLoaded){loadOpPlanLibrary(false);return'<div class="grc-report-loading">'+L('reportsLoading')+'</div>';}if(opPlanLibraryError)return'<div class="grc-report-error">'+L('reportLoadError')+'</div>';var back='<button type="button" class="grc-btn ghost grc-op-back" onclick="window._grcOpPlanBack()">← '+L('backOneLevel')+'</button>';if(!opPlanNav.scope)return sectionHead(L('selectPlanScope'),L('annualPlanDesc'))+'<div class="grc-op-card-grid"><button class="grc-op-card" onclick="window._grcOpPlanScope(\'division\')"><strong>'+L('divisionPlan')+'</strong><small>'+L('annualPlanDesc')+'</small></button><button class="grc-op-card" onclick="window._grcOpPlanScope(\'department\')"><strong>'+L('departmentPlan')+'</strong><small>'+L('departmentSectionsDesc')+'</small></button></div>';if(!opPlanNav.year)return (opPlanLockedDepartment?'':back)+sectionHead(L('selectYear'),L(opPlanNav.scope==='division'?'divisionPlan':'departmentPlan'))+'<div class="grc-report-year-grid">'+opPlanYears().map(function(y){var count=OP_PLAN_LIBRARY.filter(function(r){return r.scope===opPlanNav.scope&&r.year===y&&(!opPlanLockedDepartment||r.department===opPlanLockedDepartment);}).length;return'<button class="grc-report-year-card" onclick="window._grcOpPlanYear('+y+')"><strong>'+y+'</strong><small>'+count+' '+L('reportDocuments')+'</small><span class="grc-report-availability '+(count?'':'off')+'">'+L(count?'available':'unavailable')+'</span></button>';}).join('')+'</div>';if(opPlanNav.scope==='department'&&!opPlanNav.department)return back+sectionHead(L('selectPlanDepartment'),String(opPlanNav.year))+'<div class="grc-op-card-grid">'+departmentOrder.map(function(d){var r=findOpPlan('department',opPlanNav.year,d);return'<button class="grc-op-card" onclick="window._grcOpPlanDepartment(\''+d+'\')"><strong>'+esc(deptName(d))+'</strong><small>'+esc(deptAbbr(d))+'</small><span class="grc-report-availability '+(r?'':'off')+'">'+L(r?'available':'unavailable')+'</span></button>';}).join('')+'</div>';var record=findOpPlan(opPlanNav.scope,opPlanNav.year,opPlanNav.department),actions='';if(isGrcAdmin())actions='<button class="grc-upload-primary" onclick="window._grcOpenOperationalPlanUpload(\''+(record?record.id:'')+'\')">'+L(record?'replaceOperationalPlan':'uploadOperationalPlan')+'</button>'+(record?'<button class="grc-btn danger" onclick="window._grcDeleteOperationalPlan(\''+record.id+'\')">'+L('deleteOperationalPlan')+'</button>':'');var viewer=record?'<div class="grc-report-viewer-card"><div class="grc-report-viewer-head"><div><div class="grc-report-viewer-title">'+esc(opPlanTitle(record))+'</div><div class="grc-report-viewer-meta">'+record.year+(record.department?' · '+esc(deptName(record.department)):'')+(record.pages?' · '+record.pages+' '+L('pages'):'')+'</div></div><div class="grc-report-viewer-actions">'+actions+'<button onclick="window._grcOpenOperationalPlanFullScreen(\''+record.id+'\')">'+L('openFullScreen')+'</button></div></div><div class="grc-report-viewer-help">'+L('reportViewerHelp')+'</div><iframe class="grc-report-frame" data-grc-library="operationalPlan" data-grc-report-id="'+esc(record.id)+'" loading="lazy" title="'+esc(opPlanTitle(record))+'" src="about:blank"></iframe></div>':'<div class="grc-report-empty"><b>'+L('unavailable')+'</b>'+L('noOperationalPlan')+'<div style="margin-top:14px">'+actions+'</div></div>';return back+sectionHead(L('operationalPlanViewer'),opPlanTitle(record))+viewer;}
   function renderOperationalPlanModal(){var modal=document.getElementById('_grcOperationalPlanModal');if(!modal)return;var body=modal.querySelector('.grc-modal-body');if(body)body.innerHTML=opPlanModalBody();setTimeout(mountReportViewer,0);}
