@@ -1359,3 +1359,13 @@ body > .grc-status-confirm-backdrop .grc-status-confirm-ok:focus{outline:3px sol
 #_grcAdminCenterOv .grc-ac-table{min-width:980px}
 @media(max-width:980px){#_grcAdminCenterOv .grc-ac-insight-grid-three{grid-template-columns:1fr!important}#_grcAdminCenterOv .grc-ac-insight-grid-two{grid-template-columns:1fr!important}}
 @media(max-width:700px){#_grcAdminCenterOv .grc-ac-metrics-secondary{grid-template-columns:1fr!important;max-width:none!important}}
+
+/* v130 — keep Edit & Resubmit form above the GRC approval requests overlay */
+#_grcFormModal.grc-modal-backdrop{
+  z-index:2147483647!important;
+  isolation:isolate!important;
+}
+#_grcFormModal .grc-modal{
+  position:relative!important;
+  z-index:2!important;
+}
