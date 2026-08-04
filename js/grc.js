@@ -2541,10 +2541,25 @@
       if(raw.indexOf('orange')>=0)return'Orange';
       if(raw.indexOf('red')>=0)return'Red';
       if(raw.indexOf('yellow')>=0)return'Yellow';
+      if(raw.indexOf('blue')>=0)return'Blue';
+      if(raw.indexOf('pink')>=0)return'Pink';
       return r.codeType||r.emergencyCode||'—';
     }
+    function emergencyCodeBadge(r){
+      var label=codeColorType(r),key=String(label||'').toLowerCase();
+      var palette={
+        brown:{bg:'#8B5E3C',fg:'#FFFFFF',bd:'#734A2E'},
+        orange:{bg:'#F59E0B',fg:'#3B2500',bd:'#D98200'},
+        red:{bg:'#DC2626',fg:'#FFFFFF',bd:'#B91C1C'},
+        yellow:{bg:'#FACC15',fg:'#3A2D00',bd:'#D6AA00'},
+        blue:{bg:'#2563EB',fg:'#FFFFFF',bd:'#1D4ED8'},
+        pink:{bg:'#EC4899',fg:'#FFFFFF',bd:'#DB2777'}
+      };
+      var c=palette[key]||{bg:'#E9F0F4',fg:'#17384A',bd:'#CBD8DF'};
+      return'<span class="grc-code-type-badge" style="display:inline-flex;align-items:center;justify-content:center;min-width:68px;padding:6px 12px;border-radius:999px;font-size:10px;font-weight:900;letter-spacing:.01em;background:'+c.bg+';color:'+c.fg+';border:1px solid '+c.bd+';box-shadow:inset 0 1px 0 rgba(255,255,255,.18)">'+esc(label)+'</span>';
+    }
     function codeSubtypeText(r){return r.subtype||r.codeSubtype||r.failureType||'—';}
-    function makeRows(rows){return(rows||[]).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+badge(r.status)+'</td><td>'+badge(codeColorType(r))+'</td><td>'+esc(codeSubtypeText(r))+'</td><td>'+badge(r.type||r.codeMode||'—')+'</td><td>'+dateText(r.date)+'</td><td>'+esc(r.location||'—')+'</td><td>'+dateText(r.closeDateTime)+'</td></tr>';}).join('');}
+    function makeRows(rows){return(rows||[]).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+badge(r.status)+'</td><td>'+emergencyCodeBadge(r)+'</td><td>'+esc(codeSubtypeText(r))+'</td><td>'+badge(r.type||r.codeMode||'—')+'</td><td>'+dateText(r.date)+'</td><td>'+esc(r.location||'—')+'</td><td>'+dateText(r.closeDateTime)+'</td></tr>';}).join('');}
     function strictRowsFor(d){return makeRows(filterDept(state.codes,d));}
     function scopedRowsFor(d){return makeRows(filterEmergencyCodes(d));}
     return tableHtml('code',heads,grouped?groupedDepartmentRows(heads.length,strictRowsFor):scopedRowsFor(dept));
