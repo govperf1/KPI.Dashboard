@@ -515,8 +515,13 @@ window._selectPortal=async portal=>{
         message: String(message||'').trim(),
         status: 'pending',
         adminComment: '',
+        rating: null,
+        ratingComment: '',
+        ratingAt: null,
         createdAt: serverTimestamp(),
-        respondedAt: null
+        respondedAt: null,
+        updatedAt: serverTimestamp(),
+        updatedAtIso: new Date().toISOString()
       });
       return ref.id;
     };
@@ -544,12 +549,37 @@ window._selectPortal=async portal=>{
       if(!window._fbUser||!db) throw new Error('not authenticated');
       if(!_grcSystemRequestIsAdmin()) throw new Error('Access denied.');
       if(String(status||'').toLowerCase()==='rejected'&&!String(comment||'').trim())throw new Error('A rejection reason is required.');
+      const nowIso=new Date().toISOString();
       await updateDoc(doc(db,'grc_requests',requestId),{
         status:String(status||'pending'),
         adminComment:String(comment||'').trim(),
         respondedAt:serverTimestamp(),
-        respondedBy:String(window._fbName||window._fbUser||'')
+        respondedBy:String(window._fbName||window._fbUser||''),
+        updatedAt:serverTimestamp(),
+        updatedAtIso:nowIso
       });
+    };
+    window._grcRequestsRate=async function(requestId,rating,comment){
+      if(!window._fbUser||!db)throw new Error('not authenticated');
+      const ref=doc(db,'grc_requests',requestId),snap=await getDoc(ref);
+      if(!snap.exists())throw new Error('Request not found.');
+      const row=snap.data()||{},me=(window._fbUser||'').toLowerCase().trim();
+      if(String(row.userEmail||'').toLowerCase().trim()!==me)throw new Error('Access denied.');
+      const status=String(row.status||'').toLowerCase();
+      if(!['approved','rejected'].includes(status))throw new Error('Only completed requests can be rated.');
+      if(Number(row.rating||0))throw new Error('This request has already been rated.');
+      const n=Math.max(1,Math.min(5,Number(rating||0))),nowIso=new Date().toISOString();
+      await updateDoc(ref,{rating:n,ratingComment:String(comment||'').trim(),ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:nowIso});
+      return true;
+    };
+    window._grcRequestsSubscribeMine=function(callback){
+      if(typeof callback!=='function'||!window._fbUser||!db)return function(){};
+      const me=(window._fbUser||'').toLowerCase().trim();
+      return onSnapshot(query(collection(db,'grc_requests'),where('userEmail','==',me)),function(snap){
+        const rows=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+        rows.sort(function(a,b){return ((b.updatedAt&&b.updatedAt.seconds)||(b.createdAt&&b.createdAt.seconds)||0)-((a.updatedAt&&a.updatedAt.seconds)||(a.createdAt&&a.createdAt.seconds)||0);});
+        callback(rows,null);
+      },function(err){callback([],err);});
     };
 
 
@@ -590,7 +620,7 @@ window._selectPortal=async portal=>{
         status:_advStatusKey(r.status),workflowStage:String(r.workflowStage||r.status||'submitted'),closureReason:String(r.closureReason||''),createdAt:r.createdAt||r.createdAtIso||serverTimestamp(),updatedAt:r.updatedAt||r.updatedAtIso||serverTimestamp(),
         firstRespondedAt:r.firstRespondedAt||null,respondedAt:r.respondedAt||null,responseMinutes:r.responseMinutes==null?null:Number(r.responseMinutes),
         completedAt:r.completedAt||null,closedAt:r.closedAt||null,rating:r.rating==null?null:Number(r.rating),
-        ratingAt:r.ratingAt||null,attachmentCount:Number(r.attachmentCount||0)
+        ratingComment:String(r.ratingComment||''),ratingAt:r.ratingAt||null,attachmentCount:Number(r.attachmentCount||0)
       };
     }
     function _advSafeCode(v){return String(v||'FMS').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,5)||'FMS';}
@@ -686,7 +716,7 @@ window._selectPortal=async portal=>{
         category:String(payload.category||''),relatedType:String(payload.relatedType||''),
         relatedItems:Array.isArray(payload.relatedItems)?payload.relatedItems.map(function(x){return {type:String(x&&x.type||''),id:String(x&&x.id||''),code:String(x&&x.code||''),name:String(x&&x.name||'')};}):[],
         relatedNewText:String(payload.relatedNewText||''),benchmarkType:String(payload.benchmarkType||''),formDependencies:payload.formDependencies&&typeof payload.formDependencies==='object'?payload.formDependencies:null,title:String(payload.title||''),details:String(payload.details||''),
-        status:'open',workflowStage:'submitted',closureReason:'',messages:[],attachments:[],attachmentCount:0,firstRespondedAt:null,respondedAt:null,responseMinutes:null,completedAt:null,closedAt:null,rating:null,ratingAt:null,
+        status:'open',workflowStage:'submitted',closureReason:'',messages:[],attachments:[],attachmentCount:0,firstRespondedAt:null,respondedAt:null,responseMinutes:null,completedAt:null,closedAt:null,rating:null,ratingComment:'',ratingAt:null,
         createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:_advIso(),updatedAtIso:_advIso(),updatedBy:_advEmail(),code,counterFallback
       };
       let requestId=primaryRef.id,storage='advisory_requests',warning='';
@@ -771,9 +801,9 @@ window._selectPortal=async portal=>{
       await updateDoc(requestRef,updates);if(publicRef){try{await updateDoc(publicRef,publicUpdates);}catch(_){}}return true;
     };
 
-    window._advisoryRate=async function(requestId,rating){
+    window._advisoryRate=async function(requestId,rating,comment){
       const current=await _advAuthorizedRequest(requestId,false),n=Math.max(1,Math.min(5,Number(rating||0)));if(_advStatusKey(current.status)!=='closed')throw new Error('Only closed requests can be rated.');if(Number(current.rating))throw new Error('This request has already been rated.');
-      const updates={rating:n,ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:_advIso(),updatedBy:_advEmail()};await updateDoc(current._requestRef,updates);if(current._publicRef){try{await updateDoc(current._publicRef,{rating:n,ratingAt:serverTimestamp(),updatedAt:serverTimestamp()});}catch(_){}}return true;
+      const ratingComment=String(comment||'').trim(),updates={rating:n,ratingComment:ratingComment,ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:_advIso(),updatedBy:_advEmail()};await updateDoc(current._requestRef,updates);if(current._publicRef){try{await updateDoc(current._publicRef,{rating:n,ratingComment:ratingComment,ratingAt:serverTimestamp(),updatedAt:serverTimestamp()});}catch(_){}}return true;
     };
 
     window._advisoryDownloadAttachment=async function(requestId,attachmentId,mimeType,chunkCount){
@@ -885,13 +915,17 @@ window._selectPortal=async portal=>{
     }
     function _grcRegisterNextId(records,department,requested,recordType){
       recordType=String(recordType||'risk').toLowerCase();
-      const requestedKey=_grcRiskKey(requested);if(requestedKey&&!records.some(r=>_grcRiskRecordKey(r)===requestedKey))return String(requested).trim();
       const dept=_grcCanonicalDepartment(department);
+      if(recordType==='incident'&&dept==='projects'){
+        const legacy=String(requested||'').trim().toUpperCase().match(/^(?:INC[- ]?)?PMD[- ]?(\d+)$/);
+        if(legacy)requested='INC-PMD-'+String(Number(legacy[1])||0).padStart(2,'0');
+      }
+      const requestedKey=_grcRiskKey(requested);if(requestedKey&&!records.some(r=>_grcRiskRecordKey(r)===requestedKey))return String(requested).trim();
       if(recordType==='incident'){
         let max=0;
         if(dept==='projects'){
-          records.forEach(r=>{if(_grcCanonicalDepartment(r&& (r.department||r.responsibleDept))!=='projects')return;const raw=String(r&&r.id||r&&r.code||'').toUpperCase(),m=raw.match(/^PMD[- ]?(\d+)$/);if(m)max=Math.max(max,Number(m[1])||0);});
-          return'PMD-'+String(max+1).padStart(2,'0');
+          records.forEach(r=>{if(_grcCanonicalDepartment(r&& (r.department||r.responsibleDept))!=='projects')return;const raw=String(r&&r.id||r&&r.code||'').toUpperCase(),m=raw.match(/^(?:INC[- ]?)?PMD[- ]?(\d+)$/);if(m)max=Math.max(max,Number(m[1])||0);});
+          return'INC-PMD-'+String(max+1).padStart(2,'0');
         }
         const deptCode=_grcRiskDeptCode(dept),year=new Date().getFullYear(),prefix='INC-'+deptCode+'-'+year+'-';
         records.forEach(r=>{if(_grcCanonicalDepartment(r&& (r.department||r.responsibleDept))!==dept)return;const raw=String(r&&r.id||r&&r.code||'').toUpperCase(),m=raw.match(/(\d+)$/);if(m)max=Math.max(max,Number(m[1])||0);});
@@ -907,7 +941,7 @@ window._selectPortal=async portal=>{
       records=(Array.isArray(records)?records:[]).map(r=>_grcRiskJson(r));
       const recordType=String(request.recordType||'risk').toLowerCase(),label=recordType==='incident'?'Incident':'Risk',op=String(request.operation||''),targetKey=_grcRiskKey(request.targetRecordId||request.targetRiskId||request.currentRecord&&request.currentRecord.id||request.currentRecord&&request.currentRecord.code),proposed=_grcRiskJson(request.proposedRecord||{});
       if(op==='add'){
-        const assigned=_grcRegisterNextId(records,request.department,proposed.id||proposed.code,recordType);proposed.id=assigned;proposed.code=proposed.code&&_grcRiskKey(proposed.code)!==_grcRiskKey(request.proposedRecord&&request.proposedRecord.id)?proposed.code:assigned;
+        const assigned=_grcRegisterNextId(records,request.department,proposed.id||proposed.code,recordType);proposed.id=assigned;proposed.code=proposed.code&&_grcRiskKey(proposed.code)!==_grcRiskKey(request.proposedRecord&&request.proposedRecord.id)?proposed.code:assigned;if(recordType==='incident'&&_grcCanonicalDepartment(request.department)==='projects')proposed.code=assigned;
         proposed.department=recordType==='risk'&&request.department==='laundry'?'housekeeping':request.department;proposed.createdAt=proposed.createdAt||_grcRiskIso();proposed.createdBy=proposed.createdBy||request.submittedByName||request.submittedByEmail;proposed.updatedAt=_grcRiskIso();proposed.updatedBy=_grcRiskEmail();records.push(proposed);return{records,record:proposed};
       }
       const index=records.findIndex(r=>_grcRiskRecordKey(r)===targetKey);if(index<0)throw new Error(label+' record no longer exists.');
@@ -952,9 +986,9 @@ window._selectPortal=async portal=>{
     };
     function _grcNormalizeProjectIncidentIds(records){
       const rows=(Array.isArray(records)?records:[]).map(r=>_grcRiskJson(r||{})),used=new Set(),candidates=[];
-      rows.forEach(r=>{if(_grcCanonicalDepartment(r.department||r.responsibleDept)!=='projects'||r.deleted===true)return;const raw=String(r.id||r.code||'').trim().toUpperCase(),m=raw.match(/^PMD[- ]?(\d+)$/);if(m){const n=Number(m[1])||0;used.add(n);r.id='PMD-'+String(n).padStart(2,'0');if(!r.code||/^INC-PRJ-/i.test(String(r.code)))r.code=r.id;}else candidates.push(r);});
+      rows.forEach(r=>{if(_grcCanonicalDepartment(r.department||r.responsibleDept)!=='projects'||r.deleted===true)return;const raw=String(r.id||r.code||'').trim().toUpperCase(),m=raw.match(/^(?:INC[- ]?)?PMD[- ]?(\d+)$/);if(m){const n=Number(m[1])||0;used.add(n);r.id='INC-PMD-'+String(n).padStart(2,'0');if(!r.code||/^INC-PRJ-/i.test(String(r.code))||/^(?:INC[- ]?)?PMD[- ]?\d+$/i.test(String(r.code)))r.code=r.id;}else candidates.push(r);});
       candidates.sort((a,b)=>(String(a.date||a.createdAtIso||a.publishedAtIso||a.updatedAtIso||'')+'|'+String(a.id||a.code||'')).localeCompare(String(b.date||b.createdAtIso||b.publishedAtIso||b.updatedAtIso||'')+'|'+String(b.id||b.code||'')));
-      let next=1;candidates.forEach(r=>{while(used.has(next))next++;const oldId=String(r.id||r.code||'').trim(),newId='PMD-'+String(next).padStart(2,'0');if(oldId&&oldId!==newId&&!r.legacyIncidentId)r.legacyIncidentId=oldId;r.id=newId;r.code=newId;used.add(next++);});
+      let next=1;candidates.forEach(r=>{while(used.has(next))next++;const oldId=String(r.id||r.code||'').trim(),newId='INC-PMD-'+String(next).padStart(2,'0');if(oldId&&oldId!==newId&&!r.legacyIncidentId)r.legacyIncidentId=oldId;r.id=newId;r.code=newId;used.add(next++);});
       return rows;
     }
     async function _grcRepairProjectIncidentIds(){
