@@ -420,7 +420,7 @@ service cloud.firestore {
     function requesterFieldsOnly() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'status', 'message', 'details', 'messages', 'attachments',
-        'attachmentCount', 'completedAt', 'closedAt', 'rating', 'ratingAt',
+        'attachmentCount', 'completedAt', 'closedAt', 'rating', 'ratingComment', 'ratingAt',
         'workflowStage', 'closureReason', 'updatedAt', 'updatedAtIso', 'updatedBy'
       ]);
     }
@@ -433,6 +433,16 @@ service cloud.firestore {
       allow delete: if admin();
     }
 
+    function validGrcRequestRatingChange() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'rating', 'ratingComment', 'ratingAt', 'updatedAt', 'updatedAtIso'
+      ]) &&
+      resource.data.status in ['approved', 'rejected'] &&
+      (!('rating' in resource.data) || resource.data.rating == null || resource.data.rating == 0) &&
+      request.resource.data.rating is number &&
+      request.resource.data.rating >= 1 && request.resource.data.rating <= 5;
+    }
+
     match /grc_requests/{requestId} {
       allow create: if canAccessGrc() && ownEmail(request.resource.data.userEmail) &&
         (
@@ -441,7 +451,8 @@ service cloud.firestore {
           sameDepartment(request.resource.data.department)
         );
       allow read: if canAccessGrc() && (admin() || ownEmail(resource.data.userEmail));
-      allow update: if admin();
+      allow update: if admin() ||
+        (canAccessGrc() && ownEmail(resource.data.userEmail) && validGrcRequestRatingChange());
       allow delete: if superAdmin();
     }
 
