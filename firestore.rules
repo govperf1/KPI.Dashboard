@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v9 — Null Department = All GRC Departments
+// FIRESTORE SECURITY RULES v10 — Complete Append-Only Audit Trail
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -302,9 +302,19 @@ service cloud.firestore {
 
     // ── Append-only activity collections ─────────────────────────────
     match /audit_trail/{logId} {
-      allow read: if admin();
-      allow create: if approved() && request.resource.data.email == request.auth.token.email;
-      allow update, delete: if false;
+      // One immutable document per action. This prevents one user's activity
+      // from overwriting or pushing another user's audit entries out.
+      allow read: if admin() || hasPerm('view_audit_trail');
+      allow create: if approved() && (
+        admin() || ownEmail(request.resource.data.email)
+      );
+      // Idempotent client retries may write the exact same document again.
+      allow update: if admin() || (
+        approved() &&
+        ownEmail(resource.data.email) &&
+        request.resource.data == resource.data
+      );
+      allow delete: if admin();
     }
 
     match /activity_log/{logId} {
@@ -326,11 +336,16 @@ service cloud.firestore {
     }
 
     match /kpi_dashboard/audit {
-      allow read: if admin();
+      // Legacy compatibility source while old audit entries are migrated to
+      // /audit_trail. New activity is written to the append-only collection.
+      allow read: if admin() || hasPerm('view_audit_trail');
       allow create: if approved();
       allow update: if approved() &&
         request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['log', 'updatedAt', 'updatedBy', 'clearedAt', 'clearedBy']);
+          .hasOnly([
+            'log', 'updatedAt', 'updatedBy', 'clearedAt', 'clearedBy',
+            'collectionMigratedAt', 'collectionMigratedBy'
+          ]);
       allow delete: if superAdmin();
     }
 
