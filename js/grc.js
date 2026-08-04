@@ -2548,15 +2548,15 @@
     function emergencyCodeBadge(r){
       var label=codeColorType(r),key=String(label||'').toLowerCase();
       var palette={
-        brown:{bg:'#8B5E3C',fg:'#FFFFFF',bd:'#734A2E'},
-        orange:{bg:'#F59E0B',fg:'#3B2500',bd:'#D98200'},
-        red:{bg:'#DC2626',fg:'#FFFFFF',bd:'#B91C1C'},
-        yellow:{bg:'#FACC15',fg:'#3A2D00',bd:'#D6AA00'},
-        blue:{bg:'#2563EB',fg:'#FFFFFF',bd:'#1D4ED8'},
-        pink:{bg:'#EC4899',fg:'#FFFFFF',bd:'#DB2777'}
+        brown:{bg:'rgba(139,94,60,.11)',fg:'#7B5237',bd:'rgba(139,94,60,.28)'},
+        orange:{bg:'rgba(245,158,11,.12)',fg:'#B86B00',bd:'rgba(245,158,11,.30)'},
+        red:{bg:'rgba(220,38,38,.10)',fg:'#B4232B',bd:'rgba(220,38,38,.27)'},
+        yellow:{bg:'rgba(250,204,21,.15)',fg:'#8A6B00',bd:'rgba(214,170,0,.30)'},
+        blue:{bg:'rgba(37,99,235,.10)',fg:'#2459B8',bd:'rgba(37,99,235,.26)'},
+        pink:{bg:'rgba(236,72,153,.10)',fg:'#B52E72',bd:'rgba(236,72,153,.26)'}
       };
-      var c=palette[key]||{bg:'#E9F0F4',fg:'#17384A',bd:'#CBD8DF'};
-      return'<span class="grc-code-type-badge" style="display:inline-flex;align-items:center;justify-content:center;min-width:68px;padding:6px 12px;border-radius:999px;font-size:10px;font-weight:900;letter-spacing:.01em;background:'+c.bg+';color:'+c.fg+';border:1px solid '+c.bd+';box-shadow:inset 0 1px 0 rgba(255,255,255,.18)">'+esc(label)+'</span>';
+      var c=palette[key]||{bg:'rgba(23,56,74,.06)',fg:'#17384A',bd:'rgba(23,56,74,.16)'};
+      return'<span class="grc-code-type-badge" style="display:inline-flex;align-items:center;justify-content:center;min-width:68px;padding:6px 12px;border-radius:999px;font-size:10px;font-weight:900;letter-spacing:.01em;background:'+c.bg+';color:'+c.fg+';border:1px solid '+c.bd+';box-shadow:none">'+esc(label)+'</span>';
     }
     function codeSubtypeText(r){return r.subtype||r.codeSubtype||r.failureType||'—';}
     function makeRows(rows){return(rows||[]).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+badge(r.status)+'</td><td>'+emergencyCodeBadge(r)+'</td><td>'+esc(codeSubtypeText(r))+'</td><td>'+badge(r.type||r.codeMode||'—')+'</td><td>'+dateText(r.date)+'</td><td>'+esc(r.location||'—')+'</td><td>'+dateText(r.closeDateTime)+'</td></tr>';}).join('');}
