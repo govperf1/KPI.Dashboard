@@ -74,7 +74,7 @@
   function isRelevantRecord(r){return r&&recordPlatform(r)===currentPlatform&&String(r.serviceType||'review_guidance')!=='session';}
   function formatDate(v,withTime){if(!v)return'—';var d=v&&v.toDate?v.toDate():new Date(v);if(isNaN(d.getTime()))return'—';try{return new Intl.DateTimeFormat('en-GB',withTime?{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}:{day:'2-digit',month:'short',year:'numeric'}).format(d);}catch(_){return d.toLocaleString();}}
   function timeMs(v){if(!v)return 0;var d=v&&v.toDate?v.toDate():new Date(v);return isNaN(d.getTime())?0:d.getTime();}
-  function responseMinutes(r){if(Number.isFinite(Number(r.responseMinutes)))return Number(r.responseMinutes);var a=timeMs(r.createdAt),b=timeMs(r.firstRespondedAt||r.respondedAt);return a&&b?Math.max(0,Math.round((b-a)/60000)):null;}
+  function responseMinutes(r){var a=timeMs(r.createdAt),b=timeMs(r.firstRespondedAt||r.respondedAt);if(a&&b&&b>=a)return Math.max(1,Math.ceil((b-a)/60000));var stored=Number(r.responseMinutes);return Number.isFinite(stored)&&stored>0?stored:null;}
   function durationText(m){if(m==null)return'Not Responded';if(m<60)return m+' min';var h=Math.floor(m/60),x=m%60;if(h<24)return h+' hr'+(h===1?'':'s')+(x?' '+x+' min':'');var d=Math.floor(h/24),rh=h%24;return d+' day'+(d===1?'':'s')+(rh?' '+rh+' hrs':'');}
   function statusLabel(s){var key=statusKey(s);return STATUS_LABELS[key]||'Open';}
   function statusBadge(s){var key=statusKey(s);return'<span class="adv-status '+esc(key)+'">'+esc(STATUS_LABELS[key])+'</span>';}

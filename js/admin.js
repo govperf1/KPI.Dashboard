@@ -454,12 +454,12 @@ function openReport(){
 ========================================== */
 function openLock(){
   const role=window._fbRole||'';
-  if(role==='super_admin'||role==='admin'){
+  if(role==='super_admin'||role==='admin'||role==='governance_performance_manager'){
     window._adminActive=true;
     const warn=document.getElementById('defWarn');if(warn)warn.style.display=ST&&ST.pinDefault?'flex':'none';
     if(typeof popAdminSels==='function')popAdminSels();
     if(typeof loadAuditLog==='function')loadAuditLog();
-    const admin=document.getElementById('adminOv');if(admin)admin.classList.add('open');
+    const admin=document.getElementById('adminOv');if(admin){admin.classList.add('open');setTimeout(function(){window._perfAdminApplyAnalyticsRoleScope&&window._perfAdminApplyAnalyticsRoleScope();},20);}
     if(typeof addAudit==='function'){try{addAudit('ADMIN_OPEN','Admin tools opened by role '+role);}catch(_){}}
     if(typeof resetAdminTimer==='function')resetAdminTimer();
     return;
@@ -501,9 +501,10 @@ function doPin(){
 
 function openAdmin(){
   const role=window._fbRole||'';
-  if(role==='super_admin'||role==='admin'){
+  if(role==='super_admin'||role==='admin'||role==='governance_performance_manager'){
     document.getElementById('adminOv').classList.add('open');
     window._adminActive=true;
+    setTimeout(function(){window._perfAdminApplyAnalyticsRoleScope&&window._perfAdminApplyAnalyticsRoleScope();},20);
     console.log('[Admin] Panel opened for',role);
     /* Build dynamic year options + populate delete list */
     setTimeout(()=>{
@@ -4114,6 +4115,24 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
     page.innerHTML=head+metrics+insights+table;
   };
 
+  window._perfAdminApplyAnalyticsRoleScope=function(){
+    var role=String(window._fbRole||window.currentUserRole||'').toLowerCase().replace(/[\s-]+/g,'_');
+    var ov=document.getElementById('adminOv');if(!ov)return;
+    var analyticsOnly=role==='governance_performance_manager';
+    ov.classList.toggle('perf-analytics-only',analyticsOnly);
+    if(!analyticsOnly)return;
+    window._ensurePerformanceAdminRequestTabs&&window._ensurePerformanceAdminRequestTabs();
+    var title=ov.querySelector('.mhd-t');if(title)title.textContent=' Governance & Performance Analytics';
+    Array.prototype.forEach.call(document.querySelectorAll('#adminTabs .atb'),function(btn){
+      var key=btn.getAttribute('data-perf-admin-tab')||'';
+      btn.style.display=(key==='requestanalytics'||key==='reviewanalytics')?'inline-flex':'none';
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('#adminBody>.ap,#adminBody>.perf-ac-page'),function(panel){
+      var id=panel.id||'';if(id!=='ap-requestanalytics'&&id!=='ap-reviewanalytics'){panel.classList.remove('on');panel.style.display='none';}else panel.style.removeProperty('display');
+    });
+    var first=document.querySelector('#adminTabs [data-perf-admin-tab="requestanalytics"]');
+    if(first){swAt('requestanalytics',first);window._perfAdminLoadRequestAnalytics&&window._perfAdminLoadRequestAnalytics();}
+  };
   function boot(){window._ensurePerformanceAdminRequestTabs();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else setTimeout(boot,0);
 })();

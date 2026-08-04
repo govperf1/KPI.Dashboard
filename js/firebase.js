@@ -8,6 +8,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       admin:['access_performance','access_grc','manage_users','view_all_departments','view_department','edit_kpi','edit_gap_analysis','edit_actions','edit_targets','approve_changes','lock_quarter','unlock_quarter','view_executive_intelligence','export_reports','manage_dashboard_settings','view_audit_trail'],
       executive:['access_performance','access_grc','view_all_departments','view_department','view_executive_intelligence','export_reports'],
       department_manager:['access_performance','access_grc','view_department','view_executive_intelligence','export_reports'],
+      governance_performance_manager:['access_performance','access_grc','view_department','view_grc_department','view_shared_grc','view_executive_intelligence','export_reports','view_request_analytics'],
       kpi_owner:['access_performance','view_department','edit_kpi','edit_gap_analysis','export_reports'],
       risk_owner:['access_grc','view_department','view_grc_department','view_shared_grc','edit_risk_management','edit_incident_register','update_risk_status','submit_risk_changes','export_reports'],
       grc_owner:['access_grc','view_department','view_grc_department','view_shared_grc','edit_risk_management','edit_incident_register','update_risk_status','submit_risk_changes','export_reports'],
@@ -22,6 +23,12 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
         description:'Department-scoped owner for the GRC Risk and Incident Registers.',
         platforms:['grc'],systemRole:true,
         permissions:DPERMS.risk_owner.slice()
+      },
+      governance_performance_manager:{
+        nameEn:'Governance & Performance Department Manager',nameAr:'مدير قسم الحوكمة والأداء',
+        description:'Department-scoped Governance & Performance manager with access to request and review analytics across both platforms.',
+        platforms:['performance','grc'],systemRole:true,
+        permissions:DPERMS.governance_performance_manager.slice()
       },
       platform_owner:{
         nameEn:'Performance & GRC Owner',nameAr:'مالك الأداء والحوكمة والمخاطر',
@@ -43,11 +50,11 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       if(p.includes('*'))return true;
       if(portal==='performance'){
         if(p.includes('access_performance'))return true;
-        return ['super_admin','admin','executive','department_manager','kpi_owner','platform_owner','viewer','user'].includes(r);
+        return ['super_admin','admin','executive','department_manager','governance_performance_manager','kpi_owner','platform_owner','viewer','user'].includes(r);
       }
       if(portal==='grc'){
         if(p.includes('access_grc'))return true;
-        return ['super_admin','admin','executive','department_manager','risk_owner','grc_owner','platform_owner','viewer','user'].includes(r);
+        return ['super_admin','admin','executive','department_manager','governance_performance_manager','risk_owner','grc_owner','platform_owner','viewer','user'].includes(r);
       }
       return false;
     }
@@ -227,7 +234,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       ov.addEventListener('keydown',e=>{if(e.key==='Escape')close();});
     };
     const showLogin=()=>{console.log('[Auth] showLogin');/* Show overlay (already visible, but ensure it is) */const ao=ge('_authOverlay');if(ao){ao.style.display='flex';ao.style.alignItems='flex-end';ao.style.background='rgba(245,247,252,0)'}/* Hide loading spinner, show login form */const ld=ge('_authLoading');if(ld)ld.style.display='none';const lp=ge('_loginPanel');if(lp)lp.style.display='block';const po=ge('_portalOverlay');if(po)po.style.display='none';const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
-    const showPortal=(name,role)=>{console.log('[Auth] showPortal:',name,role);const po=ge('_portalOverlay'),lo=ge('_authOverlay');if(lo)lo.style.display='none';if(po){po.style.display='flex';console.log('[Auth] _portalOverlay is now flex');}else{console.error('[Auth] PORTAL OVERLAY NOT FOUND');return;}const nm=ge('_portalUserName'),rl=ge('_portalUserRole');const realName=cleanAccountName(name)||cleanAccountName(window._fbName)||cleanAccountName((window._fbUser||'').split('@')[0])||'';if(nm)nm.textContent=realName;if(rl){const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'Risk Owner',grc_owner:'Risk Owner',platform_owner:'Performance & GRC Owner',viewer:'Viewer',user:'User'};rl.textContent=L[_normalizePortalRole(role)]||role;}setTimeout(_syncPortalCards,0);console.log('[Auth] Portal ready');};
+    const showPortal=(name,role)=>{console.log('[Auth] showPortal:',name,role);const po=ge('_portalOverlay'),lo=ge('_authOverlay');if(lo)lo.style.display='none';if(po){po.style.display='flex';console.log('[Auth] _portalOverlay is now flex');}else{console.error('[Auth] PORTAL OVERLAY NOT FOUND');return;}const nm=ge('_portalUserName'),rl=ge('_portalUserRole');const realName=cleanAccountName(name)||cleanAccountName(window._fbName)||cleanAccountName((window._fbUser||'').split('@')[0])||'';if(nm)nm.textContent=realName;if(rl){const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'Risk Owner',grc_owner:'Risk Owner',platform_owner:'Performance & GRC Owner',governance_performance_manager:'Governance & Performance Department Manager',viewer:'Viewer',user:'User'};rl.textContent=L[_normalizePortalRole(role)]||role;}setTimeout(_syncPortalCards,0);console.log('[Auth] Portal ready');};
     const setErr=msg=>{console.warn('[Auth] Error:',msg);const e=ge('_fbErr');if(e)e.textContent=msg;const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
 
     window._doLogin=async()=>{
@@ -504,6 +511,7 @@ window._selectPortal=async portal=>{
        ══════════════════════════════════════════════════════ */
     function _grcSystemRequestRole(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
     function _grcSystemRequestIsAdmin(){const r=_grcSystemRequestRole();return r==='admin'||r==='super_admin';}
+    function _grcSystemRequestCanAnalyze(){return _grcSystemRequestIsAdmin()||_clientHasPerm('view_request_analytics')||_grcSystemRequestRole()==='governance_performance_manager';}
     window._grcRequestsSubmit=async function(requestType,message){
       if(!window._fbUser||!db) throw new Error('not authenticated');
       const ref=await addDoc(collection(db,'grc_requests'),{
@@ -537,7 +545,7 @@ window._selectPortal=async portal=>{
     };
     window._grcRequestsGetAll=async function(){
       if(!window._fbUser||!db) return [];
-      if(!_grcSystemRequestIsAdmin()) throw new Error('Access denied.');
+      if(!_grcSystemRequestCanAnalyze()) throw new Error('Access denied.');
       try{
         const result=await getDocs(query(collection(db,'grc_requests'),orderBy('createdAt','desc')));
         return result.docs.map(function(d){return Object.assign({id:d.id},d.data());});
@@ -599,6 +607,7 @@ window._selectPortal=async portal=>{
     const ADV_FALLBACK_COLLECTION='kpi_requests';
     function _advRole(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_');}
     function _advIsAdmin(){const r=_advRole();return r==='admin'||r==='super_admin';}
+    function _advCanAnalyze(){return _advIsAdmin()||_clientHasPerm('view_request_analytics')||_advRole()==='governance_performance_manager';}
     function _advEmail(){return String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();}
     function _advIso(){return new Date().toISOString();}
     function _advTsMs(v){if(!v)return 0;try{return v.toDate?v.toDate().getTime():new Date(v).getTime()||0;}catch(_){return 0;}}
@@ -748,7 +757,7 @@ window._selectPortal=async portal=>{
       }
       return _advMergeRows(primary,fallback,true);
     };
-    window._advisoryGetAll=async function(){if(!_advIsAdmin())throw new Error('Access denied.');let primary=[];try{primary=await _advGetSorted(ADV_REQUESTS_COLLECTION);}catch(_){ }return _advMergeRows(primary,await _advFallbackRows(false),false);};
+    window._advisoryGetAll=async function(){if(!_advCanAnalyze())throw new Error('Access denied.');let primary=[];try{primary=await _advGetSorted(ADV_REQUESTS_COLLECTION);}catch(_){ }return _advMergeRows(primary,await _advFallbackRows(false),false);};
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];let primary=[];
       try{const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));primary=snap.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));}catch(_){ }
@@ -760,7 +769,7 @@ window._selectPortal=async portal=>{
       let closed=false,timer=null,unsubs=[];
       const signal=function(){if(closed)return;clearTimeout(timer);timer=setTimeout(function(){if(!closed)callback();},180);};
       const listen=function(qref){try{unsubs.push(onSnapshot(qref,signal,function(){/* The compatible listener may be unavailable under older rules. */}));}catch(_){ }};
-      if(_advIsAdmin()){
+      if(_advCanAnalyze()){
         listen(collection(db,ADV_REQUESTS_COLLECTION));
         listen(collection(db,ADV_FALLBACK_COLLECTION));
       }else{
@@ -776,7 +785,7 @@ window._selectPortal=async portal=>{
       const updates={updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:_advEmail()},publicUpdates={updatedAt:serverTimestamp()},messageAttachments=[];
       if(file&&current._storage==='advisory_requests'){try{const meta=await _advUploadFile(requestId,file,_advEmail());messageAttachments.push(meta);updates.attachments=arrayUnion(meta);updates.attachmentCount=Number(current.attachmentCount||0)+1;publicUpdates.attachmentCount=updates.attachmentCount;}catch(e){throw new Error('The response attachment could not be uploaded: '+String(e&&e.message||e));}}
       const firstResponseActions=['respond','request_info'];
-      if(firstResponseActions.includes(action)&&!current.firstRespondedAt){const created=_advTsMs(current.createdAt)||Date.now(),mins=Math.max(0,Math.round((Date.now()-created)/60000));updates.firstRespondedAt=serverTimestamp();updates.responseMinutes=mins;publicUpdates.firstRespondedAt=serverTimestamp();publicUpdates.responseMinutes=mins;}
+      if(firstResponseActions.includes(action)&&!current.firstRespondedAt){const created=_advTsMs(current.createdAt)||Date.now(),mins=Math.max(1,Math.ceil((Date.now()-created)/60000));updates.firstRespondedAt=serverTimestamp();updates.responseMinutes=mins;publicUpdates.firstRespondedAt=serverTimestamp();publicUpdates.responseMinutes=mins;}
       let status=_advStatusKey(current.status),workflowStage=String(current.workflowStage||current.status||'submitted'),closureReason=String(current.closureReason||''),messageText=String(data.text||'').trim();
       if(action==='respond'){status='in_progress';workflowStage='responded';updates.respondedAt=serverTimestamp();publicUpdates.respondedAt=serverTimestamp();}
       else if(action==='request_info'){status='in_progress';workflowStage='awaiting_requester_information';}
@@ -1043,19 +1052,19 @@ window._selectPortal=async portal=>{
     };
     window._grcRiskRequestSuperAction=async function(requestId,action,note){
       if(!_grcRiskIsSuper())throw new Error('Super Admin approval is required.');const requestRef=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId);if(action==='approve'){
-        let published=null,recordType='risk';await runTransaction(db,async tx=>{
+        let published=null,recordType='risk',publishedOperation='',publishedBefore=null;await runTransaction(db,async tx=>{
           const rs=await tx.get(requestRef);if(!rs.exists())throw new Error('Request not found.');const request=Object.assign({id:rs.id,recordType:'risk'},rs.data());if(String(request.status||'')!=='pending_super_admin')throw new Error('This request is not awaiting final approval.');
           recordType=String(request.recordType||'risk').toLowerCase()==='incident'?'incident':'risk';const operation=String(request.operation||'').toLowerCase(),current=_grcRiskJson(request.currentRecord||{}),proposed=_grcRiskJson(request.proposedRecord||{}),cloudId=_grcRegisterCloudId(recordType,operation==='add'?proposed:current),recordRef=doc(db,GRC_REGISTER_COLLECTIONS[recordType],cloudId),existing=await tx.get(recordRef),now=_grcRiskIso(),statusRef=recordType==='risk'?doc(db,GRC_RISK_STATUS_COLLECTION,cloudId):null;
-          if(operation==='add'){if(existing.exists()&&existing.data().deleted!==true)throw new Error((recordType==='incident'?'Incident':'Risk')+' record already exists.');published=_grcRegisterCloudRecord(recordType,proposed,request.department,cloudId,now,'workflow');published.createdAt=published.createdAt||now;published.createdBy=published.createdBy||request.submittedByName||request.submittedByEmail;delete published.deleted;delete published.deletedAt;tx.set(recordRef,published,{merge:false});if(statusRef)tx.delete(statusRef);}
+          publishedOperation=operation;publishedBefore=existing.exists()?_grcRiskJson(existing.data()):_grcRiskJson(current);if(operation==='add'){if(existing.exists()&&existing.data().deleted!==true)throw new Error((recordType==='incident'?'Incident':'Risk')+' record already exists.');published=_grcRegisterCloudRecord(recordType,proposed,request.department,cloudId,now,'workflow');published.createdAt=published.createdAt||now;published.createdBy=published.createdBy||request.submittedByName||request.submittedByEmail;delete published.deleted;delete published.deletedAt;tx.set(recordRef,published,{merge:false});if(statusRef)tx.delete(statusRef);}
           else if(operation==='update'){const old=existing.exists()&&existing.data().deleted!==true?(existing.data()||{}):current;published=_grcRegisterCloudRecord(recordType,Object.assign({},old,proposed,{id:old.id||proposed.id,code:old.code||proposed.code,createdAt:old.createdAt||proposed.createdAt,createdBy:old.createdBy||proposed.createdBy,updatedAt:now,updatedBy:_grcRiskEmail()}),request.department,cloudId,now,'workflow');delete published.deleted;delete published.deletedAt;tx.set(recordRef,published,{merge:false});if(statusRef)tx.delete(statusRef);}
           else if(operation==='delete'){const old=existing.exists()?(existing.data()||{}):current;published=Object.assign({_cloudId:cloudId,cloudId:cloudId},old);const tombstone=_grcRegisterCloudRecord(recordType,Object.assign({},old,{id:old.id||current.id,code:old.code||current.code,deleted:true,deletedAt:now,updatedAt:now,updatedBy:_grcRiskEmail()}),request.department,cloudId,now,'workflow');tombstone.deleted=true;tombstone.deletedAt=now;tx.set(recordRef,tombstone,{merge:false});if(statusRef)tx.delete(statusRef);}
           else throw new Error('Unsupported '+recordType+' request operation.');
           const history=Array.isArray(request.history)?request.history.slice():[];history.push({status:'published',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'')});tx.set(requestRef,{status:'published',recordType,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:String(note||''),finalRecord:published,publishedRiskId:recordType==='risk'?String(published&&published.id||''):'',publishedRecordId:String(published&&published.id||''),publishedCloudId:String(published&& (published._cloudId||published.cloudId)||''),approvedAt:serverTimestamp(),publishedAt:serverTimestamp(),publishedAtIso:now,updatedAt:serverTimestamp(),updatedAtIso:now,history},{merge:true});
         });
         try{await _grcRegisterRemoveLegacyDuplicates(recordType,published,published&& (published._cloudId||published.cloudId));}catch(cleanupErr){console.warn('[GRC Register Publish] legacy duplicate cleanup skipped',cleanupErr);}
-        try{if(typeof window._grcApplyPublishedRegisterRecord==='function')window._grcApplyPublishedRegisterRecord(recordType,operation,published);}catch(uiErr){console.warn('[GRC Register Publish] local refresh skipped',uiErr);}
+        try{if(typeof window._grcApplyPublishedRegisterRecord==='function')window._grcApplyPublishedRegisterRecord(recordType,publishedOperation,published);}catch(uiErr){console.warn('[GRC Register Publish] local refresh skipped',uiErr);}
         try{if(typeof window._grcRestartSecureSync==='function')window._grcRestartSecureSync(true);}catch(_syncErr){}
-        try{window._recordAuditDirect&&window._recordAuditDirect('GRC_REGISTER_REQUEST_PUBLISH',recordType+' request approved and published',null,published,{portal:'grc',recordType});}catch(_){}
+        try{window._recordAuditDirect&&window._recordAuditDirect('GRC_REGISTER_REQUEST_PUBLISH',recordType+' '+publishedOperation+' request approved and published',publishedBefore,publishedOperation==='delete'?null:published,{portal:'grc',recordType});}catch(_){}
         return published;
       }
       const snap=await getDoc(requestRef);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(String(r.status||'')!=='pending_super_admin')throw new Error('This request is not awaiting final approval.');const status=action==='return'?'returned_manager':action==='reject'?'rejected_super_admin':'';if(!status)throw new Error('Invalid action.');if(!String(note||'').trim())throw new Error('A reason is required.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status,by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'')});await updateDoc(requestRef,{status,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:String(note||''),updatedAt:serverTimestamp(),updatedAtIso:now,history});return true;

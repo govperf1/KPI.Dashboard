@@ -244,6 +244,7 @@ window.hasPermission=hasPermission;
 function applyRolePermissions(role,dept,perms){
   window._fbPerms=perms||[];
   const isAdmin=role==='super_admin'||role==='admin';
+  const isAnalyticsManager=role==='governance_performance_manager';
   try{document.getElementById('_rolePencilStyle')?.remove();}catch(_){}
   if(!isAdmin){
     const ps=document.createElement('style');ps.id='_rolePencilStyle';
@@ -256,12 +257,12 @@ function applyRolePermissions(role,dept,perms){
     document.querySelectorAll('button').forEach(b=>{
       const oc=b.getAttribute('onclick')||b.onclick?.toString()||'';
       if(oc.includes('openLock')){
-        if(isAdmin){
+        if(isAdmin||isAnalyticsManager){
           b.style.setProperty('display','inline-flex','important');
           b.style.setProperty('visibility','visible','important');
           /* Replace lock icon with gear icon */
           b.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
-          b.title='Admin Control Panel';
+          b.title=isAnalyticsManager?'Governance & Performance Analytics':'Admin Control Panel';
         } else {
           b.style.display='none'; b.style.visibility='hidden';
         }
@@ -297,7 +298,7 @@ function applyRolePermissions(role,dept,perms){
   }
 
   /* ── Dept lock for users assigned to a specific department ── */
-  if((role==='department_manager'||role==='kpi_owner'||role==='platform_owner'||role==='viewer'||role==='gap_owner')&&dept){
+  if((role==='department_manager'||role==='governance_performance_manager'||role==='kpi_owner'||role==='platform_owner'||role==='viewer'||role==='gap_owner')&&dept){
     window._lockedDept=dept;
     const orig=window.setF;
     window.setF=function(t,v,e){if(t==='dept'&&v!==dept&&v!=='all')return;if(orig)orig(t,v,e);};
@@ -324,7 +325,7 @@ function applyRolePermissions(role,dept,perms){
   /* ── Role-based UI visibility styles ── */
   const roleStyle=document.createElement('style');roleStyle.id='_roleStyle';
   let roleCss='';
-  if(!isAdmin) roleCss+='#adminOv{display:none!important;}';
+  if(!isAdmin&&!isAnalyticsManager) roleCss+='#adminOv{display:none!important;}';
   if(roleCss) roleStyle.textContent=roleCss;
   document.head.appendChild(roleStyle);
 }
