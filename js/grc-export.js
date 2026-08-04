@@ -811,6 +811,26 @@
   }
 }
 `;
+
+    /* v129 — Executive Overview width matches the section banners below exactly. */
+    style.textContent += `
+.grc-exec-overview{
+  width:100%!important;
+  max-width:100%!important;
+  box-sizing:border-box!important;
+  margin-left:0!important;
+  margin-right:0!important;
+}
+@media print{
+  .grc-exec-overview{
+    width:100%!important;
+    max-width:100%!important;
+    box-sizing:border-box!important;
+    margin-left:0!important;
+    margin-right:0!important;
+  }
+}
+`;
     doc.appendChild(style);return doc;}
 
   function cleanupGrcReportPrint(){
