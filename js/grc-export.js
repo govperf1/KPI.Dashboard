@@ -679,6 +679,24 @@
   .grc-exec-chart:nth-child(even){margin-right:0!important;}
 }
 `;
+    /* v119 — use the portrait page more efficiently. Single charts and odd
+       metric cards span the row, while paired cards keep the compact balanced
+       layout. This reduces unused white space without changing report content. */
+    style.textContent += `
+.grc-exec-metric{min-height:106px!important;}
+.grc-exec-chart{height:236px!important;min-height:236px!important;max-height:236px!important;}
+.grc-exec-chart-grid>.grc-exec-chart:only-child{grid-column:1/-1!important;width:100%!important;}
+.grc-exec-metrics>.grc-exec-metric:last-child:nth-child(odd){grid-column:1/-1!important;}
+.grc-exec-overview-grid>.grc-exec-metric{min-height:116px!important;}
+.grc-exec-subsection{margin-top:12px!important;}
+.grc-exec-overview-block{margin-top:10px!important;}
+@media print{
+  .grc-exec-chart{height:236px!important;min-height:236px!important;max-height:236px!important;}
+  .grc-exec-chart-grid>.grc-exec-chart:only-child{display:flex!important;width:100%!important;margin-right:0!important;}
+  .grc-exec-metrics>.grc-exec-metric:last-child:nth-child(odd){display:flex!important;width:100%!important;margin-right:0!important;}
+  .grc-exec-overview-grid>.grc-exec-metric{min-height:116px!important;}
+}
+`;
     doc.appendChild(style);return doc;}
 
   function cleanupGrcReportPrint(){

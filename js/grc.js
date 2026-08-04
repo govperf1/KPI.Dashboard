@@ -1994,7 +1994,12 @@
       '</div><div class="grc-chart-grid cols-1">'+verticalBarChart(isAr()?'حالة الأدلة':'Manual Status',[{label:L('valid'),value:valid,color:chartPalette.green},{label:L('unavailable'),value:unavailable,color:chartPalette.coral}])+'</div>';
   }
   function selectedInitiatives(dept){
-    var rows=(state.initiatives||INITIATIVE_SEED);if(dept&&dept!=='allFms')rows=filterDept(rows,dept);return rows.filter(function(r){return normalizeStatus(r.status)==='selected';});
+    /* Always reconcile the live collection with the approved initiative seed.
+       Firestore can legitimately return an empty/partial collection for a moment;
+       using [] directly made the Selected Initiatives Register look empty. */
+    var rows=mergeInitiativeSeed(state.initiatives||[]);
+    if(dept&&dept!=='allFms')rows=filterDept(rows,dept);
+    return rows.filter(function(r){var st=normalizeStatus(r.status);return st==='selected'||st==='approved';});
   }
   function initiativeProgress(r){
     return Math.max(0,Math.min(100,Number(r.progress||0)));
@@ -2270,7 +2275,7 @@
   }
   function selectedInitiativesRegisterTable(){
     var departmentScope=isGrcAdmin()?'allFms':currentGrcDept();
-    var visibleInitiatives=selectedInitiatives().filter(function(r){return initiativeHasMemberFromDepartment(r,departmentScope);});
+    var visibleInitiatives=selectedInitiatives('allFms').filter(function(r){return initiativeHasMemberFromDepartment(r,departmentScope);});
     var rows=visibleInitiatives.map(function(r,index){
       var progress=initiativeProgress(r),execution=progress>=100||normalizeStatus(r.executionStatus)==='done'?(isAr()?'مكتملة':'Done'):(isAr()?'قيد التنفيذ':'In Progress');
       return'<tr><td class="grc-id">'+esc(initiativeCode(r,index))+'</td>'+

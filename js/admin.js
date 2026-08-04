@@ -671,6 +671,8 @@ function loadGD(){
 }
 function loadActD(){}
 function swAt(id,el){
+  var _adminOv=document.getElementById('adminOv');
+  if(_adminOv)_adminOv.classList.toggle('perf-analytics-open',['userrequests','requestanalytics','reviewanalytics'].indexOf(id)>=0);
   /* Hide all feedback divs when switching tabs */
   ['_addFeedback','_editFeedback','_delFeedback','_gapFeedback'].forEach(fbId=>{
     const fbEl=document.getElementById(fbId);if(fbEl)fbEl.style.display='none';
@@ -1373,10 +1375,6 @@ function _showSuperAdminHub(){
   ov.id='saHubOv';
   ov.style.cssText='position:fixed;inset:0;z-index:9000;background:rgba(0,8,20,.82);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;';
   var cards=[
-    {icon:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>',
-     title:'User Requests',titleAr:'\u0637\u0644\u0628\u0627\u062a \u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645\u064a\u0646',
-     desc:'View and manage user requests, responses and workflow.',
-     descAr:'\u0639\u0631\u0636 \u0637\u0644\u0628\u0627\u062a \u0627\u0644\u0645\u0633\u062a\u062e\u062f\u0645\u064a\u0646 \u0648\u0625\u062f\u0627\u0631\u062a\u0647\u0627.',action:'sa-requests'},
     {icon:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0195af" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="9" x2="9" y2="21"/><line x1="15" y1="9" x2="15" y2="21"/></svg>',
      title:'KPI Management',titleAr:'\u0625\u062f\u0627\u0631\u0629 \u0645\u0624\u0634\u0631\u0627\u062a \u0627\u0644\u0623\u062f\u0627\u0621',
      desc:'Add, edit and delete KPIs. Configure structure, columns and targets.',
@@ -4050,4 +4048,72 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   setInterval(fixProfileGapButton,450);
   setTimeout(managerApprovalPopupWatch,1200);
   setInterval(managerApprovalPopupWatch,2200);
+})();
+
+/* =====================================================================
+   v119 — Performance Admin Control Panel: User Requests + analytics
+   Keeps request administration inside the main Admin Control Panel and
+   removes the duplicate Super Admin Hub request card.
+   ===================================================================== */
+(function(){
+  function escPerf(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function isArPerf(){return typeof lang!=='undefined'&&lang==='ar';}
+  function fmtPerfTs(v){try{return typeof window._fmtTs==='function'?window._fmtTs(v):(v?new Date(v).toLocaleString():'—');}catch(_){return'—';}}
+  function statusKey(v){return String(v||'pending').toLowerCase().replace(/[\s-]+/g,'_');}
+  function statusPill(v){var k=statusKey(v),label={pending:'Pending',approved:'Approved',rejected:'Rejected',open:'Open',in_progress:'In Progress',closed:'Closed',completed:'Completed',cancelled:'Cancelled'}[k]||String(v||'—');return'<span class="perf-ac-status '+escPerf(k)+'">'+escPerf(label)+'</span>';}
+  function metric(label,value,tone,sub){return'<div class="perf-ac-metric '+(tone||'info')+'"><span>'+escPerf(label)+'</span><b>'+escPerf(value)+'</b><small>'+escPerf(sub||'')+'</small></div>';}
+  function countBy(rows,fn){var out={};(rows||[]).forEach(function(r){var k=String(fn(r)||'Unassigned').trim()||'Unassigned';out[k]=(out[k]||0)+1;});return out;}
+  function miniChart(title,counts){var keys=Object.keys(counts||{}),max=Math.max(1,...keys.map(function(k){return counts[k];}));return'<div class="perf-ac-insight"><h3>'+escPerf(title)+'</h3>'+(keys.length?keys.sort(function(a,b){return counts[b]-counts[a];}).slice(0,8).map(function(k){return'<div class="perf-ac-mini-row"><span>'+escPerf(k)+'</span><i><b style="width:'+Math.max(5,Math.round(counts[k]*100/max))+'%"></b></i><strong>'+counts[k]+'</strong></div>';}).join(''):'<div class="perf-ac-empty compact">No data</div>')+'</div>';}
+  function stars(v){var n=Math.max(0,Math.min(5,Number(v||0)));return'<span class="perf-ac-stars">'+('★'.repeat(n))+('☆'.repeat(5-n))+'</span>';}
+
+  window._ensurePerformanceAdminRequestTabs=function(){
+    var tabs=document.getElementById('adminTabs'),body=document.getElementById('adminBody');if(!tabs||!body)return;
+    var specs=[
+      ['userrequests',isArPerf()?'طلبات المستخدمين':'User Requests'],
+      ['requestanalytics',isArPerf()?'تحليلات الطلبات':'Request Analytics'],
+      ['reviewanalytics',isArPerf()?'تحليلات المراجعة':'Review Analytics']
+    ];
+    specs.forEach(function(x){
+      if(!document.querySelector('#adminTabs [data-perf-admin-tab="'+x[0]+'"]')){var b=document.createElement('button');b.className='atb';b.setAttribute('data-perf-admin-tab',x[0]);b.textContent=x[1];b.onclick=function(){swAt(x[0],b);if(x[0]==='userrequests')window._perfAdminLoadUserRequests();else if(x[0]==='requestanalytics')window._perfAdminLoadRequestAnalytics();else window._perfAdminLoadReviewAnalytics();};tabs.appendChild(b);}
+      if(!document.getElementById('ap-'+x[0])){var panel=document.createElement('div');panel.id='ap-'+x[0];panel.className='ap perf-ac-page';body.appendChild(panel);}
+    });
+  };
+
+  window._perfAdminLoadUserRequests=function(){
+    var page=document.getElementById('ap-userrequests');if(!page)return;page.innerHTML='<div class="perf-ac-empty">Loading user requests…</div>';
+    if(typeof window._kpiRequestsGetAll!=='function'){page.innerHTML='<div class="perf-ac-empty bad">Requests service is unavailable.</div>';return;}
+    window._kpiRequestsGetAll().then(function(rows){window._perfAdminRenderUserRequests(rows||[]);}).catch(function(e){page.innerHTML='<div class="perf-ac-empty bad">'+escPerf(e&&e.message||e)+'</div>';});
+  };
+  window._perfAdminRenderUserRequests=function(rows){
+    var page=document.getElementById('ap-userrequests');if(!page)return;
+    var head='<div class="perf-ac-head"><div><h2>User Requests</h2><p>Manage Performance access, permission and system requests from the user profile.</p></div><button class="perf-ac-refresh" onclick="window._perfAdminLoadUserRequests()">Refresh</button></div>';
+    if(!rows.length){page.innerHTML=head+'<div class="perf-ac-empty">No Performance user requests yet.</div>';return;}
+    var html='<div class="perf-ac-table-wrap"><table class="perf-ac-table"><thead><tr><th>Date</th><th>User</th><th>Type</th><th>Request</th><th>Status</th><th>Response / Action</th></tr></thead><tbody>';
+    rows.forEach(function(r){var id=String(r.id||''),st=statusKey(r.status);html+='<tr><td>'+escPerf(fmtPerfTs(r.createdAt))+'</td><td><b>'+escPerf(r.userName||r.userEmail||'—')+'</b><small>'+escPerf(r.userEmail||'')+'</small></td><td>'+escPerf(r.requestType||'—')+'</td><td class="perf-ac-message">'+escPerf(r.message||'')+'</td><td>'+statusPill(st)+'</td><td>'+(st==='pending'?'<textarea id="perf_req_cmt_'+escPerf(id)+'" placeholder="Comment (required for reject)"></textarea><div class="perf-ac-actions"><button class="approve" onclick="window._perfAdminRespondRequest(\''+escPerf(id)+'\',\'approved\')">Approve</button><button class="reject" onclick="window._perfAdminRespondRequest(\''+escPerf(id)+'\',\'rejected\')">Reject</button></div><div class="perf-ac-inline-error" id="perf_req_err_'+escPerf(id)+'"></div>':'<div class="perf-ac-response">'+escPerf(r.superAdminComment||'—')+'</div><small>Responded: '+escPerf(fmtPerfTs(r.respondedAt))+'</small>')+'</td></tr>';});
+    page.innerHTML=head+html+'</tbody></table></div>';
+  };
+  window._perfAdminRespondRequest=function(id,status){var c=document.getElementById('perf_req_cmt_'+id),err=document.getElementById('perf_req_err_'+id),comment=String(c&&c.value||'').trim();if(status==='rejected'&&!comment){if(c)c.classList.add('is-invalid');if(err){err.textContent='A rejection reason is required.';err.style.display='block';}return;}if(typeof window._kpiRequestsRespond!=='function')return;window._kpiRequestsRespond(id,status,comment).then(function(){if(window.toast)window.toast(status==='approved'?'Request approved.':'Request rejected.');window._perfAdminLoadUserRequests();}).catch(function(e){if(err){err.textContent=String(e&&e.message||e);err.style.display='block';}});};
+
+  window._perfAdminLoadRequestAnalytics=function(){var page=document.getElementById('ap-requestanalytics');if(!page)return;page.innerHTML='<div class="perf-ac-empty">Loading request analytics…</div>';if(typeof window._kpiRequestsGetAll!=='function'){page.innerHTML='<div class="perf-ac-empty bad">Requests service is unavailable.</div>';return;}window._kpiRequestsGetAll().then(function(rows){window._perfAdminRenderRequestAnalytics(rows||[]);}).catch(function(e){page.innerHTML='<div class="perf-ac-empty bad">'+escPerf(e&&e.message||e)+'</div>';});};
+  window._perfAdminRenderRequestAnalytics=function(rows){
+    var page=document.getElementById('ap-requestanalytics');if(!page)return;var total=rows.length,pending=0,approved=0,rejected=0;rows.forEach(function(r){var s=statusKey(r.status);if(s==='approved')approved++;else if(s==='rejected')rejected++;else pending++;});var resolved=approved+rejected,approvalRate=resolved?Math.round(approved*100/resolved):0;
+    var head='<div class="perf-ac-head"><div><h2>User Request Analytics</h2><p>Performance request volume, outcomes and response status.</p></div><button class="perf-ac-refresh" onclick="window._perfAdminLoadRequestAnalytics()">Refresh</button></div>';
+    var metrics='<div class="perf-ac-metrics">'+metric('Total Requests',total,'info','All requests')+metric('Pending',pending,'warn','Awaiting action')+metric('Approved',approved,'good','Approved requests')+metric('Rejected',rejected,'bad','Rejected requests')+metric('Approval Rate',approvalRate+'%','purple','Approved / resolved')+'</div>';
+    var insights='<div class="perf-ac-insight-grid">'+miniChart('Requests by Type',countBy(rows,function(r){return r.requestType||'Other';}))+miniChart('Request Outcomes',{'Pending':pending,'Approved':approved,'Rejected':rejected})+'</div>';
+    var table='<div class="perf-ac-table-wrap compact-table"><table class="perf-ac-table"><thead><tr><th>Request</th><th>User</th><th>Type</th><th>Status</th><th>Response</th></tr></thead><tbody>'+(rows.length?rows.slice(0,50).map(function(r){return'<tr><td>'+escPerf(fmtPerfTs(r.createdAt))+'</td><td><b>'+escPerf(r.userName||'—')+'</b><small>'+escPerf(r.userEmail||'')+'</small></td><td>'+escPerf(r.requestType||'—')+'</td><td>'+statusPill(r.status)+'</td><td>'+escPerf(r.superAdminComment||'—')+'</td></tr>';}).join(''):'<tr><td colspan="5">No requests yet.</td></tr>')+'</tbody></table></div>';
+    page.innerHTML=head+metrics+insights+table;
+  };
+
+  window._perfAdminLoadReviewAnalytics=function(){var page=document.getElementById('ap-reviewanalytics');if(!page)return;page.innerHTML='<div class="perf-ac-empty">Loading Review & Development analytics…</div>';if(typeof window._advisoryGetAll!=='function'){page.innerHTML='<div class="perf-ac-empty bad">Review & Development service is unavailable.</div>';return;}window._advisoryGetAll().then(function(rows){rows=(rows||[]).filter(function(r){return String(r.platform||'performance').toLowerCase()==='performance';});window._perfAdminRenderReviewAnalytics(rows);}).catch(function(e){page.innerHTML='<div class="perf-ac-empty bad">'+escPerf(e&&e.message||e)+'</div>';});};
+  window._perfAdminRenderReviewAnalytics=function(rows){
+    var page=document.getElementById('ap-reviewanalytics');if(!page)return;var total=rows.length,newCount=0,editCount=0,open=0,progress=0,closed=0,rated=0,sum=0;rows.forEach(function(r){var t=String(r.requestType||'').toLowerCase(),s=statusKey(r.status);if(t==='new')newCount++;else editCount++;if(s==='open'||s==='pending')open++;else if(s==='in_progress'||s==='responded'||s==='under_review')progress++;else if(['closed','completed','approved','rejected','cancelled'].indexOf(s)>=0)closed++;var n=Number(r.rating||0);if(n>0){rated++;sum+=n;}});var avg=rated?(sum/rated).toFixed(1):'0.0',rate=total?Math.round(closed*100/total):0;
+    var head='<div class="perf-ac-head"><div><h2>Review & Development Analytics</h2><p>Performance review requests, closure, ratings and user comments.</p></div><button class="perf-ac-refresh" onclick="window._perfAdminLoadReviewAnalytics()">Refresh</button></div>';
+    var metrics='<div class="perf-ac-metrics">'+metric('Total',total,'info','All review requests')+metric('New Item',newCount,'purple','New item requests')+metric('Edit / Review',editCount,'info','Existing item reviews')+metric('Open',open,'bad','Not started')+metric('In Progress',progress,'warn','Under review')+metric('Closed',closed,'good','Completed / closed')+metric('Closure Rate',rate+'%','good','Closed / total')+metric('Average Rating',avg+' / 5','purple',rated+' rating(s)')+'</div>';
+    var insights='<div class="perf-ac-insight-grid">'+miniChart('Requests by Department',countBy(rows,function(r){return r.departmentKey||r.department||'Unassigned';}))+miniChart('Requests by Item Type',countBy(rows,function(r){return r.category||r.relatedType||'Other';}))+'</div>';
+    var table='<div class="perf-ac-table-wrap"><table class="perf-ac-table"><thead><tr><th>Request</th><th>Department</th><th>Type</th><th>Status</th><th>Rating & Comment</th><th>Updated</th></tr></thead><tbody>'+(rows.length?rows.map(function(r){return'<tr><td><b>'+escPerf(r.code||r.id||'—')+'</b><small>'+escPerf(r.title||'')+'</small></td><td>'+escPerf(r.departmentKey||r.department||'—')+'</td><td>'+escPerf(String(r.requestType||'')==='new'?'New Item Request':'Existing Item Review & Update')+'</td><td>'+statusPill(r.status)+'</td><td>'+stars(r.rating)+(r.rating?'<b class="perf-ac-rating-number">'+Number(r.rating)+'/5</b>':'')+(r.ratingComment?'<div class="perf-ac-rating-comment">'+escPerf(r.ratingComment)+'</div>':'')+'</td><td>'+escPerf(fmtPerfTs(r.updatedAt||r.createdAt))+'</td></tr>';}).join(''):'<tr><td colspan="6">No review requests yet.</td></tr>')+'</tbody></table></div>';
+    page.innerHTML=head+metrics+insights+table;
+  };
+
+  function boot(){window._ensurePerformanceAdminRequestTabs();}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else setTimeout(boot,0);
 })();
