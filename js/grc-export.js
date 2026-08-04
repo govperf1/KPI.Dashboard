@@ -740,6 +740,77 @@
   .grc-exec-metric,.grc-exec-chart{break-inside:avoid-page!important;page-break-inside:avoid!important;}
 }
 `;
+    /* v124 — align report section banners with their data rows. Metric cards
+       now fill exactly the same horizontal width as the heading rectangle;
+       incomplete rows expand evenly instead of leaving a short/uneven edge. */
+    style.textContent += `
+.grc-exec-section-head,
+.grc-exec-subsection-head,
+.grc-exec-overview-block,
+.grc-exec-metrics,
+.grc-exec-chart-grid{width:100%!important;max-width:100%!important;box-sizing:border-box!important;margin-left:0!important;margin-right:0!important;}
+.grc-exec-metrics{display:flex!important;flex-wrap:wrap!important;align-items:stretch!important;gap:8px!important;}
+.grc-exec-metrics>.grc-exec-metric,
+.grc-exec-metrics>.grc-exec-metric:last-child:nth-child(odd){flex:1 1 calc(25% - 8px)!important;min-width:calc(25% - 8px)!important;max-width:none!important;width:auto!important;min-height:78px!important;height:auto!important;display:flex!important;flex-direction:column!important;justify-content:flex-start!important;}
+.grc-exec-subsection-head{margin-bottom:8px!important;}
+@media print{
+  .grc-exec-section-head,.grc-exec-subsection-head,.grc-exec-overview-block,.grc-exec-metrics,.grc-exec-chart-grid{width:100%!important;max-width:100%!important;box-sizing:border-box!important;}
+  .grc-exec-metrics{display:flex!important;flex-wrap:wrap!important;gap:8px!important;}
+  .grc-exec-metrics>.grc-exec-metric,
+  .grc-exec-metrics>.grc-exec-metric:last-child:nth-child(odd){flex:1 1 calc(25% - 8px)!important;min-width:calc(25% - 8px)!important;max-width:none!important;width:auto!important;min-height:78px!important;height:auto!important;}
+}
+`;
+
+    /* v128 — every metric rectangle uses one fixed three-column rhythm.
+       This keeps 3/4/5/9-card sections visually identical: no card expands
+       just because the last row is incomplete. */
+    style.textContent += `
+.grc-exec-metrics,
+.grc-exec-overview-grid{
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:8px!important;
+  align-items:stretch!important;
+  width:100%!important;
+  max-width:100%!important;
+  box-sizing:border-box!important;
+}
+.grc-exec-metrics>.grc-exec-metric,
+.grc-exec-overview-grid>.grc-exec-metric,
+.grc-exec-metrics>.grc-exec-metric:last-child:nth-child(odd){
+  grid-column:auto!important;
+  width:100%!important;
+  min-width:0!important;
+  max-width:none!important;
+  height:80px!important;
+  min-height:80px!important;
+  max-height:80px!important;
+  box-sizing:border-box!important;
+  display:flex!important;
+  flex-direction:column!important;
+  justify-content:flex-start!important;
+  overflow:hidden!important;
+}
+@media print{
+  .grc-exec-metrics,
+  .grc-exec-overview-grid{
+    display:grid!important;
+    grid-template-columns:repeat(3,minmax(0,1fr))!important;
+    gap:8px!important;
+    align-items:stretch!important;
+  }
+  .grc-exec-metrics>.grc-exec-metric,
+  .grc-exec-overview-grid>.grc-exec-metric,
+  .grc-exec-metrics>.grc-exec-metric:last-child:nth-child(odd){
+    grid-column:auto!important;
+    width:100%!important;
+    min-width:0!important;
+    height:80px!important;
+    min-height:80px!important;
+    max-height:80px!important;
+  }
+}
+`;
     doc.appendChild(style);return doc;}
 
   function cleanupGrcReportPrint(){
