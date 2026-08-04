@@ -1145,7 +1145,7 @@ function _combinedAuditLog(){
   if(Array.isArray(ST.audit))all.push(...ST.audit);
   const seen=new Set(),out=[];
   all.forEach(function(e){if(!e)return;const key=String(e.id||[e.ts,e.email,e.action,e.detail].join('|'));if(seen.has(key))return;seen.add(key);out.push(e);});
-  return out.sort(function(a,b){return String(b.ts||'').localeCompare(String(a.ts||''));}).slice(0,1000);
+  return out.sort(function(a,b){return String(b.ts||'').localeCompare(String(a.ts||''));});
 }
 function addAudit(action,detail,oldVal,newVal){
   if(!ST.audit)ST.audit=[];
@@ -1164,7 +1164,7 @@ function addAudit(action,detail,oldVal,newVal){
     dept:window._fbDept||window.currentUserDept||''
   };
   ST.audit.unshift(entry);
-  ST.audit=ST.audit.slice(0,1000);
+  ST.audit=ST.audit.slice(0,2000);
   try{localStorage.setItem('kpi_v3',JSON.stringify(Object.assign({},ST,{_v:3})));}catch(_){}
   try{
     if(typeof window._appendAuditToFS==='function')window._appendAuditToFS(entry).catch(function(e){console.warn('[AUDIT] cloud write failed',e&&e.message||e);});
@@ -1178,9 +1178,23 @@ function addAudit(action,detail,oldVal,newVal){
 window.addAudit=addAudit;
 window.loadAuditLog=typeof loadAuditLog==='function'?loadAuditLog:window.loadAuditLog;
 
+function _auditUserKey(e){
+  const email=String(e&&e.email||'').trim().toLowerCase();
+  return email&&email!=='—'?email:String(e&&e.user||'').trim();
+}
 function populateAuditFilters(log){
   const uf=document.getElementById('auditUserFilter'), af=document.getElementById('auditActionFilter');
-  if(uf){const cur=uf.value;const users=[...new Set((log||[]).map(e=>e.user).filter(Boolean))].sort();uf.innerHTML='<option value="">All users</option>'+users.map(u=>`<option value="${htmlEsc(u)}">${htmlEsc(u)}</option>`).join('');uf.value=users.includes(cur)?cur:'';}
+  if(uf){
+    const cur=uf.value,usersMap=new Map();
+    (log||[]).forEach(function(e){
+      const key=_auditUserKey(e);if(!key)return;
+      const name=String(e.user||'User'),email=String(e.email||'').trim();
+      usersMap.set(key,email&&email!=='—'?name+' · '+email:name);
+    });
+    const users=Array.from(usersMap.entries()).sort(function(a,b){return a[1].localeCompare(b[1]);});
+    uf.innerHTML='<option value="">All users</option>'+users.map(function(pair){return '<option value="'+htmlEsc(pair[0])+'">'+htmlEsc(pair[1])+'</option>';}).join('');
+    uf.value=users.some(function(pair){return pair[0]===cur;})?cur:'';
+  }
   if(af){const cur=af.value;const actions=[...new Set((log||[]).map(e=>e.action).filter(Boolean))].sort();af.innerHTML='<option value="">All actions</option>'+actions.map(a=>`<option value="${htmlEsc(a)}">${htmlEsc(a)}</option>`).join('');af.value=actions.includes(cur)?cur:'';}
 }
 
@@ -1192,7 +1206,7 @@ function loadAuditLog(){
   const uf=document.getElementById('auditUserFilter')?.value||'';
   const af=document.getElementById('auditActionFilter')?.value||'';
   const df=(document.getElementById('auditDetailFilter')?.value||'').toLowerCase();
-  log=fullLog.filter(e=>(!uf||(e.user||'')===uf)&&(!af||(e.action||'')===af)&&(!df||String(e.detail||'').toLowerCase().includes(df)));
+  log=fullLog.filter(e=>(!uf||_auditUserKey(e)===uf)&&(!af||(e.action||'')===af)&&(!df||String(e.detail||'').toLowerCase().includes(df)));
   const cntEl=document.getElementById('_auditCount');
   if(cntEl)cntEl.textContent=log.length+' shown / '+fullLog.length+' total record'+(fullLog.length===1?'':'s');
 

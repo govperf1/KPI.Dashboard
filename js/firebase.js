@@ -83,21 +83,23 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
 
 
     /* ── Shared Audit Trail ─────────────────────────────────────────────
-       Every meaningful user action is persisted to Firestore so the
-       Super Admin sees one shared log across all users and devices.
-       Normal users can append their own actions; only users who can view
-       the Audit Trail subscribe to the shared log in real time. */
+       Audit v10 uses an append-only Firestore collection (one document per
+       action) instead of keeping every user's activity inside one capped
+       array document. This prevents older users/actions from disappearing
+       and avoids cross-user transaction contention. The old shared document
+       remains read as a compatibility source and is migrated once by Admin. */
     const AUDIT_DOC_REF=doc(db,'kpi_dashboard','audit');
-    const AUDIT_MAX_RECORDS=1000;
+    const AUDIT_COLLECTION='audit_trail';
     let _auditListenerUnsub=null;
+    let _auditLegacyListenerUnsub=null;
     let _auditWriteChain=Promise.resolve();
+    let _auditMigrationRunning=false;
 
     function _auditId(){
       try{return crypto.randomUUID();}catch(_){return 'audit_'+Date.now()+'_'+Math.random().toString(36).slice(2,10);}
     }
     function _auditCleanValue(v){
-      if(v===undefined)return null;
-      if(v===null)return null;
+      if(v===undefined||v===null)return null;
       if(typeof v==='object'){
         try{return JSON.parse(JSON.stringify(v));}catch(_){return String(v);}
       }
@@ -105,11 +107,14 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     }
     function _auditEntry(raw){
       raw=raw||{};
+      const email=String(raw.email||window._fbUser||window.currentUserEmail||(auth.currentUser&&auth.currentUser.email)||'').toLowerCase().trim();
+      const user=String(raw.user||window._fbName||window.currentUserName||(email?email.split('@')[0]:'User'));
+      const explicitDept=Object.prototype.hasOwnProperty.call(raw,'dept')?raw.dept:(Object.prototype.hasOwnProperty.call(window,'_fbDept')?window._fbDept:window.currentUserDept);
       return {
         id:String(raw.id||_auditId()),
         ts:String(raw.ts||new Date().toISOString()),
-        user:String(raw.user||window._fbName||window.currentUserName||((window._fbUser||'').split('@')[0])||'User'),
-        email:String(raw.email||window._fbUser||window.currentUserEmail||auth.currentUser&&auth.currentUser.email||'—'),
+        user:user||'User',
+        email:email||'—',
         role:String(raw.role||window._fbRole||window.currentUserRole||'viewer'),
         action:String(raw.action||'ACTIVITY'),
         detail:String(raw.detail||''),
@@ -117,27 +122,85 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
         newVal:_auditCleanValue(raw.newVal),
         portal:String(raw.portal||window.__qumcActivePortal||''),
         page:String(raw.page||window.curPage||''),
-        dept:String(raw.dept||window._fbDept||window.currentUserDept||''),
+        dept:explicitDept==null?'':String(explicitDept),
         sessionId:String(raw.sessionId||window.__qumcAuditSessionId||(window.__qumcAuditSessionId='s_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)))
       };
     }
     function _auditSort(log){
       return (Array.isArray(log)?log:[]).filter(Boolean).sort(function(a,b){return String(b.ts||'').localeCompare(String(a.ts||''));});
     }
-    function _auditCanView(){
+    function _auditDedupe(log){
+      const seen=new Set(),out=[];
+      _auditSort(log).forEach(function(e){
+        const key=String(e&&e.id||[e&&e.ts,e&&e.email,e&&e.action,e&&e.detail].join('|'));
+        if(!key||seen.has(key))return;seen.add(key);out.push(e);
+      });
+      return out;
+    }
+    function _auditIsAdmin(){
       const r=String(window._fbRole||'').toLowerCase().replace(/[\s-]+/g,'_');
-      return r==='super_admin'||r==='admin'||(Array.isArray(window._fbPerms)&&window._fbPerms.includes('view_audit_trail'))||(Array.isArray(window._fbPerms)&&window._fbPerms.includes('*'));
+      return r==='super_admin'||r==='admin';
+    }
+    function _auditCanView(){
+      return _auditIsAdmin()||(Array.isArray(window._fbPerms)&&window._fbPerms.includes('view_audit_trail'))||(Array.isArray(window._fbPerms)&&window._fbPerms.includes('*'));
+    }
+    function _auditMergedSources(){
+      const collectionLog=Array.isArray(window.__qumcAuditCollectionLog)?window.__qumcAuditCollectionLog:[];
+      const legacyLog=Array.isArray(window.__qumcAuditLegacyLog)?window.__qumcAuditLegacyLog:[];
+      return _auditDedupe(collectionLog.concat(legacyLog));
     }
     function _applyAuditCloudLog(log){
-      log=_auditSort(log).slice(0,AUDIT_MAX_RECORDS);
+      log=_auditDedupe(log);
       window.__qumcAuditCloudLog=log;
       try{
         if(typeof ST!=='undefined'){
-          ST.audit=log.slice();
+          /* Keep a bounded local cache only. The Audit Trail itself reads the
+             full append-only cloud collection, so this cache never limits the UI. */
+          ST.audit=log.slice(0,2000);
           localStorage.setItem('kpi_v3',JSON.stringify(Object.assign({},ST,{_v:3})));
         }
       }catch(_){ }
       try{if(typeof window.loadAuditLog==='function')window.loadAuditLog();else if(typeof loadAuditLog==='function')loadAuditLog();}catch(_){ }
+      try{if(typeof window._grcAdminRenderAudit==='function'&&document.getElementById('_grcAuditList'))window._grcAdminRenderAudit();}catch(_){ }
+    }
+    function _refreshAuditMergedView(){
+      _applyAuditCloudLog(_auditMergedSources());
+    }
+    async function _deleteAuditDocs(predicate){
+      if(!_auditIsAdmin())throw new Error('access denied');
+      const snap=await getDocs(collection(db,AUDIT_COLLECTION)),jobs=[];
+      snap.forEach(function(d){
+        const row=Object.assign({id:d.id},d.data()||{});
+        if(!predicate||predicate(row))jobs.push(deleteDoc(doc(db,AUDIT_COLLECTION,d.id)));
+      });
+      for(let i=0;i<jobs.length;i+=100)await Promise.all(jobs.slice(i,i+100));
+      return jobs.length;
+    }
+    async function _migrateLegacyAuditToCollection(){
+      if(_auditMigrationRunning||!auth.currentUser||!_auditIsAdmin())return false;
+      _auditMigrationRunning=true;
+      try{
+        const snap=await getDoc(AUDIT_DOC_REF),data=snap.exists()?snap.data():{};
+        if(data.collectionMigratedAt)return false;
+        const log=Array.isArray(data.log)?data.log:[];
+        for(let i=0;i<log.length;i+=100){
+          const chunk=log.slice(i,i+100);
+          await Promise.all(chunk.map(function(raw){
+            const entry=_auditEntry(raw);
+            return setDoc(doc(db,AUDIT_COLLECTION,entry.id),entry,{merge:false});
+          }));
+        }
+        await setDoc(AUDIT_DOC_REF,{
+          collectionMigratedAt:serverTimestamp(),
+          collectionMigratedBy:String(window._fbUser||''),
+          updatedAt:serverTimestamp(),
+          updatedBy:String(window._fbUser||'')
+        },{merge:true});
+        return true;
+      }catch(e){
+        console.warn('[AUDIT] legacy migration skipped:',e&&e.code||e&&e.message||e);
+        return false;
+      }finally{_auditMigrationRunning=false;}
     }
     window._appendAuditToFS=function(raw){
       const entry=_auditEntry(raw);
@@ -147,15 +210,8 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
         return Promise.resolve(false);
       }
       _auditWriteChain=_auditWriteChain.catch(function(){return null;}).then(function(){
-        return runTransaction(db,async function(tx){
-          const snap=await tx.get(AUDIT_DOC_REF);
-          const data=snap.exists()?snap.data():{};
-          let log=Array.isArray(data.log)?data.log.slice():[];
-          log=log.filter(function(x){return x&&String(x.id)!==entry.id;});
-          log.unshift(entry);
-          log=_auditSort(log).slice(0,AUDIT_MAX_RECORDS);
-          tx.set(AUDIT_DOC_REF,{log:log,updatedAt:serverTimestamp(),updatedBy:entry.email},{merge:true});
-        });
+        /* Deterministic document IDs make retries idempotent. */
+        return setDoc(doc(db,AUDIT_COLLECTION,entry.id),entry,{merge:false});
       });
       return _auditWriteChain;
     };
@@ -163,34 +219,50 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       return window._appendAuditToFS(Object.assign({},extra||{},{action:action,detail:detail,oldVal:oldVal,newVal:newVal}));
     };
     window._clearAuditFromFS=async function(){
-      if(!_auditCanView())throw new Error('access denied');
-      await setDoc(AUDIT_DOC_REF,{log:[],clearedAt:serverTimestamp(),clearedBy:window._fbUser||'',updatedAt:serverTimestamp()},{merge:false});
-      _applyAuditCloudLog([]);
+      if(!_auditIsAdmin())throw new Error('access denied');
+      await _deleteAuditDocs();
+      await setDoc(AUDIT_DOC_REF,{log:[],clearedAt:serverTimestamp(),clearedBy:window._fbUser||'',updatedAt:serverTimestamp(),updatedBy:window._fbUser||'',collectionMigratedAt:serverTimestamp(),collectionMigratedBy:window._fbUser||''},{merge:true});
+      window.__qumcAuditCollectionLog=[];window.__qumcAuditLegacyLog=[];_refreshAuditMergedView();
       return true;
     };
     window._clearGrcAuditFromFS=async function(){
-      if(!_auditCanView())throw new Error('access denied');
+      if(!_auditIsAdmin())throw new Error('access denied');
+      const isGrc=function(entry){
+        const portal=String(entry&&entry.portal||'').toLowerCase(),action=String(entry&&entry.action||'').toUpperCase();
+        return portal==='grc'||action.indexOf('GRC_')===0||(action.indexOf('REVIEW_DEVELOPMENT_')===0&&portal==='grc');
+      };
+      await _deleteAuditDocs(isGrc);
       let remaining=[];
       await runTransaction(db,async function(tx){
         const snap=await tx.get(AUDIT_DOC_REF),data=snap.exists()?snap.data():{},log=Array.isArray(data.log)?data.log.slice():[];
-        remaining=log.filter(function(entry){
-          const portal=String(entry&&entry.portal||'').toLowerCase(),action=String(entry&&entry.action||'').toUpperCase();
-          return !(portal==='grc'||action.indexOf('GRC_')===0);
-        });
-        tx.set(AUDIT_DOC_REF,{log:remaining,clearedAt:serverTimestamp(),clearedBy:window._fbUser||'',updatedAt:serverTimestamp(),updatedBy:window._fbUser||''},{merge:true});
+        remaining=log.filter(function(entry){return !isGrc(entry);});
+        tx.set(AUDIT_DOC_REF,{log:remaining,clearedAt:serverTimestamp(),clearedBy:window._fbUser||'',updatedAt:serverTimestamp(),updatedBy:window._fbUser||'',collectionMigratedAt:data.collectionMigratedAt||serverTimestamp(),collectionMigratedBy:data.collectionMigratedBy||window._fbUser||''},{merge:true});
       });
-      _applyAuditCloudLog(remaining);
+      window.__qumcAuditLegacyLog=remaining;
+      window.__qumcAuditCollectionLog=(window.__qumcAuditCollectionLog||[]).filter(function(entry){return !isGrc(entry);});
+      _refreshAuditMergedView();
       return true;
     };
     window._startAuditListener=function(){
-      if(_auditListenerUnsub||!auth.currentUser||!_auditCanView())return;
-      _auditListenerUnsub=onSnapshot(AUDIT_DOC_REF,function(snap){
+      if((_auditListenerUnsub||_auditLegacyListenerUnsub)||!auth.currentUser||!_auditCanView())return;
+      try{
+        _auditListenerUnsub=onSnapshot(query(collection(db,AUDIT_COLLECTION),orderBy('ts','desc')),function(snap){
+          window.__qumcAuditCollectionLog=snap.docs.map(function(d){return Object.assign({id:d.id},d.data()||{});});
+          _refreshAuditMergedView();
+        },function(err){console.warn('[AUDIT] collection listener failed:',err&&err.code||err&&err.message||err);});
+      }catch(e){console.warn('[AUDIT] collection listener could not start:',e&&e.message||e);}
+      _auditLegacyListenerUnsub=onSnapshot(AUDIT_DOC_REF,function(snap){
         const data=snap.exists()?snap.data():{};
-        _applyAuditCloudLog(data.log||[]);
-      },function(err){console.warn('[AUDIT] live listener failed:',err&&err.code||err&&err.message||err);});
-      console.log('[AUDIT] Shared Audit Trail listener active');
+        window.__qumcAuditLegacyLog=Array.isArray(data.log)?data.log.slice():[];
+        _refreshAuditMergedView();
+      },function(err){console.warn('[AUDIT] legacy listener failed:',err&&err.code||err&&err.message||err);});
+      setTimeout(function(){_migrateLegacyAuditToCollection();},250);
+      console.log('[AUDIT] Append-only shared Audit Trail listeners active');
     };
-    window._stopAuditListener=function(){if(_auditListenerUnsub){_auditListenerUnsub();_auditListenerUnsub=null;}};
+    window._stopAuditListener=function(){
+      if(_auditListenerUnsub){_auditListenerUnsub();_auditListenerUnsub=null;}
+      if(_auditLegacyListenerUnsub){_auditLegacyListenerUnsub();_auditLegacyListenerUnsub=null;}
+    };
     async function _flushPendingAudit(){
       const q=(window.__qumcAuditPending||[]).splice(0);
       for(const e of q){try{await window._appendAuditToFS(e);}catch(err){console.warn('[AUDIT] pending write failed',err);}}
@@ -454,6 +526,7 @@ window._selectPortal=async portal=>{
       const ref=await addDoc(collection(db,'kpi_requests'),{
         userName: window._fbName||window._fbUser.split('@')[0],
         userEmail: (window._fbUser||'').toLowerCase().trim(),
+        department: String(window._fbDept||window.currentUserDept||'').trim(),
         requestType: String(requestType||'General').trim(),
         message: String(message||'').trim(),
         status: 'pending',
@@ -461,6 +534,7 @@ window._selectPortal=async portal=>{
         createdAt: serverTimestamp(),
         respondedAt: null
       });
+      try{await window._recordAuditDirect('USER_REQUEST_SUBMIT','Submitted Performance user request: '+String(requestType||'General'),null,{requestId:ref.id,requestType:String(requestType||'General')},{portal:'performance'});}catch(_){}
       return ref.id;
     };
 
@@ -501,11 +575,13 @@ window._selectPortal=async portal=>{
     window._kpiRequestsRespond=async function(requestId,status,comment){
       if(!window._fbUser||!db) throw new Error('not authenticated');
       if(String(status||'').toLowerCase()==='rejected'&&!String(comment||'').trim())throw new Error('A rejection reason is required.');
-      await updateDoc(doc(db,'kpi_requests',requestId),{
+      const requestRef=doc(db,'kpi_requests',requestId),beforeSnap=await getDoc(requestRef),before=beforeSnap.exists()?Object.assign({id:beforeSnap.id},beforeSnap.data()||{}):null;
+      await updateDoc(requestRef,{
         status: status,
         superAdminComment: String(comment||'').trim(),
         respondedAt: serverTimestamp()
       });
+      try{await window._recordAuditDirect('USER_REQUEST_RESPONSE','Performance user request '+String(status||'updated')+' · '+requestId,before,{requestId:requestId,status:String(status||''),comment:String(comment||'')},{portal:'performance'});}catch(_){}
     };
 
     /* ══════════════════════════════════════════════════════
@@ -535,6 +611,7 @@ window._selectPortal=async portal=>{
         updatedAt: serverTimestamp(),
         updatedAtIso: new Date().toISOString()
       });
+      try{await window._recordAuditDirect('GRC_USER_REQUEST_SUBMIT','Submitted GRC user request: '+String(requestType||'General GRC Request'),null,{requestId:ref.id,requestType:String(requestType||'General GRC Request')},{portal:'grc'});}catch(_){}
       return ref.id;
     };
     window._grcRequestsGetMine=async function(){
@@ -561,8 +638,8 @@ window._selectPortal=async portal=>{
       if(!window._fbUser||!db) throw new Error('not authenticated');
       if(!_grcSystemRequestIsAdmin()) throw new Error('Access denied.');
       if(String(status||'').toLowerCase()==='rejected'&&!String(comment||'').trim())throw new Error('A rejection reason is required.');
-      const nowIso=new Date().toISOString();
-      await updateDoc(doc(db,'grc_requests',requestId),{
+      const nowIso=new Date().toISOString(),requestRef=doc(db,'grc_requests',requestId),beforeSnap=await getDoc(requestRef),before=beforeSnap.exists()?Object.assign({id:beforeSnap.id},beforeSnap.data()||{}):null;
+      await updateDoc(requestRef,{
         status:String(status||'pending'),
         adminComment:String(comment||'').trim(),
         respondedAt:serverTimestamp(),
@@ -570,6 +647,7 @@ window._selectPortal=async portal=>{
         updatedAt:serverTimestamp(),
         updatedAtIso:nowIso
       });
+      try{await window._recordAuditDirect('GRC_USER_REQUEST_RESPONSE','GRC user request '+String(status||'updated')+' · '+requestId,before,{requestId:requestId,status:String(status||''),comment:String(comment||'')},{portal:'grc'});}catch(_){}
     };
     window._grcRequestsRate=async function(requestId,rating,comment){
       if(!window._fbUser||!db)throw new Error('not authenticated');
@@ -582,6 +660,7 @@ window._selectPortal=async portal=>{
       if(Number(row.rating||0))throw new Error('This request has already been rated.');
       const n=Math.max(1,Math.min(5,Number(rating||0))),nowIso=new Date().toISOString();
       await updateDoc(ref,{rating:n,ratingComment:String(comment||'').trim(),ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:nowIso});
+      try{await window._recordAuditDirect('GRC_USER_REQUEST_RATING','Rated GRC user request '+requestId+' · '+n+'/5',null,{requestId:requestId,rating:n,comment:String(comment||'')},{portal:'grc'});}catch(_){}
       return true;
     };
     window._grcRequestsSubscribeMine=function(callback){
@@ -749,6 +828,7 @@ window._selectPortal=async portal=>{
           try{const meta=await _advUploadFile(requestId,file,_advEmail());await updateDoc(doc(db,ADV_REQUESTS_COLLECTION,requestId),{attachments:arrayUnion(meta),attachmentCount:1,updatedAt:serverTimestamp()});try{await updateDoc(doc(db,ADV_PUBLIC_COLLECTION,requestId),{attachmentCount:1,updatedAt:serverTimestamp()});}catch(_){}}catch(fileError){warning=(warning?warning+' ':'')+'The request was submitted, but the attachment could not be uploaded.';console.warn('[Review Development] attachment upload failed',fileError&&fileError.code||fileError);}
         }else warning=(warning?warning+' ':'')+'The request was submitted without the attachment. Please contact the administrator if the attachment is required.';
       }
+      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_REQUEST_SUBMIT','Submitted '+String(base.platform||'grc')+' Review & Development request '+code,null,{requestId:requestId,code:code,requestType:base.requestType,category:base.category},{portal:String(base.platform||'grc')});}catch(_){}
       return {id:requestId,code,storage,warning};
     };
 
@@ -800,7 +880,9 @@ window._selectPortal=async portal=>{
       else throw new Error('Unsupported action.');
       updates.status=status;updates.workflowStage=workflowStage;updates.closureReason=closureReason;publicUpdates.status=status;publicUpdates.workflowStage=workflowStage;publicUpdates.closureReason=closureReason;
       if(messageText||messageAttachments.length)updates.messages=arrayUnion({id:'msg_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),senderRole:_advRole(),senderName:String(window._fbName||'Admin'),senderEmail:_advEmail(),text:messageText,attachments:messageAttachments,createdAt:nowIso});
-      await updateDoc(requestRef,updates);if(publicRef){try{await updateDoc(publicRef,publicUpdates);}catch(_){}}return true;
+      await updateDoc(requestRef,updates);if(publicRef){try{await updateDoc(publicRef,publicUpdates);}catch(_){}}
+      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_ADMIN_ACTION',String(action||'action')+' on '+String(current.code||requestId),{status:current.status,workflowStage:current.workflowStage},{status:status,workflowStage:workflowStage,comment:messageText},{portal:String(current.platform||'grc')});}catch(_){}
+      return true;
     };
 
     window._advisoryRequesterAction=async function(requestId,action,data,file){
@@ -811,18 +893,24 @@ window._selectPortal=async portal=>{
       }else if(action==='complete'){var currentStage=String(current.workflowStage||current.status||'');if(currentStage!=='responded')throw new Error('The request must have an admin response first.');updates.status='in_progress';updates.workflowStage='requester_confirmed';updates.completedAt=serverTimestamp();publicUpdates.status='in_progress';publicUpdates.workflowStage='requester_confirmed';publicUpdates.completedAt=serverTimestamp();}
       else if(action==='cancel'){if(_advStatusKey(current.status)==='closed')throw new Error('This request can no longer be cancelled.');updates.status='closed';updates.workflowStage='closed';updates.closureReason='cancelled_by_requester';updates.closedAt=serverTimestamp();publicUpdates.status='closed';publicUpdates.workflowStage='closed';publicUpdates.closureReason='cancelled_by_requester';publicUpdates.closedAt=serverTimestamp();}
       else throw new Error('Unsupported action.');
-      await updateDoc(requestRef,updates);if(publicRef){try{await updateDoc(publicRef,publicUpdates);}catch(_){}}return true;
+      await updateDoc(requestRef,updates);if(publicRef){try{await updateDoc(publicRef,publicUpdates);}catch(_){}}
+      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_REQUESTER_ACTION',String(action||'action')+' on '+String(current.code||requestId),{status:current.status,workflowStage:current.workflowStage},{status:updates.status||current.status,workflowStage:updates.workflowStage||current.workflowStage},{portal:String(current.platform||'grc')});}catch(_){}
+      return true;
     };
 
     window._advisoryRate=async function(requestId,rating,comment){
       const current=await _advAuthorizedRequest(requestId,false),n=Math.max(1,Math.min(5,Number(rating||0)));if(_advStatusKey(current.status)!=='closed')throw new Error('Only closed requests can be rated.');if(Number(current.rating))throw new Error('This request has already been rated.');
-      const ratingComment=String(comment||'').trim(),updates={rating:n,ratingComment:ratingComment,ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:_advIso(),updatedBy:_advEmail()};await updateDoc(current._requestRef,updates);if(current._publicRef){try{await updateDoc(current._publicRef,{rating:n,ratingComment:ratingComment,ratingAt:serverTimestamp(),updatedAt:serverTimestamp()});}catch(_){}}return true;
+      const ratingComment=String(comment||'').trim(),updates={rating:n,ratingComment:ratingComment,ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:_advIso(),updatedBy:_advEmail()};await updateDoc(current._requestRef,updates);if(current._publicRef){try{await updateDoc(current._publicRef,{rating:n,ratingComment:ratingComment,ratingAt:serverTimestamp(),updatedAt:serverTimestamp()});}catch(_){}}
+      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_RATING','Rated Review & Development request '+String(current.code||requestId)+' · '+n+'/5',null,{requestId:requestId,rating:n,comment:ratingComment},{portal:String(current.platform||'grc')});}catch(_){}
+      return true;
     };
 
     window._advisoryDownloadAttachment=async function(requestId,attachmentId,mimeType,chunkCount){
       const current=await _advAuthorizedRequest(requestId,true);if(current._storage!=='advisory_requests')throw new Error('No stored attachment is available for this request.');const chunks=[];
       for(let i=0;i<Number(chunkCount||0);i++){const snap=await getDoc(doc(db,'advisory_attachments',_advChunkDocId(requestId,attachmentId,i)));if(!snap.exists())throw new Error('Attachment chunk is missing.');chunks.push(_advBase64ToBytes(String(snap.data().data||'')));}
-      const total=chunks.reduce((n,x)=>n+x.length,0),out=new Uint8Array(total);let offset=0;chunks.forEach(x=>{out.set(x,offset);offset+=x.length;});return new Blob([out],{type:String(mimeType||'application/octet-stream')});
+      const total=chunks.reduce((n,x)=>n+x.length,0),out=new Uint8Array(total);let offset=0;chunks.forEach(x=>{out.set(x,offset);offset+=x.length;});
+      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_ATTACHMENT_DOWNLOAD','Downloaded attachment from '+String(current.code||requestId),null,{requestId:requestId,attachmentId:attachmentId},{portal:String(current.platform||'grc')});}catch(_){}
+      return new Blob([out],{type:String(mimeType||'application/octet-stream')});
     };
 
 
@@ -994,10 +1082,14 @@ window._selectPortal=async portal=>{
     window._grcRiskRequestResubmit=async function(requestId,proposedRecord,note){
       if(!_grcRiskCanSubmit('risk')&&!_grcRiskCanSubmit('incident'))throw new Error('Access denied.');const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(!_grcRiskOwnsRequest(r))throw new Error('Access denied.');if(String(r.status||'')!=='returned_requester')throw new Error('Only a request returned for update can be edited and resubmitted.');
       const proposed=_grcRiskJson(proposedRecord||r.proposedRecord),now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status:'pending_manager',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'Resubmitted')});
-      await updateDoc(ref,{proposedRecord:proposed,changedFields:_grcRiskChangedFields(r.currentRecord,proposed),status:'pending_manager',requesterNote:String(note||r.requesterNote||''),managerNote:'',superAdminNote:'',updatedAt:serverTimestamp(),updatedAtIso:now,history});return true;
+      await updateDoc(ref,{proposedRecord:proposed,changedFields:_grcRiskChangedFields(r.currentRecord,proposed),status:'pending_manager',requesterNote:String(note||r.requesterNote||''),managerNote:'',superAdminNote:'',updatedAt:serverTimestamp(),updatedAtIso:now,history});
+      try{await window._recordAuditDirect('GRC_REGISTER_REQUEST_RESUBMIT','Resubmitted '+String(r.recordType||'risk')+' request '+String(r.requestCode||requestId),r.proposedRecord,proposed,{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
+      return true;
     };
     window._grcRiskRequestCancel=async function(requestId){
-      const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(!_grcRiskOwnsRequest(r))throw new Error('Access denied.');if(!['pending_manager','returned_requester'].includes(String(r.status||'')))throw new Error('This request can no longer be cancelled.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status:'cancelled',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:'Cancelled by requester'});await updateDoc(ref,{status:'cancelled',updatedAt:serverTimestamp(),updatedAtIso:now,history});return true;
+      const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(!_grcRiskOwnsRequest(r))throw new Error('Access denied.');if(!['pending_manager','returned_requester'].includes(String(r.status||'')))throw new Error('This request can no longer be cancelled.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status:'cancelled',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:'Cancelled by requester'});await updateDoc(ref,{status:'cancelled',updatedAt:serverTimestamp(),updatedAtIso:now,history});
+      try{await window._recordAuditDirect('GRC_REGISTER_REQUEST_CANCEL','Cancelled '+String(r.recordType||'risk')+' request '+String(r.requestCode||requestId),{status:r.status},{status:'cancelled'},{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
+      return true;
     };
     function _grcNormalizeProjectIncidentIds(records){
       const rows=(Array.isArray(records)?records:[]).map(r=>_grcRiskJson(r||{})),used=new Set(),candidates=[];
@@ -1054,7 +1146,9 @@ window._selectPortal=async portal=>{
     window._grcRiskRequestManagerAction=async function(requestId,action,note){
       if(!_grcRiskIsManager())throw new Error('Department Manager approval is required.');const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(_grcCanonicalDepartment(r.department)!==_grcRiskDept())throw new Error('This request belongs to another department.');if(!['pending_manager','returned_manager'].includes(String(r.status||'')))throw new Error('This request is not awaiting your approval.');
       const status=action==='approve'?'pending_super_admin':action==='return'?'returned_requester':action==='reject'?'rejected_manager':'';if(!status)throw new Error('Invalid action.');if(action!=='approve'&&!String(note||'').trim())throw new Error('A reason is required.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status,by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'')});
-      await updateDoc(ref,{status,managerName:String(window._fbName||''),managerEmail:_grcRiskEmail(),managerNote:String(note||''),managerActionAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history});return true;
+      await updateDoc(ref,{status,managerName:String(window._fbName||''),managerEmail:_grcRiskEmail(),managerNote:String(note||''),managerActionAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history});
+      try{await window._recordAuditDirect('GRC_MANAGER_APPROVAL_'+String(action||'action').toUpperCase(),'Department Manager '+String(action||'action')+' · '+String(r.requestCode||requestId),{status:r.status},{status:status,note:String(note||'')},{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
+      return true;
     };
     window._grcRiskRequestSuperAction=async function(requestId,action,note){
       if(!_grcRiskIsSuper())throw new Error('Super Admin approval is required.');const requestRef=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId);if(action==='approve'){
@@ -1070,10 +1164,12 @@ window._selectPortal=async portal=>{
         try{await _grcRegisterRemoveLegacyDuplicates(recordType,published,published&& (published._cloudId||published.cloudId));}catch(cleanupErr){console.warn('[GRC Register Publish] legacy duplicate cleanup skipped',cleanupErr);}
         try{if(typeof window._grcApplyPublishedRegisterRecord==='function')window._grcApplyPublishedRegisterRecord(recordType,publishedOperation,published);}catch(uiErr){console.warn('[GRC Register Publish] local refresh skipped',uiErr);}
         try{if(typeof window._grcRestartSecureSync==='function')window._grcRestartSecureSync(true);}catch(_syncErr){}
-        try{window._recordAuditDirect&&window._recordAuditDirect('GRC_REGISTER_REQUEST_PUBLISH',recordType+' '+publishedOperation+' request approved and published',publishedBefore,publishedOperation==='delete'?null:published,{portal:'grc',recordType});}catch(_){}
+        try{await window._recordAuditDirect('GRC_SUPER_ADMIN_APPROVAL_APPROVE','Super Admin approved and published '+recordType+' '+publishedOperation+' request',publishedBefore,publishedOperation==='delete'?null:published,{portal:'grc',recordType:recordType,dept:published&&published.department||''});}catch(_){}
         return published;
       }
-      const snap=await getDoc(requestRef);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(String(r.status||'')!=='pending_super_admin')throw new Error('This request is not awaiting final approval.');const status=action==='return'?'returned_manager':action==='reject'?'rejected_super_admin':'';if(!status)throw new Error('Invalid action.');if(!String(note||'').trim())throw new Error('A reason is required.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status,by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'')});await updateDoc(requestRef,{status,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:String(note||''),updatedAt:serverTimestamp(),updatedAtIso:now,history});return true;
+      const snap=await getDoc(requestRef);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(String(r.status||'')!=='pending_super_admin')throw new Error('This request is not awaiting final approval.');const status=action==='return'?'returned_manager':action==='reject'?'rejected_super_admin':'';if(!status)throw new Error('Invalid action.');if(!String(note||'').trim())throw new Error('A reason is required.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status,by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'')});await updateDoc(requestRef,{status,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:String(note||''),updatedAt:serverTimestamp(),updatedAtIso:now,history});
+      try{await window._recordAuditDirect('GRC_SUPER_ADMIN_APPROVAL_'+String(action||'action').toUpperCase(),'Super Admin '+String(action||'action')+' · '+String(r.requestCode||requestId),{status:r.status},{status:status,note:String(note||'')},{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
+      return true;
     };
     async function _grcRiskRead(queryRef){const snap=await getDocs(queryRef),rows=[];snap.forEach(d=>rows.push(_grcRiskRequestData(d)));return _grcRiskSort(rows);}
     function _grcRiskMergeRows(groups){const map={};(groups||[]).forEach(rows=>(rows||[]).forEach(r=>{if(r&&r.id)map[r.id]=r;}));return _grcRiskSort(Object.keys(map).map(id=>map[id]));}

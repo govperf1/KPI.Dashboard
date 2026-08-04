@@ -4061,6 +4061,10 @@
     if(!log.length&&typeof ST!=='undefined'&&Array.isArray(ST.audit))log=ST.audit.slice();
     return log.filter(function(e){var portal=String(e&&e.portal||'').toLowerCase(),action=String(e&&e.action||'').toUpperCase();return portal==='grc'||action.indexOf('GRC_')===0;}).sort(function(a,b){return String(b.ts||'').localeCompare(String(a.ts||''));});
   }
+  function grcAdminAuditUserKey(e){
+    var email=String(e&&e.email||'').trim().toLowerCase();
+    return email&&email!=='—'?email:String(e&&e.user||'').trim();
+  }
   function grcAdminDate(v){try{return new Date(v).toLocaleString(isAr()?'ar-SA':'en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});}catch(_e){return String(v||'—');}}
   window._grcCloseAdminCenter=function(){var ov=document.getElementById('_grcAdminCenterOv');if(ov)ov.remove();};
   window._grcOpenAdminCenter=function(tab){
@@ -4095,7 +4099,7 @@
   };
   window._grcAdminRespondRequest=function(id,status){
     var field=document.getElementById('_grcReqCmt_'+id),comment=field?field.value.trim():'',err=document.getElementById('_grcReqErr_'+id);if(err){err.textContent='';err.classList.remove('show');}if(status==='rejected'&&!comment){if(err){err.textContent='A rejection reason is required.';err.classList.add('show');}if(field){field.style.borderColor='#fb7185';field.focus();}return;}if(typeof window._grcRequestsRespond!=='function')return;
-    window._grcRequestsRespond(id,status,comment).then(function(){try{if(typeof window.addAudit==='function')window.addAudit('GRC_USER_REQUEST_RESPONSE','GRC user request '+status,null,{requestId:id,status:status});}catch(_e){}window._grcAdminLoadRequests();if(window.toast)window.toast('Request '+status+'.');}).catch(function(e){if(err){err.textContent=String(e&&e.message||e);err.classList.add('show');}});
+    window._grcRequestsRespond(id,status,comment).then(function(){window._grcAdminLoadRequests();if(window.toast)window.toast('Request '+status+'.');}).catch(function(e){if(err){err.textContent=String(e&&e.message||e);err.classList.add('show');}});
   };
   function grcAcNum(v){return Number(v||0)||0;}
   function grcAcStars(v){var n=Math.max(0,Math.min(5,Number(v||0)));return'<span class="grc-ac-stars">'+('★'.repeat(n))+('☆'.repeat(5-n))+'</span>';}
@@ -4129,14 +4133,15 @@
     page.innerHTML=head+metrics+insights+table;
   };
   window._grcAdminRenderAudit=function(){
-    var page=document.getElementById('_grcAcPageAudit');if(!page)return;var rows=grcAdminAuditRows();
-    var users=[].concat(Array.from(new Set(rows.map(function(x){return x.user;}).filter(Boolean)))).sort(),actions=[].concat(Array.from(new Set(rows.map(function(x){return x.action;}).filter(Boolean)))).sort();
-    page.innerHTML='<div class="grc-ac-page-head"><div><h2>GRC Audit Trail</h2><p>'+(isAr()?'سجل نشاط منصة GRC فقط.':'User, record, navigation and administration activity from the GRC platform only.')+'</p></div><button class="grc-ac-btn danger" onclick="window._grcClearAuditOnly()">'+(isAr()?'مسح سجل GRC':'Clear GRC Log')+'</button></div><div class="grc-ac-filters"><label>User<select id="_grcAuditUser" onchange="window._grcAdminApplyAudit()"><option value="">All users</option>'+users.map(function(v){return'<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('')+'</select></label><label>Action<select id="_grcAuditAction" onchange="window._grcAdminApplyAudit()"><option value="">All actions</option>'+actions.map(function(v){return'<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('')+'</select></label><label>KPI / Detail<input id="_grcAuditDetail" oninput="window._grcAdminApplyAudit()" placeholder="Type to filter detail…"></label></div><div id="_grcAuditCount" style="font-size:9px;color:#61798a;margin:0 0 8px"></div><div id="_grcAuditList"></div>';
+    var page=document.getElementById('_grcAcPageAudit');if(!page)return;var rows=grcAdminAuditRows(),userMap=new Map();
+    rows.forEach(function(x){var key=grcAdminAuditUserKey(x);if(!key)return;var email=String(x.email||'').trim(),name=String(x.user||'User');userMap.set(key,email&&email!=='—'?name+' · '+email:name);});
+    var users=Array.from(userMap.entries()).sort(function(a,b){return a[1].localeCompare(b[1]);}),actions=[].concat(Array.from(new Set(rows.map(function(x){return x.action;}).filter(Boolean)))).sort();
+    page.innerHTML='<div class="grc-ac-page-head"><div><h2>GRC Audit Trail</h2><p>'+(isAr()?'سجل نشاط منصة GRC فقط.':'User, record, navigation and administration activity from the GRC platform only.')+'</p></div><button class="grc-ac-btn danger" onclick="window._grcClearAuditOnly()">'+(isAr()?'مسح سجل GRC':'Clear GRC Log')+'</button></div><div class="grc-ac-filters"><label>User<select id="_grcAuditUser" onchange="window._grcAdminApplyAudit()"><option value="">All users</option>'+users.map(function(v){return'<option value="'+esc(v[0])+'">'+esc(v[1])+'</option>';}).join('')+'</select></label><label>Action<select id="_grcAuditAction" onchange="window._grcAdminApplyAudit()"><option value="">All actions</option>'+actions.map(function(v){return'<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('')+'</select></label><label>KPI / Detail<input id="_grcAuditDetail" oninput="window._grcAdminApplyAudit()" placeholder="Type to filter detail…"></label></div><div id="_grcAuditCount" style="font-size:9px;color:#61798a;margin:0 0 8px"></div><div id="_grcAuditList"></div>';
     window._grcAdminApplyAudit();
   };
   window._grcAdminApplyAudit=function(){
     var list=document.getElementById('_grcAuditList');if(!list)return;var all=grcAdminAuditRows(),u=(document.getElementById('_grcAuditUser')||{}).value||'',a=(document.getElementById('_grcAuditAction')||{}).value||'',q=String((document.getElementById('_grcAuditDetail')||{}).value||'').toLowerCase();
-    var rows=all.filter(function(e){return(!u||e.user===u)&&(!a||e.action===a)&&(!q||String(e.detail||'').toLowerCase().indexOf(q)>=0);}),cnt=document.getElementById('_grcAuditCount');if(cnt)cnt.textContent=rows.length+' shown / '+all.length+' total records';
+    var rows=all.filter(function(e){return(!u||grcAdminAuditUserKey(e)===u)&&(!a||e.action===a)&&(!q||String(e.detail||'').toLowerCase().indexOf(q)>=0);}),cnt=document.getElementById('_grcAuditCount');if(cnt)cnt.textContent=rows.length+' shown / '+all.length+' total records';
     if(!rows.length){list.innerHTML='<div class="grc-ac-empty">No GRC audit records yet.</div>';return;}
     var html='<div class="grc-ac-table-wrap"><table class="grc-ac-table"><thead><tr><th>User / Email</th><th>Role</th><th>Action</th><th>Detail</th><th>Before</th><th>After</th><th>Date & Time</th></tr></thead><tbody>';
     rows.forEach(function(e){var before=e.oldVal==null?'—':(typeof e.oldVal==='object'?JSON.stringify(e.oldVal):String(e.oldVal)),after=e.newVal==null?'—':(typeof e.newVal==='object'?JSON.stringify(e.newVal):String(e.newVal));html+='<tr><td><b style="color:#e2e8f0">'+esc(e.user||'—')+'</b><div style="font-size:8.5px;color:#627989">'+esc(e.email||'')+'</div></td><td><span style="color:#31c5dc">'+esc(e.role||'—')+'</span></td><td><span style="display:inline-flex;padding:3px 8px;border-radius:999px;background:rgba(1,149,175,.13);color:#31c5dc;font-weight:850;font-size:8.5px">'+esc(e.action||'—')+'</span></td><td style="max-width:240px;white-space:normal">'+esc(e.detail||'—')+'</td><td style="max-width:150px;white-space:normal;color:#fb7185">'+esc(before.substring(0,180))+'</td><td style="max-width:150px;white-space:normal;color:#4ade80">'+esc(after.substring(0,180))+'</td><td style="white-space:nowrap">'+esc(grcAdminDate(e.ts))+'</td></tr>';});
