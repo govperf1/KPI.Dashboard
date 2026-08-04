@@ -737,7 +737,12 @@ function updateExecTrend(yr){
   }
   function showLoginPage(){
     var pass=$('_fbPass'); if(pass) pass.value='';
-    try{ window._fbUser=''; window._fbEmail=''; window._fbName=''; window._fbRole=''; window._fbDept=null; window._lockedDept=null; window._fbAssignedKpis=null; }catch(_){ }
+    try{ window._fbUser=''; window._fbEmail=''; window._fbName=''; window._fbRole=''; window._fbDept=null; window._lockedDept=null; window._fbAssignedKpis=null; window.__qumcActivePortal=''; }catch(_){ }
+    /* GRC is a fixed full-screen app, so hiding only the Performance chrome leaves
+       the previous GRC page visible through the transparent login overlay. Exit it
+       explicitly before restoring the signed-out screen. */
+    try{ if(typeof window._hideGRC==='function') window._hideGRC(); }catch(_){ }
+    try{ document.body.classList.remove('grc-mode','dashboard-mode','portal-mode','performance-advisory-mode','dashboard-ready'); document.body.classList.add('auth-mode'); }catch(_){ }
     try{ sessionStorage.clear(); }catch(_){ }
     try{ Object.keys(localStorage).forEach(function(k){ if(/firebase|auth|current|session|token|user/i.test(k)) localStorage.removeItem(k); }); }catch(_){ }
     var bg=$('_bgLayer'), auth=$('_authOverlay'), portal=$('_portalOverlay'), forgot=$('_forgotOverlay');
