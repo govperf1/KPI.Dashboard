@@ -1111,6 +1111,36 @@
     try{grcSetPublishedWorkflowRequests(event&&event.detail&&event.detail.rows||event&&event.detail||[]);}catch(err){console.warn('[GRC Published Register Projection]',err);}
   });
 
+  function grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows){
+    /*
+      Department-scoped Firestore collections can legitimately contain only the
+      records created after the secure migration. The original approved Risk
+      Register and the two approved Project Management incident rows are still
+      part of the live register and must not disappear for non-admin users.
+
+      Merge ONLY baseline business IDs that are completely absent from the
+      cloud result. A cloud tombstone also counts as present, so an intentionally
+      deleted baseline row is never resurrected. Cloud/workflow records always
+      win and are never overwritten by seed values.
+    */
+    if(collectionKey!=='risks'&&collectionKey!=='incidents')return rows||[];
+    var occupied={};
+    (rawRows||[]).forEach(function(r){var k=grcRegisterBusinessKey(r);if(k)occupied[k]=true;});
+    (rows||[]).forEach(function(r){var k=grcRegisterBusinessKey(r);if(k)occupied[k]=true;});
+    var baseline=collectionKey==='risks'?(RISK_REGISTER_SEED||[]):(PROJECT_MANAGEMENT_INCIDENT_SEED||[]),missing=[];
+    baseline.forEach(function(seed){
+      var key=grcRegisterBusinessKey(seed);if(!key||occupied[key])return;
+      var r=copyRecord(seed),canonicalId=grcCloudDocId(collectionKey,r,0);
+      r.department=grcRecordDepartment(collectionKey,r);
+      r.recordType=collectionKey;r._cloudId=canonicalId;r.cloudId=canonicalId;r._baselineFallback=true;
+      if(collectionKey==='risks')r=normalizeRiskClassification(r);
+      missing.push(r);occupied[key]=true;
+    });
+    /* Keep the approved baseline sequence first (PM 01..06 / INC-PMD-01..02),
+       then append newer live records such as PM 07 or INC-PMD-03. */
+    return missing.concat(rows||[]);
+  }
+
   function grcApplyCloudCollection(collectionKey){
     var parts=grcCloudParts[collectionKey]||{},rawRows=[];
     Object.keys(parts).forEach(function(scope){(parts[scope]||[]).forEach(function(r){rawRows.push(copyRecord(r));});});
@@ -1141,6 +1171,8 @@
       });
       rows=grcDeduplicateRegisterRows(collectionKey,rows);
       rows=grcApplyPublishedWorkflowOverlay(collectionKey,rows);
+      rows=grcDeduplicateRegisterRows(collectionKey,rows);
+      rows=grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows);
       rows=grcDeduplicateRegisterRows(collectionKey,rows);
       if(collectionKey==='risks')rows=applyRiskStatusOverrides(rows.map(normalizeRiskClassification));
       if(collectionKey==='incidents')rows=normalizeProjectIncidentIds(rows);
