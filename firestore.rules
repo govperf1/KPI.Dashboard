@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v8 — QUMC Performance + GRC Owner Roles
+// FIRESTORE SECURITY RULES v9 — Null Department = All GRC Departments
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -105,28 +105,42 @@ service cloud.firestore {
       return signedIn() && value is string && value == request.auth.uid;
     }
 
+    function meaningfulDepartmentValue(value) {
+      return value is string &&
+        value != '' &&
+        value.lower() != 'null' &&
+        value.lower() != 'none' &&
+        value.lower() != 'undefined' &&
+        value.lower() != 'n/a' &&
+        value.lower() != 'na' &&
+        value.lower() != 'unassigned' &&
+        value.lower() != 'not assigned' &&
+        value != '-' && value != '—';
+    }
+
+    // Department precedence mirrors the application profile loader:
+    // dept -> department -> deptKey. An explicit null/blank in the first
+    // available field means the account is intentionally unscoped.
     function rawUserDepartment(value) {
       return approved() && value is string && (
-        (('deptKey' in userData()) && value == userData().deptKey) ||
-        (('dept' in userData()) && value == userData().dept) ||
-        (('department' in userData()) && value == userData().department)
+        (('dept' in userData()) && meaningfulDepartmentValue(userData().dept) && value == userData().dept) ||
+        (!('dept' in userData()) && ('department' in userData()) && meaningfulDepartmentValue(userData().department) && value == userData().department) ||
+        (!('dept' in userData()) && !('department' in userData()) && ('deptKey' in userData()) && meaningfulDepartmentValue(userData().deptKey) && value == userData().deptKey)
       );
     }
 
     // Accept current user-document labels while secure records use canonical keys.
     function userDeptIn(values) {
       return approved() && (
-        (('deptKey' in userData()) && userData().deptKey in values) ||
-        (('dept' in userData()) && userData().dept in values) ||
-        (('department' in userData()) && userData().department in values)
+        (('dept' in userData()) && meaningfulDepartmentValue(userData().dept) && userData().dept in values) ||
+        (!('dept' in userData()) && ('department' in userData()) && meaningfulDepartmentValue(userData().department) && userData().department in values) ||
+        (!('dept' in userData()) && !('department' in userData()) && ('deptKey' in userData()) && meaningfulDepartmentValue(userData().deptKey) && userData().deptKey in values)
       );
     }
 
     function sameDepartment(dept) {
       return
-        ((('deptKey' in userData()) && dept == userData().deptKey) ||
-         (('dept' in userData()) && dept == userData().dept) ||
-         (('department' in userData()) && dept == userData().department)) ||
+        rawUserDepartment(dept) ||
         (dept in ['safety', 'Safety', 'Safety Department', 'Safety Management', 'Safety Management Department', 'السلامة', 'إدارة السلامة', 'قسم السلامة'] && userDeptIn(['safety', 'Safety', 'Safety Department', 'Safety Management', 'Safety Management Department', 'السلامة', 'إدارة السلامة', 'قسم السلامة'])) ||
         (dept in ['maintenance', 'Maintenance', 'Maintenance Department', 'Maintenance Management', 'Maintenance Management Department', 'الصيانة', 'إدارة الصيانة', 'قسم الصيانة'] && userDeptIn(['maintenance', 'Maintenance', 'Maintenance Department', 'Maintenance Management', 'Maintenance Management Department', 'الصيانة', 'إدارة الصيانة', 'قسم الصيانة'])) ||
         (dept in ['housekeeping', 'Housekeeping', 'Housekeeping Department', 'Housekeeping Management', 'Cleaning', 'النظافة', 'إدارة النظافة', 'قسم النظافة'] && userDeptIn(['housekeeping', 'Housekeeping', 'Housekeeping Department', 'Housekeeping Management', 'Cleaning', 'النظافة', 'إدارة النظافة', 'قسم النظافة'])) ||
@@ -134,6 +148,13 @@ service cloud.firestore {
         (dept in ['projects', 'project', 'Projects', 'Project', 'project_management', 'projects_management', 'project management', 'projects management', 'Project Management', 'Projects Management', 'Project Management Department', 'Projects Management Department', 'Projects Department', 'Project Department', 'PM', 'المشاريع', 'إدارة المشاريع', 'قسم إدارة المشاريع', 'قسم المشاريع'] && userDeptIn(['projects', 'project', 'Projects', 'Project', 'project_management', 'projects_management', 'project management', 'projects management', 'Project Management', 'Projects Management', 'Project Management Department', 'Projects Management Department', 'Projects Department', 'Project Department', 'PM', 'المشاريع', 'إدارة المشاريع', 'قسم إدارة المشاريع', 'قسم المشاريع'])) ||
         (dept in ['governance', 'Governance', 'Governance & Performance', 'Governance and Performance'] && userDeptIn(['governance', 'Governance', 'Governance & Performance', 'Governance and Performance'])) ||
         (dept in ['division', 'FMS Division', 'Facility Management & Safety Division', 'Facilities & Safety Division'] && userDeptIn(['division', 'FMS Division', 'Facility Management & Safety Division', 'Facilities & Safety Division']));
+    }
+
+    function hasConfiguredDepartment() {
+      return
+        (('dept' in userData()) && meaningfulDepartmentValue(userData().dept)) ||
+        (!('dept' in userData()) && ('department' in userData()) && meaningfulDepartmentValue(userData().department)) ||
+        (!('dept' in userData()) && !('department' in userData()) && ('deptKey' in userData()) && meaningfulDepartmentValue(userData().deptKey));
     }
 
     function hasAssignedOperationalDepartment() {
@@ -147,7 +168,9 @@ service cloud.firestore {
     }
 
     function viewAllGrcDepartments() {
-      return admin() || (!hasAssignedOperationalDepartment() && (executive() || hasPerm('view_grc_all_departments')));
+      return admin() ||
+        !hasConfiguredDepartment() ||
+        (!hasAssignedOperationalDepartment() && (executive() || hasPerm('view_grc_all_departments')));
     }
 
     function sharedGrcRecord(data) {
