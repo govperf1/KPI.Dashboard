@@ -1085,7 +1085,13 @@ window._selectPortal=async portal=>{
       return _grcRiskReadMany(qrefs);
     };
     window._grcRiskRequestsGetForManager=async function(){
-      if(!_grcRiskIsManager())return[];const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[],raw=_grcRiskRawDept(),key=_grcRiskDept();
+      if(!_grcRiskIsManager())return[];
+      const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[],raw=_grcRiskRawDept(),key=_grcRiskDept();
+      /* Department Manager approval inbox is intentionally strict: it is
+         department-scoped only. Personal/owner fallbacks must never widen the
+         manager approval queue. If no department is assigned, there is no
+         approval inbox until a department is configured. */
+      if(!raw&&!key)return[];
       if(raw)qrefs.push(query(col,where('departmentRaw','==',raw)));
       if(key){qrefs.push(query(col,where('departmentKey','==',key)));qrefs.push(query(col,where('department','==',key)));}
       return _grcRiskReadMany(qrefs);
@@ -1096,17 +1102,24 @@ window._selectPortal=async portal=>{
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
       if(_grcRiskIsAdmin())qrefs.push(col);
       else{
-        /* Every GRC user assigned to a department receives that department's
-           Risk/Incident workflow activity. This keeps additions, updates,
-           returns, rejections and publication notifications visible to the
-           whole assigned department, while Firestore rules still prevent
-           cross-department reads. Own-request queries are retained as a
-           compatibility fallback for older request documents. */
         const raw=_grcRiskRawDept(),key=_grcRiskDept();
-        if(raw)qrefs.push(query(col,where('departmentRaw','==',raw)));
-        if(key){qrefs.push(query(col,where('departmentKey','==',key)));qrefs.push(query(col,where('department','==',key)));}
-        if(_grcRiskUid())qrefs.push(query(col,where('submittedByUid','==',_grcRiskUid())));
-        qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
+        if(_grcRiskIsManager()){
+          /* SECURITY / WORKFLOW RULE: Department Managers receive only the
+             Risk & Incident approval activity for their assigned department.
+             Do not add submittedByUid/submittedByEmail fallback queries here;
+             a manager's personal requests belong in My Requests, not in the
+             approval inbox or approval notifications. */
+          if(!raw&&!key){callback([]);return function(){};}
+          if(raw)qrefs.push(query(col,where('departmentRaw','==',raw)));
+          if(key){qrefs.push(query(col,where('departmentKey','==',key)));qrefs.push(query(col,where('department','==',key)));}
+        }else{
+          /* Other GRC roles keep department activity plus own-request fallback
+             for compatibility with older workflow documents. */
+          if(raw)qrefs.push(query(col,where('departmentRaw','==',raw)));
+          if(key){qrefs.push(query(col,where('departmentKey','==',key)));qrefs.push(query(col,where('department','==',key)));}
+          if(_grcRiskUid())qrefs.push(query(col,where('submittedByUid','==',_grcRiskUid())));
+          qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
+        }
       }
       const sources={},unsubs=[],failed={};let successCount=0;
       function emit(){callback(_grcRiskMergeRows(Object.keys(sources).map(k=>sources[k])));}
