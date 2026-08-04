@@ -52,6 +52,16 @@
     if(dept==='projects')return rd==='projects'||rd==='projectmanagement';
     return rd===dept;
   }
+  function codeDeptMatch(r,dept){
+    r=r||{};var rd=normalizeDept(r.department||r.dept||r.responsibleDept||r.responsibleDepartment);
+    if(rd==='division'||rd==='fmsdivision'||rd==='allfms')return true;
+    return deptMatch(r,dept,'merged');
+  }
+  function reportCodeFilter(records,depts){
+    records=Array.isArray(records)?records:[];
+    if(!depts||!depts.length)return records.slice();
+    return records.filter(function(r){return depts.some(function(d){return codeDeptMatch(r,d);});});
+  }
   function complianceDeptMatch(r,depts){
     if(!depts||!depts.length)return true;
     var raw=String(r&&r.responsibleDepartment||r&&r.department||'').trim();
@@ -137,10 +147,14 @@
       var sec2=section('Incident Register',incidentTables,'FFB77B35');if(sec2)sections.push(sec2);
     }
     if(types.indexOf('codes')>=0){
+      var codeCols=['Number','Status','Code Type','Code Sub Type','Event Type','Date','Location','Close Date Time'];
+      function codeExportRow(r){return[r.id||r.code,r.status,emergencyCodeName(r),r.subtype||r.codeSubtype||r.failureType||'',r.type||r.codeMode||'',r.date||r.eventDate||'',r.location||'',r.closeDateTime||''];}
       var codeTables=platformDeptIds(depts,true).filter(function(d){return d!=='projects';}).map(function(dept){
-        var rows=(data.codes||[]).filter(function(r){return deptMatch(r,dept,'merged');}).map(function(r){return[r.id||r.code,r.name||r.title||r.description,departmentTitle(dept),r.type||r.category,r.date||r.eventDate,r.participants||r.attendance,r.outcome||r.status,r.status];});
-        return table(departmentTitle(dept),['Code','Emergency Code','Department','Type','Date','Participants','Outcome','Status'],rows,departmentArgb(dept));
+        var rows=(data.codes||[]).filter(function(r){var rd=normalizeDept(r.department||r.dept||r.responsibleDept||r.responsibleDepartment);return rd!=='division'&&rd!=='fmsdivision'&&rd!=='allfms'&&deptMatch(r,dept,'merged');}).map(codeExportRow);
+        return table(departmentTitle(dept),codeCols,rows,departmentArgb(dept));
       });
+      var sharedRows=(data.codes||[]).filter(function(r){var rd=normalizeDept(r.department||r.dept||r.responsibleDept||r.responsibleDepartment);return rd==='division'||rd==='fmsdivision'||rd==='allfms';}).map(codeExportRow);
+      if(sharedRows.length)codeTables.push(table('FMS Division / Shared',codeCols,sharedRows,'FF0195AF'));
       var sec3=section('Emergency Codes',codeTables,'FF8B62B4');if(sec3)sections.push(sec3);
     }
     return{title:'Risk Management',kind:'sectioned',sections:sections};
@@ -360,7 +374,7 @@
   function initiativeDepartment(r){return String(r&&r.department||'Unassigned');}
   function reportData(items,depts){var data=snap();return{
     policies:items.indexOf('gov_policies')>=0?reportFilter(data.policies,depts):[],plans:items.indexOf('gov_plans')>=0?reportFilter(data.plans,depts):[],forms:items.indexOf('gov_forms')>=0?reportFilter(data.forms,depts):[],
-    risks:items.indexOf('risk_register')>=0?reportFilter(data.risks,depts,'risk-register'):[],incidents:items.indexOf('risk_incidents')>=0?reportFilter(data.incidents,depts):[],codes:items.indexOf('risk_codes')>=0?reportFilter(data.codes,depts):[],
+    risks:items.indexOf('risk_register')>=0?reportFilter(data.risks,depts,'risk-register'):[],incidents:items.indexOf('risk_incidents')>=0?reportFilter(data.incidents,depts):[],codes:items.indexOf('risk_codes')>=0?reportCodeFilter(data.codes,depts):[],
     cbahi:(items.indexOf('cbahi')>=0||items.indexOf('overall')>=0)?((data._cbahiAssessment||[]).filter(function(r){return complianceDeptMatch(r,depts);})):[],jci:(items.indexOf('jci')>=0||items.indexOf('overall')>=0)?((data._jciAssessment||[]).filter(function(r){return complianceDeptMatch(r,depts);})):[],
     reports:items.indexOf('reports')>=0?(data._reports||[]).filter(function(r){return String(r.kind||r.type||'').toLowerCase()!=='guideline';}):[],
     manuals:items.indexOf('manuals')>=0?reportFilter(data.manuals,depts).concat((data._reports||[]).filter(function(r){return String(r.kind||r.type||'').toLowerCase()==='guideline';})):[],
