@@ -347,7 +347,8 @@ window._selectPortal=async portal=>{
 
     onAuthStateChanged(auth,async user=>{
       console.log('[Auth] onAuthStateChanged — user:',user?user.email:'none');
-      if(!user){window.__qumcAuditLoginLoggedFor='';try{window._stopAuditListener&&window._stopAuditListener();}catch(_){}showLogin();return;}
+      window._fbProfileResolved=false;
+      if(!user){window.__qumcAuditLoginLoggedFor='';window._fbDept=null;window.currentUserDept=null;try{window._stopAuditListener&&window._stopAuditListener();}catch(_){}showLogin();return;}
       const email=user.email||'';
       try{
         console.log('[FS READ] users/'+email);
@@ -356,14 +357,17 @@ window._selectPortal=async portal=>{
         const d=snap.data();
         if(!d.approved){console.warn('[Auth] Not approved:',email);await signOut(auth);setErr('Account pending approval.');showLogin();return;}
         const role=d.role||'viewer';
-        const accountDept=d.dept||d.department||d.deptKey||null;console.log('[Auth] Role:',role,'Dept:',accountDept||'none');
+        const rawAccountDept=('dept' in d)?d.dept:(('department' in d)?d.department:(('deptKey' in d)?d.deptKey:null));
+        const deptText=rawAccountDept==null?'':String(rawAccountDept).trim();
+        const accountDept=(!deptText||['null','none','undefined','n/a','na','unassigned','not assigned','-','—'].includes(deptText.toLowerCase()))?null:rawAccountDept;
+        console.log('[Auth] Role:',role,'Dept:',accountDept==null?'all departments':accountDept);
         let perms=[];console.log('[FS READ] config_roles/'+role);
         try{
         const rs = await getDoc(doc(db,'config_roles',role));perms=rs.exists()?(rs.data().permissions||[]):(DPERMS[role]||[]);}catch(_){perms=DPERMS[role]||[];}
         if(d.extraPermissions)perms=[...new Set([...perms,...d.extraPermissions])];
         if(d.revokedPermissions)perms=perms.filter(p=>!d.revokedPermissions.includes(p));
         const realName=accountNameFrom(d,user,email);
-        window._fbUser=email;window._fbEmail=email;window.currentUserEmail=email;window._fbRole=role;window.currentUserRole=role;window._fbDept=accountDept;window.currentUserDept=accountDept;window._fbPerms=perms;window._fbName=realName;window.currentUserName=realName;window._fbAssignedKpis=d.assignedKpis||null;
+        window._fbUser=email;window._fbEmail=email;window.currentUserEmail=email;window._fbRole=role;window.currentUserRole=role;window._fbDept=accountDept;window.currentUserDept=accountDept;window._fbPerms=perms;window._fbName=realName;window.currentUserName=realName;window._fbAssignedKpis=d.assignedKpis||null;window._fbProfileResolved=true;
         /* The GRC register listeners must bind only after the resolved user
            profile is known. Otherwise Auth may start them with an empty
            department and approved register changes never reach the dashboard. */
@@ -865,20 +869,22 @@ window._selectPortal=async portal=>{
     function _grcRiskRole(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
     function _grcRiskEmail(){return String(window._fbUser||window.currentUserEmail||auth.currentUser&&auth.currentUser.email||'').toLowerCase().trim();}
     function _grcRiskUid(){return String(auth.currentUser&&auth.currentUser.uid||'').trim();}
-    function _grcRiskRawDept(){return String(window._fbDept||window.currentUserDept||'').trim();}
+    function _grcRawDeptValue(){if(Object.prototype.hasOwnProperty.call(window,'_fbDept'))return window._fbDept;return window.currentUserDept;}
+    function _grcRiskRawDept(){const v=_grcRawDeptValue();return v==null?'':String(v).trim();}
     function _grcCanonicalDepartment(value){
-      const raw=String(value||'').trim(),n=raw.toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');
-      if(!n)return'';
-      if(n.includes('laundry'))return'laundry';
-      if(n.includes('housekeeping')||n.includes('cleaning'))return'housekeeping';
-      if(n.includes('maintenance'))return'maintenance';
-      if(n.includes('safety'))return'safety';
-      if(n.includes('project'))return'projects';
-      if(n.includes('governance')||n.includes('performance'))return'governance';
-      if(n==='fms'||n.includes('facility management')||n.includes('facilities management')||n.includes('division'))return'division';
+      if(value===null||value===undefined)return'';
+      const raw=String(value).trim(),n=raw.toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');
+      if(!n||['null','none','undefined','n a','na','unassigned','not assigned','-','—'].includes(n))return'';
+      if(n.includes('laundry')||n.includes('مغسلة')||n.includes('المغسلة')||n.includes('غسيل'))return'laundry';
+      if(n.includes('housekeeping')||n.includes('cleaning')||n.includes('نظافة')||n.includes('النظافة'))return'housekeeping';
+      if(n.includes('maintenance')||n.includes('صيانة')||n.includes('الصيانة'))return'maintenance';
+      if(n.includes('safety')||n.includes('سلامة')||n.includes('السلامة'))return'safety';
+      if(n.includes('project')||n.includes('مشاريع')||n.includes('المشاريع'))return'projects';
+      if(n.includes('governance')||n.includes('performance')||n.includes('حوكمة')||n.includes('الحوكمة')||n.includes('الأداء')||n.includes('الاداء'))return'governance';
+      if(n==='fms'||n.includes('facility management')||n.includes('facilities management')||n.includes('division')||n.includes('المرافق'))return'division';
       return n.replace(/\s+/g,'_');
     }
-    function _grcRiskDept(){return _grcCanonicalDepartment(window._fbDept||window.currentUserDept||'');}
+    function _grcRiskDept(){return _grcCanonicalDepartment(_grcRawDeptValue());}
     window._grcCanonicalDepartment=window._grcCanonicalDepartment||_grcCanonicalDepartment;
     function _grcRiskPerms(){return Array.isArray(window._fbPerms)?window._fbPerms:[];}
     function _grcRiskOwnsRequest(r){

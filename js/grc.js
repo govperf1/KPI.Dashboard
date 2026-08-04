@@ -1271,6 +1271,7 @@
        lock the GRC sync into an empty department scope. Wait until the resolved
        profile (role + department) is available, then bind the live listeners. */
     if(!profileEmail)return;
+    if(window._fbProfileResolved!==true)return;
     if(!canAllNow&&!deptNow)return;
     if(grcSyncStarted&&grcSyncScopeKey===wanted)return;
     if(grcSyncStarted&&grcSyncScopeKey!==wanted)stopSharedStateSync();
@@ -1283,7 +1284,7 @@
         try{await ensureRequiredGrcBaselineRecords(b);}catch(err2){console.error('[GRC Baseline Repair] approved records could not be repaired',err2);}
       }
       startRiskStatusOverrideSync(b);
-      var canAll=canViewAllExecutiveDepartments(),dept=currentGrcDept(),rawDept=String(window._fbDept||window.currentUserDept||'').trim();
+      var canAll=canViewAllExecutiveDepartments(),dept=currentGrcDept(),rawDept=rawCurrentGrcDepartment();rawDept=(rawDept===null||rawDept===undefined)?'':String(rawDept).trim();if(['null','none','undefined','n/a','na','unassigned','not assigned','-','—'].indexOf(rawDept.toLowerCase())>=0)rawDept='';
       var aliasMap={
         safety:['safety','Safety','Safety Department','Safety Management','Safety Management Department','السلامة','إدارة السلامة','قسم السلامة'],
         maintenance:['maintenance','Maintenance','Maintenance Department','Maintenance Management','Maintenance Management Department','الصيانة','إدارة الصيانة','قسم الصيانة'],
@@ -1352,8 +1353,9 @@
   function isGrcSuperAdmin(){return normalizedRole()==='super_admin';}
   function canonicalGrcDepartment(value){
     if(typeof window._grcCanonicalDepartment==='function')return window._grcCanonicalDepartment(value);
-    var raw=String(value||'').trim(),n=raw.toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');
-    if(!n)return'';
+    if(value===null||value===undefined)return'';
+    var raw=String(value).trim(),n=raw.toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');
+    if(!n||['null','none','undefined','n a','na','unassigned','not assigned','-','—'].indexOf(n)>=0)return'';
     if(n.indexOf('laundry')>=0||n.indexOf('مغسلة')>=0||n.indexOf('المغسلة')>=0||n.indexOf('غسيل')>=0)return'laundry';
     if(n.indexOf('housekeeping')>=0||n.indexOf('cleaning')>=0||n.indexOf('نظافة')>=0||n.indexOf('النظافة')>=0)return'housekeeping';
     if(n.indexOf('maintenance')>=0||n.indexOf('صيانة')>=0||n.indexOf('الصيانة')>=0)return'maintenance';
@@ -1363,8 +1365,13 @@
     if(n==='fms'||n.indexOf('facility management')>=0||n.indexOf('facilities management')>=0||n.indexOf('division')>=0||n.indexOf('المرافق')>=0)return'division';
     return n.replace(/\s+/g,'_');
   }
-  function currentGrcDept(){return canonicalGrcDepartment(window._fbDept||window.currentUserDept||'');}
-  function canViewAllExecutiveDepartments(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[],d=currentGrcDept(),assigned=['safety','maintenance','housekeeping','laundry','projects'].indexOf(d)>=0;if(r==='super_admin'||r==='admin')return true;if(assigned)return false;return r==='executive'||p.indexOf('*')>=0||p.indexOf('view_grc_all_departments')>=0;}
+  function rawCurrentGrcDepartment(){
+    if(Object.prototype.hasOwnProperty.call(window,'_fbDept'))return window._fbDept;
+    if(typeof window.currentUserDept!=='undefined')return window.currentUserDept;
+    return'';
+  }
+  function currentGrcDept(){return canonicalGrcDepartment(rawCurrentGrcDepartment());}
+  function canViewAllExecutiveDepartments(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[],d=currentGrcDept(),assigned=['safety','maintenance','housekeeping','laundry','projects'].indexOf(d)>=0;if(r==='super_admin'||r==='admin')return true;if(!d)return canEnterGrc();if(assigned)return false;return r==='executive'||p.indexOf('*')>=0||p.indexOf('view_grc_all_departments')>=0;}
   function resolvedExecutiveDept(value){var raw=String(value||executiveDeptFilter||'');if(/^(all\s*fms|allfms|all_departments|all)$/i.test(raw.replace(/[&/_-]+/g,' ')))return canViewAllExecutiveDepartments()?'allFms':(currentGrcDept()||'allFms');var d=canonicalGrcDepartment(raw);if(canViewAllExecutiveDepartments())return d&&d!=='division'?d:'allFms';d=currentGrcDept();return d&&d!=='division'?d:'allFms';}
   function executiveDepartmentFilterHtml(selected){if(!canViewAllExecutiveDepartments())return'';var choices=[['allFms',isAr()?'جميع الأقسام':'All Departments'],['safety',deptName('safety')],['maintenance',deptName('maintenance')],['housekeeping',deptName('housekeeping')],['laundry',deptName('laundry')],['projects',deptName('projects')]];return'<div class="grc-executive-filter"><label><span>'+(isAr()?'تصفية القسم':'Department Filter')+'</span><select onchange="window._grcSetExecutiveDepartment(this.value)">'+choices.map(function(x){return'<option value="'+x[0]+'" '+(selected===x[0]?'selected':'')+'>'+esc(x[1])+'</option>';}).join('')+'</select></label></div>';}
   window._grcSetExecutiveDepartment=function(value){var raw=String(value||'allFms');executiveDeptFilter=/^(all\s*fms|allfms|all_departments|all)$/i.test(raw.replace(/[&/_-]+/g,' '))?'allFms':canonicalGrcDepartment(raw);renderAtSamePosition(grcViewportPosition());};
@@ -2235,26 +2242,27 @@
     var alert=all.filter(function(r){return isExpired(r)||expiringThisYear(r);}).length;
     return departmentPanel(dept,L('governance')+' · '+L('departmentRecords'),all.length,active,alert,L('active'),governanceModules('department',dept)+governanceOverview(dept,false,true));
   }
-  function governancePage(){ensureOperationalPlanStyles();ensureGrcEnhancementStyles();var depts=isGrcAdmin()?departmentOrder:[currentGrcDept()].filter(Boolean);return hero('GRC · Governance',L('governanceTitle'),L('governanceDesc'))+sectionHead(L('departmentView'),isGrcAdmin()?L('departmentSectionsDesc'):deptName(currentGrcDept()))+'<div class="grc-department-stack">'+depts.map(governanceDepartmentPanel).join('')+'</div>';}
+  function governancePage(){ensureOperationalPlanStyles();ensureGrcEnhancementStyles();var showAll=canViewAllExecutiveDepartments(),depts=showAll?departmentOrder:[currentGrcDept()].filter(Boolean);return hero('GRC · Governance',L('governanceTitle'),L('governanceDesc'))+sectionHead(L('departmentView'),showAll?L('departmentSectionsDesc'):deptName(currentGrcDept()))+'<div class="grc-department-stack">'+depts.map(governanceDepartmentPanel).join('')+'</div>';}
   function riskPage(){
-    var depts=isGrcAdmin()?departmentOrder:[currentGrcDept()].filter(function(d){return !!d&&d!=='division'&&d!=='governance';});
-    var subtitle=isGrcAdmin()?L('departmentSectionsDesc'):(depts.length?deptName(depts[0]):L('departmentRecords'));
+    var showAll=canViewAllExecutiveDepartments(),depts=showAll?departmentOrder:[currentGrcDept()].filter(function(d){return !!d&&d!=='division'&&d!=='governance';});
+    var subtitle=showAll?L('departmentSectionsDesc'):(depts.length?deptName(depts[0]):L('departmentRecords'));
     var body=depts.length?depts.map(riskDepartmentPanel).join(''):'<div class="grc-empty">'+(isAr()?'لا توجد بيانات مرتبطة بقسم المستخدم.':'No department data is assigned to this user.')+'</div>';
     return hero('GRC · Risk Management',L('riskTitle'),L('riskDesc'))+sectionHead(L('departmentView'),subtitle)+'<div class="grc-department-stack">'+body+'</div>';
   }
 
-  function governanceRegistersBoard(){
+  function governanceRegistersBoard(readOnly){
+    var allowButtons=!readOnly&&isGrcAdmin();
     return'<section class="grc-registers-board">'+sectionHead(L('governanceRegisterGroup'),L('registerDesc'))+
-      registerBlock('policy',L('policyRegister'),L('allDepartments'),addBtn('policy',L('addPolicy')),governanceTable('policies','allFms','policy',true))+
-      registerBlock('plan',L('planRegister'),L('allDepartments'),addBtn('plan',L('addPlan')),governanceTable('plans','allFms','plan',true))+
-      
-      registerBlock('form',L('internalForms'),L('allDepartments'),addBtn('form',L('addForm')),formsTable('allFms','internal',true))+registerBlock('form',L('externalForms'),L('allDepartments'),addBtn('form',L('addForm')),formsTable('allFms','external',true))+'</section>';
+      registerBlock('policy',L('policyRegister'),L('allDepartments'),allowButtons?addBtn('policy',L('addPolicy')):'',governanceTable('policies','allFms','policy',true))+
+      registerBlock('plan',L('planRegister'),L('allDepartments'),allowButtons?addBtn('plan',L('addPlan')):'',governanceTable('plans','allFms','plan',true))+
+      registerBlock('form',L('internalForms'),L('allDepartments'),allowButtons?addBtn('form',L('addForm')):'',formsTable('allFms','internal',true))+registerBlock('form',L('externalForms'),L('allDepartments'),allowButtons?addBtn('form',L('addForm')):'',formsTable('allFms','external',true))+'</section>';
   }
-  function riskRegistersBoard(){
+  function riskRegistersBoard(readOnly){
+    var allowButtons=!readOnly&&isGrcAdmin();
     return'<section class="grc-registers-board">'+sectionHead(L('riskRegisterGroup'),L('registerDesc'))+
-      registerBlock('risk',L('riskRegister'),L('allDepartments'),addBtn('risk',L('addRisk')),riskTable('allFms',true))+
-      registerBlock('incident',L('incidentRegister'),L('allDepartments'),addBtn('incident',L('addIncident')),incidentTable('allFms',true))+
-      registerBlock('code',L('codeRegister'),L('allDepartments'),addBtn('code',L('addCode')),codeTable('allFms',true))+'</section>';
+      registerBlock('risk',L('riskRegister'),L('allDepartments'),allowButtons?addBtn('risk',L('addRisk')):'',riskTable('allFms',true))+
+      registerBlock('incident',L('incidentRegister'),L('allDepartments'),allowButtons?addBtn('incident',L('addIncident')):'',incidentTable('allFms',true))+
+      registerBlock('code',L('codeRegister'),L('allDepartments'),allowButtons?addBtn('code',L('addCode')):'',codeTable('allFms',true))+'</section>';
   }
   function initiativeCode(r,index){
     return r.code||('INIT-'+String(index+1).padStart(3,'0'));
@@ -2298,7 +2306,7 @@
     }).join('')+'</div>';
   }
   function selectedInitiativesRegisterTable(){
-    var departmentScope=isGrcAdmin()?'allFms':currentGrcDept();
+    var departmentScope=canViewAllExecutiveDepartments()?'allFms':currentGrcDept();
     var selectedRows=selectedInitiatives('allFms');
     /* The Selected Initiatives Register must never depend on a transient empty
        scoped listener. Approved baseline initiatives are a guaranteed fallback,
@@ -2334,6 +2342,8 @@
       registerBlock('plan',isAr()?'سجل المبادرات المختارة':'Selected Initiatives Register',isAr()?'بيانات المبادرات المختارة وفرق العمل':'Selected initiatives and team details',isGrcAdmin()?addBtn('initiative',isAr()?'إضافة مبادرة':'Add Initiative'):'',selectedInitiativesRegisterTable())+'</section>';
   }
   function registerPage(){
+    var showAll=canViewAllExecutiveDepartments();
+    if(showAll){var readOnly=!isGrcAdmin();return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+governanceRegistersBoard(readOnly)+riskRegistersBoard(readOnly)+assuranceRegistersBoard();}
     if(!isGrcAdmin()){
       var d=currentGrcDept(),riskDept=d==='laundry'?'laundryRisk':d==='housekeeping'?'housekeepingRisk':d;
       return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+
@@ -2348,7 +2358,7 @@
         registerBlock('code',L('codeRegister'),L('allDepartments'),'',codeTable('allFms',false))+'</section>'+
         assuranceRegistersBoard();
     }
-    return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+governanceRegistersBoard()+riskRegistersBoard()+assuranceRegistersBoard();
+    return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+governanceRegistersBoard(false)+riskRegistersBoard(false)+assuranceRegistersBoard();
   }
 
 
@@ -2759,7 +2769,7 @@
   function compliancePage(){
     ensureComplianceStyles();ensureGrcEnhancementStyles();if(!complianceLibraryLoaded&&!complianceLibraryLoading)loadComplianceLibrary(false);
     var top=hero('GRC · Compliance',L('complianceTitle'),L('complianceDesc'));
-    if(!complianceNavAuthority){var scope=isGrcAdmin()?'allFms':currentGrcDept();return top+complianceDashboardHtml()+'<div class="grc-section">'+sectionHead(L('complianceAuthorities'),L('selectAuthority'))+complianceAuthorityCards()+'</div>'+cbahiAssessmentSection(scope)+jciAssessmentSection(scope);}
+    if(!complianceNavAuthority){var scope=canViewAllExecutiveDepartments()?'allFms':currentGrcDept();return top+complianceDashboardHtml()+'<div class="grc-section">'+sectionHead(L('complianceAuthorities'),L('selectAuthority'))+complianceAuthorityCards()+'</div>'+cbahiAssessmentSection(scope)+jciAssessmentSection(scope);}
     var authority=COMPLIANCE_AUTHORITIES.find(function(a){return a.id===complianceNavAuthority;});if(!authority){complianceNavAuthority=null;complianceNavDocument=null;return compliancePage();}
     if(!complianceNavDocument)return top+complianceBackButton()+'<div class="grc-section"><div class="grc-compliance-breadcrumb"><strong>'+esc(isAr()?authority.ar:authority.en)+'</strong></div>'+sectionHead(esc(isAr()?authority.ar:authority.en),String(complianceDocsFor(authority.id).length)+' '+(isAr()?'مستند':'documents'))+complianceDocumentCards(authority)+'</div>';
     var seed=complianceSeedDocument(complianceNavDocument);if(!seed||seed.authorityId!==authority.id){complianceNavDocument=null;return compliancePage();}var file=complianceFileDocument(seed.id);
