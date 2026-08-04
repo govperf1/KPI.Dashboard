@@ -1284,7 +1284,13 @@
       }
       startRiskStatusOverrideSync(b);
       var canAll=canViewAllExecutiveDepartments(),dept=currentGrcDept(),rawDept=String(window._fbDept||window.currentUserDept||'').trim();
-      var aliasMap={safety:['safety','Safety','Safety Department','Safety Management','Safety Management Department'],maintenance:['maintenance','Maintenance','Maintenance Department','Maintenance Management','Maintenance Management Department'],housekeeping:['housekeeping','Housekeeping','Housekeeping Department','Housekeeping Management','Cleaning'],laundry:['laundry','Laundry','Laundry Department','Laundry Management'],projects:['projects','project','Projects','Project','project_management','projects_management','project management','projects management','Project Management','Projects Management','Project Management Department','Projects Management Department','Projects Department','Project Department','PM']};
+      var aliasMap={
+        safety:['safety','Safety','Safety Department','Safety Management','Safety Management Department','السلامة','إدارة السلامة','قسم السلامة'],
+        maintenance:['maintenance','Maintenance','Maintenance Department','Maintenance Management','Maintenance Management Department','الصيانة','إدارة الصيانة','قسم الصيانة'],
+        housekeeping:['housekeeping','Housekeeping','Housekeeping Department','Housekeeping Management','Cleaning','النظافة','إدارة النظافة','قسم النظافة'],
+        laundry:['laundry','Laundry','Laundry Department','Laundry Management','المغسلة','إدارة المغسلة','قسم المغسلة','الغسيل'],
+        projects:['projects','project','Projects','Project','project_management','projects_management','project management','projects management','Project Management','Projects Management','Project Management Department','Projects Management Department','Projects Department','Project Department','PM','المشاريع','إدارة المشاريع','قسم إدارة المشاريع','قسم المشاريع']
+      };
       Object.keys(GRC_COLLECTION_MAP).forEach(function(key){
         var col=b.fs.collection(b.db,GRC_COLLECTION_MAP[key]);grcCloudParts[key]={};
         if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){
@@ -1341,11 +1347,21 @@
   function isGrcAdmin(){var r=normalizedRole();return r==='super_admin'||r==='admin';}
   function isGrcAnalyticsManager(){return normalizedRole()==='governance_performance_manager'||(Array.isArray(window._fbPerms)&&window._fbPerms.indexOf('view_request_analytics')>=0);}
   function canOpenGrcAdminCenter(){return isGrcAdmin()||isGrcAnalyticsManager();}
+  function canAccessRiskIncidentRegisters(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return ['super_admin','admin','department_manager','dept_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager'].indexOf(r)>=0||p.indexOf('edit_risk_management')>=0||p.indexOf('edit_incident_register')>=0||p.indexOf('*')>=0;}
+  window._grcCanAccessRiskIncidentRegisters=canAccessRiskIncidentRegisters;
   function isGrcSuperAdmin(){return normalizedRole()==='super_admin';}
   function canonicalGrcDepartment(value){
     if(typeof window._grcCanonicalDepartment==='function')return window._grcCanonicalDepartment(value);
     var raw=String(value||'').trim(),n=raw.toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');
-    if(!n)return'';if(n.indexOf('laundry')>=0)return'laundry';if(n.indexOf('housekeeping')>=0||n.indexOf('cleaning')>=0)return'housekeeping';if(n.indexOf('maintenance')>=0)return'maintenance';if(n.indexOf('safety')>=0)return'safety';if(n.indexOf('project')>=0)return'projects';if(n.indexOf('governance')>=0||n.indexOf('performance')>=0)return'governance';if(n==='fms'||n.indexOf('facility management')>=0||n.indexOf('facilities management')>=0||n.indexOf('division')>=0)return'division';return n.replace(/\s+/g,'_');
+    if(!n)return'';
+    if(n.indexOf('laundry')>=0||n.indexOf('مغسلة')>=0||n.indexOf('المغسلة')>=0||n.indexOf('غسيل')>=0)return'laundry';
+    if(n.indexOf('housekeeping')>=0||n.indexOf('cleaning')>=0||n.indexOf('نظافة')>=0||n.indexOf('النظافة')>=0)return'housekeeping';
+    if(n.indexOf('maintenance')>=0||n.indexOf('صيانة')>=0||n.indexOf('الصيانة')>=0)return'maintenance';
+    if(n.indexOf('safety')>=0||n.indexOf('سلامة')>=0||n.indexOf('السلامة')>=0)return'safety';
+    if(n.indexOf('project')>=0||n.indexOf('مشاريع')>=0||n.indexOf('المشاريع')>=0)return'projects';
+    if(n.indexOf('governance')>=0||n.indexOf('performance')>=0||n.indexOf('حوكمة')>=0||n.indexOf('الحوكمة')>=0||n.indexOf('الأداء')>=0||n.indexOf('الاداء')>=0)return'governance';
+    if(n==='fms'||n.indexOf('facility management')>=0||n.indexOf('facilities management')>=0||n.indexOf('division')>=0||n.indexOf('المرافق')>=0)return'division';
+    return n.replace(/\s+/g,'_');
   }
   function currentGrcDept(){return canonicalGrcDepartment(window._fbDept||window.currentUserDept||'');}
   function canViewAllExecutiveDepartments(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[],d=currentGrcDept(),assigned=['safety','maintenance','housekeeping','laundry','projects'].indexOf(d)>=0;if(r==='super_admin'||r==='admin')return true;if(assigned)return false;return r==='executive'||p.indexOf('*')>=0||p.indexOf('view_grc_all_departments')>=0;}
@@ -2735,14 +2751,19 @@
     return'<div class="grc-section grc-cbahi-section grc-jci-section">'+sectionHead(L('jciSection'),L('jciSectionDesc'),s.standards+' '+L('cbahiTotalStandards'))+cards+charts+assessmentToolbar('jci')+registerBlock('policy',L('jciRegister'),L('jciRegisterDesc'),'',jciTableHtml(dept))+'</div>';
   }
   function complianceDashboardHtml(){var totalAuthorities=COMPLIANCE_AUTHORITIES.length,totalReq=COMPLIANCE_DOCUMENT_SEED.length;var cards='<div class="grc-metric-grid cols-2 grc-compliance-overview-grid">'+metricCard(L('totalAuthorities'),totalAuthorities,'info',L('complianceAuthorities'))+metricCard(L('totalRequirements'),totalReq,'purple',L('records'))+'</div>';var items=COMPLIANCE_AUTHORITIES.map(function(a){return{label:isAr()?a.ar:a.en,value:complianceDocsFor(a.id).length,color:chartPalette.teal};});return'<div class="grc-section">'+sectionHead(L('complianceDashboard'),L('complianceDesc'))+cards+'<div class="grc-chart-grid cols-1">'+barChart(L('requirementsByAuthority'),items)+'</div></div>';}
+  function complianceBackButton(){
+    if(!complianceNavAuthority)return'';
+    var target=complianceNavDocument?"window._grcComplianceAuthority('"+complianceJsArg(complianceNavAuthority)+"')":"window._grcComplianceHome()";
+    return'<div class="grc-report-back-row grc-compliance-back-row"><button type="button" class="grc-btn ghost" onclick="'+target+'">← '+L('backOneLevel')+'</button></div>';
+  }
   function compliancePage(){
     ensureComplianceStyles();ensureGrcEnhancementStyles();if(!complianceLibraryLoaded&&!complianceLibraryLoading)loadComplianceLibrary(false);
     var top=hero('GRC · Compliance',L('complianceTitle'),L('complianceDesc'));
     if(!complianceNavAuthority){var scope=isGrcAdmin()?'allFms':currentGrcDept();return top+complianceDashboardHtml()+'<div class="grc-section">'+sectionHead(L('complianceAuthorities'),L('selectAuthority'))+complianceAuthorityCards()+'</div>'+cbahiAssessmentSection(scope)+jciAssessmentSection(scope);}
     var authority=COMPLIANCE_AUTHORITIES.find(function(a){return a.id===complianceNavAuthority;});if(!authority){complianceNavAuthority=null;complianceNavDocument=null;return compliancePage();}
-    if(!complianceNavDocument)return top+'<div class="grc-section"><div class="grc-compliance-breadcrumb"><button onclick="window._grcComplianceHome()">← '+L('backToAuthorities')+'</button><span>›</span><strong>'+esc(isAr()?authority.ar:authority.en)+'</strong></div>'+sectionHead(esc(isAr()?authority.ar:authority.en),String(complianceDocsFor(authority.id).length)+' '+(isAr()?'مستند':'documents'))+complianceDocumentCards(authority)+'</div>';
+    if(!complianceNavDocument)return top+complianceBackButton()+'<div class="grc-section"><div class="grc-compliance-breadcrumb"><strong>'+esc(isAr()?authority.ar:authority.en)+'</strong></div>'+sectionHead(esc(isAr()?authority.ar:authority.en),String(complianceDocsFor(authority.id).length)+' '+(isAr()?'مستند':'documents'))+complianceDocumentCards(authority)+'</div>';
     var seed=complianceSeedDocument(complianceNavDocument);if(!seed||seed.authorityId!==authority.id){complianceNavDocument=null;return compliancePage();}var file=complianceFileDocument(seed.id);
-    return top+'<div class="grc-section"><div class="grc-compliance-breadcrumb"><button onclick="window._grcComplianceHome()">'+L('backToAuthorities')+'</button><span>›</span><button type="button" onclick="window._grcComplianceAuthority(\''+complianceJsArg(authority.id)+'\')">'+esc(isAr()?authority.ar:authority.en)+'</button><span>›</span><strong>'+esc(seed.titleEn)+'</strong></div>'+complianceViewerHtml(seed,file)+'</div>';
+    return top+complianceBackButton()+'<div class="grc-section"><div class="grc-compliance-breadcrumb"><button type="button" onclick="window._grcComplianceAuthority(\''+complianceJsArg(authority.id)+'\')">'+esc(isAr()?authority.ar:authority.en)+'</button><span>›</span><strong>'+esc(seed.titleEn)+'</strong></div>'+complianceViewerHtml(seed,file)+'</div>';
   }
   function auditPage(){return simpleRegisterPage('audits','auditTitle','auditDesc','audit','addFinding',['id','title','severity','department','owner','dueDate','status'],function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+badge(r.severity)+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td>'+badge(r.status)+'</td></tr>';},'incident');}
   function actionsPage(){if(!isGrcAdmin()){var d=currentGrcDept(),rows=filterDept(state.actions,d).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.source||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td><div style="display:flex;align-items:center;gap:7px"><div class="grc-progress"><span style="width:'+Math.max(0,Math.min(100,Number(r.progress||0)))+'%"></span></div><b>'+Number(r.progress||0)+'%</b></div></td><td>'+badge(r.status)+'</td></tr>';}).join('');return hero('GRC · Action Plans',L('actionsTitle'),L('actionsDesc'))+registerBlock('plan',L('actionsTitle'),deptName(d),'',tableHtml('plan',['id','title','source','department','owner','dueDate','progress','status'],rows));}return simpleRegisterPage('actions','actionsTitle','actionsDesc','action','addAction',['id','title','source','department','owner','dueDate','progress','status'],function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.source||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.dueDate)+'</td><td><div style="display:flex;align-items:center;gap:7px"><div class="grc-progress"><span style="width:'+Math.max(0,Math.min(100,Number(r.progress||0)))+'%"></span></div><b>'+Number(r.progress||0)+'%</b></div></td><td>'+badge(r.status)+'</td></tr>';},'plan');}
