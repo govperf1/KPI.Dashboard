@@ -1246,3 +1246,36 @@ body.grc-mode #grcApp>.footbar.grc-performance-footer{display:flex!important;vis
 #grcApp .grc-status-confirm-title{font-size:17px;font-weight:950;color:#17384a;margin-bottom:7px}
 #grcApp .grc-status-confirm-text{font-size:10.5px;line-height:1.7;color:#667f8c;max-width:340px;margin:0 auto 18px}
 #grcApp .grc-status-confirm-ok{min-width:105px!important;height:38px!important}
+
+/* v119 — light GRC Administration workspace. Keep the gear button unchanged. */
+#_grcAdminCenterOv .grc-ac-shell{background:#F8FAFC!important;color:#152538!important;border-color:#D6E2EE!important;box-shadow:0 28px 90px rgba(15,23,42,.28)!important}
+#_grcAdminCenterOv .grc-ac-head{background:#FFFFFF!important;border-bottom:1px solid #DCE6EB!important}
+#_grcAdminCenterOv .grc-ac-title{color:#152538!important}
+#_grcAdminCenterOv .grc-ac-sub{color:#64748B!important}
+#_grcAdminCenterOv .grc-ac-close{background:#F1F5F9!important;border-color:#D6E2EE!important;color:#475569!important}
+#_grcAdminCenterOv .grc-ac-tabs{background:#F1F5F9!important;border-bottom:1px solid #DCE6EB!important}
+#_grcAdminCenterOv .grc-ac-tab{background:#FFFFFF!important;border-color:#D6E2EE!important;color:#52657A!important;box-shadow:0 2px 8px rgba(15,23,42,.04)!important}
+#_grcAdminCenterOv .grc-ac-tab.on{background:#E8F7FA!important;border-color:rgba(1,149,175,.34)!important;color:#087A90!important}
+#_grcAdminCenterOv .grc-ac-body{background:#F8FAFC!important}
+#_grcAdminCenterOv .grc-ac-page-head h2{color:#152538!important}
+#_grcAdminCenterOv .grc-ac-page-head p{color:#64748B!important}
+#_grcAdminCenterOv .grc-ac-table-wrap{background:#FFFFFF!important;border-color:#DCE6EB!important}
+#_grcAdminCenterOv .grc-ac-table th{background:#EEF4F7!important;color:#52657A!important;border-bottom-color:#DCE6EB!important}
+#_grcAdminCenterOv .grc-ac-table td{color:#334155!important;border-bottom-color:#E7EEF2!important}
+#_grcAdminCenterOv .grc-ac-table td b,#_grcAdminCenterOv .grc-ac-table td strong{color:#152538!important}
+#_grcAdminCenterOv .grc-ac-table tr:hover td{background:#F8FBFC!important}
+#_grcAdminCenterOv .grc-ac-comment{background:#FFFFFF!important;color:#152538!important;border-color:#CBDCE3!important}
+#_grcAdminCenterOv .grc-ac-filters label{color:#52657A!important}
+#_grcAdminCenterOv .grc-ac-filters select,#_grcAdminCenterOv .grc-ac-filters input{background:#FFFFFF!important;color:#152538!important;border-color:#CBDCE3!important}
+#_grcAdminCenterOv .grc-ac-empty{color:#64748B!important}
+#_grcAdminCenterOv .grc-ac-metric{background:#FFFFFF!important;border-color:#DCE6EB!important;box-shadow:0 3px 12px rgba(15,23,42,.04)!important}
+#_grcAdminCenterOv .grc-ac-metric span{color:#64748B!important}
+#_grcAdminCenterOv .grc-ac-metric b{color:#152538!important}
+#_grcAdminCenterOv .grc-ac-metric small{color:#718394!important}
+#_grcAdminCenterOv .grc-ac-insight{background:#FFFFFF!important;border-color:#DCE6EB!important}
+#_grcAdminCenterOv .grc-ac-insight h3{color:#152538!important}
+#_grcAdminCenterOv .grc-ac-mini-row{color:#64748B!important}
+#_grcAdminCenterOv .grc-ac-mini-track{background:#E7EEF2!important}
+#_grcAdminCenterOv .grc-ac-rating-comment{color:#64748B!important}
+#_grcAdminCenterOv .grc-ac-btn.secondary{background:#E8F7FA!important;border-color:rgba(1,149,175,.30)!important;color:#087A90!important}
+#_grcAdminCenterOv .grc-ac-btn.danger{background:#FEF2F2!important;border-color:#FECACA!important;color:#B91C1C!important}
