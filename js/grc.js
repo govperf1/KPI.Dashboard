@@ -3702,10 +3702,11 @@
     var old=document.getElementById('_grcRiskStatusConfirm');if(old)old.remove();
     var status=normalizeStatus(item&&item.updated&&item.updated.actionStatus||''),record=item&&item.original||{},label=record.id||record.code||L('riskRegister'),multiple=Number(count||0)>1;
     var title=isAr()?'تم تحديث حالة الخطر':'Risk Status Updated';
-    var message=multiple?(isAr()?('تم تحديث حالة '+count+' مخاطر بنجاح بدون إرسال طلب اعتماد.'):('The status of '+count+' risks was updated successfully without an approval request.')):(isAr()?('تم تغيير حالة '+label+' إلى '+L(status)+' مباشرة بدون إرسال طلب اعتماد.'):('The status of '+label+' was changed to '+L(status)+' directly, with no approval request required.'));
-    var ov=document.createElement('div');ov.id='_grcRiskStatusConfirm';ov.className='grc-modal-backdrop grc-status-confirm-backdrop';
-    ov.innerHTML='<div class="grc-modal grc-status-confirm-modal" role="dialog" aria-modal="true"><div class="grc-status-confirm-icon">✓</div><div class="grc-status-confirm-title">'+esc(title)+'</div><div class="grc-status-confirm-text">'+esc(message)+'</div><button type="button" class="grc-primary-btn grc-status-confirm-ok">'+(isAr()?'حسنًا':'OK')+'</button></div>';
-    document.body.appendChild(ov);var close=function(){ov.remove();};ov.querySelector('.grc-status-confirm-ok').onclick=close;ov.addEventListener('click',function(e){if(e.target===ov)close();});
+    var statusText=L(status)||status;
+    var message=multiple?(isAr()?('تم تحديث حالة '+count+' مخاطر.'):('The status of '+count+' risks was updated.')):(isAr()?('تم تغيير حالة '+label+' إلى '+statusText+'.'):('The status of '+label+' was changed to '+statusText+'.'));
+    var ov=document.createElement('div');ov.id='_grcRiskStatusConfirm';ov.className='grc-status-confirm-backdrop';
+    ov.innerHTML='<section class="grc-status-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="_grcRiskStatusTitle"><div class="grc-status-confirm-icon">✓</div><h2 id="_grcRiskStatusTitle" class="grc-status-confirm-title">'+esc(title)+'</h2><p class="grc-status-confirm-text">'+esc(message)+'</p><button type="button" class="grc-status-confirm-ok">'+(isAr()?'حسنًا':'OK')+'</button></section>';
+    document.body.appendChild(ov);var close=function(){ov.remove();};ov.querySelector('.grc-status-confirm-ok').onclick=close;ov.addEventListener('click',function(e){if(e.target===ov)close();});setTimeout(function(){var b=ov.querySelector('.grc-status-confirm-ok');if(b)b.focus();},20);
   }
   function _grcAuditRegisterChange(action,type,before,after){
     try{var rec=after||before||{},id=rec.id||rec.code||'',dept=rec.department||rec.responsibleDept||rec.responsibleDepartment||currentGrcDept();window._recordAuditDirect&&window._recordAuditDirect(action,(type||'register')+' '+id,before||null,after||null,{portal:'grc',recordType:type||'',dept:dept});}catch(_e){}
