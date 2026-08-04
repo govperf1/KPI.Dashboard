@@ -222,3 +222,8 @@ button#backPortalBtn.footer-back-glass:hover{
 .perf-ac-status{display:inline-flex;padding:3px 8px;border-radius:999px;font-size:8.5px;font-weight:850}.perf-ac-status.pending,.perf-ac-status.in_progress{background:#FFF7E6;color:#B45309}.perf-ac-status.approved,.perf-ac-status.closed,.perf-ac-status.completed{background:#ECFDF5;color:#047857}.perf-ac-status.rejected{background:#FEF2F2;color:#B91C1C}.perf-ac-status.open{background:#FEF2F2;color:#B91C1C}.perf-ac-status.cancelled{background:#F1F5F9;color:#64748B}
 .perf-ac-stars{color:#F59E0B;font-size:12px;letter-spacing:1px;white-space:nowrap}.perf-ac-rating-number{display:inline!important;margin-left:6px}.perf-ac-rating-comment{margin-top:4px;color:#64748B;font-size:8.5px;line-height:1.45;max-width:260px}.perf-ac-message{max-width:260px;white-space:normal;line-height:1.45}
 @media(max-width:800px){.perf-ac-insight-grid{grid-template-columns:1fr}.perf-ac-metrics{grid-template-columns:repeat(2,minmax(110px,1fr))}}
+
+/* v120 — Analytics-only Governance & Performance Manager */
+#adminOv.perf-analytics-only .modal{max-width:1060px!important}
+#adminOv.perf-analytics-only #adminTabs{justify-content:flex-start!important}
+#adminOv.perf-analytics-only .mhd-t{color:#152538!important}

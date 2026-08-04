@@ -78,3 +78,27 @@
 html[lang="ar"] .grc-risk-notif-panel,html[lang="ar"] .grc-risk-notif-panel *{font-family:'IBM Plex Sans Arabic','Almarai',sans-serif!important}
 .grc-risk-notif-panel .grc-risk-notif-copy strong{font-size:11.5px!important;font-weight:900!important;letter-spacing:.005em!important}
 .grc-risk-notif-panel .grc-risk-notif-copy small{font-size:9.7px!important;font-weight:500!important;letter-spacing:.005em!important}
+
+/* v120 — GRC My Requests: high-contrast light request cards */
+#grcMyReqOv .qumc-my-requests-card{background:#fff!important;color:#111827!important;border:1px solid #D7E3E9!important;box-shadow:0 28px 80px rgba(15,23,42,.28)!important}
+#grcMyReqOv .qumc-my-requests-card>div:first-child>div:first-child>div:first-child{color:#111827!important}
+#grcMyReqOv #grcMyReqBody>div>div{background:#fff!important;border:1px solid #DCE6EB!important;box-shadow:0 3px 12px rgba(15,23,42,.04)!important}
+#grcMyReqOv #grcMyReqBody span[style*="color:#e2e8f0"],#grcMyReqOv #grcMyReqBody div[style*="color:#e2e8f0"]{color:#111827!important}
+#grcMyReqOv #grcMyReqBody div[style*="color:#94a3b8"]{color:#334155!important}
+#grcMyReqOv #grcMyReqBody span[style*="color:#475569"],#grcMyReqOv #grcMyReqBody div[style*="color:#475569"]{color:#64748B!important}
+#grcMyReqOv .grc-system-rating,#grcMyReqOv .grc-system-rating-saved,#grcMyReqOv .grc-system-rating-pending{background:#F8FAFC!important;border:1px solid #DCE6EB!important;color:#152538!important}
+#grcMyReqOv .grc-system-rating-title,#grcMyReqOv .grc-system-rating-saved b{color:#111827!important}
+#grcMyReqOv .grc-system-rating-help{color:#64748B!important}
+#grcMyReqOv .grc-system-rating-comment{background:#fff!important;border:1px solid #CBDCE3!important;color:#111827!important;min-height:78px!important}
+#grcMyReqOv .grc-system-rating-saved p{color:#334155!important}
+
+/* v120.1 — My Requests high-contrast text and polished rating controls */
+#grcMyReqOv .qumc-my-requests-card,#grcMyReqOv .qumc-my-requests-card *{text-shadow:none!important}
+#grcMyReqOv #grcMyReqBody{color:#111827!important}
+#grcMyReqOv #grcMyReqBody>div>div{color:#111827!important}
+#grcMyReqOv .grc-system-rating-stars{gap:6px!important;margin:8px 0 7px!important}
+#grcMyReqOv .grc-system-rating-stars button{width:36px!important;height:36px!important;border:1px solid #E8D6A1!important;border-radius:9px!important;background:#FFFBEB!important;color:#D69E16!important;font-size:19px!important;opacity:.45!important}
+#grcMyReqOv .grc-system-rating-stars button.selected,#grcMyReqOv .grc-system-rating-stars button:hover{opacity:1!important;background:#FFF4CC!important;border-color:#E0B53E!important;box-shadow:0 4px 10px rgba(214,166,46,.10)!important}
+#grcMyReqOv .grc-system-rating-selected{color:#B7791F!important;font-weight:900!important}
+#grcMyReqOv .grc-system-rating-comment{min-height:82px!important;border-radius:9px!important;padding:10px 11px!important;line-height:1.5!important}
+#grcMyReqOv .grc-system-rating-submit{background:#087E8C!important;border-radius:8px!important;padding:8px 13px!important}

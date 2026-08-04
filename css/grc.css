@@ -1279,3 +1279,35 @@ body.grc-mode #grcApp>.footbar.grc-performance-footer{display:flex!important;vis
 #_grcAdminCenterOv .grc-ac-rating-comment{color:#64748B!important}
 #_grcAdminCenterOv .grc-ac-btn.secondary{background:#E8F7FA!important;border-color:rgba(1,149,175,.30)!important;color:#087A90!important}
 #_grcAdminCenterOv .grc-ac-btn.danger{background:#FEF2F2!important;border-color:#FECACA!important;color:#B91C1C!important}
+
+/* v120 — GRC Administration analytics aligned with Performance */
+#_grcAdminCenterOv .grc-ac-shell{background:#FFFFFF!important;color:#152538!important;border:1px solid #DCE6EB!important;box-shadow:0 28px 80px rgba(15,23,42,.26)!important}
+#_grcAdminCenterOv .grc-ac-head{background:#F8FAFC!important;border-bottom:1px solid #DCE6EB!important}
+#_grcAdminCenterOv .grc-ac-title{color:#152538!important}#_grcAdminCenterOv .grc-ac-sub{color:#64748B!important}
+#_grcAdminCenterOv .grc-ac-close{background:#fff!important;border-color:#DCE6EB!important;color:#64748B!important}
+#_grcAdminCenterOv .grc-ac-tabs{background:#F8FAFC!important;border-bottom:1px solid #DCE6EB!important}
+#_grcAdminCenterOv .grc-ac-tab{background:#fff!important;border-color:#DCE6EB!important;color:#64748B!important}
+#_grcAdminCenterOv .grc-ac-tab.on{background:#E8F7FA!important;border-color:rgba(1,149,175,.34)!important;color:#087A90!important}
+#_grcAdminCenterOv .grc-ac-page-head h2{color:#152538!important}#_grcAdminCenterOv .grc-ac-page-head p{color:#64748B!important}
+#_grcAdminCenterOv .grc-ac-btn.secondary{background:#E8F7FA!important;border-color:rgba(1,149,175,.30)!important;color:#087A90!important}
+#_grcAdminCenterOv .grc-ac-metrics{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))!important;gap:10px!important}
+#_grcAdminCenterOv .grc-ac-metric{min-height:92px!important;border:1px solid #DCE6EB!important;border-radius:12px!important;background:#fff!important;padding:12px 13px!important;box-shadow:0 3px 12px rgba(15,23,42,.04)!important}
+#_grcAdminCenterOv .grc-ac-metric span{color:#64748B!important;letter-spacing:0!important}#_grcAdminCenterOv .grc-ac-metric b{color:#152538!important;font-size:25px!important}#_grcAdminCenterOv .grc-ac-metric small{color:#718394!important}
+#_grcAdminCenterOv .grc-ac-insight-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important}
+#_grcAdminCenterOv .grc-ac-insight{border:1px solid #DCE6EB!important;border-radius:12px!important;background:#fff!important;padding:13px!important;box-shadow:0 3px 12px rgba(15,23,42,.035)!important}
+#_grcAdminCenterOv .grc-ac-insight h3{color:#152538!important;font-size:10px!important}
+#_grcAdminCenterOv .grc-ac-mini-row{color:#64748B!important}#_grcAdminCenterOv .grc-ac-mini-track{background:#E7EEF2!important}#_grcAdminCenterOv .grc-ac-mini-row b{color:#152538!important}
+#_grcAdminCenterOv .grc-ac-table-wrap{border:1px solid #DCE6EB!important;background:#fff!important}#_grcAdminCenterOv .grc-ac-table th{background:#EEF4F7!important;color:#52657A!important;border-bottom-color:#DCE6EB!important}#_grcAdminCenterOv .grc-ac-table td{color:#334155!important;border-bottom-color:#E7EEF2!important}#_grcAdminCenterOv .grc-ac-table td b{color:#152538!important}#_grcAdminCenterOv .grc-ac-table tr:hover td{background:#F8FBFC!important}
+#_grcAdminCenterOv .grc-ac-comment{background:#fff!important;color:#152538!important;border-color:#CBDCE3!important}
+#_grcAdminCenterOv .grc-ac-rating-comment{color:#64748B!important}
+#_grcAdminCenterOv .grc-ac-donut-layout{display:grid;grid-template-columns:126px minmax(0,1fr);gap:18px;align-items:center;min-height:142px}
+#_grcAdminCenterOv .grc-ac-donut{width:120px;height:120px;border-radius:50%;display:grid;place-items:center;margin:auto}
+#_grcAdminCenterOv .grc-ac-donut>div{width:72px;height:72px;border-radius:50%;display:grid;place-items:center;align-content:center;background:#fff;box-shadow:inset 0 0 0 1px #DCE6EB}
+#_grcAdminCenterOv .grc-ac-donut strong{font-size:22px;color:#152538;line-height:1}#_grcAdminCenterOv .grc-ac-donut small{font-size:8px;color:#64748B;margin-top:3px}
+#_grcAdminCenterOv .grc-ac-donut-legend{display:grid;gap:7px}#_grcAdminCenterOv .grc-ac-donut-legend>div{display:grid;grid-template-columns:9px minmax(0,1fr) 28px;gap:7px;align-items:center;font-size:9px;color:#64748B}#_grcAdminCenterOv .grc-ac-donut-legend i{width:9px;height:9px;border-radius:3px}#_grcAdminCenterOv .grc-ac-donut-legend b{text-align:right;color:#152538}
+@media(max-width:800px){#_grcAdminCenterOv .grc-ac-insight-grid{grid-template-columns:1fr!important}#_grcAdminCenterOv .grc-ac-donut-layout{grid-template-columns:110px 1fr}}
+
+/* v120.1 — GRC analytics final light-theme contrast */
+#_grcAdminCenterOv .grc-ac-table td [style*="color:#e2e8f0"],#_grcAdminCenterOv .grc-ac-table td [style*="color:#fff"]{color:#152538!important}
+#_grcAdminCenterOv .grc-ac-table td [style*="color:#627989"]{color:#64748B!important}
+#_grcAdminCenterOv .grc-ac-stars{color:#D69E16!important;letter-spacing:1px!important}
