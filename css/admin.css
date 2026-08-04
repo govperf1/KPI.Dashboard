@@ -227,3 +227,27 @@ button#backPortalBtn.footer-back-glass:hover{
 #adminOv.perf-analytics-only .modal{max-width:1060px!important}
 #adminOv.perf-analytics-only #adminTabs{justify-content:flex-start!important}
 #adminOv.perf-analytics-only .mhd-t{color:#152538!important}
+
+/* v122 — analytics parity with GRC: same cards, charts and table presentation */
+#adminOv .perf-ac-metric.info{background:linear-gradient(180deg,#F0FBFE 0%,#FFFFFF 78%)!important;border-color:#B9E8F0!important;border-top:3px solid #06B6D4!important}
+#adminOv .perf-ac-metric.good{background:linear-gradient(180deg,#F0FDF4 0%,#FFFFFF 78%)!important;border-color:#BBF7D0!important;border-top:3px solid #22C55E!important}
+#adminOv .perf-ac-metric.warn{background:linear-gradient(180deg,#FFFBEB 0%,#FFFFFF 78%)!important;border-color:#FDE68A!important;border-top:3px solid #F59E0B!important}
+#adminOv .perf-ac-metric.bad{background:linear-gradient(180deg,#FEF2F2 0%,#FFFFFF 78%)!important;border-color:#FECACA!important;border-top:3px solid #EF4444!important}
+#adminOv .perf-ac-metric.purple{background:linear-gradient(180deg,#F5F3FF 0%,#FFFFFF 78%)!important;border-color:#DDD6FE!important;border-top:3px solid #8B5CF6!important}
+#adminOv .perf-ac-metric.rating{background:linear-gradient(180deg,#FFFBEB 0%,#FFFFFF 78%)!important;border-color:#FDE68A!important;border-top:3px solid #D69E16!important}
+#adminOv .perf-ac-metrics-secondary{grid-template-columns:repeat(3,minmax(130px,1fr))!important;max-width:570px!important}
+#adminOv .perf-ac-insight-grid-two{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+#adminOv .perf-ac-insight-grid-three{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+#adminOv .perf-ac-donut-layout{display:grid;grid-template-columns:126px minmax(0,1fr);gap:18px;align-items:center;min-height:142px}
+#adminOv .perf-ac-donut{width:120px;height:120px;border-radius:50%;display:grid;place-items:center;margin:auto}
+#adminOv .perf-ac-donut>div{width:72px;height:72px;border-radius:50%;display:grid;place-items:center;align-content:center;background:#fff;box-shadow:inset 0 0 0 1px #DCE6EB}
+#adminOv .perf-ac-donut strong{font-size:22px;color:#152538;line-height:1}
+#adminOv .perf-ac-donut small{font-size:8px;color:#64748B;margin-top:3px}
+#adminOv .perf-ac-donut-legend{display:grid;gap:7px}
+#adminOv .perf-ac-donut-legend>div{display:grid;grid-template-columns:9px minmax(0,1fr) 28px;gap:7px;align-items:center;font-size:9px;color:#64748B}
+#adminOv .perf-ac-donut-legend i{width:9px;height:9px;border-radius:3px}
+#adminOv .perf-ac-donut-legend b{text-align:right;color:#152538}
+#adminOv .perf-ac-insight{min-height:184px;box-sizing:border-box}
+#adminOv .perf-ac-table{min-width:980px}
+@media(max-width:980px){#adminOv .perf-ac-insight-grid-three{grid-template-columns:1fr!important}#adminOv .perf-ac-insight-grid-two{grid-template-columns:1fr!important}}
+@media(max-width:700px){#adminOv .perf-ac-metrics-secondary{grid-template-columns:1fr!important;max-width:none!important}#adminOv .perf-ac-donut-layout{grid-template-columns:110px 1fr}}
