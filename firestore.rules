@@ -427,7 +427,7 @@ service cloud.firestore {
 
     match /kpi_requests/{requestId} {
       allow create: if approved() && ownEmail(request.resource.data.userEmail);
-      allow read: if approved() && (admin() || ownEmail(resource.data.userEmail));
+      allow read: if approved() && (admin() || hasPerm('view_request_analytics') || ownEmail(resource.data.userEmail));
       allow update: if admin() ||
         (approved() && ownEmail(resource.data.userEmail) && requesterFieldsOnly());
       allow delete: if admin();
@@ -450,7 +450,7 @@ service cloud.firestore {
           request.resource.data.department == '' ||
           sameDepartment(request.resource.data.department)
         );
-      allow read: if canAccessGrc() && (admin() || ownEmail(resource.data.userEmail));
+      allow read: if canAccessGrc() && (admin() || hasPerm('view_request_analytics') || ownEmail(resource.data.userEmail));
       allow update: if admin() ||
         (canAccessGrc() && ownEmail(resource.data.userEmail) && validGrcRequestRatingChange());
       allow delete: if superAdmin();
@@ -460,7 +460,7 @@ service cloud.firestore {
     function validAdvisoryOwnerChange() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'status', 'messages', 'attachments', 'attachmentCount',
-        'completedAt', 'closedAt', 'rating', 'ratingAt',
+        'completedAt', 'closedAt', 'rating', 'ratingComment', 'ratingAt',
         'workflowStage', 'closureReason', 'updatedAt',
         'updatedAtIso', 'updatedBy'
       ]);
@@ -470,7 +470,7 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'status', 'messages', 'attachments', 'attachmentCount',
         'firstRespondedAt', 'respondedAt', 'responseMinutes',
-        'completedAt', 'closedAt', 'rating', 'ratingAt',
+        'completedAt', 'closedAt', 'rating', 'ratingComment', 'ratingAt',
         'workflowStage', 'closureReason', 'updatedAt', 'updatedAtIso', 'updatedBy'
       ]);
     }
@@ -487,7 +487,7 @@ service cloud.firestore {
           request.resource.data.departmentKey == '' ||
           sameDepartment(request.resource.data.departmentKey)
         );
-      allow read: if approved() && (admin() || ownEmail(resource.data.userEmail));
+      allow read: if approved() && (admin() || hasPerm('view_request_analytics') || ownEmail(resource.data.userEmail));
       allow update: if
         (admin() && validAdvisoryAdminChange()) ||
         (approved() && ownEmail(resource.data.userEmail) && validAdvisoryOwnerChange());
@@ -496,7 +496,7 @@ service cloud.firestore {
 
     match /advisory_public/{requestId} {
       allow create: if approved() && advisoryOwner(requestId);
-      allow read: if admin();
+      allow read: if admin() || hasPerm('view_request_analytics');
       allow update: if admin() || (approved() && advisoryOwner(requestId));
       allow delete: if superAdmin();
     }

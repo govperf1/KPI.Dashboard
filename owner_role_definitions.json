@@ -3,7 +3,9 @@
     "nameEn": "Risk Owner",
     "nameAr": "مالك المخاطر",
     "description": "Department-scoped owner for the GRC Risk and Incident Registers.",
-    "platforms": ["grc"],
+    "platforms": [
+      "grc"
+    ],
     "systemRole": true,
     "permissions": [
       "access_grc",
@@ -21,7 +23,10 @@
     "nameEn": "Performance & GRC Owner",
     "nameAr": "مالك الأداء والحوكمة والمخاطر",
     "description": "Department-scoped owner with access to both Performance and GRC.",
-    "platforms": ["performance", "grc"],
+    "platforms": [
+      "performance",
+      "grc"
+    ],
     "systemRole": true,
     "permissions": [
       "access_performance",
@@ -37,6 +42,26 @@
       "update_risk_status",
       "submit_risk_changes",
       "export_reports"
+    ]
+  },
+  "governance_performance_manager": {
+    "nameEn": "Governance & Performance Department Manager",
+    "nameAr": "مدير قسم الحوكمة والأداء",
+    "description": "Department-scoped Governance & Performance manager with access to request and review analytics across both platforms.",
+    "platforms": [
+      "performance",
+      "grc"
+    ],
+    "systemRole": true,
+    "permissions": [
+      "access_performance",
+      "access_grc",
+      "view_department",
+      "view_grc_department",
+      "view_shared_grc",
+      "view_executive_intelligence",
+      "export_reports",
+      "view_request_analytics"
     ]
   }
 }
