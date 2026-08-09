@@ -489,7 +489,7 @@
   }
   function normalizeEmergencyCodeSubtype(v){
     var raw=String(v==null?'':v).trim(),key=raw.toLowerCase().replace(/[\s_-]+/g,'');
-    if(!raw||key==='notapplicable'||raw==='لا ينطبق')return'notApplicable';
+    if(!raw||key==='notapplicable'||key==='notavailable'||raw==='لا ينطبق'||raw==='غير متوفر')return'notApplicable';
     return raw;
   }
   function normalizeRiskId(v){return String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');}
@@ -1971,7 +1971,12 @@
   }
   function emergencyCodeSubtypeLabel(r){
     var value=normalizeEmergencyCodeSubtype(r&& (r.subtype||r.codeSubtype||r.failureType));
-    return value==='notApplicable'?L('notApplicable'):value;
+    if(value==='notApplicable'){
+      var code=String(r&& (r.codeType||r.emergencyCode||r.codeName||r.category)||'').toLowerCase();
+      if(code.indexOf('brown')>=0||code.indexOf('orange')>=0)return isAr()?'غير متوفر':'Not Available';
+      return L('notApplicable');
+    }
+    return value;
   }
   function emergencySubtypeRows(dept,code,sub){
     return emergencyCodeRows(dept,code).filter(function(r){
@@ -2010,7 +2015,7 @@
     window._grcCloseEmergencyTypes();
     var defs=(_grcEmergencySubtypeDefs[code]||[]).slice();
     if(dept==='safety'&&code==='brown')defs=defs.filter(function(x){return x.key==='water';});
-    if((code==='brown'&&(dept==='maintenance'||dept==='allFms'))||(code==='orange'&&(dept==='housekeeping'||dept==='allFms')))defs.push({key:'notApplicable',en:'Not Applicable',ar:'لا ينطبق'});
+    if((code==='brown'&&(dept==='maintenance'||dept==='allFms'))||(code==='orange'&&(dept==='housekeeping'||dept==='allFms')))defs.push({key:'notApplicable',en:'Not Available',ar:'غير متوفر'});
     var modal=document.createElement('div');modal.id='_grcEmergencyTypesModal';modal.className='grc-emergency-types-modal';
     modal.innerHTML='<div class="grc-emergency-types-backdrop" onclick="window._grcCloseEmergencyTypes()"></div>'+
       '<section class="grc-emergency-types-dialog"><header><div><h3>'+esc(emergencyCodeName(code))+'</h3><p>'+(isAr()?'أنواع الكود وبيانات كل نوع':'Code types and metrics for each type')+'</p></div><button type="button" onclick="window._grcCloseEmergencyTypes()">×</button></header>'+
@@ -3672,7 +3677,7 @@
         ['Inadequate training','Inadequate training'],['Equipment aging','Equipment aging'],['Unsafe work conditions','Unsafe work conditions'],['Human error','Human error'],['Inadequate preventive maintenance (PPM)','Inadequate preventive maintenance (PPM)'],['Operational failure','Operational failure']
       ],true,true)+
       field('investigationRequired',L('investigationRequired'),'select',[['yes',L('yes')],['no',L('no')]],true)+field('status',L('status'),'select',statusOptions(type),true,false,'open')+field('department',L('responsibleDept'),'select',deptOptions(),true,false,d)};
-    if(type==='code')return{title:L('addCode'),collection:'codes',prefix:'COD',fields:field('codeType',L('emergencyCodeType'),'select',[['brown',isAr()?'الكود البني':'Brown Code'],['orange',isAr()?'الكود البرتقالي':'Orange Code'],['red',isAr()?'الكود الأحمر':'Red Code'],['blue',isAr()?'الكود الأزرق':'Blue Code'],['yellow',isAr()?'الكود الأصفر':'Yellow Code'],['pink',isAr()?'الكود الوردي':'Pink Code']],true)+field('subtype',L('codeSubtype'),'select',[['electrical',isAr()?'انقطاع الكهرباء':'Electrical power supply failure'],['water',isAr()?'انقطاع المياه':'Water supply failure'],['medicalGas',isAr()?'تعطل الغازات الطبية':'Medical gas failure'],['elevators',isAr()?'المصاعد':'Elevators'],['chemicalSpill',isAr()?'انسكاب كيميائي':'Chemical spill'],['biologicalSpill',isAr()?'انسكاب بيولوجي':'Biological spill'],['notApplicable',L('notApplicable')],['other',L('other')]],true,false,'notApplicable')+field('type',L('eventType'),'select',[['real',L('real')],['drill',L('drill')]],true)+field('status',L('status'),'select',[['successful',L('successful')],['failed',L('failed')],['open',L('open')],['closed',L('closed')]],true)+field('date',L('date'),'datetime-local',null,true)+field('location',L('location'),'text',null,true)+field('closeDateTime',L('closeDateTime'),'datetime-local',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)};
+    if(type==='code')return{title:L('addCode'),collection:'codes',prefix:'COD',fields:field('codeType',L('emergencyCodeType'),'select',[['brown',isAr()?'الكود البني':'Brown Code'],['orange',isAr()?'الكود البرتقالي':'Orange Code'],['red',isAr()?'الكود الأحمر':'Red Code'],['blue',isAr()?'الكود الأزرق':'Blue Code'],['yellow',isAr()?'الكود الأصفر':'Yellow Code'],['pink',isAr()?'الكود الوردي':'Pink Code']],true)+field('subtype',L('codeSubtype'),'select',[['electrical',isAr()?'انقطاع الكهرباء':'Electrical power supply failure'],['water',isAr()?'انقطاع المياه':'Water supply failure'],['medicalGas',isAr()?'تعطل الغازات الطبية':'Medical gas failure'],['elevators',isAr()?'المصاعد':'Elevators'],['chemicalSpill',isAr()?'انسكاب كيميائي':'Chemical spill'],['biologicalSpill',isAr()?'انسكاب بيولوجي':'Biological spill'],['notApplicable',isAr()?'غير متوفر':'Not Available'],['other',L('other')]],true,false,'notApplicable')+field('type',L('eventType'),'select',[['real',L('real')],['drill',L('drill')]],true)+field('status',L('status'),'select',[['successful',L('successful')],['failed',L('failed')],['open',L('open')],['closed',L('closed')]],true)+field('date',L('date'),'datetime-local',null,true)+field('location',L('location'),'text',null,true)+field('closeDateTime',L('closeDateTime'),'datetime-local',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)};
     if(type==='compliance')return{title:L('addRequirement'),collection:'compliance',prefix:'CMP',fields:field('requirement',L('requirement'),'textarea',null,true,true)+field('authority',L('authority'),'text',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('dueDate',L('dueDate'),'date')+field('status',L('status'),'select',[['underReview',L('underReview')],['compliant',L('compliant')],['partial',L('partial')],['nonCompliant',L('nonCompliant')],['notApplicable',L('notApplicable')]],true)};
     if(type==='audit')return{title:L('addFinding'),collection:'audits',prefix:'AUD',fields:field('finding',L('title'),'textarea',null,true,true)+field('severity',L('severity'),'select',[['observation',L('observation')],['minor',L('minor')],['medium',L('medium')],['major',L('major')],['critical',L('critical')]],true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('dueDate',L('dueDate'),'date')+field('status',L('status'),'select',statusOptions(type),true,false,'open')};
     if(type==='action')return{title:L('addAction'),collection:'actions',prefix:'ACT',fields:field('description',L('title'),'textarea',null,true,true)+field('source',L('source'),'text',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('dueDate',L('dueDate'),'date',null,true)+field('progress',L('progress'),'number',null,true)+field('status',L('status'),'select',statusOptions(type),true,false,'open')};
