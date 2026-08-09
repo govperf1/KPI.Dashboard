@@ -2599,6 +2599,17 @@
     function rowsFor(d){return filterDept(state.incidents,d).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+dateText(r.date)+'</td><td>'+esc(r.category||'—')+'</td><td>'+esc(r.contributingFactors||'—')+'</td><td>'+badge(r.investigationRequired==='yes'?'yes':'no')+'</td><td>'+esc(deptName(r.department||r.responsibleDept))+'</td><td>'+badge(r.status)+'</td></tr>';}).join('');}
     return tableHtml('incident',heads,grouped?groupedDepartmentRows(heads.length,rowsFor):rowsFor(dept));
   }
+  function groupedEmergencyCodeDepartmentRows(cols,rowBuilder){
+    var out='';
+    ['maintenance','safety','housekeeping'].forEach(function(dept){
+      var rows=rowBuilder(dept);
+      out+='<tr class="grc-table-group"><td colspan="'+cols+'"><span class="grc-table-group-dot" style="background:'+deptColor(dept)+'"></span><strong>'+esc(deptName(dept))+'</strong><span>'+esc(deptAbbr(dept))+'</span></td></tr>'+(rows||'<tr class="grc-table-group-empty"><td colspan="'+cols+'">'+L('noRecords')+'</td></tr>');
+    });
+    var divisionRows=rowBuilder('division');
+    if(divisionRows)out+='<tr class="grc-table-group"><td colspan="'+cols+'"><span class="grc-table-group-dot" style="background:'+deptColor('division')+'"></span><strong>'+esc(deptName('division'))+'</strong><span>'+esc(deptAbbr('division'))+'</span></td></tr>'+divisionRows;
+    return out;
+  }
+
   function codeTable(dept,grouped){
     var heads=['codeNumber','status','emergencyCodeType','codeSubtype','eventType','date','location','closeDateTime'];
     function codeColorType(r){
@@ -2628,7 +2639,7 @@
     function makeRows(rows){return(rows||[]).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+badge(r.status)+'</td><td>'+emergencyCodeBadge(r)+'</td><td>'+esc(codeSubtypeText(r))+'</td><td>'+badge(r.type||r.codeMode||'—')+'</td><td>'+dateText(r.date)+'</td><td>'+esc(r.location||'—')+'</td><td>'+dateText(r.closeDateTime)+'</td></tr>';}).join('');}
     function strictRowsFor(d){return makeRows(filterEmergencyCodesForRegisterGroup(d));}
     function scopedRowsFor(d){return makeRows(filterEmergencyCodes(d));}
-    return tableHtml('code',heads,grouped?groupedDepartmentRows(heads.length,strictRowsFor):scopedRowsFor(dept));
+    return tableHtml('code',heads,grouped?groupedEmergencyCodeDepartmentRows(heads.length,strictRowsFor):scopedRowsFor(dept));
   }
   function manualTable(){
     var rows=state.manuals.map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+esc(recordName(r))+'</td><td>'+esc(r.category||'—')+'</td><td>'+esc(deptName(r.department))+'</td><td>'+esc(r.owner||'—')+'</td><td>'+dateText(r.reviewDate||r.expiryDate)+'</td><td>'+badge(isExpired(r)?'expired':r.status)+'</td></tr>';}).join('');
