@@ -1526,12 +1526,29 @@
     var wanted=canonicalGrcDepartment(dept);
     return(arr||[]).filter(function(r){return canonicalGrcDepartment(r&& (r.department||r.responsibleDept||r.responsibleDepartment))===wanted;});
   }
+  function isSharedBrownWaterCode(r,wanted){
+    if(wanted!=='safety'&&wanted!=='maintenance')return false;
+    var rd=canonicalGrcDepartment(r&& (r.department||r.responsibleDept||r.responsibleDepartment));
+    if(rd!=='safety'&&rd!=='maintenance')return false;
+    var code=String(r&& (r.codeType||r.emergencyCode||r.codeName||r.category)||'').toLowerCase();
+    if(code.indexOf('brown')<0)return false;
+    var subtype=String(normalizeEmergencyCodeSubtype(r&& (r.subtype||r.codeSubtype||r.failureType||r.description||r.remarks))||'').toLowerCase();
+    return subtype.indexOf('water')>=0||subtype.indexOf('مياه')>=0;
+  }
   function filterEmergencyCodes(dept){
     if(!dept||dept==='allFms')return(state.codes||[]).slice();
     var wanted=canonicalGrcDepartment(dept);
     return(state.codes||[]).filter(function(r){
       var rd=canonicalGrcDepartment(r&& (r.department||r.responsibleDept||r.responsibleDepartment));
-      return rd===wanted||rd==='division';
+      return rd===wanted||rd==='division'||isSharedBrownWaterCode(r,wanted);
+    });
+  }
+  function filterEmergencyCodesForRegisterGroup(dept){
+    if(!dept||dept==='allFms')return(state.codes||[]).slice();
+    var wanted=canonicalGrcDepartment(dept);
+    return(state.codes||[]).filter(function(r){
+      var rd=canonicalGrcDepartment(r&& (r.department||r.responsibleDept||r.responsibleDepartment));
+      return rd===wanted||isSharedBrownWaterCode(r,wanted);
     });
   }
   function currentRiskTableScope(){var d=currentGrcDept();return d==='laundry'?'laundryRisk':d==='housekeeping'?'housekeepingRisk':d;}
@@ -2597,7 +2614,7 @@
     }
     function codeSubtypeText(r){return emergencyCodeSubtypeLabel(r);}
     function makeRows(rows){return(rows||[]).map(function(r){return'<tr><td class="grc-id">'+esc(r.id)+'</td><td>'+badge(r.status)+'</td><td>'+emergencyCodeBadge(r)+'</td><td>'+esc(codeSubtypeText(r))+'</td><td>'+badge(r.type||r.codeMode||'—')+'</td><td>'+dateText(r.date)+'</td><td>'+esc(r.location||'—')+'</td><td>'+dateText(r.closeDateTime)+'</td></tr>';}).join('');}
-    function strictRowsFor(d){return makeRows(filterDept(state.codes,d));}
+    function strictRowsFor(d){return makeRows(filterEmergencyCodesForRegisterGroup(d));}
     function scopedRowsFor(d){return makeRows(filterEmergencyCodes(d));}
     return tableHtml('code',heads,grouped?groupedDepartmentRows(heads.length,strictRowsFor):scopedRowsFor(dept));
   }
