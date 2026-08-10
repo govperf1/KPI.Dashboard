@@ -458,7 +458,7 @@ function openLock(){
     window._adminActive=true;
     const warn=document.getElementById('defWarn');if(warn)warn.style.display=ST&&ST.pinDefault?'flex':'none';
     if(typeof popAdminSels==='function')popAdminSels();
-    if(typeof loadAuditLog==='function')loadAuditLog();
+    /* Audit history is loaded only when the Audit Log tab is opened. */
     const admin=document.getElementById('adminOv');if(admin){admin.classList.add('open');setTimeout(function(){window._perfAdminApplyAnalyticsRoleScope&&window._perfAdminApplyAnalyticsRoleScope();},20);}
     if(typeof addAudit==='function'){try{addAudit('ADMIN_OPEN','Admin tools opened by role '+role);}catch(_){}}
     if(typeof resetAdminTimer==='function')resetAdminTimer();
@@ -484,7 +484,7 @@ function doPin(){
     document.getElementById('pinI').value='';
     eEl.textContent='';
     document.getElementById('defWarn').style.display=ST.pinDefault?'flex':'none';
-    popAdminSels();loadAuditLog();
+    popAdminSels();
     document.getElementById('adminOv').classList.add('open');
     addAudit('LOGIN','Admin login');
     resetAdminTimer();

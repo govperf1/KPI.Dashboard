@@ -935,6 +935,8 @@
     if(grcRiskStatusUnsub){try{grcRiskStatusUnsub();}catch(_){}grcRiskStatusUnsub=null;}
     grcSyncStarted=false;grcCloudReady=false;grcCloudParts={};grcCloudMirror={};grcCloudDuplicates={};grcCloudEverHydrated={};grcInitialScopes={};grcCollectionScopeReady={};grcCollectionScopeFailed={};grcPendingCloudSave=false;grcPendingLocalDeletes={risks:{},incidents:{}};grcSyncScopeKey='';
   }
+  /* Firestore quota guard: GRC listeners exist only while the GRC portal is active. */
+  window._grcStopSecureSync=function(){stopSharedStateSync();};
   window._grcRestartSecureSync=function(force){
     var wanted=grcSyncIdentityKey();
     if(!force&&grcSyncStarted&&grcSyncScopeKey===wanted)return;
@@ -1398,6 +1400,8 @@
     grcRiskStatusUnsub=b.fs.onSnapshot(qref,function(snap){var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});grcRiskStatusOverrides=next;if(grcCloudParts.risks){grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}grcApplyingRemote=false;renderAtSamePosition(grcViewportPosition());}},function(err){console.warn('[GRC Risk Status] sync failed',err);});
   }
   function startSharedStateSync(){
+    var grcActive=window.__qumcActivePortal==='grc'||!!(document.body&&document.body.classList.contains('grc-mode'));
+    if(!grcActive)return;
     var profileEmail=String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();
     var wanted=grcSyncIdentityKey(),deptNow=currentGrcDept(),canAllNow=canViewAllExecutiveDepartments();
     /* Firebase Auth can become ready before the Firestore user profile. Do not
@@ -1431,9 +1435,12 @@
           grcConfigureCollectionScopes(key,['all']);grcListen(b,key,'all',col);
         }else{
           var deptValues=(aliasMap[dept]||[]).slice();if(dept&&deptValues.indexOf(dept)<0)deptValues.unshift(dept);if(rawDept&&deptValues.indexOf(rawDept)<0)deptValues.push(rawDept);deptValues=deptValues.filter(function(v,i,a){return v&&a.indexOf(v)===i;});
-          var scopes=deptValues.map(function(_v,i){return'department_'+i;});grcConfigureCollectionScopes(key,scopes);
+          /* One listener per alias GROUP instead of one listener per alias.
+             Chunk size 10 is conservative and preserves old department labels. */
+          var deptGroups=[];for(var gi=0;gi<deptValues.length;gi+=10)deptGroups.push(deptValues.slice(gi,gi+10));
+          var scopes=deptGroups.map(function(_v,i){return'department_group_'+i;});grcConfigureCollectionScopes(key,scopes);
           if(!scopes.length){grcApplyReadyCollection(key);return;}
-          deptValues.forEach(function(deptValue,i){var ownQ=b.fs.query(col,b.fs.where('department','==',deptValue));grcListen(b,key,'department_'+i,ownQ);});
+          deptGroups.forEach(function(values,i){var ownQ=values.length===1?b.fs.query(col,b.fs.where('department','==',values[0])):b.fs.query(col,b.fs.where('department','in',values));grcListen(b,key,'department_group_'+i,ownQ);});
         }
       });
     }).catch(function(err){grcSyncStarted=false;console.error('[GRC Secure Sync] init failed',err);});
@@ -4094,14 +4101,14 @@
     ['filterChips','yearBtns'].forEach(function(id){var e=document.getElementById(id);if(!e)return;if(hidden){if(!e.dataset.grcOldDisplay)e.dataset.grcOldDisplay=e.style.display||'';e.style.setProperty('display','none','important');}else{e.style.removeProperty('display');if(e.dataset.grcOldDisplay)e.style.display=e.dataset.grcOldDisplay;delete e.dataset.grcOldDisplay;}});
     document.querySelectorAll('.filter-chips,.filter-strip,.tabnav,.dashwrap,.footbar,body>header.topbar,body>.topbar').forEach(function(e){if(hidden){if(!e.dataset.grcOldDisplay)e.dataset.grcOldDisplay=e.style.display||'';e.style.setProperty('display','none','important');}else{e.style.removeProperty('display');if(e.dataset.grcOldDisplay)e.style.display=e.dataset.grcOldDisplay;delete e.dataset.grcOldDisplay;}});
   }
-  window._hideGRC=function(){var a=document.getElementById('grcApp');if(a){a.classList.remove('grc-visible');a.setAttribute('aria-hidden','true');}document.body.classList.remove('grc-mode');setPerformanceChromeHidden(false);['grcAiWin','_grcRiskNotifPanel','_grcUserProfileMenu'].forEach(function(id){var e=document.getElementById(id);if(e)e.remove();});var chat=document.getElementById('grcAiFloatBtn');if(chat)chat.style.display='none';};
+  window._hideGRC=function(){try{stopSharedStateSync();}catch(_syncStop){}var a=document.getElementById('grcApp');if(a){a.classList.remove('grc-visible');a.setAttribute('aria-hidden','true');}document.body.classList.remove('grc-mode');setPerformanceChromeHidden(false);['grcAiWin','_grcRiskNotifPanel','_grcUserProfileMenu'].forEach(function(id){var e=document.getElementById(id);if(e)e.remove();});var chat=document.getElementById('grcAiFloatBtn');if(chat)chat.style.display='none';};
   function closePerformanceUiForGrc(){
     ['adminOv','gapOv','notificationsPanel','myRequestsPanel','userAlertDrop','userProfileDrop','_kpiOwnerGapStatusOv','_gapOwnerPopup'].forEach(function(id){var e=document.getElementById(id);if(!e)return;e.style.display='none';e.classList.remove('on','open','show');});
     setPerformanceChromeHidden(true);document.body.classList.remove('modal-mode');
   }
-  window._exitGRC=function(){window._hideGRC();var bg=document.getElementById('_bgLayer'),po=document.getElementById('_portalOverlay'),auth=document.getElementById('_authOverlay');if(auth)auth.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
+  window._exitGRC=function(){window._hideGRC();window.__qumcActivePortal='';var bg=document.getElementById('_bgLayer'),po=document.getElementById('_portalOverlay'),auth=document.getElementById('_authOverlay');if(auth)auth.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
   window._openGrcPortal=function(){if(!canEnterGrc()){if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied('grc');else window.alert&&window.alert('Your role does not have access to the GRC platform.');return;}window._enterGRC();};
-  window._enterGRC=function(){if(!canEnterGrc()){if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied('grc');else window._showGrcComingSoon();return;}activeTab=activeTab||'executive';closePerformanceUiForGrc();['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.remove('dashboard-mode','auth-mode','portal-mode','performance-advisory-mode');document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');render();if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();};
+  window._enterGRC=function(){if(!canEnterGrc()){if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied('grc');else window._showGrcComingSoon();return;}window.__qumcActivePortal='grc';activeTab=activeTab||'executive';closePerformanceUiForGrc();['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.remove('dashboard-mode','auth-mode','portal-mode','performance-advisory-mode');document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');render();if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();};
   window._closeGrcComingSoon=function(){var ov=document.getElementById('_grcComingSoon');if(ov)ov.remove();document.body.classList.remove('grc-coming-open');};
   window._showGrcComingSoon=function(){
     window._closeGrcComingSoon();document.body.classList.add('grc-coming-open');
@@ -4222,6 +4229,7 @@
     page.innerHTML=head+metrics+insights+table;
   };
   window._grcAdminRenderAudit=function(){
+    try{if(typeof window._startAuditListener==='function')window._startAuditListener();}catch(_auditStart){}
     var page=document.getElementById('_grcAcPageAudit');if(!page)return;var rows=grcAdminAuditRows(),userMap=new Map();
     rows.forEach(function(x){var key=grcAdminAuditUserKey(x);if(!key)return;var email=String(x.email||'').trim(),name=String(x.user||'User');userMap.set(key,email&&email!=='—'?name+' · '+email:name);});
     var users=Array.from(userMap.entries()).sort(function(a,b){return a[1].localeCompare(b[1]);}),actions=[].concat(Array.from(new Set(rows.map(function(x){return x.action;}).filter(Boolean)))).sort();

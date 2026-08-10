@@ -1199,6 +1199,7 @@ function populateAuditFilters(log){
 }
 
 function loadAuditLog(){
+  try{if(typeof window._startAuditListener==='function')window._startAuditListener();}catch(_auditStart){}
   const el=document.getElementById('auditLogList');if(!el)return;
   let log=_combinedAuditLog();
   const fullLog=log.slice();

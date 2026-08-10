@@ -325,9 +325,9 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       }
     };
 
-    window._doLogout=async()=>{console.log('[Auth] Logout');try{await window._recordAuditDirect('LOGOUT','User signed out');}catch(e){console.warn('[AUDIT] logout write skipped',e);}try{window._stopAuditListener&&window._stopAuditListener();await signOut(auth);}catch(e){console.error('[Auth]',e);}};
+    window._doLogout=async()=>{console.log('[Auth] Logout');try{await window._recordAuditDirect('LOGOUT','User signed out');}catch(e){console.warn('[AUDIT] logout write skipped',e);}try{window._stopAuditListener&&window._stopAuditListener();window._stopReadListener&&window._stopReadListener();window._grcStopSecureSync&&window._grcStopSecureSync();await signOut(auth);}catch(e){console.error('[Auth]',e);}};
 
-    window._backToPortal=()=>{console.log('[Auth] Back to portal');const lo=document.getElementById('_authOverlay'),po=document.getElementById('_portalOverlay'),bg=document.getElementById('_bgLayer');if(lo)lo.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
+    window._backToPortal=()=>{console.log('[Auth] Back to portal');try{window._stopReadListener&&window._stopReadListener();if(typeof window._hideGRC==='function')window._hideGRC();}catch(_e){}window.__qumcActivePortal='';const lo=document.getElementById('_authOverlay'),po=document.getElementById('_portalOverlay'),bg=document.getElementById('_bgLayer');if(lo)lo.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
 window._selectPortal=async portal=>{
       portal=portal==='governance'?'grc':portal;
       console.log('[Auth] Selected:',portal);
@@ -339,6 +339,7 @@ window._selectPortal=async portal=>{
       window.__qumcActivePortal=portal;
       try{window._recordAuditDirect&&window._recordAuditDirect('PORTAL_OPEN','Opened portal: '+portal,null,portal,{portal:portal});}catch(_){ }
       if(portal==='performance'){
+        try{if(typeof window._hideGRC==='function')window._hideGRC();}catch(_grcStop){}
         hideEntryLoading();
         ['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(id=>{const e=ge(id);if(e)e.style.display='none';});
         console.log('[Auth] Entering Performance portal...');
@@ -376,6 +377,7 @@ window._selectPortal=async portal=>{
         if(typeof window._startReadListener==='function') setTimeout(window._startReadListener, 800);
         console.log('[Auth] ✓ Performance portal entered');
       }else{
+        try{window._stopReadListener&&window._stopReadListener();}catch(_perfStop){}
         hideEntryLoading();
         ['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(id=>{const e=ge(id);if(e)e.style.display='none';});
         setUserDisplay(window._fbName,window._fbRole);
@@ -443,13 +445,13 @@ window._selectPortal=async portal=>{
         /* The GRC register listeners must bind only after the resolved user
            profile is known. Otherwise Auth may start them with an empty
            department and approved register changes never reach the dashboard. */
-        try{if(typeof window._grcRestartSecureSync==='function')window._grcRestartSecureSync();}catch(syncErr){console.warn('[GRC Secure Sync] profile rebind skipped',syncErr);}
+        try{var _grcNow=window.__qumcActivePortal==='grc'||!!(document.body&&document.body.classList.contains('grc-mode'));if(_grcNow&&typeof window._grcRestartSecureSync==='function')window._grcRestartSecureSync();}catch(syncErr){console.warn('[GRC Secure Sync] profile rebind skipped',syncErr);}
         if(role==='super_admin'||role==='admin')setTimeout(function(){try{window._grcRiskRepairPublishedRequests&&window._grcRiskRepairPublishedRequests(false).catch(function(e){console.warn('[GRC Publish Repair]',e&&e.message||e);});}catch(_){}},700);
         if(_normalizePortalRole(role)==='super_admin'){try{await _ensureOwnerRoleDefinitions();}catch(re){console.warn('[Roles] Owner role installation skipped:',re&&re.message||re);}}
         setUserDisplay(window._fbName,role);
         /* Shared audit: successful authentication + live audit sync for authorized viewers. */
         try{
-          window._startAuditListener&&window._startAuditListener();
+          /* Audit history listener is lazy: start it only when an Audit Trail UI is opened. */
           await _flushPendingAudit();
           if(window.__qumcAuditLoginLoggedFor!==email){
             window.__qumcAuditLoginLoggedFor=email;
