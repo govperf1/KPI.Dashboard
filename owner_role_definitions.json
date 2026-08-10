@@ -1,8 +1,8 @@
 {
   "risk_owner": {
-    "nameEn": "Risk Owner",
-    "nameAr": "مالك المخاطر",
-    "description": "Department-scoped owner for the GRC Risk and Incident Registers.",
+    "nameEn": "GRC Owner",
+    "nameAr": "مالك الحوكمة والمخاطر والالتزام",
+    "description": "Department-scoped GRC owner for the Risk and Incident Registers.",
     "platforms": [
       "grc"
     ],

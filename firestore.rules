@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v10 — Complete Append-Only Audit Trail
+// FIRESTORE SECURITY RULES v11 — Review & Development Department Approval
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -146,8 +146,8 @@ service cloud.firestore {
         (dept in ['housekeeping', 'Housekeeping', 'Housekeeping Department', 'Housekeeping Management', 'Cleaning', 'النظافة', 'إدارة النظافة', 'قسم النظافة'] && userDeptIn(['housekeeping', 'Housekeeping', 'Housekeeping Department', 'Housekeeping Management', 'Cleaning', 'النظافة', 'إدارة النظافة', 'قسم النظافة'])) ||
         (dept in ['laundry', 'Laundry', 'Laundry Department', 'Laundry Management', 'المغسلة', 'إدارة المغسلة', 'قسم المغسلة', 'الغسيل'] && userDeptIn(['laundry', 'Laundry', 'Laundry Department', 'Laundry Management', 'المغسلة', 'إدارة المغسلة', 'قسم المغسلة', 'الغسيل'])) ||
         (dept in ['projects', 'project', 'Projects', 'Project', 'project_management', 'projects_management', 'project management', 'projects management', 'Project Management', 'Projects Management', 'Project Management Department', 'Projects Management Department', 'Projects Department', 'Project Department', 'PM', 'المشاريع', 'إدارة المشاريع', 'قسم إدارة المشاريع', 'قسم المشاريع'] && userDeptIn(['projects', 'project', 'Projects', 'Project', 'project_management', 'projects_management', 'project management', 'projects management', 'Project Management', 'Projects Management', 'Project Management Department', 'Projects Management Department', 'Projects Department', 'Project Department', 'PM', 'المشاريع', 'إدارة المشاريع', 'قسم إدارة المشاريع', 'قسم المشاريع'])) ||
-        (dept in ['governance', 'Governance', 'Governance & Performance', 'Governance and Performance'] && userDeptIn(['governance', 'Governance', 'Governance & Performance', 'Governance and Performance'])) ||
-        (dept in ['division', 'FMS Division', 'Facility Management & Safety Division', 'Facilities & Safety Division'] && userDeptIn(['division', 'FMS Division', 'Facility Management & Safety Division', 'Facilities & Safety Division']));
+        (dept in ['governance', 'Governance', 'Governance & Performance', 'Governance and Performance', 'الحوكمة', 'الحوكمة والأداء', 'قسم الحوكمة والأداء', 'إدارة الحوكمة والأداء'] && userDeptIn(['governance', 'Governance', 'Governance & Performance', 'Governance and Performance', 'الحوكمة', 'الحوكمة والأداء', 'قسم الحوكمة والأداء', 'إدارة الحوكمة والأداء'])) ||
+        (dept in ['division', 'FMS Division', 'Facility Management & Safety Division', 'Facilities & Safety Division', 'إدارة المرافق والسلامة'] && userDeptIn(['division', 'FMS Division', 'Facility Management & Safety Division', 'Facilities & Safety Division', 'إدارة المرافق والسلامة']));
     }
 
     function hasConfiguredDepartment() {
@@ -495,6 +495,60 @@ service cloud.firestore {
     }
 
     // ── Review & Development Center ──────────────────────────────────
+    // Department approval is advisory-specific so Governance & Performance
+    // Manager can approve its own department without gaining Risk approvals.
+    function advisoryDepartmentManager() {
+      return departmentManager() ||
+        (approved() && role() in [
+          'governance_performance_manager',
+          'Governance & Performance Department Manager'
+        ]);
+    }
+
+    function advisorySubmissionNeedsManager() {
+      return approved() && hasConfiguredDepartment() &&
+        !advisoryDepartmentManager() && !admin();
+    }
+
+    function advisoryCreateDepartmentValid() {
+      return
+        (
+          !hasConfiguredDepartment() &&
+          request.resource.data.departmentKey is string &&
+          request.resource.data.departmentKey == ''
+        ) ||
+        (
+          hasConfiguredDepartment() &&
+          request.resource.data.departmentKey is string &&
+          sameDepartment(request.resource.data.departmentKey)
+        );
+    }
+
+    function validAdvisoryCreateRoute() {
+      return request.resource.data.requiresManagerApproval is bool &&
+        request.resource.data.requiresManagerApproval == advisorySubmissionNeedsManager() &&
+        request.resource.data.workflowStage is string &&
+        request.resource.data.managerDecision is string &&
+        (
+          (
+            advisorySubmissionNeedsManager() &&
+            request.resource.data.workflowStage == 'pending_department_manager' &&
+            request.resource.data.managerDecision == 'pending'
+          ) ||
+          (
+            !advisorySubmissionNeedsManager() &&
+            request.resource.data.workflowStage == 'pending_super_admin' &&
+            request.resource.data.managerDecision == 'not_required'
+          )
+        );
+    }
+
+    function advisoryManagerCanAccess(data) {
+      return advisoryDepartmentManager() && hasConfiguredDepartment() &&
+        ('departmentKey' in data) && data.departmentKey is string &&
+        sameDepartment(data.departmentKey);
+    }
+
     function validAdvisoryOwnerChange() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'status', 'messages', 'attachments', 'attachmentCount',
@@ -502,6 +556,25 @@ service cloud.firestore {
         'workflowStage', 'closureReason', 'updatedAt',
         'updatedAtIso', 'updatedBy'
       ]);
+    }
+
+    function advisoryOwnerRoutePreserved() {
+      return
+        (
+          resource.data.workflowStage == 'pending_department_manager' &&
+          request.resource.data.workflowStage in ['pending_department_manager', 'closed']
+        ) ||
+        (
+          resource.data.workflowStage == 'pending_super_admin' &&
+          request.resource.data.workflowStage in ['pending_super_admin', 'closed']
+        ) ||
+        (
+          resource.data.workflowStage == 'rejected_manager' &&
+          request.resource.data.workflowStage == 'rejected_manager'
+        ) ||
+        !(resource.data.workflowStage in [
+          'pending_department_manager', 'pending_super_admin', 'rejected_manager'
+        ]);
     }
 
     function validAdvisoryAdminChange() {
@@ -513,29 +586,82 @@ service cloud.firestore {
       ]);
     }
 
+    function advisoryAdminCanProcess() {
+      return !(resource.data.workflowStage in [
+        'pending_department_manager', 'rejected_manager'
+      ]);
+    }
+
+    function validAdvisoryManagerChange() {
+      return advisoryManagerCanAccess(resource.data) &&
+        !ownEmail(resource.data.userEmail) &&
+        resource.data.workflowStage == 'pending_department_manager' &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'workflowStage', 'closureReason',
+          'managerDecision', 'managerComment', 'managerName', 'managerEmail',
+          'managerActionAt', 'managerActionAtIso', 'closedAt',
+          'updatedAt', 'updatedAtIso', 'updatedBy'
+        ]) &&
+        (
+          (
+            request.resource.data.status == 'open' &&
+            request.resource.data.workflowStage == 'pending_super_admin' &&
+            request.resource.data.managerDecision == 'approved' &&
+            request.resource.data.closureReason == ''
+          ) ||
+          (
+            request.resource.data.status == 'closed' &&
+            request.resource.data.workflowStage == 'rejected_manager' &&
+            request.resource.data.managerDecision == 'rejected' &&
+            request.resource.data.closureReason == 'rejected_by_department_manager' &&
+            request.resource.data.managerComment is string &&
+            request.resource.data.managerComment.size() > 0
+          )
+        );
+    }
+
     function advisoryOwner(requestId) {
       return exists(/databases/$(database)/documents/advisory_requests/$(requestId)) &&
-        get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.userEmail == request.auth.token.email;
+        ownEmail(get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.userEmail);
+    }
+
+    function advisoryManagerForRequest(requestId) {
+      return exists(/databases/$(database)/documents/advisory_requests/$(requestId)) &&
+        advisoryManagerCanAccess(
+          get(/databases/$(database)/documents/advisory_requests/$(requestId)).data
+        );
+    }
+
+    function validAdvisoryPublicManagerChange() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'status', 'workflowStage', 'closureReason', 'managerDecision',
+        'managerActionAt', 'managerActionAtIso', 'closedAt', 'updatedAt'
+      ]);
     }
 
     match /advisory_requests/{requestId} {
       allow create: if approved() && ownEmail(request.resource.data.userEmail) &&
-        (
-          !('departmentKey' in request.resource.data) ||
-          request.resource.data.departmentKey == '' ||
-          sameDepartment(request.resource.data.departmentKey)
-        );
-      allow read: if approved() && (admin() || hasPerm('view_request_analytics') || ownEmail(resource.data.userEmail));
+        advisoryCreateDepartmentValid() && validAdvisoryCreateRoute();
+      allow read: if approved() && (
+        admin() || hasPerm('view_request_analytics') ||
+        ownEmail(resource.data.userEmail) || advisoryManagerCanAccess(resource.data)
+      );
       allow update: if
-        (admin() && validAdvisoryAdminChange()) ||
-        (approved() && ownEmail(resource.data.userEmail) && validAdvisoryOwnerChange());
+        (admin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
+        (approved() && ownEmail(resource.data.userEmail) &&
+          validAdvisoryOwnerChange() && advisoryOwnerRoutePreserved()) ||
+        (approved() && validAdvisoryManagerChange());
       allow delete: if superAdmin();
     }
 
     match /advisory_public/{requestId} {
       allow create: if approved() && advisoryOwner(requestId);
       allow read: if admin() || hasPerm('view_request_analytics');
-      allow update: if admin() || (approved() && advisoryOwner(requestId));
+      allow update: if
+        admin() ||
+        (approved() && advisoryOwner(requestId)) ||
+        (approved() && advisoryManagerForRequest(requestId) &&
+          validAdvisoryPublicManagerChange());
       allow delete: if superAdmin();
     }
 
@@ -546,7 +672,10 @@ service cloud.firestore {
         (admin() || ownEmail(request.resource.data.uploadedBy));
       allow read: if approved() && (
         admin() ||
-        (('requestId' in resource.data) && advisoryOwner(resource.data.requestId))
+        (('requestId' in resource.data) && (
+          advisoryOwner(resource.data.requestId) ||
+          advisoryManagerForRequest(resource.data.requestId)
+        ))
       );
       allow update: if false;
       allow delete: if admin();
