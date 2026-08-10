@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v13 — Cumulative Review Approval + Listener Fix
+// FIRESTORE SECURITY RULES v14 — Review Department Routing Compatibility Fix
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -517,32 +517,37 @@ service cloud.firestore {
     function advisoryDeptValueMatches(value, key) {
       return meaningfulDepartmentValue(value) && key is string && (
         (key == 'safety' && (
-          value.lower().matches('.*safe.*') || value.matches('.*السلامة.*') ||
-          value.lower() in ['saf', 'safety']
+          value.lower().matches('.*safe.*') || value.lower().matches('.*saf.*') ||
+          value.matches('.*السلامة.*') || value.matches('.*سلامة.*')
         )) ||
         (key == 'maintenance' && (
-          value.lower().matches('.*maint.*') || value.matches('.*الصيانة.*') ||
-          value.lower() in ['mnt', 'maintenance']
+          value.lower().matches('.*maint.*') || value.lower().matches('.*mnt.*') ||
+          value.matches('.*الصيانة.*') || value.matches('.*صيانة.*')
         )) ||
         (key == 'housekeeping' && (
           value.lower().matches('.*house.*') || value.lower().matches('.*clean.*') ||
-          value.matches('.*النظافة.*') || value.lower() in ['hsk', 'housekeeping']
+          value.lower().matches('.*hsk.*') || value.matches('.*النظافة.*') ||
+          value.matches('.*نظافة.*')
         )) ||
         (key == 'laundry' && (
-          value.lower().matches('.*laund.*') || value.matches('.*المغسلة.*') ||
-          value.matches('.*الغسيل.*') || value.lower() in ['lnd', 'laundry']
+          value.lower().matches('.*laund.*') || value.lower().matches('.*lnd.*') ||
+          value.matches('.*المغسلة.*') || value.matches('.*مغسلة.*') ||
+          value.matches('.*الغسيل.*')
         )) ||
         (key == 'projects' && (
-          value.lower().matches('.*project.*') || value.matches('.*المشاريع.*') ||
-          value.lower() in ['prj', 'pm', 'projects']
+          value.lower().matches('.*project.*') || value.lower().matches('.*prj.*') ||
+          value.lower().matches('.*pmd.*') || value.lower() in ['pm', 'projects'] ||
+          value.matches('.*المشاريع.*') || value.matches('.*مشاريع.*')
         )) ||
         (key == 'governance' && (
           value.lower().matches('.*govern.*') || value.lower().matches('.*performance.*') ||
-          value.matches('.*الحوكمة.*') || value.matches('.*الأداء.*') ||
-          value.lower() in ['gov', 'governance']
+          value.lower().matches('.*gov.*') || value.matches('.*الحوكمة.*') ||
+          value.matches('.*حوكمة.*') || value.matches('.*الأداء.*') || value.matches('.*الاداء.*')
         )) ||
         (key == 'division' && (
-          value.lower().matches('.*division.*') || value.lower() == 'fms'
+          value.lower().matches('.*division.*') || value.lower().matches('.*facility management.*') ||
+          value.lower().matches('.*facilities management.*') || value.matches('.*المرافق.*') ||
+          value.lower() == 'fms'
         ))
       );
     }
@@ -551,10 +556,11 @@ service cloud.firestore {
       return approved() && key is string && (
         (('dept' in userData()) && meaningfulDepartmentValue(userData().dept) &&
           advisoryDeptValueMatches(userData().dept, key)) ||
-        (!('dept' in userData()) && ('department' in userData()) &&
-          meaningfulDepartmentValue(userData().department) &&
+        ((!(('dept' in userData()) && meaningfulDepartmentValue(userData().dept))) &&
+          ('department' in userData()) && meaningfulDepartmentValue(userData().department) &&
           advisoryDeptValueMatches(userData().department, key)) ||
-        (!('dept' in userData()) && !('department' in userData()) &&
+        ((!(('dept' in userData()) && meaningfulDepartmentValue(userData().dept))) &&
+          (!(('department' in userData()) && meaningfulDepartmentValue(userData().department))) &&
           ('deptKey' in userData()) && meaningfulDepartmentValue(userData().deptKey) &&
           advisoryDeptValueMatches(userData().deptKey, key))
       );
