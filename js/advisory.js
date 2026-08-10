@@ -63,10 +63,15 @@
   function userDepartmentKey(){
     var raw=String(rawUserDepartment()==null?'':rawUserDepartment()).trim();
     if(!raw||/^(null|none|undefined|n\/?a|na|unassigned|not assigned|-|—)$/i.test(raw))return'';
-    raw=raw.toLowerCase().replace(/[\s&/-]+/g,'_');
-    if(raw.indexOf('safe')>=0||raw.indexOf('السلامة')>=0)return'safety';if(raw.indexOf('maint')>=0||raw.indexOf('الصيانة')>=0)return'maintenance';if(raw.indexOf('laund')>=0||raw.indexOf('المغسلة')>=0||raw.indexOf('الغسيل')>=0)return'laundry';
-    if(raw.indexOf('house')>=0||raw.indexOf('clean')>=0||raw.indexOf('النظافة')>=0)return'housekeeping';if(raw.indexOf('project')>=0||raw.indexOf('المشاريع')>=0)return'projects';
-    if(raw.indexOf('govern')>=0||raw.indexOf('performance')>=0||raw.indexOf('الحوكمة')>=0||raw.indexOf('الأداء')>=0)return'governance';if(raw.indexOf('division')>=0||raw==='fms')return'division';return DEPARTMENTS[raw]?raw:'';
+    var low=raw.toLowerCase(),compact=low.replace(/[^a-z0-9\u0600-\u06ff]+/g,' '),tokens=compact.split(/\s+/).filter(Boolean),has=function(x){return tokens.indexOf(x)>=0;};
+    if(low.indexOf('السلامة')>=0||low.indexOf('سلامة')>=0||low.indexOf('safety')>=0||has('saf'))return'safety';
+    if(low.indexOf('الصيانة')>=0||low.indexOf('صيانة')>=0||low.indexOf('maintenance')>=0||has('mnt'))return'maintenance';
+    if(low.indexOf('المغسلة')>=0||low.indexOf('مغسلة')>=0||low.indexOf('الغسيل')>=0||low.indexOf('laundry')>=0||has('lnd'))return'laundry';
+    if(low.indexOf('النظافة')>=0||low.indexOf('نظافة')>=0||low.indexOf('housekeeping')>=0||low.indexOf('cleaning')>=0||has('hsk'))return'housekeeping';
+    if(low.indexOf('المشاريع')>=0||low.indexOf('مشاريع')>=0||low.indexOf('project')>=0||has('prj')||has('pmd')||low==='pm')return'projects';
+    if(low.indexOf('الحوكمة')>=0||low.indexOf('حوكمة')>=0||low.indexOf('الأداء')>=0||low.indexOf('الاداء')>=0||low.indexOf('governance')>=0||low.indexOf('performance')>=0||has('gov'))return'governance';
+    if(low.indexOf('facility management')>=0||low.indexOf('facilities management')>=0||low.indexOf('المرافق')>=0||low.indexOf('division')>=0||low==='fms')return'division';
+    var normalized=low.replace(/[\s&/-]+/g,'_');return DEPARTMENTS[normalized]?normalized:'';
   }
   function workflowStage(r){var x=String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();return x==='submitted'?'pending_super_admin':x;}
   function workflowLabel(r){var x=workflowStage(r),m={pending_department_manager:'Pending Department Manager Approval',pending_super_admin:'Pending Super Admin Review',rejected_manager:'Rejected by Department Manager',responded:'Admin Response Sent',awaiting_requester_information:'Awaiting Requester Information',clarification_received:'Clarification Received',requester_confirmed:'Requester Confirmed',closed:'Closed'};return m[x]||String(x||'Open').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});}

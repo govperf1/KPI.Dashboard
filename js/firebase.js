@@ -697,15 +697,22 @@ window._selectPortal=async portal=>{
     function _advCanAnalyze(){return _advIsAdmin()||_clientHasPerm('view_request_analytics')||_advRole()==='governance_performance_manager';}
     function _advEmail(){return String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();}
     function _advRawDepartment(){return Object.prototype.hasOwnProperty.call(window,'_fbDept')?window._fbDept:window.currentUserDept;}
-    function _advDepartmentKey(){
-      let raw=String(_advRawDepartment()==null?'':_advRawDepartment()).trim();
+    function _advCanonicalDepartment(value){
+      let raw=String(value==null?'':value).trim();
       if(!raw||/^(null|none|undefined|n\/?a|na|unassigned|not assigned|-|—)$/i.test(raw))return'';
-      raw=raw.toLowerCase().replace(/[\s&/-]+/g,'_');
-      if(raw.includes('safe')||raw.includes('السلامة'))return'safety';if(raw.includes('maint')||raw.includes('الصيانة'))return'maintenance';if(raw.includes('laund')||raw.includes('المغسلة')||raw.includes('الغسيل'))return'laundry';
-      if(raw.includes('house')||raw.includes('clean')||raw.includes('النظافة'))return'housekeeping';if(raw.includes('project')||raw.includes('المشاريع'))return'projects';
-      if(raw.includes('govern')||raw.includes('performance')||raw.includes('الحوكمة')||raw.includes('الأداء'))return'governance';if(raw.includes('division')||raw==='fms')return'division';
-      return ['safety','maintenance','laundry','housekeeping','projects','governance','division'].includes(raw)?raw:'';
+      const low=raw.toLowerCase(), compact=low.replace(/[^a-z0-9\u0600-\u06ff]+/g,' '), tokens=compact.split(/\s+/).filter(Boolean);
+      const has=function(x){return tokens.indexOf(x)>=0;};
+      if(low.includes('السلامة')||low.includes('سلامة')||low.includes('safety')||has('saf'))return'safety';
+      if(low.includes('الصيانة')||low.includes('صيانة')||low.includes('maintenance')||has('mnt'))return'maintenance';
+      if(low.includes('المغسلة')||low.includes('مغسلة')||low.includes('الغسيل')||low.includes('laundry')||has('lnd'))return'laundry';
+      if(low.includes('النظافة')||low.includes('نظافة')||low.includes('housekeeping')||low.includes('cleaning')||has('hsk'))return'housekeeping';
+      if(low.includes('المشاريع')||low.includes('مشاريع')||low.includes('project')||has('prj')||has('pmd')||low==='pm')return'projects';
+      if(low.includes('الحوكمة')||low.includes('حوكمة')||low.includes('الأداء')||low.includes('الاداء')||low.includes('governance')||low.includes('performance')||has('gov'))return'governance';
+      if(low.includes('facility management')||low.includes('facilities management')||low.includes('المرافق')||low.includes('division')||low==='fms')return'division';
+      const normalized=low.replace(/[\s&/-]+/g,'_');
+      return ['safety','maintenance','laundry','housekeeping','projects','governance','division'].includes(normalized)?normalized:'';
     }
+    function _advDepartmentKey(){return _advCanonicalDepartment(_advRawDepartment());}
     function _advIso(){return new Date().toISOString();}
     function _advTsMs(v){if(!v)return 0;try{return v.toDate?v.toDate().getTime():new Date(v).getTime()||0;}catch(_){return 0;}}
     function _advIsFallbackRow(r){return !!(r&&(r.isReviewDevelopmentRequest===true||String(r.requestDomain||'')==='review_development'));}
@@ -810,7 +817,7 @@ window._selectPortal=async portal=>{
     window._advisorySubmit=async function(payload,file){
       if(!_advEmail()||!db)throw new Error('Not authenticated.');
       payload=payload||{};
-      const departmentKey=_advDepartmentKey(),requiresManagerApproval=!!departmentKey&&!_advIsDepartmentManager()&&!_advIsAdmin();
+      const profileDepartmentKey=_advDepartmentKey(),payloadDepartmentKey=_advCanonicalDepartment(payload.departmentKey),departmentKey=profileDepartmentKey||payloadDepartmentKey,requiresManagerApproval=!!departmentKey&&!_advIsDepartmentManager()&&!_advIsAdmin();
       const routedDeptCode=departmentKey?_advSafeCode(({safety:'SAF',maintenance:'MNT',laundry:'LND',housekeeping:'HSK',projects:'PRJ',governance:'GOV',division:'FMS'})[departmentKey]||payload.departmentCode):'FMS';
       const year=new Date().getFullYear(),deptCode=routedDeptCode,counterId=year+'_'+deptCode;
       const counterRef=doc(db,'advisory_counters',counterId),primaryRef=doc(collection(db,ADV_REQUESTS_COLLECTION));
