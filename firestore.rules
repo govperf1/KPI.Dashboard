@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v11 — Review & Development Department Approval
+// FIRESTORE SECURITY RULES v13 — Cumulative Review Approval + Listener Fix
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -510,6 +510,56 @@ service cloud.firestore {
         !advisoryDepartmentManager() && !admin();
     }
 
+    // Review & Development requests store a canonical departmentKey while some
+    // existing user profiles still contain display labels/codes. Match the same
+    // department normalization used by the browser so a valid scoped user is not
+    // blocked simply because the profile label is formatted differently.
+    function advisoryDeptValueMatches(value, key) {
+      return meaningfulDepartmentValue(value) && key is string && (
+        (key == 'safety' && (
+          value.lower().matches('.*safe.*') || value.matches('.*السلامة.*') ||
+          value.lower() in ['saf', 'safety']
+        )) ||
+        (key == 'maintenance' && (
+          value.lower().matches('.*maint.*') || value.matches('.*الصيانة.*') ||
+          value.lower() in ['mnt', 'maintenance']
+        )) ||
+        (key == 'housekeeping' && (
+          value.lower().matches('.*house.*') || value.lower().matches('.*clean.*') ||
+          value.matches('.*النظافة.*') || value.lower() in ['hsk', 'housekeeping']
+        )) ||
+        (key == 'laundry' && (
+          value.lower().matches('.*laund.*') || value.matches('.*المغسلة.*') ||
+          value.matches('.*الغسيل.*') || value.lower() in ['lnd', 'laundry']
+        )) ||
+        (key == 'projects' && (
+          value.lower().matches('.*project.*') || value.matches('.*المشاريع.*') ||
+          value.lower() in ['prj', 'pm', 'projects']
+        )) ||
+        (key == 'governance' && (
+          value.lower().matches('.*govern.*') || value.lower().matches('.*performance.*') ||
+          value.matches('.*الحوكمة.*') || value.matches('.*الأداء.*') ||
+          value.lower() in ['gov', 'governance']
+        )) ||
+        (key == 'division' && (
+          value.lower().matches('.*division.*') || value.lower() == 'fms'
+        ))
+      );
+    }
+
+    function advisoryConfiguredDepartmentMatches(key) {
+      return approved() && key is string && (
+        (('dept' in userData()) && meaningfulDepartmentValue(userData().dept) &&
+          advisoryDeptValueMatches(userData().dept, key)) ||
+        (!('dept' in userData()) && ('department' in userData()) &&
+          meaningfulDepartmentValue(userData().department) &&
+          advisoryDeptValueMatches(userData().department, key)) ||
+        (!('dept' in userData()) && !('department' in userData()) &&
+          ('deptKey' in userData()) && meaningfulDepartmentValue(userData().deptKey) &&
+          advisoryDeptValueMatches(userData().deptKey, key))
+      );
+    }
+
     function advisoryCreateDepartmentValid() {
       return
         (
@@ -520,7 +570,7 @@ service cloud.firestore {
         (
           hasConfiguredDepartment() &&
           request.resource.data.departmentKey is string &&
-          sameDepartment(request.resource.data.departmentKey)
+          advisoryConfiguredDepartmentMatches(request.resource.data.departmentKey)
         );
     }
 
@@ -546,7 +596,7 @@ service cloud.firestore {
     function advisoryManagerCanAccess(data) {
       return advisoryDepartmentManager() && hasConfiguredDepartment() &&
         ('departmentKey' in data) && data.departmentKey is string &&
-        sameDepartment(data.departmentKey);
+        advisoryConfiguredDepartmentMatches(data.departmentKey);
     }
 
     function validAdvisoryOwnerChange() {
