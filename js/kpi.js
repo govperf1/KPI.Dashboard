@@ -389,7 +389,7 @@ function updateUserBadge(name, role){
   const rl=document.getElementById('_userRole');
   if(rl){
     const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',
-             department_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'Risk Owner',platform_owner:'Performance & GRC Owner',viewer:'Viewer'};
+             department_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'GRC Owner',grc_owner:'GRC Owner',platform_owner:'Performance & GRC Owner',viewer:'Viewer'};
     rl.textContent=L[role]||role||'—';
     const c=role==='super_admin'||role==='admin'?'#F87171':
              role==='executive'?'#A78BFA':

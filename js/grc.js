@@ -480,7 +480,7 @@
       treatment:'inProgress',inprogress:'inProgress',underreview:'underReview',
       pendingverification:'pendingVerification',pendingapproval:'pendingApproval',
       criticalseverity:'critical',moderateseverity:'medium',critical:'critical',
-      high:'high',medium:'medium',low:'low',successful:'successful',failed:'failed',
+      high:'high',medium:'medium',low:'low',successful:'successful',success:'successful',succeeded:'successful',failed:'failed',failure:'failed',unsuccessful:'failed',
       real:'real',drill:'drill',completed:'completed',planned:'planned',draft:'draft',
       archived:'archived',compliant:'compliant',partial:'partial',
       noncompliant:'nonCompliant',notapplicable:'notApplicable',yes:'yes',no:'no'
@@ -770,11 +770,15 @@
     (EMERGENCY_CODE_SEED||[]).forEach(function(seed){
       var key=String(seed.id||seed.sourceRecordId||'').trim(),old=byId[key],record=copyRecord(seed);
       if(old)Object.keys(old).forEach(function(k){
+        /* The approved Emergency Coding System export marks every imported
+           historical record as Successful. Do not let stale local/Firestore
+           status values overwrite that authoritative source outcome. */
+        if(k==='status')return;
         if(old[k]!==undefined&&old[k]!==null&&old[k]!=='')record[k]=old[k];
       });
       record.id=String(record.id||record.sourceRecordId||key);
       record.sourceRecordId=String(record.sourceRecordId||record.id||key);
-      record.status=normalizeStatus(record.status||'successful');
+      record.status=normalizeStatus(seed.status||'successful');
       record.type=normalizeStatus(record.type||'real');
       record.subtype=normalizeEmergencyCodeSubtype(record.subtype||record.codeSubtype||record.failureType);
       merged.push(record);
@@ -1386,6 +1390,7 @@
     await Promise.all(required.map(async function(item){
       var prepared=grcPrepareCloudRecord(item.key,item.record,item.index,b),ref=b.fs.doc(b.db,GRC_COLLECTION_MAP[item.key],prepared._cloudId),snap=await b.fs.getDoc(ref);
       if(!snap.exists())writes.push({op:'set',ref:ref,data:prepared});
+      else if(item.key==='codes'&&String(item.record&&item.record.sourceSystem||'')==='Emergency Coding System Admin'&&normalizeStatus(snap.data()&&snap.data().status)!=='successful')await b.fs.updateDoc(ref,{status:'successful',cloudUpdatedAt:b.fs.serverTimestamp(),updatedAtIso:new Date().toISOString()});
     }));
     if(writes.length){await grcCommitWrites(b,writes);try{window._recordAuditDirect&&window._recordAuditDirect('GRC_BASELINE_REPAIR','Added missing approved Risk, Incident and Initiative baseline records',null,{records:writes.length},{portal:'grc'});}catch(_){}}
     return writes.length>0;
@@ -1531,7 +1536,7 @@
   function L(k){var lang=isAr()?'ar':'en';return(labels[lang]&&labels[lang][k])||labels.en[k]||k;}
   function esc(v){return String(v==null?'':v).replace(/[&<>'"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];});}
   function currentName(){return String(window._fbName||window.currentUserName||(window._fbUser||'').split('@')[0]||'Super Admin');}
-  function roleText(){var r=normalizedRole(),m={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Department Manager',kpi_owner:'KPI Owner',risk_owner:'Risk Owner',grc_owner:'Risk Owner',platform_owner:'Performance & GRC Owner',viewer:'Viewer',user:'User'};return m[r]||String(window._fbRole||window.currentUserRole||'Viewer');}
+  function roleText(){var r=normalizedRole(),m={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Department Manager',kpi_owner:'KPI Owner',risk_owner:'GRC Owner',grc_owner:'GRC Owner',platform_owner:'Performance & GRC Owner',viewer:'Viewer',user:'User'};return m[r]||String(window._fbRole||window.currentUserRole||'Viewer');}
   function today(){var d=new Date();d.setHours(0,0,0,0);return d;}
   function parseDate(v){if(!v)return null;var d=new Date(String(v).length===10?v+'T00:00:00':v);return isNaN(d.getTime())?null:d;}
   function dateText(v){var d=parseDate(v);if(!d)return'—';try{return new Intl.DateTimeFormat(isAr()?'ar-SA':'en-GB',{year:'numeric',month:'short',day:'numeric',hour:String(v).indexOf('T')>=0?'2-digit':undefined,minute:String(v).indexOf('T')>=0?'2-digit':undefined}).format(d);}catch(_){return String(v);}}
@@ -3684,7 +3689,7 @@
         ['Inadequate training','Inadequate training'],['Equipment aging','Equipment aging'],['Unsafe work conditions','Unsafe work conditions'],['Human error','Human error'],['Inadequate preventive maintenance (PPM)','Inadequate preventive maintenance (PPM)'],['Operational failure','Operational failure']
       ],true,true)+
       field('investigationRequired',L('investigationRequired'),'select',[['yes',L('yes')],['no',L('no')]],true)+field('status',L('status'),'select',statusOptions(type),true,false,'open')+field('department',L('responsibleDept'),'select',deptOptions(),true,false,d)};
-    if(type==='code')return{title:L('addCode'),collection:'codes',prefix:'COD',fields:field('codeType',L('emergencyCodeType'),'select',[['brown',isAr()?'الكود البني':'Brown Code'],['orange',isAr()?'الكود البرتقالي':'Orange Code'],['red',isAr()?'الكود الأحمر':'Red Code'],['blue',isAr()?'الكود الأزرق':'Blue Code'],['yellow',isAr()?'الكود الأصفر':'Yellow Code'],['pink',isAr()?'الكود الوردي':'Pink Code']],true)+field('subtype',L('codeSubtype'),'select',[['electrical',isAr()?'انقطاع الكهرباء':'Electrical power supply failure'],['water',isAr()?'انقطاع المياه':'Water supply failure'],['medicalGas',isAr()?'تعطل الغازات الطبية':'Medical gas failure'],['elevators',isAr()?'المصاعد':'Elevators'],['chemicalSpill',isAr()?'انسكاب كيميائي':'Chemical spill'],['biologicalSpill',isAr()?'انسكاب بيولوجي':'Biological spill'],['notApplicable',isAr()?'غير متوفر':'Not Available'],['other',L('other')]],true,false,'notApplicable')+field('type',L('eventType'),'select',[['real',L('real')],['drill',L('drill')]],true)+field('status',L('status'),'select',[['successful',L('successful')],['failed',L('failed')],['open',L('open')],['closed',L('closed')]],true)+field('date',L('date'),'datetime-local',null,true)+field('location',L('location'),'text',null,true)+field('closeDateTime',L('closeDateTime'),'datetime-local',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)};
+    if(type==='code')return{title:L('addCode'),collection:'codes',prefix:'COD',fields:field('codeType',L('emergencyCodeType'),'select',[['brown',isAr()?'الكود البني':'Brown Code'],['orange',isAr()?'الكود البرتقالي':'Orange Code'],['red',isAr()?'الكود الأحمر':'Red Code'],['blue',isAr()?'الكود الأزرق':'Blue Code'],['yellow',isAr()?'الكود الأصفر':'Yellow Code'],['pink',isAr()?'الكود الوردي':'Pink Code']],true)+field('subtype',L('codeSubtype'),'select',[['electrical',isAr()?'انقطاع الكهرباء':'Electrical power supply failure'],['water',isAr()?'انقطاع المياه':'Water supply failure'],['medicalGas',isAr()?'تعطل الغازات الطبية':'Medical gas failure'],['elevators',isAr()?'المصاعد':'Elevators'],['chemicalSpill',isAr()?'انسكاب كيميائي':'Chemical spill'],['biologicalSpill',isAr()?'انسكاب بيولوجي':'Biological spill'],['notApplicable',isAr()?'غير متوفر':'Not Available'],['other',L('other')]],true,false,'notApplicable')+field('type',L('eventType'),'select',[['real',L('real')],['drill',L('drill')]],true)+field('status',L('status'),'select',[['successful',L('successful')],['failed',L('failed')]],true)+field('date',L('date'),'datetime-local',null,true)+field('location',L('location'),'text',null,true)+field('closeDateTime',L('closeDateTime'),'datetime-local',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)};
     if(type==='compliance')return{title:L('addRequirement'),collection:'compliance',prefix:'CMP',fields:field('requirement',L('requirement'),'textarea',null,true,true)+field('authority',L('authority'),'text',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('dueDate',L('dueDate'),'date')+field('status',L('status'),'select',[['underReview',L('underReview')],['compliant',L('compliant')],['partial',L('partial')],['nonCompliant',L('nonCompliant')],['notApplicable',L('notApplicable')]],true)};
     if(type==='audit')return{title:L('addFinding'),collection:'audits',prefix:'AUD',fields:field('finding',L('title'),'textarea',null,true,true)+field('severity',L('severity'),'select',[['observation',L('observation')],['minor',L('minor')],['medium',L('medium')],['major',L('major')],['critical',L('critical')]],true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('dueDate',L('dueDate'),'date')+field('status',L('status'),'select',statusOptions(type),true,false,'open')};
     if(type==='action')return{title:L('addAction'),collection:'actions',prefix:'ACT',fields:field('description',L('title'),'textarea',null,true,true)+field('source',L('source'),'text',null,true)+field('department',L('department'),'select',deptOptions(),true,false,d)+field('owner',L('owner'),'text',null,true)+field('dueDate',L('dueDate'),'date',null,true)+field('progress',L('progress'),'number',null,true)+field('status',L('status'),'select',statusOptions(type),true,false,'open')};
@@ -3846,6 +3851,7 @@
   function _grcInlineOptions(fieldName,map){
     if(fieldName==='department')return deptOptions();
     if(fieldName==='executionStatus')return[['planned',L('planned')],['in_progress',L('inProgress')],['completed',L('completed')]];
+    if(fieldName==='status'&&map.type==='code')return[['successful',L('successful')],['failed',L('failed')]];
     if(fieldName==='status'||fieldName==='actionStatus')return statusOptions(map.type);
     if(fieldName==='investigationRequired')return[['yes',L('yes')],['no',L('no')]];
     if(fieldName==='type'&&map.type==='code')return[['real',L('real')],['drill',L('drill')]];

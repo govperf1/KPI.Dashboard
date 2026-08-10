@@ -275,7 +275,7 @@ function updateExecTrend(yr){
 /* -- Profile topbar helper only (legacy notification writes disabled) -- */
 (function(){
   function roleLabel(role){
-    return ({super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'Risk Owner',platform_owner:'Performance & GRC Owner',gap_owner:'Gap Owner',viewer:'Viewer'})[role]||role||'—';
+    return ({super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'GRC Owner',grc_owner:'GRC Owner',platform_owner:'Performance & GRC Owner',gap_owner:'Gap Owner',viewer:'Viewer'})[role]||role||'—';
   }
   window.refreshUserTopbar=function(){
     try{
@@ -691,7 +691,7 @@ function updateExecTrend(yr){
     panel.style.position='fixed'; panel.style.width=w+'px'; panel.style.top=(r.bottom+10)+'px'; panel.style.left=Math.max(12, Math.min(window.innerWidth-w-12, r.right-w))+'px'; panel.style.right='auto'; panel.style.zIndex='2147483646';
   }
   function closePanel(id){ var el=$(id); if(el){ el.style.display='none'; el.classList.remove('qumc-final-open','qumc-stay-open','qumc-profile-open'); } }
-  function roleLabel(r){ return ({super_admin:'Super Admin',superadmin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',dept_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'Risk Owner',platform_owner:'Performance & GRC Owner',gap_owner:'Gap Owner',viewer:'Viewer'})[r] || r || '—'; }
+  function roleLabel(r){ return ({super_admin:'Super Admin',superadmin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',dept_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'GRC Owner',grc_owner:'GRC Owner',platform_owner:'Performance & GRC Owner',gap_owner:'Gap Owner',viewer:'Viewer'})[r] || r || '—'; }
   function refreshProfile(){
     var name=uname(), mail=rawEmail() || '—', r=roleLabel(role()), d=dept() || window._fbDept || '—';
     var ids={topUserName:name, topUserRole:r, profileName:name, profileEmail:mail, profileNameRow:name, profileRoleRow:r, profileDeptRow:d, profileLastLoginRow:'Current session'};
