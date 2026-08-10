@@ -419,3 +419,9 @@ body > .adv-success-backdrop .adv-success-ok:focus{outline:3px solid rgba(18,167
 .adv-workflow-stage.pending{background:#fff5dd;color:#8b6508;border:1px solid #f2dfa9}
 .adv-manager-action-card{border-inline-start:4px solid #1595a6}
 .adv-manager-decision{border-inline-start:4px solid #2f9e6f}
+
+/* v150 — Review & Development submission approval-route confirmation */
+.adv-success-route{margin:14px 0;padding:12px 14px;border:1px solid #cfe4ec;border-radius:12px;background:#f6fbfd;text-align:left}
+.adv-success-route strong{display:block;font-size:11px;color:#547181;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
+.adv-success-route span{display:block;font-size:14px;font-weight:800;color:#173f55;margin-bottom:4px}
+.adv-success-route small{display:block;font-size:11px;line-height:1.55;color:#637c89}
