@@ -411,3 +411,11 @@ body > .adv-success-backdrop .adv-success-ok{
 }
 body > .adv-success-backdrop .adv-success-ok:hover{transform:translateY(-1px)!important;box-shadow:0 13px 29px rgba(8,126,140,.29)!important}
 body > .adv-success-backdrop .adv-success-ok:focus{outline:3px solid rgba(18,167,181,.18)!important;outline-offset:2px!important}
+
+/* v149 — Department Manager approval workflow */
+.adv-manager-queue{margin-bottom:14px}
+.adv-manager-count{display:inline-flex;align-items:center;justify-content:center;min-width:72px;padding:6px 10px;border-radius:999px;background:#e7f6f7;color:#176b77;font-size:9px;font-weight:850;border:1px solid #c7e7ea}
+.adv-workflow-stage{display:inline-flex;align-items:center;max-width:210px;padding:4px 8px;border-radius:999px;background:#eef4f6;color:#496872;font-size:8.5px;font-weight:800;line-height:1.25}
+.adv-workflow-stage.pending{background:#fff5dd;color:#8b6508;border:1px solid #f2dfa9}
+.adv-manager-action-card{border-inline-start:4px solid #1595a6}
+.adv-manager-decision{border-inline-start:4px solid #2f9e6f}
