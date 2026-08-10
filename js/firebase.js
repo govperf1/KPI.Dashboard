@@ -835,7 +835,7 @@ window._selectPortal=async portal=>{
       try{await setDoc(doc(db,ADV_PUBLIC_COLLECTION,primaryRef.id),_advPublicShape(base),{merge:false});}catch(publicError){warning='The request was saved, but dashboard analytics could not be updated.';console.warn('[Review Development] public analytics write failed',publicError&&publicError.code||publicError);}
       if(file){try{const meta=await _advUploadFile(requestId,file,_advEmail());await updateDoc(primaryRef,{attachments:arrayUnion(meta),attachmentCount:1,updatedAt:serverTimestamp()});try{await updateDoc(doc(db,ADV_PUBLIC_COLLECTION,requestId),{attachmentCount:1,updatedAt:serverTimestamp()});}catch(_){}}catch(fileError){warning=(warning?warning+' ':'')+'The request was submitted, but the attachment could not be uploaded.';console.warn('[Review Development] attachment upload failed',fileError&&fileError.code||fileError);}}
       try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_REQUEST_SUBMIT','Submitted '+String(base.platform||'grc')+' Review & Development request '+code,null,{requestId:requestId,code:code,requestType:base.requestType,category:base.category,workflowStage:base.workflowStage,departmentKey:departmentKey},{portal:String(base.platform||'grc')});}catch(_){}
-      return {id:requestId,code,storage,warning,workflowStage:base.workflowStage};
+      return {id:requestId,code,storage,warning,workflowStage:base.workflowStage,departmentKey:departmentKey};
     };
 
     window._advisoryGetPublic=async function(){
@@ -864,16 +864,57 @@ window._selectPortal=async portal=>{
     window._advisorySubscribe=function(callback){
       if(typeof callback!=='function'||!_advEmail()||!db)return function(){};
       let closed=false,timer=null,unsubs=[];
-      const signal=function(){if(closed)return;clearTimeout(timer);timer=setTimeout(function(){if(!closed)callback();},180);};
-      const listen=function(qref){try{unsubs.push(onSnapshot(qref,signal,function(){/* Listener errors are handled by explicit reload paths. */}));}catch(_){ }};
+      const sources={};
+      const required=[];
+      const me=_advEmail();
+      const dept=_advDepartmentKey();
+      const stageOf=function(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();};
+      const rowsFromSnap=function(snap,storage){return snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),storage);});};
+      const emit=function(){
+        if(closed)return;
+        if(required.some(function(k){return !sources[k]||!sources[k].ready;}))return;
+        clearTimeout(timer);
+        timer=setTimeout(function(){
+          if(closed)return;
+          let primary=(sources.primary&&sources.primary.rows)||[];
+          const fallback=(sources.fallback&&sources.fallback.rows)||[];
+          /* A Department Manager needs one department query only. That same query
+             contains the manager's own requests plus the queue for that department,
+             so a second "own" listener would duplicate Firestore reads. */
+          if(_advIsDepartmentManager()){
+            primary=primary.filter(function(r){
+              const owner=String(r&&r.userEmail||'').toLowerCase().trim();
+              if(owner===me)return true;
+              return !!dept && String(r&&r.departmentKey||'')===dept && stageOf(r)==='pending_department_manager';
+            });
+          }
+          const merged=_advMergeRows(primary,fallback,false);
+          callback({
+            records:merged,
+            publicRecords:merged.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;}),
+            source:'snapshot'
+          });
+        },90);
+      };
+      const listen=function(key,qref,storage){
+        required.push(key);sources[key]={ready:false,rows:[]};
+        try{
+          unsubs.push(onSnapshot(qref,function(snap){sources[key]={ready:true,rows:rowsFromSnap(snap,storage)};emit();},function(err){
+            console.warn('[Review Development] live listener failed',key,err&&err.code||err);
+            sources[key]={ready:true,rows:[]};emit();
+          }));
+        }catch(err){sources[key]={ready:true,rows:[]};emit();}
+      };
       if(_advIsDepartmentManager()){
-        const dept=_advDepartmentKey();if(dept)listen(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)));
-        listen(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
-        listen(query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',_advEmail())));
+        if(dept)listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)),'advisory_requests');
+        else listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
+        listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
       }else if(_advCanAnalyze()){
-        listen(collection(db,ADV_REQUESTS_COLLECTION));listen(collection(db,ADV_FALLBACK_COLLECTION));
+        listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
+        listen('fallback',collection(db,ADV_FALLBACK_COLLECTION),'kpi_requests');
       }else{
-        listen(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));listen(query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',_advEmail())));
+        listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
+        listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
       }
       return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
@@ -1366,17 +1407,14 @@ window._selectPortal=async portal=>{
           }
 
           /* Reconcile: if a KPI in ST.added is also in ST.deleted, remove it from deleted.
-             "Added wins over deleted." Save corrected state once (rate-limited, no loop). */
+             "Added wins over deleted." Reconcile locally only; the listener never writes. */
           if(typeof _reconcileDeletedVsAdded==='function'){
             var reconciled=_reconcileDeletedVsAdded(ST);
             if(reconciled){
               changed=true;
               sLS(ST);
-              if(typeof window._saveToFS==='function' && window._fbUser &&
-                 (Date.now()-(window._lastReconcileSave||0)) > 5000){
-                window._lastReconcileSave=Date.now();
-                window._saveToFS(ST).catch(function(e){console.warn('[reconcile] onSnapshot save:',e.message);});
-              }
+              /* Read listener is strictly read-only. The repaired local state is
+                 persisted to Firestore only by a later explicit user save. */
             }
           }
           if(!changed){ return; }
@@ -1446,14 +1484,10 @@ window._selectPortal=async portal=>{
 
         /* Reconcile: added KPIs must never be in deleted list.
            If ST.deleted contains any id from ST.added, remove it.
-           Save the corrected state to Firestore once (no loop). */
+           Keep the corrected state local until the next explicit user save. */
         if(typeof _reconcileDeletedVsAdded==='function' && _reconcileDeletedVsAdded(ST)){
           sLS(ST);
-          if(typeof window._saveToFS==='function' && window._fbUser){
-            window._saveToFS(ST)
-              .then(function(){console.log('[reconcile] ST.deleted corrected and saved to Firestore');})
-              .catch(function(e){console.warn('[reconcile] save failed:',e.message);});
-          }
+          /* Do not auto-write during load. _saveToFS is reserved for explicit user actions. */
         }        /* Clean nulls from ov (same protection as _loadST) */
         if(ST.ov){
           Object.keys(ST.ov).forEach(kId=>{
