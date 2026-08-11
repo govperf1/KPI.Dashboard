@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v17 — Canonical Department Matching + Incident Cleanup
+// FIRESTORE SECURITY RULES v18 — Query-Safe Canonical Department Scope
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -200,8 +200,26 @@ service cloud.firestore {
       );
     }
 
+    // One canonical key per signed-in account. This value depends only on the
+    // user profile, so collection queries can use the exact same equality
+    // constraint as the security rule. Firestore rules are not filters; using
+    // the old alias-based resource condition caused valid department queries to
+    // be rejected for some accounts even though individual documents matched.
+    function userDepartmentKey() {
+      return sameDepartment('safety') ? 'safety' :
+             sameDepartment('maintenance') ? 'maintenance' :
+             sameDepartment('housekeeping') ? 'housekeeping' :
+             sameDepartment('laundry') ? 'laundry' :
+             sameDepartment('projects') ? 'projects' :
+             sameDepartment('governance') ? 'governance' :
+             sameDepartment('division') ? 'division' : '';
+    }
+
     function validGrcRecord(data) {
       return data.department is string &&
+             data.departmentKey is string &&
+             data.departmentKey == data.department &&
+             data.departmentKey in ['safety', 'maintenance', 'housekeeping', 'laundry', 'projects', 'governance', 'division'] &&
              data.visibility is string &&
              data.visibility in ['department', 'shared'] &&
              data.schemaVersion == 2;
@@ -211,14 +229,28 @@ service cloud.firestore {
       return canAccessGrc() && (
         viewAllGrcDepartments() ||
         sharedGrcRecord(data) ||
-        (('department' in data) && sameDepartment(data.department))
+        (('departmentKey' in data) && data.departmentKey == userDepartmentKey()) ||
+        (!('departmentKey' in data) && ('department' in data) && sameDepartment(data.department))
       );
     }
 
-    function canReadDepartmentGrcRecord(data) {
+    // Query-safe department scope. The client lists scoped collections with
+    // where('departmentKey', '==', <canonical user department>). The equality
+    // below deliberately mirrors that exact constraint.
+    function canListDepartmentGrcRecord(data) {
       return canAccessGrc() && (
         viewAllGrcDepartments() ||
-        (('department' in data) && sameDepartment(data.department))
+        (('departmentKey' in data) && data.departmentKey == userDepartmentKey())
+      );
+    }
+
+    // Individual document reads retain a legacy fallback while the automatic
+    // Admin normalization upgrades old documents to departmentKey.
+    function canGetDepartmentGrcRecord(data) {
+      return canAccessGrc() && (
+        viewAllGrcDepartments() ||
+        (('departmentKey' in data) && data.departmentKey == userDepartmentKey()) ||
+        (!('departmentKey' in data) && ('department' in data) && sameDepartment(data.department))
       );
     }
 
@@ -231,8 +263,9 @@ service cloud.firestore {
     function directRiskStatusChange() {
       return canAccessGrc() &&
         (riskOwner() || hasPerm('submit_risk_changes') || hasPerm('edit_risk_management')) &&
-        sameDepartment(resource.data.department) &&
+        ((('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey()) || sameDepartment(resource.data.department)) &&
         request.resource.data.department == resource.data.department &&
+        request.resource.data.departmentKey == resource.data.departmentKey &&
         request.resource.data.visibility == resource.data.visibility &&
         request.resource.data.schemaVersion == resource.data.schemaVersion &&
         request.resource.data.actionStatus is string &&
@@ -397,19 +430,22 @@ service cloud.firestore {
 
     // ── Department-scoped GRC register collections ───────────────────
     match /grc_policies/{recordId} {
-      allow read: if canReadDepartmentGrcRecord(resource.data);
+      allow get: if canGetDepartmentGrcRecord(resource.data);
+      allow list: if canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_plans/{recordId} {
-      allow read: if canReadDepartmentGrcRecord(resource.data);
+      allow get: if canGetDepartmentGrcRecord(resource.data);
+      allow list: if canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_forms/{recordId} {
-      allow read: if canReadDepartmentGrcRecord(resource.data);
+      allow get: if canGetDepartmentGrcRecord(resource.data);
+      allow list: if canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
@@ -421,7 +457,8 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_risks/{recordId} {
-      allow read: if canReadRiskIncidentRegister() && canReadDepartmentGrcRecord(resource.data);
+      allow get: if canReadRiskIncidentRegister() && canGetDepartmentGrcRecord(resource.data);
+      allow list: if canReadRiskIncidentRegister() && canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if
         (canWriteGrcRecord() && validGrcRecord(request.resource.data)) ||
@@ -429,7 +466,8 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_incidents/{recordId} {
-      allow read: if canReadRiskIncidentRegister() && canReadDepartmentGrcRecord(resource.data);
+      allow get: if canReadRiskIncidentRegister() && canGetDepartmentGrcRecord(resource.data);
+      allow list: if canReadRiskIncidentRegister() && canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
