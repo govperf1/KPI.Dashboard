@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v22 — Canonical Scoped Reads + Stable Review Workflow
+// FIRESTORE SECURITY RULES v23 — Exact Scoped Queries + Stable Review Approval Queues
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -37,7 +37,8 @@ service cloud.firestore {
     }
 
     function role() {
-      return ('role' in userData()) ? normalizedRoleValue(userData().role) : 'viewer';
+      let r = ('role' in userData()) ? normalizedRoleValue(userData().role) : 'viewer';
+      return r == 'superadmin' ? 'super_admin' : r;
     }
 
     function rolePath() {
@@ -547,10 +548,10 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // an allowed get proves that v22 is actually deployed. Older rule sets
+    // an allowed get proves that v23 is actually deployed. Older rule sets
     // fall through to the default deny and the client can report that precisely.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v22-review-development';
+      allow get: if approved() && versionId == 'v23-review-development';
       allow list, create, update, delete: if false;
     }
 
@@ -561,28 +562,42 @@ service cloud.firestore {
       return departmentManager() || (approved() && role() == 'governance_performance_manager');
     }
 
-    // The requester is already authenticated and their department is locked
-    // to the Firestore user profile at create time. Final Super Admin processing
-    // derives whether manager approval was required from that requester profile,
-    // not from client-supplied routing fields. This keeps create reliable while
-    // still preventing a normal user from bypassing Department Manager approval.
-    function advisoryRequesterRole(data) {
-      return get(/databases/$(database)/documents/users/$(data.userEmail)).data.role;
+    // Review routing is fixed at CREATE time from the authenticated user's
+    // Firestore profile. The routing fields are immutable afterwards, so later
+    // Manager/Super Admin decisions never need to re-read the requester's user
+    // document. This keeps the rules query-friendly and avoids profile lookups
+    // when listing department approval queues.
+    function advisoryCreateNeedsManager() {
+      return userDepartmentKey() != '' && !advisoryDepartmentManager() && !admin();
     }
 
-    function advisoryRequesterNeedsManager(data) {
-      let rr = normalizedRoleValue(advisoryRequesterRole(data));
-      return data.departmentKey != '' &&
-        !(rr in [
-          'department_manager', 'dept_manager', 'departmentmanager',
-          'governance_performance_manager', 'admin', 'super_admin'
-        ]);
+    function validAdvisoryCreateRoute() {
+      return ('requesterUid' in request.resource.data) &&
+        request.resource.data.requesterUid == request.auth.uid &&
+        ('requesterRole' in request.resource.data) &&
+        request.resource.data.requesterRole == role() &&
+        ('requiresManagerApproval' in request.resource.data) &&
+        request.resource.data.requiresManagerApproval == advisoryCreateNeedsManager() &&
+        (
+          (advisoryCreateNeedsManager() &&
+            request.resource.data.workflowStage == 'pending_department_manager' &&
+            request.resource.data.managerDecision == 'pending') ||
+          (!advisoryCreateNeedsManager() &&
+            request.resource.data.workflowStage == 'pending_super_admin' &&
+            request.resource.data.managerDecision == 'not_required')
+        );
     }
 
-    function advisoryManagerCanAccess(data) {
+    function advisoryManagerDepartmentMatch(data) {
       return advisoryDepartmentManager() && hasConfiguredDepartment() &&
         ('departmentKey' in data) && data.departmentKey is string &&
-        sameDepartment(data.departmentKey);
+        data.departmentKey == userDepartmentKey();
+    }
+
+    function advisoryManagerCanRead(data) {
+      return advisoryManagerDepartmentMatch(data) &&
+        ('workflowStage' in data) && data.workflowStage == 'pending_department_manager' &&
+        !ownEmail(data.userEmail);
     }
 
     function validAdvisoryOwnerChange() {
@@ -625,14 +640,13 @@ service cloud.firestore {
     function advisoryAdminCanProcess() {
       return !(resource.data.workflowStage in ['pending_department_manager', 'rejected_manager']) &&
         (
-          !advisoryRequesterNeedsManager(resource.data) ||
-          (resource.data.managerDecision == 'approved' &&
-            resource.data.workflowStage == 'pending_super_admin')
+          resource.data.requiresManagerApproval != true ||
+          resource.data.managerDecision == 'approved'
         );
     }
 
     function validAdvisoryManagerChange() {
-      return advisoryManagerCanAccess(resource.data) &&
+      return advisoryManagerDepartmentMatch(resource.data) &&
         !ownEmail(resource.data.userEmail) &&
         resource.data.workflowStage == 'pending_department_manager' &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -666,8 +680,12 @@ service cloud.firestore {
 
     function advisoryManagerForRequest(requestId) {
       return exists(/databases/$(database)/documents/advisory_requests/$(requestId)) &&
-        advisoryManagerCanAccess(
+        advisoryManagerDepartmentMatch(
           get(/databases/$(database)/documents/advisory_requests/$(requestId)).data
+        ) &&
+        (
+          get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.workflowStage == 'pending_department_manager' ||
+          ownEmail(get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.managerEmail)
         );
     }
 
@@ -682,10 +700,11 @@ service cloud.firestore {
       allow create: if approved() &&
         ownEmail(request.resource.data.userEmail) &&
         request.resource.data.departmentKey is string &&
-        request.resource.data.departmentKey == userDepartmentKey();
+        request.resource.data.departmentKey == userDepartmentKey() &&
+        validAdvisoryCreateRoute();
       allow read: if approved() && (
         admin() || hasPerm('view_request_analytics') ||
-        ownEmail(resource.data.userEmail) || advisoryManagerCanAccess(resource.data)
+        ownEmail(resource.data.userEmail) || advisoryManagerCanRead(resource.data)
       );
       allow update: if
         (admin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
