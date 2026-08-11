@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v18 — Query-Safe Canonical Department Scope
+// FIRESTORE SECURITY RULES v19 — Review Workflow Profile-Locked Routing
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -554,6 +554,15 @@ service cloud.firestore {
       allow delete: if superAdmin();
     }
 
+
+    // Read-only rules deployment probe. The document does not need to exist;
+    // an allowed get proves that v19 is actually deployed. Older rule sets
+    // fall through to the default deny and the client can report that precisely.
+    match /system_rule_versions/{versionId} {
+      allow get: if approved() && versionId == 'v19-review-development';
+      allow list, create, update, delete: if false;
+    }
+
     // ── Review & Development Center ──────────────────────────────────
     // Department approval is advisory-specific so Governance & Performance
     // Manager can approve its own department without gaining Risk approvals.
@@ -570,76 +579,15 @@ service cloud.firestore {
         !advisoryDepartmentManager() && !admin();
     }
 
-    // Review & Development requests store a canonical departmentKey while some
-    // existing user profiles still contain display labels/codes. Match the same
-    // department normalization used by the browser so a valid scoped user is not
-    // blocked simply because the profile label is formatted differently.
-    function advisoryDeptValueMatches(value, key) {
-      return meaningfulDepartmentValue(value) && key is string && (
-        (key == 'safety' && (
-          value.lower().matches('.*safe.*') || value.lower().matches('.*saf.*') ||
-          value.matches('.*السلامة.*') || value.matches('.*سلامة.*')
-        )) ||
-        (key == 'maintenance' && (
-          value.lower().matches('.*maint.*') || value.lower().matches('.*mnt.*') ||
-          value.matches('.*الصيانة.*') || value.matches('.*صيانة.*')
-        )) ||
-        (key == 'housekeeping' && (
-          value.lower().matches('.*house.*') || value.lower().matches('.*clean.*') ||
-          value.lower().matches('.*hsk.*') || value.matches('.*النظافة.*') ||
-          value.matches('.*نظافة.*')
-        )) ||
-        (key == 'laundry' && (
-          value.lower().matches('.*laund.*') || value.lower().matches('.*lnd.*') ||
-          value.matches('.*المغسلة.*') || value.matches('.*مغسلة.*') ||
-          value.matches('.*الغسيل.*')
-        )) ||
-        (key == 'projects' && (
-          value.lower().matches('.*project.*') || value.lower().matches('.*prj.*') ||
-          value.lower().matches('.*pmd.*') || value.lower() in ['pm', 'projects'] ||
-          value.matches('.*المشاريع.*') || value.matches('.*مشاريع.*')
-        )) ||
-        (key == 'governance' && (
-          value.lower().matches('.*govern.*') || value.lower().matches('.*performance.*') ||
-          value.lower().matches('.*gov.*') || value.matches('.*الحوكمة.*') ||
-          value.matches('.*حوكمة.*') || value.matches('.*الأداء.*') || value.matches('.*الاداء.*')
-        )) ||
-        (key == 'division' && (
-          value.lower().matches('.*division.*') || value.lower().matches('.*facility management.*') ||
-          value.lower().matches('.*facilities management.*') || value.matches('.*المرافق.*') ||
-          value.lower() == 'fms'
-        ))
-      );
-    }
-
-    function advisoryConfiguredDepartmentMatches(key) {
-      return approved() && key is string && (
-        (('dept' in userData()) && meaningfulDepartmentValue(userData().dept) &&
-          advisoryDeptValueMatches(userData().dept, key)) ||
-        ((!(('dept' in userData()) && meaningfulDepartmentValue(userData().dept))) &&
-          ('department' in userData()) && meaningfulDepartmentValue(userData().department) &&
-          advisoryDeptValueMatches(userData().department, key)) ||
-        ((!(('dept' in userData()) && meaningfulDepartmentValue(userData().dept))) &&
-          (!(('department' in userData()) && meaningfulDepartmentValue(userData().department))) &&
-          ('deptKey' in userData()) && meaningfulDepartmentValue(userData().deptKey) &&
-          advisoryDeptValueMatches(userData().deptKey, key))
-      );
-    }
-
+    // Review & Development create routing is locked to the canonical
+    // department derived from the authenticated user's current Firestore profile.
+    // The browser refreshes that same profile immediately before submission.
     function advisoryCreateDepartmentValid() {
-      /* Security is anchored to the user's Firestore profile, not to the
-         display label sent by the browser. This removes false permission
-         denials when the same department is stored as MNT, Maintenance,
-         Maintenance Department, Arabic labels, etc. */
-      return
+      return request.resource.data.departmentKey is string &&
         (
-          !hasConfiguredDepartment() &&
-          request.resource.data.departmentKey is string && request.resource.data.departmentKey == ''
-        ) ||
-        (
-          hasConfiguredDepartment() &&
-          request.resource.data.departmentKey is string &&
-          advisoryConfiguredDepartmentMatches(request.resource.data.departmentKey)
+          (!hasConfiguredDepartment() && request.resource.data.departmentKey == '') ||
+          (hasConfiguredDepartment() && userDepartmentKey() != '' &&
+            request.resource.data.departmentKey == userDepartmentKey())
         );
     }
 
@@ -759,7 +707,9 @@ service cloud.firestore {
     }
 
     match /advisory_requests/{requestId} {
-      allow create: if approved() && ownEmail(request.resource.data.userEmail) &&
+      allow create: if approved() &&
+        ownEmail(request.resource.data.userEmail) &&
+        ('requesterUid' in request.resource.data) && ownUid(request.resource.data.requesterUid) &&
         advisoryCreateDepartmentValid() && validAdvisoryCreateRoute();
       allow read: if approved() && (
         admin() || hasPerm('view_request_analytics') ||
