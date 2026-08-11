@@ -1106,6 +1106,46 @@
     });
     return order.map(function(key){return byKey[key];});
   }
+
+  /* v156: older builds could assign a fresh INC-PMD number to the same legacy
+     Project Management incident during read, then an Admin save persisted the
+     newly numbered copy. That creates many different business IDs for one real
+     incident, so business-ID de-duplication alone cannot remove them. Collapse
+     only highly-likely legacy duplicates: exact same incident payload where the
+     group has 3+ copies, or at least one row carries an explicit legacy marker.
+     Two genuinely separate workflow incidents with identical values are kept. */
+  function grcIncidentContentSignature(record){
+    record=record||{};if(grcRecordDepartment('incidents',record)!=='projects')return'';
+    function n(v){return String(v==null?'':v).trim().toLowerCase().replace(/\s+/g,' ');}
+    return[
+      'projects',n(record.date),n(record.category),n(record.contributingFactors),
+      n(record.investigationRequired),n(record.responsibleDept||record.responsibleDepartment||record.department),
+      n(record.status),n(record.location),n(record.description||record.details||record.incidentDetails)
+    ].join('|');
+  }
+  function grcIncidentHasLegacyMarker(record){
+    record=record||{};var source=String(record.revisionSource||'').toLowerCase();
+    return !!(record.legacyIncidentId||record._baselineFallback||source.indexOf('legacy')>=0||source==='migration'||source==='seed');
+  }
+  function grcProjectIncidentNumber(record){
+    var raw=String(record&& (record.id||record.code)||'').toUpperCase(),m=raw.match(/^(?:INC[-_ ]?)?(?:PMD|PRJ|PM)[-_ ]?(\d+)$/);return m?(Number(m[1])||0):999999999;
+  }
+  function grcPreferIncidentContentDuplicate(list){
+    var ranked=(list||[]).slice().sort(function(a,b){
+      function trusted(r){var src=String(r&&r.revisionSource||'').toLowerCase();return(src==='workflow'||src==='direct_admin'||src==='admin_direct')?1:0;}
+      var ta=trusted(a),tb=trusted(b);if(tb!==ta)return tb-ta;
+      var na=grcProjectIncidentNumber(a),nb=grcProjectIncidentNumber(b);if(na!==nb)return na-nb;
+      var ar=grcRecordExplicitRevision(a),br=grcRecordExplicitRevision(b);if(ar!==br)return ar-br;
+      return String(a&& (a.id||a.code)||'').localeCompare(String(b&& (b.id||b.code)||''));
+    });
+    return ranked[0]||null;
+  }
+  function grcDeduplicateProjectIncidentContent(rows){
+    var groups={},order=[],passthrough=[];
+    (rows||[]).forEach(function(r){var sig=grcIncidentContentSignature(r);if(!sig){passthrough.push(r);return;}if(!groups[sig]){groups[sig]=[];order.push(sig);}groups[sig].push(r);});
+    var kept=[];order.forEach(function(sig){var list=groups[sig]||[],legacy=list.some(grcIncidentHasLegacyMarker),collapse=list.length>=3||legacy;if(!collapse){kept=kept.concat(list);return;}var winner=grcPreferIncidentContentDuplicate(list);if(winner)kept.push(winner);});
+    return passthrough.concat(kept);
+  }
   function grcApplyPublishedWorkflowOverlay(collectionKey,rows){
     if(collectionKey!=='risks'&&collectionKey!=='incidents')return rows||[];
     var requests=(grcPublishedWorkflowRequests[collectionKey]||[]).slice().sort(function(a,b){return grcWorkflowRequestTime(a).localeCompare(grcWorkflowRequestTime(b));});
@@ -1228,7 +1268,7 @@
          projections back into the published register. This guarantees that
          Super Admin, Department Manager and GRC Owner see the exact same row. */
       if(collectionKey==='risks')rows=rows.map(normalizeRiskClassification);
-      if(collectionKey==='incidents')rows=normalizeProjectIncidentIds(rows);
+      if(collectionKey==='incidents')rows=grcDeduplicateProjectIncidentContent(normalizeProjectIncidentIds(rows));
       state[collectionKey]=rows;
       grcCloudEverHydrated[collectionKey]=true;
       return;
@@ -1248,7 +1288,7 @@
     var at=rows.findIndex(same);
     if(op==='delete'){if(at>=0)rows.splice(at,1);}
     else{if(key==='risks')r=normalizeRiskClassification(r);if(at>=0)rows[at]=Object.assign({},rows[at],r);else rows.push(r);}
-    if(key==='incidents')rows=normalizeProjectIncidentIds(rows);state[key]=rows;state=repairGovernanceCodeState(state);enforceLocalGrcScope();
+    if(key==='incidents')rows=grcDeduplicateProjectIncidentContent(normalizeProjectIncidentIds(rows));state[key]=rows;state=repairGovernanceCodeState(state);enforceLocalGrcScope();
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}
     renderAtSamePosition(grcViewportPosition());
   };
@@ -1331,6 +1371,15 @@
     if(changed)try{window._recordAuditDirect&&window._recordAuditDirect('GRC_REGISTER_CONSOLIDATION','Consolidated Risk and Incident registers into canonical documents',null,{writes:changed},{portal:'grc'});}catch(_){}
     return changed;
   }
+  async function cleanupLegacyProjectIncidentDuplicates(b){
+    if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return 0;
+    var snap=await b.fs.getDocs(b.fs.collection(b.db,GRC_COLLECTION_MAP.incidents)),groups={};
+    snap.forEach(function(d){var r=grcSerializable(d.data()||{});if(r.deleted===true)return;r._sourceCloudId=d.id;r._cloudId=d.id;r.cloudId=d.id;var sig=grcIncidentContentSignature(r);if(!sig)return;groups[sig]=groups[sig]||[];groups[sig].push(r);});
+    var deletes=[];
+    Object.keys(groups).forEach(function(sig){var list=groups[sig]||[],legacy=list.some(grcIncidentHasLegacyMarker);if(list.length<2||(!legacy&&list.length<3))return;var winner=grcPreferIncidentContentDuplicate(list);if(!winner)return;var keep=String(winner._sourceCloudId||winner._cloudId||winner.cloudId||'');list.forEach(function(r){var id=String(r._sourceCloudId||r._cloudId||r.cloudId||'');if(id&&id!==keep)deletes.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP.incidents,id)});});});
+    if(!deletes.length)return 0;await grcCommitWrites(b,deletes);try{window._recordAuditDirect&&window._recordAuditDirect('GRC_INCIDENT_DUPLICATE_CLEANUP','Removed legacy duplicate Project Management incident copies',null,{deleted:deletes.length},{portal:'grc',dept:'projects'});}catch(_){}return deletes.length;
+  }
+  window._grcCleanupLegacyProjectIncidentDuplicates=function(){return ensureReportBackend().then(cleanupLegacyProjectIncidentDuplicates);};
   window._grcConsolidateRegisterCollections=function(){return ensureReportBackend().then(consolidateGrcRegisterCollections);};
   async function migrateLegacyGrcState(b,force){
     if(!isGrcAdmin())return false;if(grcMigrationPromise&&!force)return grcMigrationPromise;
@@ -1400,6 +1449,7 @@
            has the same business ID. */
         try{if(typeof window._grcRiskRepairProjectIncidentIds==='function')await window._grcRiskRepairProjectIncidentIds();}catch(err0){console.error('[GRC Incident Cleanup] synthetic Project Management incidents could not be removed',err0);}
         try{await consolidateGrcRegisterCollections(b);}catch(err1){console.error('[GRC Register Consolidation] duplicate records could not be consolidated',err1);}
+        try{await cleanupLegacyProjectIncidentDuplicates(b);}catch(err1b){console.error('[GRC Incident Cleanup] legacy duplicate Project Management incidents could not be removed',err1b);}
         try{await ensureRequiredGrcBaselineRecords(b);}catch(err2){console.error('[GRC Baseline Repair] approved records could not be repaired',err2);}
         try{if(typeof window._grcMigrateRiskStatusOverrides==='function')await window._grcMigrateRiskStatusOverrides();}catch(err3){console.error('[GRC Risk Status Migration] legacy status overrides could not be migrated',err3);}
       }
