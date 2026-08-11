@@ -424,7 +424,7 @@ window._selectPortal=async portal=>{
       console.log('[Auth] onAuthStateChanged — user:',user?user.email:'none');
       window._fbProfileResolved=false;
       if(!user){window.__qumcAuditLoginLoggedFor='';window._fbDept=null;window.currentUserDept=null;try{window._stopAuditListener&&window._stopAuditListener();}catch(_){}showLogin();return;}
-      const email=user.email||'';
+      const email=String(user.email||'').toLowerCase().trim();
       try{
         console.log('[FS READ] users/'+email);
         const snap = await getDoc(doc(db,'users',email));
@@ -717,7 +717,8 @@ window._selectPortal=async portal=>{
     function _advMeaningfulDepartment(value){var s=String(value==null?'':value).trim();return !!s&&!/^(null|none|undefined|n\/?a|na|unassigned|not assigned|-|—)$/i.test(s);}
     async function _advFreshProfile(){
       const u=auth.currentUser;if(!u||!u.email)throw new Error('Not authenticated.');
-      const snap=await getDoc(doc(db,'users',u.email));
+      const profileEmail=String(u.email||'').toLowerCase().trim();
+      const snap=await getDoc(doc(db,'users',profileEmail));
       if(!snap.exists())throw new Error('Your user profile could not be found in Firestore.');
       const d=snap.data()||{};if(d.approved!==true)throw new Error('Your account is not approved.');
       const raw=Object.prototype.hasOwnProperty.call(d,'dept')?d.dept:(Object.prototype.hasOwnProperty.call(d,'department')?d.department:(Object.prototype.hasOwnProperty.call(d,'deptKey')?d.deptKey:null));
@@ -726,9 +727,9 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:_advNormalizeRoleValue(d.role||'viewer'),rawDepartment:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV20Verified===true)return true;
-      try{await getDoc(doc(db,'system_rule_versions','v20-review-development'));window.__advRulesV20Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v20 are not active. Publish the firestore.rules file included with this update, then sign in again.');throw e;}
+      if(window.__advRulesV21Verified===true)return true;
+      try{await getDoc(doc(db,'system_rule_versions','v21-review-development'));window.__advRulesV21Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v21 are not active. Publish the firestore.rules file included with this update, then sign in again.');throw e;}
     }
     function _advIso(){return new Date().toISOString();}
     function _advTsMs(v){if(!v)return 0;try{return v.toDate?v.toDate().getTime():new Date(v).getTime()||0;}catch(_){return 0;}}
@@ -863,7 +864,15 @@ window._selectPortal=async portal=>{
       const requestId=primaryRef.id,storage='advisory_requests';let warning='';
       /* New Review & Development requests intentionally use the dedicated collection only.
          Falling back to kpi_requests would bypass the Department Manager approval route. */
-      await setDoc(primaryRef,base,{merge:false});
+      try{
+        await setDoc(primaryRef,base,{merge:false});
+      }catch(saveError){
+        const codeText=String(saveError&&saveError.code||saveError&&saveError.message||saveError||'save-failed');
+        if(codeText.toLowerCase().includes('permission')){
+          throw new Error('permission-denied: role='+freshProfile.role+'; department='+String(freshProfile.rawDepartment==null?'':freshProfile.rawDepartment)+'; departmentKey='+departmentKey+'; workflowStage='+base.workflowStage+'; managerApproval='+String(requiresManagerApproval));
+        }
+        throw saveError;
+      }
       try{await setDoc(doc(db,ADV_PUBLIC_COLLECTION,primaryRef.id),_advPublicShape(base),{merge:false});}catch(publicError){warning='The request was saved, but dashboard analytics could not be updated.';console.warn('[Review Development] public analytics write failed',publicError&&publicError.code||publicError);}
       if(file){try{const meta=await _advUploadFile(requestId,file,_advEmail());await updateDoc(primaryRef,{attachments:arrayUnion(meta),attachmentCount:1,updatedAt:serverTimestamp()});try{await updateDoc(doc(db,ADV_PUBLIC_COLLECTION,requestId),{attachmentCount:1,updatedAt:serverTimestamp()});}catch(_){}}catch(fileError){warning=(warning?warning+' ':'')+'The request was submitted, but the attachment could not be uploaded.';console.warn('[Review Development] attachment upload failed',fileError&&fileError.code||fileError);}}
       try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_REQUEST_SUBMIT','Submitted '+String(base.platform||'grc')+' Review & Development request '+code,null,{requestId:requestId,code:code,requestType:base.requestType,category:base.category,workflowStage:base.workflowStage,departmentKey:departmentKey},{portal:String(base.platform||'grc')});}catch(_){}

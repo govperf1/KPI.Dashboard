@@ -1269,7 +1269,7 @@
         rows.push(winner);
       });
       rows=grcDeduplicateRegisterRows(collectionKey,rows);
-      /* v154: once Firestore has hydrated, never merge Seed/local workflow/status
+      /* v160: once Firestore has hydrated, never merge Seed/local workflow/status
          projections back into the published register. This guarantees that
          Super Admin, Department Manager and GRC Owner see the exact same row. */
       if(collectionKey==='risks')rows=rows.map(normalizeRiskClassification);
@@ -1345,6 +1345,27 @@
     });
     grcStateUnsubs.push(unsub);
   }
+  function grcLoadScopeOnce(b,collectionKey,scope,qref){
+    b.fs.getDocs(qref).then(function(snap){grcHandleCollectionSnapshot(collectionKey,scope,snap);}).catch(function(err){
+      console.error('[GRC Secure Sync] '+collectionKey+' '+scope+' bootstrap failed',err);
+      grcCloudParts[collectionKey]=grcCloudParts[collectionKey]||{};
+      grcCollectionScopeFailed[collectionKey]=grcCollectionScopeFailed[collectionKey]||{};grcCollectionScopeFailed[collectionKey][scope]=true;
+      if(!Object.prototype.hasOwnProperty.call(grcCloudParts[collectionKey],scope))grcCloudParts[collectionKey][scope]=[];
+      if(grcMarkCollectionScopeReady(collectionKey,scope))grcApplyReadyCollection(collectionKey);
+    });
+  }
+  function grcLegacyDepartmentAliases(dept){
+    var map={
+      safety:['safety','Safety','Safety Department','Safety Management','SAF'],
+      maintenance:['maintenance','Maintenance','Maintenance Department','Maintenance Management','MNT'],
+      housekeeping:['housekeeping','Housekeeping','Housekeeping Department','Housekeeping Management','Cleaning','HSK','HK'],
+      laundry:['laundry','Laundry','Laundry Department','Laundry Management','LND','LUND'],
+      projects:['projects','project','Project_Management','Projects_Management','Project Management','Projects Management','Project Management Department','PM','PMD','PRJ'],
+      governance:['governance','Governance','Governance & Performance','Governance and Performance','GOV'],
+      division:['division','FMS','FMS Division']
+    };
+    return (map[dept]||[]).slice();
+  }
   async function grcAnySecureRecords(b){
     var keys=Object.keys(GRC_COLLECTION_MAP);for(var i=0;i<keys.length;i++){var snap=await b.fs.getDocs(b.fs.query(b.fs.collection(b.db,GRC_COLLECTION_MAP[keys[i]]),b.fs.limit(1)));if(!snap.empty)return true;}return false;
   }
@@ -1406,7 +1427,7 @@
   window._grcRunSecureMigration=function(){return ensureReportBackend().then(function(b){return migrateLegacyGrcState(b,true);});};
   async function normalizeDepartmentScopedGrcDocuments(b){
     if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return 0;
-    var meta=b.fs.doc(b.db,'grc_meta','scoped_department_keys_v157'),metaSnap=await b.fs.getDoc(meta);
+    var meta=b.fs.doc(b.db,'grc_meta','scoped_department_keys_v160'),metaSnap=await b.fs.getDoc(meta);
     if(metaSnap.exists()&&metaSnap.data()&&metaSnap.data().status==='completed')return 0;
     var keys=['policies','plans','forms','risks','incidents'],writes=[];
     for(var ki=0;ki<keys.length;ki++){
@@ -1424,12 +1445,12 @@
       });
     }
     if(writes.length){await grcCommitWrites(b,writes);try{window._recordAuditDirect&&window._recordAuditDirect('GRC_DEPARTMENT_KEY_NORMALIZATION','Normalized department keys for scoped GRC registers',null,{records:writes.length},{portal:'grc'});}catch(_){}}
-    await b.fs.setDoc(meta,{status:'completed',version:157,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+    await b.fs.setDoc(meta,{status:'completed',version:160,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
     return writes.length;
   }
   async function ensureGovernanceBaselineCatalog(b){
     if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return false;
-    var meta=b.fs.doc(b.db,'grc_meta','governance_baseline_catalog_v157'),metaSnap=await b.fs.getDoc(meta);
+    var meta=b.fs.doc(b.db,'grc_meta','governance_baseline_catalog_v160'),metaSnap=await b.fs.getDoc(meta);
     if(metaSnap.exists()&&metaSnap.data()&&metaSnap.data().status==='completed')return false;
     var required=[],policies=(MAINTENANCE_POLICY_SEED||[]).concat(SAFETY_POLICY_SEED||[],HOUSEKEEPING_POLICY_SEED||[]),plans=(SAFETY_PLAN_SEED||[]).concat(MAINTENANCE_PLAN_SEED||[]),forms=(SAFETY_FORM_SEED||[]).concat(HOUSEKEEPING_FORM_SEED||[],PROJECTS_FORM_SEED||[],MAINTENANCE_FORM_SEED||[],INTERNAL_FORM_SEED||[]);
     policies.forEach(function(r,i){required.push({key:'policies',record:r,index:i});});
@@ -1438,12 +1459,12 @@
     var writes=[];
     await Promise.all(required.map(async function(item){var prepared=grcPrepareCloudRecord(item.key,item.record,item.index,b),ref=b.fs.doc(b.db,GRC_COLLECTION_MAP[item.key],prepared._cloudId),snap=await b.fs.getDoc(ref);if(!snap.exists())writes.push({op:'set',ref:ref,data:prepared});}));
     if(writes.length)await grcCommitWrites(b,writes);
-    await b.fs.setDoc(meta,{status:'completed',version:157,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+    await b.fs.setDoc(meta,{status:'completed',version:160,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
     return writes.length>0;
   }
   async function ensureRequiredGrcBaselineRecords(b){
     if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return false;
-    var meta=b.fs.doc(b.db,'grc_meta','required_baseline_catalog_v157'),metaSnap=await b.fs.getDoc(meta);
+    var meta=b.fs.doc(b.db,'grc_meta','required_baseline_catalog_v160'),metaSnap=await b.fs.getDoc(meta);
     if(metaSnap.exists()&&metaSnap.data()&&metaSnap.data().status==='completed')return false;
     var required=[];
     /* Repair any baseline Risk Register rows that were absent from an older
@@ -1458,7 +1479,7 @@
       else if(item.key==='codes'&&String(item.record&&item.record.sourceSystem||'')==='Emergency Coding System Admin'&&normalizeStatus(snap.data()&&snap.data().status)!=='successful')await b.fs.updateDoc(ref,{status:'successful',cloudUpdatedAt:b.fs.serverTimestamp(),updatedAtIso:new Date().toISOString()});
     }));
     if(writes.length){await grcCommitWrites(b,writes);try{window._recordAuditDirect&&window._recordAuditDirect('GRC_BASELINE_REPAIR','Added missing approved Risk, Incident and Initiative baseline records',null,{records:writes.length},{portal:'grc'});}catch(_){}}
-    await b.fs.setDoc(meta,{status:'completed',version:157,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+    await b.fs.setDoc(meta,{status:'completed',version:160,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
     return writes.length>0;
   }
   function startRiskStatusOverrideSync(b){
@@ -1519,11 +1540,14 @@
         if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){
           grcConfigureCollectionScopes(key,['all']);grcListen(b,key,'all',col);
         }else{
-          /* v154: every secure GRC document is stored with one canonical
-             department key. A single equality listener avoids alias-query
-             permission failures, duplicate reads and cross-user divergence. */
-          grcConfigureCollectionScopes(key,['department']);
+          /* Canonical records stay on one live listener. A one-time legacy
+             department query recovers older rows that pre-date departmentKey.
+             It is intentionally NOT a second live listener, so it fixes blank
+             registers without permanently doubling Firestore reads. */
+          var legacyAliases=grcLegacyDepartmentAliases(dept);
+          grcConfigureCollectionScopes(key,legacyAliases.length?['department','legacy']:['department']);
           grcListen(b,key,'department',b.fs.query(col,b.fs.where('departmentKey','==',dept)));
+          if(legacyAliases.length)grcLoadScopeOnce(b,key,'legacy',b.fs.query(col,b.fs.where('department','in',legacyAliases)));
         }
       });
     }).catch(function(err){grcSyncStarted=false;console.error('[GRC Secure Sync] init failed',err);});
