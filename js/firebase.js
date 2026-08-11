@@ -13,7 +13,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       risk_owner:['access_grc','view_department','view_grc_department','view_shared_grc','edit_risk_management','edit_incident_register','update_risk_status','submit_risk_changes','export_reports'],
       grc_owner:['access_grc','view_department','view_grc_department','view_shared_grc','edit_risk_management','edit_incident_register','update_risk_status','submit_risk_changes','export_reports'],
       platform_owner:['access_performance','access_grc','view_department','view_grc_department','view_shared_grc','edit_kpi','edit_gap_analysis','edit_actions','edit_risk_management','edit_incident_register','update_risk_status','submit_risk_changes','export_reports'],
-      viewer:['access_performance','access_grc','view_department','export_reports'],
+      viewer:['access_performance','access_grc','view_department','view_grc_department','view_shared_grc','export_reports'],
       user:['access_performance','access_grc','view_department','export_reports']
     };
 
