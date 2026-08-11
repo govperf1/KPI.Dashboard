@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v14 — Review Department Routing Compatibility Fix
+// FIRESTORE SECURITY RULES v15 — Canonical Register Sync + Review Routing Fix
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -36,17 +36,28 @@ service cloud.firestore {
       return /databases/$(database)/documents/config_roles/$(role());
     }
 
+    function userExtraHasPerm(perm) {
+      return ('extraPermissions' in userData()) &&
+        userData().extraPermissions is list &&
+        (userData().extraPermissions.hasAny(['*']) || userData().extraPermissions.hasAny([perm]));
+    }
+
+    function userRevokedPerm(perm) {
+      return ('revokedPermissions' in userData()) &&
+        userData().revokedPermissions is list &&
+        userData().revokedPermissions.hasAny([perm]);
+    }
+
+    function roleHasPerm(perm) {
+      return exists(rolePath()) &&
+        get(rolePath()).data.permissions is list &&
+        (get(rolePath()).data.permissions.hasAny(['*']) || get(rolePath()).data.permissions.hasAny([perm]));
+    }
+
     function hasPerm(perm) {
       return approved() && (
         role() == 'super_admin' ||
-        (
-          exists(rolePath()) &&
-          get(rolePath()).data.permissions is list &&
-          (
-            get(rolePath()).data.permissions.hasAny(['*']) ||
-            get(rolePath()).data.permissions.hasAny([perm])
-          )
-        )
+        (!userRevokedPerm(perm) && (userExtraHasPerm(perm) || roleHasPerm(perm)))
       );
     }
 
@@ -141,12 +152,12 @@ service cloud.firestore {
     function sameDepartment(dept) {
       return
         rawUserDepartment(dept) ||
-        (dept in ['safety', 'Safety', 'Safety Department', 'Safety Management', 'Safety Management Department', 'السلامة', 'إدارة السلامة', 'قسم السلامة'] && userDeptIn(['safety', 'Safety', 'Safety Department', 'Safety Management', 'Safety Management Department', 'السلامة', 'إدارة السلامة', 'قسم السلامة'])) ||
-        (dept in ['maintenance', 'Maintenance', 'Maintenance Department', 'Maintenance Management', 'Maintenance Management Department', 'الصيانة', 'إدارة الصيانة', 'قسم الصيانة'] && userDeptIn(['maintenance', 'Maintenance', 'Maintenance Department', 'Maintenance Management', 'Maintenance Management Department', 'الصيانة', 'إدارة الصيانة', 'قسم الصيانة'])) ||
-        (dept in ['housekeeping', 'Housekeeping', 'Housekeeping Department', 'Housekeeping Management', 'Cleaning', 'النظافة', 'إدارة النظافة', 'قسم النظافة'] && userDeptIn(['housekeeping', 'Housekeeping', 'Housekeeping Department', 'Housekeeping Management', 'Cleaning', 'النظافة', 'إدارة النظافة', 'قسم النظافة'])) ||
-        (dept in ['laundry', 'Laundry', 'Laundry Department', 'Laundry Management', 'المغسلة', 'إدارة المغسلة', 'قسم المغسلة', 'الغسيل'] && userDeptIn(['laundry', 'Laundry', 'Laundry Department', 'Laundry Management', 'المغسلة', 'إدارة المغسلة', 'قسم المغسلة', 'الغسيل'])) ||
-        (dept in ['projects', 'project', 'Projects', 'Project', 'project_management', 'projects_management', 'project management', 'projects management', 'Project Management', 'Projects Management', 'Project Management Department', 'Projects Management Department', 'Projects Department', 'Project Department', 'PM', 'المشاريع', 'إدارة المشاريع', 'قسم إدارة المشاريع', 'قسم المشاريع'] && userDeptIn(['projects', 'project', 'Projects', 'Project', 'project_management', 'projects_management', 'project management', 'projects management', 'Project Management', 'Projects Management', 'Project Management Department', 'Projects Management Department', 'Projects Department', 'Project Department', 'PM', 'المشاريع', 'إدارة المشاريع', 'قسم إدارة المشاريع', 'قسم المشاريع'])) ||
-        (dept in ['governance', 'Governance', 'Governance & Performance', 'Governance and Performance', 'الحوكمة', 'الحوكمة والأداء', 'قسم الحوكمة والأداء', 'إدارة الحوكمة والأداء'] && userDeptIn(['governance', 'Governance', 'Governance & Performance', 'Governance and Performance', 'الحوكمة', 'الحوكمة والأداء', 'قسم الحوكمة والأداء', 'إدارة الحوكمة والأداء'])) ||
+        (dept in ['safety', 'SAF', 'Safety', 'Safety Department', 'Safety Management', 'Safety Management Department', 'السلامة', 'إدارة السلامة', 'قسم السلامة'] && userDeptIn(['safety', 'SAF', 'Safety', 'Safety Department', 'Safety Management', 'Safety Management Department', 'السلامة', 'إدارة السلامة', 'قسم السلامة'])) ||
+        (dept in ['maintenance', 'MNT', 'Maintenance', 'Maintenance Department', 'Maintenance Management', 'Maintenance Management Department', 'الصيانة', 'إدارة الصيانة', 'قسم الصيانة'] && userDeptIn(['maintenance', 'MNT', 'Maintenance', 'Maintenance Department', 'Maintenance Management', 'Maintenance Management Department', 'الصيانة', 'إدارة الصيانة', 'قسم الصيانة'])) ||
+        (dept in ['housekeeping', 'HSK', 'HK', 'Housekeeping', 'Housekeeping Department', 'Housekeeping Management', 'Cleaning', 'النظافة', 'إدارة النظافة', 'قسم النظافة'] && userDeptIn(['housekeeping', 'HSK', 'HK', 'Housekeeping', 'Housekeeping Department', 'Housekeeping Management', 'Cleaning', 'النظافة', 'إدارة النظافة', 'قسم النظافة'])) ||
+        (dept in ['laundry', 'LND', 'LUND', 'Laundry', 'Laundry Department', 'Laundry Management', 'المغسلة', 'إدارة المغسلة', 'قسم المغسلة', 'الغسيل'] && userDeptIn(['laundry', 'LND', 'LUND', 'Laundry', 'Laundry Department', 'Laundry Management', 'المغسلة', 'إدارة المغسلة', 'قسم المغسلة', 'الغسيل'])) ||
+        (dept in ['projects', 'PRJ', 'PMD', 'PM', 'project', 'Projects', 'Project', 'project_management', 'projects_management', 'project management', 'projects management', 'Project Management', 'Projects Management', 'Project Management Department', 'Projects Management Department', 'Projects Department', 'Project Department', 'PM', 'المشاريع', 'إدارة المشاريع', 'قسم إدارة المشاريع', 'قسم المشاريع'] && userDeptIn(['projects', 'PRJ', 'PMD', 'PM', 'project', 'Projects', 'Project', 'project_management', 'projects_management', 'project management', 'projects management', 'Project Management', 'Projects Management', 'Project Management Department', 'Projects Management Department', 'Projects Department', 'Project Department', 'PM', 'المشاريع', 'إدارة المشاريع', 'قسم إدارة المشاريع', 'قسم المشاريع'])) ||
+        (dept in ['governance', 'GOV', 'Governance', 'Governance & Performance', 'Governance and Performance', 'الحوكمة', 'الحوكمة والأداء', 'قسم الحوكمة والأداء', 'إدارة الحوكمة والأداء'] && userDeptIn(['governance', 'GOV', 'Governance', 'Governance & Performance', 'Governance and Performance', 'الحوكمة', 'الحوكمة والأداء', 'قسم الحوكمة والأداء', 'إدارة الحوكمة والأداء'])) ||
         (dept in ['division', 'FMS Division', 'Facility Management & Safety Division', 'Facilities & Safety Division', 'إدارة المرافق والسلامة'] && userDeptIn(['division', 'FMS Division', 'Facility Management & Safety Division', 'Facilities & Safety Division', 'إدارة المرافق والسلامة']));
     }
 
@@ -159,11 +170,11 @@ service cloud.firestore {
 
     function hasAssignedOperationalDepartment() {
       return userDeptIn([
-        'safety', 'Safety', 'Safety Department', 'Safety Management', 'Safety Management Department',
-        'maintenance', 'Maintenance', 'Maintenance Department', 'Maintenance Management', 'Maintenance Management Department',
-        'housekeeping', 'Housekeeping', 'Housekeeping Department', 'Housekeeping Management', 'Cleaning',
-        'laundry', 'Laundry', 'Laundry Department', 'Laundry Management',
-        'projects', 'project', 'Projects', 'Project', 'project_management', 'projects_management', 'project management', 'projects management', 'Project Management', 'Projects Management', 'Project Management Department', 'Projects Management Department', 'Projects Department', 'Project Department', 'PM'
+        'safety', 'SAF', 'Safety', 'Safety Department', 'Safety Management', 'Safety Management Department',
+        'maintenance', 'MNT', 'Maintenance', 'Maintenance Department', 'Maintenance Management', 'Maintenance Management Department',
+        'housekeeping', 'HSK', 'HK', 'Housekeeping', 'Housekeeping Department', 'Housekeeping Management', 'Cleaning',
+        'laundry', 'LND', 'LUND', 'Laundry', 'Laundry Department', 'Laundry Management',
+        'projects', 'PRJ', 'PMD', 'PM', 'project', 'Projects', 'Project', 'project_management', 'projects_management', 'project management', 'projects management', 'Project Management', 'Projects Management', 'Project Management Department', 'Projects Management Department', 'Projects Department', 'Project Department', 'PM'
       ]);
     }
 
@@ -176,6 +187,14 @@ service cloud.firestore {
     function sharedGrcRecord(data) {
       return ('visibility' in data && data.visibility == 'shared') ||
              ('department' in data && data.department == 'division');
+    }
+
+    function canReadRiskIncidentRegister() {
+      return canAccessGrc() && (
+        admin() || departmentManager() || riskOwner() ||
+        role() in ['grc_owner', 'GRC Owner', 'grc owner', 'platform_owner', 'Platform Owner', 'platform owner', 'governance_performance_manager', 'Governance & Performance Department Manager'] ||
+        hasPerm('edit_risk_management') || hasPerm('edit_incident_register')
+      );
     }
 
     function validGrcRecord(data) {
@@ -216,7 +235,7 @@ service cloud.firestore {
         request.resource.data.actionStatus is string &&
         request.resource.data.actionStatus.lower() in ['open', 'closed'] &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'actionStatus', 'updatedAt', 'updatedBy', 'updatedByEmail', 'cloudUpdatedAt'
+          'actionStatus', 'updatedAt', 'updatedAtIso', 'updatedBy', 'updatedByEmail', 'cloudUpdatedAt'
         ]);
     }
 
@@ -399,7 +418,7 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_risks/{recordId} {
-      allow read: if canReadDepartmentGrcRecord(resource.data);
+      allow read: if canReadRiskIncidentRegister() && canReadDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if
         (canWriteGrcRecord() && validGrcRecord(request.resource.data)) ||
@@ -407,7 +426,7 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_incidents/{recordId} {
-      allow read: if canReadDepartmentGrcRecord(resource.data);
+      allow read: if canReadRiskIncidentRegister() && canReadDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
@@ -567,11 +586,14 @@ service cloud.firestore {
     }
 
     function advisoryCreateDepartmentValid() {
+      /* Security is anchored to the user's Firestore profile, not to the
+         display label sent by the browser. This removes false permission
+         denials when the same department is stored as MNT, Maintenance,
+         Maintenance Department, Arabic labels, etc. */
       return
         (
           !hasConfiguredDepartment() &&
-          request.resource.data.departmentKey is string &&
-          request.resource.data.departmentKey == ''
+          request.resource.data.departmentKey is string && request.resource.data.departmentKey == ''
         ) ||
         (
           hasConfiguredDepartment() &&
@@ -602,7 +624,7 @@ service cloud.firestore {
     function advisoryManagerCanAccess(data) {
       return advisoryDepartmentManager() && hasConfiguredDepartment() &&
         ('departmentKey' in data) && data.departmentKey is string &&
-        advisoryConfiguredDepartmentMatches(data.departmentKey);
+        sameDepartment(data.departmentKey);
     }
 
     function validAdvisoryOwnerChange() {
