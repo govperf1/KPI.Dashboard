@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v19 — Review Workflow Profile-Locked Routing
+// FIRESTORE SECURITY RULES v20 — Simplified Department Routing
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -118,73 +118,105 @@ service cloud.firestore {
 
     function meaningfulDepartmentValue(value) {
       return value is string &&
-        value != '' &&
-        value.lower() != 'null' &&
-        value.lower() != 'none' &&
-        value.lower() != 'undefined' &&
-        value.lower() != 'n/a' &&
-        value.lower() != 'na' &&
-        value.lower() != 'unassigned' &&
-        value.lower() != 'not assigned' &&
-        value != '-' && value != '—';
+        value.trim() != '' &&
+        value.lower().trim() != 'null' &&
+        value.lower().trim() != 'none' &&
+        value.lower().trim() != 'undefined' &&
+        value.lower().trim() != 'n/a' &&
+        value.lower().trim() != 'na' &&
+        value.lower().trim() != 'unassigned' &&
+        value.lower().trim() != 'not assigned' &&
+        value.trim() != '-' && value.trim() != '—';
     }
 
-    // Department precedence mirrors the application profile loader:
-    // dept -> department -> deptKey. An explicit null/blank in the first
-    // available field means the account is intentionally unscoped.
+    // Keep department normalization intentionally compact. The previous rules
+    // expanded every alias into very large nested expressions, which made the
+    // ruleset unnecessarily complex for the Firebase compiler. All supported
+    // profile labels are reduced to one compact token first.
+    function normalizedDepartment(value) {
+      return value is string
+        ? value.lower().trim()
+            .replace(' ', '')
+            .replace('_', '')
+            .replace('-', '')
+            .replace('&', '')
+            .replace('/', '')
+        : '';
+    }
+
+    function canonicalDepartment(value) {
+      let v = normalizedDepartment(value);
+      return v in [
+        'safety', 'saf', 'safetymanagement', 'safetydepartment',
+        'safetymanagementdepartment', 'السلامة', 'إدارةالسلامة', 'قسمالسلامة'
+      ] ? 'safety' :
+      v in [
+        'maintenance', 'mnt', 'maintenancemanagement', 'maintenancedepartment',
+        'maintenancemanagementdepartment', 'الصيانة', 'إدارةالصيانة', 'قسمالصيانة'
+      ] ? 'maintenance' :
+      v in [
+        'housekeeping', 'hsk', 'hk', 'housekeepingdepartment',
+        'housekeepingmanagement', 'cleaning', 'النظافة', 'إدارةالنظافة', 'قسمالنظافة'
+      ] ? 'housekeeping' :
+      v in [
+        'laundry', 'lnd', 'lund', 'laundrydepartment', 'laundrymanagement',
+        'المغسلة', 'إدارةالمغسلة', 'قسمالمغسلة', 'الغسيل'
+      ] ? 'laundry' :
+      v in [
+        'projects', 'project', 'prj', 'pmd', 'pm', 'projectmanagement',
+        'projectsmanagement', 'projectmanagementdepartment',
+        'projectsmanagementdepartment', 'projectsdepartment', 'projectdepartment',
+        'المشاريع', 'إدارةالمشاريع', 'قسمإدارةالمشاريع', 'قسمالمشاريع'
+      ] ? 'projects' :
+      v in [
+        'governance', 'gov', 'governanceperformance', 'governanceandperformance',
+        'الحوكمة', 'الحوكمةوالأداء', 'قسمالحوكمةوالأداء', 'إدارةالحوكمةوالأداء'
+      ] ? 'governance' :
+      v in [
+        'division', 'fmsdivision', 'facilitymanagementsafetydivision',
+        'facilitiessafetydivision', 'إدارةالمرافقوالسلامة'
+      ] ? 'division' : '';
+    }
+
+    // Department precedence mirrors the app profile loader exactly:
+    // dept -> department -> deptKey. If dept exists but is intentionally blank,
+    // it remains unscoped instead of falling through to a stale legacy field.
+    function profileDepartmentValue() {
+      return ('dept' in userData()) ? userData().dept :
+             (('department' in userData()) ? userData().department :
+             (('deptKey' in userData()) ? userData().deptKey : ''));
+    }
+
     function rawUserDepartment(value) {
-      return approved() && value is string && (
-        (('dept' in userData()) && meaningfulDepartmentValue(userData().dept) && value == userData().dept) ||
-        (!('dept' in userData()) && ('department' in userData()) && meaningfulDepartmentValue(userData().department) && value == userData().department) ||
-        (!('dept' in userData()) && !('department' in userData()) && ('deptKey' in userData()) && meaningfulDepartmentValue(userData().deptKey) && value == userData().deptKey)
-      );
+      return approved() && value is string &&
+        profileDepartmentValue() is string &&
+        value == profileDepartmentValue();
     }
 
-    // Accept current user-document labels while secure records use canonical keys.
-    function userDeptIn(values) {
-      return approved() && (
-        (('dept' in userData()) && meaningfulDepartmentValue(userData().dept) &&
-          (userData().dept in values || userData().dept.lower() in values)) ||
-        (!('dept' in userData()) && ('department' in userData()) && meaningfulDepartmentValue(userData().department) &&
-          (userData().department in values || userData().department.lower() in values)) ||
-        (!('dept' in userData()) && !('department' in userData()) && ('deptKey' in userData()) && meaningfulDepartmentValue(userData().deptKey) &&
-          (userData().deptKey in values || userData().deptKey.lower() in values))
-      );
+    function userDepartmentKey() {
+      return approved() ? canonicalDepartment(profileDepartmentValue()) : '';
     }
 
     function sameDepartment(dept) {
-      return
-        rawUserDepartment(dept) ||
-        (dept in ['safety', 'saf', 'SAF', 'Safety', 'Safety Department', 'safety department', 'Safety Management', 'safety management', 'Safety Management Department', 'safety management department', 'safety_department', 'safety_management', 'safety_management_department', 'السلامة', 'إدارة السلامة', 'قسم السلامة'] && userDeptIn(['safety', 'saf', 'SAF', 'Safety', 'Safety Department', 'safety department', 'Safety Management', 'safety management', 'Safety Management Department', 'safety management department', 'safety_department', 'safety_management', 'safety_management_department', 'السلامة', 'إدارة السلامة', 'قسم السلامة'])) ||
-        (dept in ['maintenance', 'mnt', 'MNT', 'Maintenance', 'Maintenance Department', 'maintenance department', 'Maintenance Management', 'maintenance management', 'Maintenance Management Department', 'maintenance management department', 'maintenance_department', 'maintenance_management', 'maintenance_management_department', 'الصيانة', 'إدارة الصيانة', 'قسم الصيانة'] && userDeptIn(['maintenance', 'mnt', 'MNT', 'Maintenance', 'Maintenance Department', 'maintenance department', 'Maintenance Management', 'maintenance management', 'Maintenance Management Department', 'maintenance management department', 'maintenance_department', 'maintenance_management', 'maintenance_management_department', 'الصيانة', 'إدارة الصيانة', 'قسم الصيانة'])) ||
-        (dept in ['housekeeping', 'hsk', 'hk', 'HSK', 'HK', 'Housekeeping', 'Housekeeping Department', 'housekeeping department', 'Housekeeping Management', 'housekeeping management', 'housekeeping_department', 'housekeeping_management', 'Cleaning', 'cleaning', 'النظافة', 'إدارة النظافة', 'قسم النظافة'] && userDeptIn(['housekeeping', 'hsk', 'hk', 'HSK', 'HK', 'Housekeeping', 'Housekeeping Department', 'housekeeping department', 'Housekeeping Management', 'housekeeping management', 'housekeeping_department', 'housekeeping_management', 'Cleaning', 'cleaning', 'النظافة', 'إدارة النظافة', 'قسم النظافة'])) ||
-        (dept in ['laundry', 'lnd', 'lund', 'LND', 'LUND', 'Laundry', 'Laundry Department', 'laundry department', 'Laundry Management', 'laundry management', 'laundry_department', 'laundry_management', 'المغسلة', 'إدارة المغسلة', 'قسم المغسلة', 'الغسيل'] && userDeptIn(['laundry', 'lnd', 'lund', 'LND', 'LUND', 'Laundry', 'Laundry Department', 'laundry department', 'Laundry Management', 'laundry management', 'laundry_department', 'laundry_management', 'المغسلة', 'إدارة المغسلة', 'قسم المغسلة', 'الغسيل'])) ||
-        (dept in ['projects', 'prj', 'pmd', 'pm', 'PRJ', 'PMD', 'PM', 'project', 'Projects', 'Project', 'project_management', 'projects_management', 'Project_Management', 'Projects_Management', 'project management', 'projects management', 'Project Management', 'Projects Management', 'Project Management Department', 'project management department', 'Projects Management Department', 'projects management department', 'project_management_department', 'projects_management_department', 'Projects Department', 'projects department', 'Project Department', 'project department', 'projects_department', 'project_department', 'المشاريع', 'إدارة المشاريع', 'قسم إدارة المشاريع', 'قسم المشاريع'] && userDeptIn(['projects', 'prj', 'pmd', 'pm', 'PRJ', 'PMD', 'PM', 'project', 'Projects', 'Project', 'project_management', 'projects_management', 'Project_Management', 'Projects_Management', 'project management', 'projects management', 'Project Management', 'Projects Management', 'Project Management Department', 'project management department', 'Projects Management Department', 'projects management department', 'project_management_department', 'projects_management_department', 'Projects Department', 'projects department', 'Project Department', 'project department', 'projects_department', 'project_department', 'المشاريع', 'إدارة المشاريع', 'قسم إدارة المشاريع', 'قسم المشاريع'])) ||
-        (dept in ['governance', 'GOV', 'Governance', 'Governance & Performance', 'Governance and Performance', 'الحوكمة', 'الحوكمة والأداء', 'قسم الحوكمة والأداء', 'إدارة الحوكمة والأداء'] && userDeptIn(['governance', 'GOV', 'Governance', 'Governance & Performance', 'Governance and Performance', 'الحوكمة', 'الحوكمة والأداء', 'قسم الحوكمة والأداء', 'إدارة الحوكمة والأداء'])) ||
-        (dept in ['division', 'FMS Division', 'Facility Management & Safety Division', 'Facilities & Safety Division', 'إدارة المرافق والسلامة'] && userDeptIn(['division', 'FMS Division', 'Facility Management & Safety Division', 'Facilities & Safety Division', 'إدارة المرافق والسلامة']));
+      return approved() && canonicalDepartment(dept) != '' &&
+        canonicalDepartment(dept) == userDepartmentKey();
     }
 
     function hasConfiguredDepartment() {
-      return
-        (('dept' in userData()) && meaningfulDepartmentValue(userData().dept)) ||
-        (!('dept' in userData()) && ('department' in userData()) && meaningfulDepartmentValue(userData().department)) ||
-        (!('dept' in userData()) && !('department' in userData()) && ('deptKey' in userData()) && meaningfulDepartmentValue(userData().deptKey));
+      return approved() && meaningfulDepartmentValue(profileDepartmentValue());
     }
 
     function hasAssignedOperationalDepartment() {
-      return userDeptIn([
-        'safety', 'SAF', 'Safety', 'Safety Department', 'Safety Management', 'Safety Management Department',
-        'maintenance', 'MNT', 'Maintenance', 'Maintenance Department', 'Maintenance Management', 'Maintenance Management Department',
-        'housekeeping', 'HSK', 'HK', 'Housekeeping', 'Housekeeping Department', 'Housekeeping Management', 'Cleaning',
-        'laundry', 'LND', 'LUND', 'Laundry', 'Laundry Department', 'Laundry Management',
-        'projects', 'prj', 'pmd', 'pm', 'PRJ', 'PMD', 'PM', 'project', 'Projects', 'Project', 'project_management', 'projects_management', 'Project_Management', 'Projects_Management', 'project management', 'projects management', 'Project Management', 'Projects Management', 'Project Management Department', 'project management department', 'Projects Management Department', 'projects management department', 'project_management_department', 'projects_management_department', 'Projects Department', 'projects department', 'Project Department', 'project department', 'projects_department', 'project_department'
-      ]);
+      return userDepartmentKey() in [
+        'safety', 'maintenance', 'housekeeping', 'laundry', 'projects'
+      ];
     }
 
     function viewAllGrcDepartments() {
       return admin() ||
         !hasConfiguredDepartment() ||
-        (!hasAssignedOperationalDepartment() && (executive() || hasPerm('view_grc_all_departments')));
+        (!hasAssignedOperationalDepartment() &&
+          (executive() || hasPerm('view_grc_all_departments')));
     }
 
     function sharedGrcRecord(data) {
@@ -195,24 +227,15 @@ service cloud.firestore {
     function canReadRiskIncidentRegister() {
       return canAccessGrc() && (
         admin() || departmentManager() || riskOwner() ||
-        role() in ['grc_owner', 'GRC Owner', 'grc owner', 'platform_owner', 'Platform Owner', 'platform owner', 'governance_performance_manager', 'Governance & Performance Department Manager', 'viewer', 'Viewer'] ||
+        role() in [
+          'grc_owner', 'GRC Owner', 'grc owner',
+          'platform_owner', 'Platform Owner', 'platform owner',
+          'governance_performance_manager',
+          'Governance & Performance Department Manager',
+          'viewer', 'Viewer'
+        ] ||
         hasPerm('edit_risk_management') || hasPerm('edit_incident_register')
       );
-    }
-
-    // One canonical key per signed-in account. This value depends only on the
-    // user profile, so collection queries can use the exact same equality
-    // constraint as the security rule. Firestore rules are not filters; using
-    // the old alias-based resource condition caused valid department queries to
-    // be rejected for some accounts even though individual documents matched.
-    function userDepartmentKey() {
-      return sameDepartment('safety') ? 'safety' :
-             sameDepartment('maintenance') ? 'maintenance' :
-             sameDepartment('housekeeping') ? 'housekeeping' :
-             sameDepartment('laundry') ? 'laundry' :
-             sameDepartment('projects') ? 'projects' :
-             sameDepartment('governance') ? 'governance' :
-             sameDepartment('division') ? 'division' : '';
     }
 
     function validGrcRecord(data) {
@@ -559,7 +582,7 @@ service cloud.firestore {
     // an allowed get proves that v19 is actually deployed. Older rule sets
     // fall through to the default deny and the client can report that precisely.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v19-review-development';
+      allow get: if approved() && versionId == 'v20-review-development';
       allow list, create, update, delete: if false;
     }
 
