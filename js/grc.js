@@ -792,27 +792,19 @@
     return merged;
   }
 
-  var PROJECT_MANAGEMENT_INCIDENT_SEED=[{"id":"INC-PMD-01","date":"2024-01-01","category":"Safety Hazard","contributingFactors":"Human error","investigationRequired":"no","department":"projects","responsibleDept":"projects","status":"closed"},{"id":"INC-PMD-02","date":"2025-01-01","category":"Safety Hazard","contributingFactors":"Human error","investigationRequired":"no","department":"projects","responsibleDept":"projects","status":"closed"}];
+  var PROJECT_MANAGEMENT_INCIDENT_SEED=[]; /* v154: removed synthetic Project Management incident placeholders. Incident Register is Firestore-only. */
   function normalizeProjectIncidentIds(existing){
-    var rows=(Array.isArray(existing)?existing:[]).map(copyRecord),used={},candidates=[];
-    rows.forEach(function(r){
-      var dept=canonicalGrcDepartment(r&& (r.department||r.responsibleDept)),raw=String(r&& (r.id||r.code)||'').trim().toUpperCase(),m=raw.match(/^(?:INC[- ]?)?PMD[- ]?(\d+)$/);
-      if(dept!=='projects')return;
-      if(m){used[Number(m[1])||0]=true;r.id='INC-PMD-'+String(Number(m[1])||0).padStart(2,'0');if(!r.code||/^INC-PRJ-/i.test(String(r.code))||/^(?:INC[- ]?)?PMD[- ]?\d+$/i.test(String(r.code)))r.code=r.id;}
-      else candidates.push(r);
+    /* v154: IDs are assigned only when a new Incident is created. Read-time
+       normalization must never renumber an existing business record because
+       different users can otherwise derive different IDs from partial scopes. */
+    return (Array.isArray(existing)?existing:[]).map(function(input){
+      var r=copyRecord(input),dept=canonicalGrcDepartment(r&& (r.department||r.responsibleDept)),raw=String(r&& (r.id||r.code)||'').trim().toUpperCase();
+      if(dept==='projects'){
+        var m=raw.match(/^(?:INC[-_ ]?)?(?:PMD|PRJ|PM)[-_ ]?(\d+)$/);
+        if(m){var id='INC-PMD-'+String(Number(m[1])||0).padStart(2,'0');r.id=id;if(!r.code||/^(?:INC[-_ ]?)?(?:PMD|PRJ|PM)[-_ ]?\d+$/i.test(String(r.code)))r.code=id;}
+      }
+      return r;
     });
-    candidates.sort(function(a,b){
-      var ak=String(a.date||a.createdAtIso||a.publishedAtIso||a.updatedAtIso||'')+'|'+String(a.id||a.code||''),bk=String(b.date||b.createdAtIso||b.publishedAtIso||b.updatedAtIso||'')+'|'+String(b.id||b.code||'');
-      return ak.localeCompare(bk);
-    });
-    var next=1;
-    candidates.forEach(function(r){
-      while(used[next])next++;
-      var oldId=String(r.id||r.code||'').trim(),newId='INC-PMD-'+String(next).padStart(2,'0');
-      if(oldId&&oldId!==newId&&!r.legacyIncidentId)r.legacyIncidentId=oldId;
-      r.id=newId;r.code=newId;used[next]=true;next++;
-    });
-    return rows;
   }
   function mergeProjectIncidentSeed(existing){
     var rows=(Array.isArray(existing)?existing:[]).map(copyRecord),byId={};rows.forEach(function(r){byId[String(r&&r.id||r&&r.code||'').trim().toUpperCase()]=r;});
@@ -1148,35 +1140,17 @@
     return grcDeduplicateRegisterRows(collectionKey,out);
   }
   function grcSetPublishedWorkflowRequests(rows){
-    var mine=currentGrcDept(),all=canViewAllExecutiveDepartments(),next={risks:[],incidents:[]},known={};
-    /* Published workflow events are immutable. Accumulate them instead of
-       replacing the projection on every multi-query listener emission. A
-       partial/late alias snapshot must never make an approved record revert. */
-    ['risks','incidents'].forEach(function(key){
-      (grcPublishedWorkflowRequests[key]||[]).forEach(function(request){
-        var id=String(request&& (request.id||request.requestCode)||'');if(id)known[id]=request;
-      });
-    });
+    /* v154 SINGLE SOURCE OF TRUTH:
+       approval requests drive workflow/notifications only. A Published request
+       never paints a register row locally. The final Super Admin transaction
+       writes grc_risks/grc_incidents atomically and the register onSnapshot is
+       the only path that updates every user's visible register. */
+    var next={risks:[],incidents:[]};
     (Array.isArray(rows)?rows:[]).forEach(function(request){
       if(!request||String(request.status||'')!=='published')return;
-      var id=String(request.id||request.requestCode||'');if(id)known[id]=request;
-    });
-    Object.keys(known).forEach(function(id){
-      var request=known[id],dept=canonicalGrcDepartment(request.departmentKey||request.department||request.departmentRaw);
-      if(!all&&(!mine||dept!==mine))return;
-      var key=String(request.recordType||'risk').toLowerCase()==='incident'?'incidents':'risks';
-      next[key].push(request);
+      var key=String(request.recordType||'risk').toLowerCase()==='incident'?'incidents':'risks';next[key].push(request);
     });
     grcPublishedWorkflowRequests=next;
-    grcApplyingRemote=true;
-    ['risks','incidents'].forEach(function(key){
-      if(grcCloudParts[key]&&Object.keys(grcCloudParts[key]).length)grcApplyCloudCollection(key);
-      else state[key]=grcApplyPublishedWorkflowOverlay(key,state[key]||[]);
-    });
-    state=repairGovernanceCodeState(state);enforceLocalGrcScope();
-    try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}
-    grcApplyingRemote=false;
-    renderAtSamePosition(grcViewportPosition());
   }
   window._grcApplyPublishedWorkflowRequests=grcSetPublishedWorkflowRequests;
   document.addEventListener('grc:riskRequestsUpdated',function(event){
@@ -1250,11 +1224,10 @@
         rows.push(winner);
       });
       rows=grcDeduplicateRegisterRows(collectionKey,rows);
-      rows=grcApplyPublishedWorkflowOverlay(collectionKey,rows);
-      rows=grcDeduplicateRegisterRows(collectionKey,rows);
-      rows=grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows);
-      rows=grcDeduplicateRegisterRows(collectionKey,rows);
-      if(collectionKey==='risks')rows=applyRiskStatusOverrides(rows.map(normalizeRiskClassification));
+      /* v154: once Firestore has hydrated, never merge Seed/local workflow/status
+         projections back into the published register. This guarantees that
+         Super Admin, Department Manager and GRC Owner see the exact same row. */
+      if(collectionKey==='risks')rows=rows.map(normalizeRiskClassification);
       if(collectionKey==='incidents')rows=normalizeProjectIncidentIds(rows);
       state[collectionKey]=rows;
       grcCloudEverHydrated[collectionKey]=true;
@@ -1275,7 +1248,7 @@
     var at=rows.findIndex(same);
     if(op==='delete'){if(at>=0)rows.splice(at,1);}
     else{if(key==='risks')r=normalizeRiskClassification(r);if(at>=0)rows[at]=Object.assign({},rows[at],r);else rows.push(r);}
-    if(key==='incidents')rows=normalizeProjectIncidentIds(rows);state[key]=rows;if(key==='risks')state.risks=applyRiskStatusOverrides(state.risks);state=repairGovernanceCodeState(state);enforceLocalGrcScope();
+    if(key==='incidents')rows=normalizeProjectIncidentIds(rows);state[key]=rows;state=repairGovernanceCodeState(state);enforceLocalGrcScope();
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}
     renderAtSamePosition(grcViewportPosition());
   };
@@ -1383,7 +1356,6 @@
     /* Repair any baseline Risk Register rows that were absent from an older
        secure migration so department-scoped users receive their full register. */
     (RISK_REGISTER_SEED||[]).forEach(function(r,i){required.push({key:'risks',record:r,index:i});});
-    (PROJECT_MANAGEMENT_INCIDENT_SEED||[]).forEach(function(r,i){required.push({key:'incidents',record:r,index:i});});
     (EMERGENCY_CODE_SEED||[]).forEach(function(r,i){required.push({key:'codes',record:r,index:i});});
     (INITIATIVE_SEED||[]).forEach(function(r,i){required.push({key:'initiatives',record:r,index:i});});
     var writes=[];
@@ -1422,10 +1394,21 @@
       grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
       if(isGrcAdmin()){
         try{await migrateLegacyGrcState(b,false);}catch(err){console.error('[GRC Secure Migration] automatic migration did not complete',err);}
+        /* Remove only the two historical synthetic Project Management incident
+           placeholders BEFORE duplicate consolidation. Doing this first avoids
+           a newer fake placeholder winning over a real legacy incident that
+           has the same business ID. */
+        try{if(typeof window._grcRiskRepairProjectIncidentIds==='function')await window._grcRiskRepairProjectIncidentIds();}catch(err0){console.error('[GRC Incident Cleanup] synthetic Project Management incidents could not be removed',err0);}
         try{await consolidateGrcRegisterCollections(b);}catch(err1){console.error('[GRC Register Consolidation] duplicate records could not be consolidated',err1);}
         try{await ensureRequiredGrcBaselineRecords(b);}catch(err2){console.error('[GRC Baseline Repair] approved records could not be repaired',err2);}
+        try{if(typeof window._grcMigrateRiskStatusOverrides==='function')await window._grcMigrateRiskStatusOverrides();}catch(err3){console.error('[GRC Risk Status Migration] legacy status overrides could not be migrated',err3);}
       }
-      startRiskStatusOverrideSync(b);
+      /* The live Firestore register is authoritative. Do not render stale
+         localStorage/Seed/workflow projections while the new listener is
+         binding; they were the reason different roles could temporarily see
+         different PM rows/statuses. */
+      state.risks=[];state.incidents=[];grcPublishedWorkflowRequests={risks:[],incidents:[]};grcRiskStatusOverrides={};
+      /* v154: legacy grc_risk_status is migrated by Admin, never listened to. */
       var canAll=canViewAllExecutiveDepartments(),dept=currentGrcDept(),rawDept=rawCurrentGrcDepartment();rawDept=(rawDept===null||rawDept===undefined)?'':String(rawDept).trim();if(['null','none','undefined','n/a','na','unassigned','not assigned','-','—'].indexOf(rawDept.toLowerCase())>=0)rawDept='';
       var aliasMap={
         safety:['safety','Safety','Safety Department','Safety Management','Safety Management Department','السلامة','إدارة السلامة','قسم السلامة'],
@@ -1439,13 +1422,11 @@
         if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){
           grcConfigureCollectionScopes(key,['all']);grcListen(b,key,'all',col);
         }else{
-          var deptValues=(aliasMap[dept]||[]).slice();if(dept&&deptValues.indexOf(dept)<0)deptValues.unshift(dept);if(rawDept&&deptValues.indexOf(rawDept)<0)deptValues.push(rawDept);deptValues=deptValues.filter(function(v,i,a){return v&&a.indexOf(v)===i;});
-          /* One listener per alias GROUP instead of one listener per alias.
-             Chunk size 10 is conservative and preserves old department labels. */
-          var deptGroups=[];for(var gi=0;gi<deptValues.length;gi+=10)deptGroups.push(deptValues.slice(gi,gi+10));
-          var scopes=deptGroups.map(function(_v,i){return'department_group_'+i;});grcConfigureCollectionScopes(key,scopes);
-          if(!scopes.length){grcApplyReadyCollection(key);return;}
-          deptGroups.forEach(function(values,i){var ownQ=values.length===1?b.fs.query(col,b.fs.where('department','==',values[0])):b.fs.query(col,b.fs.where('department','in',values));grcListen(b,key,'department_group_'+i,ownQ);});
+          /* v154: every secure GRC document is stored with one canonical
+             department key. A single equality listener avoids alias-query
+             permission failures, duplicate reads and cross-user divergence. */
+          grcConfigureCollectionScopes(key,['department']);
+          grcListen(b,key,'department',b.fs.query(col,b.fs.where('department','==',dept)));
         }
       });
     }).catch(function(err){grcSyncStarted=false;console.error('[GRC Secure Sync] init failed',err);});
@@ -1501,6 +1482,7 @@
     if(value===null||value===undefined)return'';
     var raw=String(value).trim(),n=raw.toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');
     if(!n||['null','none','undefined','n a','na','unassigned','not assigned','-','—'].indexOf(n)>=0)return'';
+    if(n==='saf')return'safety';if(n==='mnt')return'maintenance';if(n==='hsk'||n==='hk')return'housekeeping';if(n==='lnd'||n==='lund')return'laundry';if(n==='prj'||n==='pmd'||n==='pm')return'projects';if(n==='gov')return'governance';
     if(n.indexOf('laundry')>=0||n.indexOf('مغسلة')>=0||n.indexOf('المغسلة')>=0||n.indexOf('غسيل')>=0)return'laundry';
     if(n.indexOf('housekeeping')>=0||n.indexOf('cleaning')>=0||n.indexOf('نظافة')>=0||n.indexOf('النظافة')>=0)return'housekeeping';
     if(n.indexOf('maintenance')>=0||n.indexOf('صيانة')>=0||n.indexOf('الصيانة')>=0)return'maintenance';
@@ -1531,7 +1513,7 @@
   function canSubmitRiskRequest(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return r==='risk_owner'||r==='grc_owner'||r==='platform_owner'||p.indexOf('edit_risk_management')>=0||p.indexOf('*')>=0;}
   function canSubmitIncidentRequest(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return r==='risk_owner'||r==='grc_owner'||r==='platform_owner'||p.indexOf('edit_incident_register')>=0||p.indexOf('edit_risk_management')>=0||p.indexOf('*')>=0;}
   function canSubmitRegisterRequest(type){return type==='risk'?canSubmitRiskRequest():type==='incident'?canSubmitIncidentRequest():false;}
-  function canEnterGrc(){if(typeof window._canAccessPortal==='function')return !!window._canAccessPortal('grc');var r=normalizedRole();return ['super_admin','admin','executive','department_manager','risk_owner','grc_owner','platform_owner','viewer','user'].indexOf(r)>=0||window.__QUMC_GRC_OPEN_TO_USERS__===true;}
+  function canEnterGrc(){if(typeof window._canAccessPortal==='function')return !!window._canAccessPortal('grc');var r=normalizedRole();return ['super_admin','admin','executive','department_manager','dept_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].indexOf(r)>=0||window.__QUMC_GRC_OPEN_TO_USERS__===true;}
   function canUseRiskCrud(){return isGrcAdmin()||canSubmitRiskRequest();}
   function L(k){var lang=isAr()?'ar':'en';return(labels[lang]&&labels[lang][k])||labels.en[k]||k;}
   function esc(v){return String(v==null?'':v).replace(/[&<>'"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];});}
@@ -2528,6 +2510,9 @@
     if(showAll){var readOnly=!isGrcAdmin();return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+governanceRegistersBoard(readOnly)+riskRegistersBoard(readOnly)+assuranceRegistersBoard();}
     if(!isGrcAdmin()){
       var d=currentGrcDept(),riskDept=d==='laundry'?'laundryRisk':d==='housekeeping'?'housekeepingRisk':d;
+      var riskIncidentHtml=canAccessRiskIncidentRegisters()?
+        registerBlock('risk',L('riskRegister'),deptName(d),'',riskTable(riskDept,false))+
+        registerBlock('incident',L('incidentRegister'),deptName(d),'',incidentTable(d,false)):'';
       return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+
         '<section class="grc-registers-board">'+sectionHead(L('governanceRegisterGroup'),deptName(d))+
         registerBlock('policy',L('policyRegister'),deptName(d),'',governanceTable('policies',d,'policy',false))+
@@ -2535,9 +2520,8 @@
         registerBlock('form',L('internalForms'),deptName(d),'',formsTable(d,'internal',false))+
         registerBlock('form',L('externalForms'),deptName(d),'',formsTable(d,'external',false))+'</section>'+
         '<section class="grc-registers-board">'+sectionHead(L('riskRegisterGroup'),deptName(d))+
-        registerBlock('risk',L('riskRegister'),deptName(d),'',riskTable(riskDept,false))+
-        registerBlock('incident',L('incidentRegister'),deptName(d),'',incidentTable(d,false))+
-        registerBlock('code',L('codeRegister'),L('allDepartments'),'',codeTable('allFms',false))+'</section>'+
+        riskIncidentHtml+
+        registerBlock('code',L('codeRegister'),deptName(d),'',codeTable(d,false))+'</section>'+
         assuranceRegistersBoard();
     }
     return hero('GRC · Registers',L('registerTitle'),L('registerDesc'))+governanceRegistersBoard(false)+riskRegistersBoard(false)+assuranceRegistersBoard();
