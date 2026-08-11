@@ -727,9 +727,9 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:_advNormalizeRoleValue(d.role||'viewer'),rawDepartment:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV24Verified===true)return true;
-      try{await getDoc(doc(db,'system_rule_versions','v24-review-development'));window.__advRulesV24Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v24 are not active. Publish the firestore.rules file included with this update, then sign in again.');throw e;}
+      if(window.__advRulesV25Verified===true)return true;
+      try{await getDoc(doc(db,'system_rule_versions','v25-review-development'));window.__advRulesV25Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v25 are not active. Publish the firestore.rules file included with this update, then sign in again.');throw e;}
     }
     function _advIso(){return new Date().toISOString();}
     function _advTsMs(v){if(!v)return 0;try{return v.toDate?v.toDate().getTime():new Date(v).getTime()||0;}catch(_){return 0;}}
@@ -799,7 +799,7 @@ window._selectPortal=async portal=>{
     }
     async function _advAuthorizedRequest(requestId,adminAllowed,managerAllowed){
       const loc=await _advLocateRequest(requestId),r=loc.record,owner=String(r.userEmail||'').toLowerCase().trim()===_advEmail();
-      const manager=managerAllowed&&_advIsDepartmentManager()&&!!_advDepartmentKey()&&String(r.departmentKey||'')===_advDepartmentKey()&&!owner;
+      const manager=managerAllowed&&_advIsDepartmentManager()&&!!_advDepartmentKey()&&String(r.departmentKey||'')===_advDepartmentKey()&&String(r.workflowStage||r.status||'')==='pending_department_manager'&&r.requiresManagerApproval!==false;
       if(!(adminAllowed&&_advIsAdmin())&&!owner&&!manager)throw new Error('Access denied.');
       return Object.assign(r,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
     }
@@ -899,7 +899,7 @@ window._selectPortal=async portal=>{
       if(!_advIsDepartmentManager())throw new Error('Access denied.');
       const dept=_advDepartmentKey(),own=await window._advisoryGetMine();if(!dept)return own;
       const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept),where('workflowStage','==','pending_department_manager')));
-      const departmentRows=snap.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests')).filter(r=>String(r.userEmail||'').toLowerCase().trim()!==_advEmail());
+      const departmentRows=snap.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));
       return _advMergeRows(departmentRows,own,false);
     };
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
@@ -966,7 +966,7 @@ window._selectPortal=async portal=>{
       if(!_advIsDepartmentManager())throw new Error('Access denied.');
       const current=await _advAuthorizedRequest(requestId,false,true),dept=_advDepartmentKey(),managerEmail=_advEmail(),managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim();
       if(!dept||String(current.departmentKey||'')!==dept)throw new Error('This request does not belong to your department.');
-      if(String(current.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('You cannot approve your own request.');
+      if(current.requiresManagerApproval===false)throw new Error('This request does not require Department Manager approval.');
       if(current._storage!=='advisory_requests')throw new Error('Legacy requests cannot use the Department Manager approval workflow.');
       if(!['approve','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
       if(action==='reject'&&!managerComment)throw new Error('A rejection reason is required.');
@@ -976,7 +976,7 @@ window._selectPortal=async portal=>{
         const snap=await tx.get(requestRef);if(!snap.exists())throw new Error('Request not found.');const live=snap.data()||{};
         if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
         if(String(live.departmentKey||'')!==dept)throw new Error('This request does not belong to your department.');
-        if(String(live.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('You cannot approve your own request.');
+        if(live.requiresManagerApproval===false)throw new Error('This request does not require Department Manager approval.');
         if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
         else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
         const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:action==='approve'?'approved':'rejected',managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
