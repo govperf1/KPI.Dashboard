@@ -691,7 +691,7 @@ window._selectPortal=async portal=>{
     const ADV_REQUESTS_COLLECTION='advisory_requests';
     const ADV_PUBLIC_COLLECTION='advisory_public';
     const ADV_FALLBACK_COLLECTION='kpi_requests';
-    function _advRole(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_');}
+    function _advRole(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
     function _advIsAdmin(){const r=_advRole();return r==='admin'||r==='super_admin';}
     function _advIsDepartmentManager(){const r=_advRole();return ['department_manager','dept_manager','departmentmanager','governance_performance_manager'].includes(r);}
     function _advCanAnalyze(){return _advIsAdmin()||_clientHasPerm('view_request_analytics')||_advRole()==='governance_performance_manager';}
@@ -713,7 +713,7 @@ window._selectPortal=async portal=>{
       return ['safety','maintenance','laundry','housekeeping','projects','governance','division'].includes(normalized)?normalized:'';
     }
     function _advDepartmentKey(){return _advCanonicalDepartment(_advRawDepartment());}
-    function _advNormalizeRoleValue(value){return String(value||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_');}
+    function _advNormalizeRoleValue(value){return String(value||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
     function _advMeaningfulDepartment(value){var s=String(value==null?'':value).trim();return !!s&&!/^(null|none|undefined|n\/?a|na|unassigned|not assigned|-|—)$/i.test(s);}
     async function _advFreshProfile(){
       const u=auth.currentUser;if(!u||!u.email)throw new Error('Not authenticated.');
@@ -727,9 +727,9 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:_advNormalizeRoleValue(d.role||'viewer'),rawDepartment:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV22Verified===true)return true;
-      try{await getDoc(doc(db,'system_rule_versions','v22-review-development'));window.__advRulesV22Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v22 are not active. Publish the firestore.rules file included with this update, then sign in again.');throw e;}
+      if(window.__advRulesV23Verified===true)return true;
+      try{await getDoc(doc(db,'system_rule_versions','v23-review-development'));window.__advRulesV23Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v23 are not active. Publish the firestore.rules file included with this update, then sign in again.');throw e;}
     }
     function _advIso(){return new Date().toISOString();}
     function _advTsMs(v){if(!v)return 0;try{return v.toDate?v.toDate().getTime():new Date(v).getTime()||0;}catch(_){return 0;}}
@@ -888,17 +888,18 @@ window._selectPortal=async portal=>{
       }
       return _advMergeRows(primary,fallback,true);
     };
-    window._advisoryGetAll=async function(){if(!_advCanAnalyze())throw new Error('Access denied.');let primary=[];try{primary=await _advGetSorted(ADV_REQUESTS_COLLECTION);}catch(_){ }return _advMergeRows(primary,await _advFallbackRows(false),false);};
+    window._advisoryGetAll=async function(){if(!_advCanAnalyze())throw new Error('Access denied.');const primary=await _advGetSorted(ADV_REQUESTS_COLLECTION);return _advMergeRows(primary,await _advFallbackRows(false),false);};
     window._advisoryGetMine=async function(){
-      if(!_advEmail()||!db)return[];let primary=[];
-      try{const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));primary=snap.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));}catch(_){ }
+      if(!_advEmail()||!db)return[];
+      const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
+      const primary=snap.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));
       return _advMergeRows(primary,await _advFallbackRows(true),false);
     };
     window._advisoryGetManagerQueue=async function(){
       if(!_advIsDepartmentManager())throw new Error('Access denied.');
       const dept=_advDepartmentKey(),own=await window._advisoryGetMine();if(!dept)return own;
-      let departmentRows=[];
-      try{const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)));departmentRows=snap.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests')).filter(r=>String(r.workflowStage||'')==='pending_department_manager'&&String(r.userEmail||'').toLowerCase().trim()!==_advEmail());}catch(e){console.warn('[Review Development] manager queue failed',e&&e.code||e);throw e;}
+      const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept),where('workflowStage','==','pending_department_manager')));
+      const departmentRows=snap.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests')).filter(r=>String(r.userEmail||'').toLowerCase().trim()!==_advEmail());
       return _advMergeRows(departmentRows,own,false);
     };
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
@@ -919,15 +920,12 @@ window._selectPortal=async portal=>{
           if(closed)return;
           let primary=(sources.primary&&sources.primary.rows)||[];
           const fallback=(sources.fallback&&sources.fallback.rows)||[];
-          /* A Department Manager needs one department query only. That same query
-             contains the manager's own requests plus the queue for that department,
-             so a second "own" listener would duplicate Firestore reads. */
+          /* Manager privacy and query correctness use two narrow listeners while
+             this page is open: one exact pending queue for the manager's department
+             and one exact own-request query. This prevents cross-department reads
+             and avoids a broad department listener that Firestore can reject. */
           if(_advIsDepartmentManager()){
-            primary=primary.filter(function(r){
-              const owner=String(r&&r.userEmail||'').toLowerCase().trim();
-              if(owner===me)return true;
-              return !!dept && String(r&&r.departmentKey||'')===dept && stageOf(r)==='pending_department_manager';
-            });
+            primary=primary.concat((sources.own&&sources.own.rows)||[]);
           }
           const merged=_advMergeRows(primary,fallback,false);
           callback({
@@ -947,8 +945,12 @@ window._selectPortal=async portal=>{
         }catch(err){sources[key]={ready:true,rows:[]};emit();}
       };
       if(_advIsDepartmentManager()){
-        if(dept)listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)),'advisory_requests');
-        else listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
+        if(dept){
+          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept),where('workflowStage','==','pending_department_manager')),'advisory_requests');
+          listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
+        }else{
+          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
+        }
         listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
       }else if(_advCanAnalyze()){
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
