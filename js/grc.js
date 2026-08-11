@@ -1382,7 +1382,7 @@
       Object.keys(groups).forEach(function(business){
         var list=groups[business],winner=null;list.forEach(function(r){winner=grcPreferRegisterRecord(winner,r);});if(!winner)return;
         var canonicalId=grcCloudDocId(key,winner,0),sourceId=String(winner._sourceCloudId||winner._cloudId||winner.cloudId||''),clean=grcSerializable(winner);
-        clean._cloudId=canonicalId;clean.cloudId=canonicalId;clean.canonicalDocument=true;clean.department=grcRecordDepartment(key,clean);clean.visibility=grcRecordVisibility(key,clean);clean.recordType=key;clean.schemaVersion=GRC_SCHEMA_VERSION;delete clean._sourceCloudId;delete clean._fromCache;
+        clean._cloudId=canonicalId;clean.cloudId=canonicalId;clean.canonicalDocument=true;clean.department=grcRecordDepartment(key,clean);clean.departmentKey=clean.department;clean.visibility=grcRecordVisibility(key,clean);clean.recordType=key;clean.schemaVersion=GRC_SCHEMA_VERSION;delete clean._sourceCloudId;delete clean._fromCache;
         /* Consolidation changes storage shape only; it must not manufacture a
            new business revision for legacy content. Otherwise an old row can
            appear newer than a real approval and block it from being repaired. */
@@ -1425,9 +1425,24 @@
     })().catch(function(err){grcMigrationPromise=null;console.error('[GRC Secure Migration] failed',err);throw err;});return grcMigrationPromise;
   }
   window._grcRunSecureMigration=function(){return ensureReportBackend().then(function(b){return migrateLegacyGrcState(b,true);});};
+  async function repairLegacyScopedGrcCollectionsV161(b){
+    if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return false;
+    var meta=b.fs.doc(b.db,'grc_meta','legacy_scoped_repair_v161'),metaSnap=await b.fs.getDoc(meta);
+    if(metaSnap.exists()&&metaSnap.data()&&metaSnap.data().status==='completed')return false;
+    /* Re-read the original approved workspace exactly once and import only
+       missing documents. This recovers older department Policies / Forms /
+       Risks / Incidents that were never copied into the per-record collections. */
+    var repaired=false;
+    try{repaired=await migrateLegacyGrcState(b,true);}catch(err){
+      await b.fs.setDoc(meta,{status:'failed',version:161,error:String(err&&err.message||err),updatedAt:b.fs.serverTimestamp(),updatedBy:String(window._fbUser||'')},{merge:true});
+      throw err;
+    }
+    await b.fs.setDoc(meta,{status:'completed',version:161,repaired:repaired===true,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+    return repaired;
+  }
   async function normalizeDepartmentScopedGrcDocuments(b){
     if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return 0;
-    var meta=b.fs.doc(b.db,'grc_meta','scoped_department_keys_v160'),metaSnap=await b.fs.getDoc(meta);
+    var meta=b.fs.doc(b.db,'grc_meta','scoped_department_keys_v161'),metaSnap=await b.fs.getDoc(meta);
     if(metaSnap.exists()&&metaSnap.data()&&metaSnap.data().status==='completed')return 0;
     var keys=['policies','plans','forms','risks','incidents'],writes=[];
     for(var ki=0;ki<keys.length;ki++){
@@ -1445,12 +1460,12 @@
       });
     }
     if(writes.length){await grcCommitWrites(b,writes);try{window._recordAuditDirect&&window._recordAuditDirect('GRC_DEPARTMENT_KEY_NORMALIZATION','Normalized department keys for scoped GRC registers',null,{records:writes.length},{portal:'grc'});}catch(_){}}
-    await b.fs.setDoc(meta,{status:'completed',version:160,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+    await b.fs.setDoc(meta,{status:'completed',version:161,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
     return writes.length;
   }
   async function ensureGovernanceBaselineCatalog(b){
     if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return false;
-    var meta=b.fs.doc(b.db,'grc_meta','governance_baseline_catalog_v160'),metaSnap=await b.fs.getDoc(meta);
+    var meta=b.fs.doc(b.db,'grc_meta','governance_baseline_catalog_v161'),metaSnap=await b.fs.getDoc(meta);
     if(metaSnap.exists()&&metaSnap.data()&&metaSnap.data().status==='completed')return false;
     var required=[],policies=(MAINTENANCE_POLICY_SEED||[]).concat(SAFETY_POLICY_SEED||[],HOUSEKEEPING_POLICY_SEED||[]),plans=(SAFETY_PLAN_SEED||[]).concat(MAINTENANCE_PLAN_SEED||[]),forms=(SAFETY_FORM_SEED||[]).concat(HOUSEKEEPING_FORM_SEED||[],PROJECTS_FORM_SEED||[],MAINTENANCE_FORM_SEED||[],INTERNAL_FORM_SEED||[]);
     policies.forEach(function(r,i){required.push({key:'policies',record:r,index:i});});
@@ -1459,12 +1474,12 @@
     var writes=[];
     await Promise.all(required.map(async function(item){var prepared=grcPrepareCloudRecord(item.key,item.record,item.index,b),ref=b.fs.doc(b.db,GRC_COLLECTION_MAP[item.key],prepared._cloudId),snap=await b.fs.getDoc(ref);if(!snap.exists())writes.push({op:'set',ref:ref,data:prepared});}));
     if(writes.length)await grcCommitWrites(b,writes);
-    await b.fs.setDoc(meta,{status:'completed',version:160,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+    await b.fs.setDoc(meta,{status:'completed',version:161,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
     return writes.length>0;
   }
   async function ensureRequiredGrcBaselineRecords(b){
     if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return false;
-    var meta=b.fs.doc(b.db,'grc_meta','required_baseline_catalog_v160'),metaSnap=await b.fs.getDoc(meta);
+    var meta=b.fs.doc(b.db,'grc_meta','required_baseline_catalog_v161'),metaSnap=await b.fs.getDoc(meta);
     if(metaSnap.exists()&&metaSnap.data()&&metaSnap.data().status==='completed')return false;
     var required=[];
     /* Repair any baseline Risk Register rows that were absent from an older
@@ -1479,7 +1494,7 @@
       else if(item.key==='codes'&&String(item.record&&item.record.sourceSystem||'')==='Emergency Coding System Admin'&&normalizeStatus(snap.data()&&snap.data().status)!=='successful')await b.fs.updateDoc(ref,{status:'successful',cloudUpdatedAt:b.fs.serverTimestamp(),updatedAtIso:new Date().toISOString()});
     }));
     if(writes.length){await grcCommitWrites(b,writes);try{window._recordAuditDirect&&window._recordAuditDirect('GRC_BASELINE_REPAIR','Added missing approved Risk, Incident and Initiative baseline records',null,{records:writes.length},{portal:'grc'});}catch(_){}}
-    await b.fs.setDoc(meta,{status:'completed',version:160,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+    await b.fs.setDoc(meta,{status:'completed',version:161,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
     return writes.length>0;
   }
   function startRiskStatusOverrideSync(b){
@@ -1509,6 +1524,7 @@
       grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
       if(isGrcAdmin()){
         try{await migrateLegacyGrcState(b,false);}catch(err){console.error('[GRC Secure Migration] automatic migration did not complete',err);}
+        try{await repairLegacyScopedGrcCollectionsV161(b);}catch(errLegacy){console.error('[GRC Legacy Recovery] missing scoped records could not be recovered',errLegacy);}
         /* Remove only the two historical synthetic Project Management incident
            placeholders BEFORE duplicate consolidation. Doing this first avoids
            a newer fake placeholder winning over a real legacy incident that
@@ -1540,14 +1556,13 @@
         if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){
           grcConfigureCollectionScopes(key,['all']);grcListen(b,key,'all',col);
         }else{
-          /* Canonical records stay on one live listener. A one-time legacy
-             department query recovers older rows that pre-date departmentKey.
-             It is intentionally NOT a second live listener, so it fixes blank
-             registers without permanently doubling Firestore reads. */
-          var legacyAliases=grcLegacyDepartmentAliases(dept);
-          grcConfigureCollectionScopes(key,legacyAliases.length?['department','legacy']:['department']);
-          grcListen(b,key,'department',b.fs.query(col,b.fs.where('departmentKey','==',dept)));
-          if(legacyAliases.length)grcLoadScopeOnce(b,key,'legacy',b.fs.query(col,b.fs.where('department','in',legacyAliases)));
+          /* One query, one rule, one source of truth. Every scoped document is
+             normalized to departmentKey by the Super Admin repair. Division is
+             included in the same query because those records are shared. This
+             avoids the legacy alias query that Firestore could reject as an
+             all-or-nothing query and that left some accounts with blank data. */
+          grcConfigureCollectionScopes(key,['department']);
+          grcListen(b,key,'department',b.fs.query(col,b.fs.where('departmentKey','in',[dept,'division'])));
         }
       });
     }).catch(function(err){grcSyncStarted=false;console.error('[GRC Secure Sync] init failed',err);});
