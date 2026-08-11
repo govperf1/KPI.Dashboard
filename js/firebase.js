@@ -713,6 +713,23 @@ window._selectPortal=async portal=>{
       return ['safety','maintenance','laundry','housekeeping','projects','governance','division'].includes(normalized)?normalized:'';
     }
     function _advDepartmentKey(){return _advCanonicalDepartment(_advRawDepartment());}
+    function _advNormalizeRoleValue(value){return String(value||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_');}
+    function _advMeaningfulDepartment(value){var s=String(value==null?'':value).trim();return !!s&&!/^(null|none|undefined|n\/?a|na|unassigned|not assigned|-|—)$/i.test(s);}
+    async function _advFreshProfile(){
+      const u=auth.currentUser;if(!u||!u.email)throw new Error('Not authenticated.');
+      const snap=await getDoc(doc(db,'users',u.email));
+      if(!snap.exists())throw new Error('Your user profile could not be found in Firestore.');
+      const d=snap.data()||{};if(d.approved!==true)throw new Error('Your account is not approved.');
+      const raw=Object.prototype.hasOwnProperty.call(d,'dept')?d.dept:(Object.prototype.hasOwnProperty.call(d,'department')?d.department:(Object.prototype.hasOwnProperty.call(d,'deptKey')?d.deptKey:null));
+      const meaningful=_advMeaningfulDepartment(raw),key=_advCanonicalDepartment(raw);
+      if(meaningful&&!key)throw new Error('profile-department-unrecognized:'+String(raw));
+      return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:_advNormalizeRoleValue(d.role||'viewer'),rawDepartment:raw,departmentKey:key};
+    }
+    async function _advAssertRulesVersion(){
+      if(window.__advRulesV19Verified===true)return true;
+      try{await getDoc(doc(db,'system_rule_versions','v19-review-development'));window.__advRulesV19Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v19 are not active. Publish the firestore.rules file included with this update, then sign in again.');throw e;}
+    }
     function _advIso(){return new Date().toISOString();}
     function _advTsMs(v){if(!v)return 0;try{return v.toDate?v.toDate().getTime():new Date(v).getTime()||0;}catch(_){return 0;}}
     function _advIsFallbackRow(r){return !!(r&&(r.isReviewDevelopmentRequest===true||String(r.requestDomain||'')==='review_development'));}
@@ -817,7 +834,15 @@ window._selectPortal=async portal=>{
     window._advisorySubmit=async function(payload,file){
       if(!_advEmail()||!db)throw new Error('Not authenticated.');
       payload=payload||{};
-      const profileDepartmentKey=_advDepartmentKey(),payloadDepartmentKey=_advCanonicalDepartment(payload.departmentKey),departmentKey=profileDepartmentKey||payloadDepartmentKey,requiresManagerApproval=!!departmentKey&&!_advIsDepartmentManager()&&!_advIsAdmin();
+      /* Read the user's profile again at submission time. This keeps the client
+         payload in lock-step with the profile that Firestore Security Rules
+         evaluate and prevents stale department/role values from causing false
+         permission denials after an account was edited while the session stayed open. */
+      await _advAssertRulesVersion();
+      const freshProfile=await _advFreshProfile(),departmentKey=freshProfile.departmentKey;
+      const isFreshManager=['department_manager','dept_manager','departmentmanager','governance_performance_manager'].includes(freshProfile.role);
+      const isFreshAdmin=['admin','super_admin'].includes(freshProfile.role);
+      const requiresManagerApproval=!!departmentKey&&!isFreshManager&&!isFreshAdmin;
       const routedDeptCode=departmentKey?_advSafeCode(({safety:'SAF',maintenance:'MNT',laundry:'LND',housekeeping:'HSK',projects:'PRJ',governance:'GOV',division:'FMS'})[departmentKey]||payload.departmentCode):'FMS';
       const year=new Date().getFullYear(),deptCode=routedDeptCode,counterId=year+'_'+deptCode;
       const counterRef=doc(db,'advisory_counters',counterId),primaryRef=doc(collection(db,ADV_REQUESTS_COLLECTION));
@@ -826,8 +851,8 @@ window._selectPortal=async portal=>{
         await runTransaction(db,async tx=>{const c=await tx.get(counterRef),next=Number(c.exists()&&c.data().next||0)+1;code='RD-'+deptCode+'-'+year+'-'+String(next).padStart(3,'0');tx.set(counterRef,{next,updatedAt:serverTimestamp()},{merge:true});});
       }catch(_){counterFallback=true;code='RD-'+deptCode+'-'+year+'-'+String(Date.now()).slice(-6)+Math.random().toString(36).slice(2,4).toUpperCase();}
       const nowIso=_advIso(),base={
-        userName:String(window._fbName||window.currentUserName||_advEmail().split('@')[0]||'User'),userEmail:_advEmail(),requesterRole:_advRole(),
-        departmentKey:departmentKey,departmentRaw:String(_advRawDepartment()==null?'':_advRawDepartment()).trim(),departmentCode:deptCode,gender:String(payload.gender||''),priority:String(payload.priority||'Medium'),
+        userName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]||'User'),userEmail:freshProfile.email,requesterUid:freshProfile.uid,requesterRole:freshProfile.role,
+        departmentKey:departmentKey,departmentRaw:String(freshProfile.rawDepartment==null?'':freshProfile.rawDepartment).trim(),departmentCode:deptCode,gender:String(payload.gender||''),priority:String(payload.priority||'Medium'),
         platform:String(payload.platform||'grc'),serviceType:String(payload.serviceType||'record_request_review'),requestType:String(payload.requestType||''),requestTypeLabel:String(payload.requestTypeLabel||''),
         category:String(payload.category||''),relatedType:String(payload.relatedType||''),
         relatedItems:Array.isArray(payload.relatedItems)?payload.relatedItems.map(function(x){return {type:String(x&&x.type||''),id:String(x&&x.id||''),code:String(x&&x.code||''),name:String(x&&x.name||'')};}):[],

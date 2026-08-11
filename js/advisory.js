@@ -110,7 +110,9 @@
     var raw=String(error&&error.code||error&&error.message||error||'').trim(),text=raw.toLowerCase();
     if(!navigator.onLine)return'No internet connection. Reconnect, then submit the request again.';
     if(/submission-timeout|deadline-exceeded|timed out|timeout/.test(text))return'The request service did not respond in time. Check My Requests first; if the request is not listed, check the connection and submit it again.';
-    if(/permission-denied|missing or insufficient permissions/.test(text))return'Your account is not permitted to save this request. Ask the system administrator to verify the Review & Development Center Firestore permissions.';
+    if(/rules-version-mismatch/.test(text))return raw.replace(/^rules-version-mismatch:/,'');
+    if(/profile-department-unrecognized/.test(text)){var dept=raw.split(':').slice(1).join(':')||'Unknown';return'Your account department is not recognized by the Review & Development workflow ('+dept+'). Update the user department to a supported department, then sign in again.';}
+    if(/permission-denied|missing or insufficient permissions/.test(text))return'Firestore Rules v19 are active, but Firebase still rejected this request. Sign out and sign in again so the latest user profile is loaded. If the issue continues, verify the user document email, approved status, role, and department.';
     if(/unauthenticated|not authenticated/.test(text))return'Your session is no longer active. Sign in again, then resubmit the request.';
     if(/unavailable|network-request-failed|failed to fetch|offline/.test(text))return'The request service is temporarily unavailable. Check the connection and try again.';
     if(/resource-exhausted|quota/.test(text))return'The request could not be saved because the database service limit was reached. Contact the system administrator.';
