@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v23 — Exact Scoped Queries + Stable Review Approval Queues
+// FIRESTORE SECURITY RULES v24 — Review Routing + Manager Queue + Legacy Scoped Reads
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -238,16 +238,48 @@ service cloud.firestore {
              data.schemaVersion == 2;
     }
 
-    // Canonical scoped read only. Every department-scoped document is
-    // normalized by the Super Admin repair to one departmentKey. Keeping the
-    // rule identical to the client query avoids Firestore "rules are not
-    // filters" failures caused by legacy alias OR branches. Division records
-    // are intentionally shared with every approved GRC user.
-    function canReadDepartmentGrcRecord(data) {
+    // Legacy records created before schema v2 may still have only the display
+    // department field. Keep a narrow alias set so scoped users can read their
+    // own historical rows while Super Admin normalization upgrades them.
+    function userDepartmentAliases() {
+      let d = userDepartmentKey();
+      return d == 'safety' ? ['safety','Safety','Safety Department','Safety Management','SAF'] :
+        d == 'maintenance' ? ['maintenance','Maintenance','Maintenance Department','Maintenance Management','MNT'] :
+        d == 'housekeeping' ? ['housekeeping','Housekeeping','Housekeeping Department','Housekeeping Management','Cleaning','HSK','HK'] :
+        d == 'laundry' ? ['laundry','Laundry','Laundry Department','Laundry Management','LND','LUND'] :
+        d == 'projects' ? ['projects','project','Project_Management','Projects_Management','Project Management','Projects Management','Project Management Department','PM','PMD','PRJ'] :
+        d == 'governance' ? ['governance','Governance','Governance & Performance','Governance and Performance','GOV'] :
+        d == 'division' ? ['division','FMS','FMS Division'] : [];
+    }
+
+    function legacyDepartmentMatchesUser(value) {
+      return value is string && value in userDepartmentAliases();
+    }
+
+    // Query-safe list rule. It mirrors the three queries used by the browser:
+    // canonical departmentKey, shared Division departmentKey, and one-time
+    // legacy department aliases. This avoids blank registers without opening
+    // cross-department data.
+    function canListDepartmentGrcRecord(data) {
       return canAccessGrc() && (
         viewAllGrcDepartments() ||
         (('departmentKey' in data) && data.departmentKey == userDepartmentKey()) ||
-        (('departmentKey' in data) && data.departmentKey == 'division')
+        (('departmentKey' in data) && data.departmentKey == 'division') ||
+        (('department' in data) && legacyDepartmentMatchesUser(data.department))
+      );
+    }
+
+    function canGetDepartmentGrcRecord(data) {
+      return canAccessGrc() && (
+        viewAllGrcDepartments() ||
+        (('departmentKey' in data) && data.departmentKey == userDepartmentKey()) ||
+        (('departmentKey' in data) && data.departmentKey == 'division') ||
+        (('department' in data) && (
+          legacyDepartmentMatchesUser(data.department) ||
+          canonicalDepartment(data.department) == 'division' ||
+          sameDepartment(data.department)
+        )) ||
+        (('visibility' in data) && data.visibility == 'shared')
       );
     }
 
@@ -427,19 +459,22 @@ service cloud.firestore {
 
     // ── Department-scoped GRC register collections ───────────────────
     match /grc_policies/{recordId} {
-      allow read: if canReadDepartmentGrcRecord(resource.data);
+      allow get: if canGetDepartmentGrcRecord(resource.data);
+      allow list: if canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_plans/{recordId} {
-      allow read: if canReadDepartmentGrcRecord(resource.data);
+      allow get: if canGetDepartmentGrcRecord(resource.data);
+      allow list: if canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_forms/{recordId} {
-      allow read: if canReadDepartmentGrcRecord(resource.data);
+      allow get: if canGetDepartmentGrcRecord(resource.data);
+      allow list: if canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
@@ -451,7 +486,8 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_risks/{recordId} {
-      allow read: if canReadRiskIncidentRegister() && canReadDepartmentGrcRecord(resource.data);
+      allow get: if canReadRiskIncidentRegister() && canGetDepartmentGrcRecord(resource.data);
+      allow list: if canReadRiskIncidentRegister() && canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if
         (canWriteGrcRecord() && validGrcRecord(request.resource.data)) ||
@@ -459,7 +495,8 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_incidents/{recordId} {
-      allow read: if canReadRiskIncidentRegister() && canReadDepartmentGrcRecord(resource.data);
+      allow get: if canReadRiskIncidentRegister() && canGetDepartmentGrcRecord(resource.data);
+      allow list: if canReadRiskIncidentRegister() && canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
@@ -548,44 +585,60 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // an allowed get proves that v23 is actually deployed. Older rule sets
-    // fall through to the default deny and the client can report that precisely.
+    // an allowed get proves that v24 is actually deployed.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v23-review-development';
+      allow get: if approved() && versionId == 'v24-review-development';
       allow list, create, update, delete: if false;
     }
 
     // ── Review & Development Center ──────────────────────────────────
-    // Department approval is advisory-specific so Governance & Performance
-    // Manager can approve its own department without gaining Risk approvals.
     function advisoryDepartmentManager() {
       return departmentManager() || (approved() && role() == 'governance_performance_manager');
     }
 
-    // Review routing is fixed at CREATE time from the authenticated user's
-    // Firestore profile. The routing fields are immutable afterwards, so later
-    // Manager/Super Admin decisions never need to re-read the requester's user
-    // document. This keeps the rules query-friendly and avoids profile lookups
-    // when listing department approval queues.
+    // Compute the create route once from the authenticated Firestore profile.
+    // v23 repeated nested route checks and also compared duplicated requester
+    // identity fields. The browser already reads this exact profile immediately
+    // before submit, so routing is enforced here with only the authoritative
+    // role + department values.
     function advisoryCreateNeedsManager() {
-      return userDepartmentKey() != '' && !advisoryDepartmentManager() && !admin();
+      let d = userDepartmentKey();
+      let r = role();
+      return d != '' && !(r in [
+        'department_manager', 'dept_manager', 'departmentmanager',
+        'governance_performance_manager', 'admin', 'super_admin'
+      ]);
     }
 
     function validAdvisoryCreateRoute() {
-      return ('requesterUid' in request.resource.data) &&
-        request.resource.data.requesterUid == request.auth.uid &&
-        ('requesterRole' in request.resource.data) &&
-        request.resource.data.requesterRole == role() &&
-        ('requiresManagerApproval' in request.resource.data) &&
-        request.resource.data.requiresManagerApproval == advisoryCreateNeedsManager() &&
+      let needsManager = advisoryCreateNeedsManager();
+      return request.resource.data.requiresManagerApproval is bool &&
+        request.resource.data.requiresManagerApproval == needsManager &&
+        request.resource.data.workflowStage is string &&
+        request.resource.data.managerDecision is string &&
         (
-          (advisoryCreateNeedsManager() &&
+          (needsManager &&
             request.resource.data.workflowStage == 'pending_department_manager' &&
             request.resource.data.managerDecision == 'pending') ||
-          (!advisoryCreateNeedsManager() &&
+          (!needsManager &&
             request.resource.data.workflowStage == 'pending_super_admin' &&
             request.resource.data.managerDecision == 'not_required')
         );
+    }
+
+    // Final Super Admin processing re-checks the requester's current role so a
+    // client cannot bypass the Department Manager step by editing route fields.
+    function advisoryRequesterRole(data) {
+      return get(/databases/$(database)/documents/users/$(data.userEmail)).data.role;
+    }
+
+    function advisoryRequesterNeedsManager(data) {
+      let rr = normalizedRoleValue(advisoryRequesterRole(data));
+      return data.departmentKey != '' &&
+        !(rr in [
+          'department_manager', 'dept_manager', 'departmentmanager',
+          'governance_performance_manager', 'admin', 'super_admin', 'superadmin'
+        ]);
     }
 
     function advisoryManagerDepartmentMatch(data) {
@@ -594,10 +647,12 @@ service cloud.firestore {
         data.departmentKey == userDepartmentKey();
     }
 
+    // The manager queue query is exactly departmentKey + pending stage. Do not
+    // add a userEmail exclusion here: the owner branch already permits the
+    // manager's own request, while the update rule below still blocks self-approval.
     function advisoryManagerCanRead(data) {
       return advisoryManagerDepartmentMatch(data) &&
-        ('workflowStage' in data) && data.workflowStage == 'pending_department_manager' &&
-        !ownEmail(data.userEmail);
+        ('workflowStage' in data) && data.workflowStage == 'pending_department_manager';
     }
 
     function validAdvisoryOwnerChange() {
@@ -640,8 +695,9 @@ service cloud.firestore {
     function advisoryAdminCanProcess() {
       return !(resource.data.workflowStage in ['pending_department_manager', 'rejected_manager']) &&
         (
-          resource.data.requiresManagerApproval != true ||
-          resource.data.managerDecision == 'approved'
+          !advisoryRequesterNeedsManager(resource.data) ||
+          (resource.data.managerDecision == 'approved' &&
+            resource.data.workflowStage == 'pending_super_admin')
         );
     }
 
