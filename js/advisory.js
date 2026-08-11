@@ -112,7 +112,7 @@
     if(/submission-timeout|deadline-exceeded|timed out|timeout/.test(text))return'The request service did not respond in time. Check My Requests first; if the request is not listed, check the connection and submit it again.';
     if(/rules-version-mismatch/.test(text))return raw.replace(/^rules-version-mismatch:/,'');
     if(/profile-department-unrecognized/.test(text)){var dept=raw.split(':').slice(1).join(':')||'Unknown';return'Your account department is not recognized by the Review & Development workflow ('+dept+'). Update the user department to a supported department, then sign in again.';}
-    if(/permission-denied|missing or insufficient permissions/.test(text)){var diag=raw.indexOf(':')>=0?raw.split(':').slice(1).join(':').trim():'';return'Firestore Rules v23 are active, but Firebase rejected the request create. The app is using the authenticated Firestore profile directly.'+(diag?' Diagnostic: '+diag:'');}
+    if(/permission-denied|missing or insufficient permissions/.test(text)){var diag=raw.indexOf(':')>=0?raw.split(':').slice(1).join(':').trim():'';return'Firestore Rules v24 are active, but Firebase rejected the request create. The app is using the authenticated Firestore profile directly.'+(diag?' Diagnostic: '+diag:'');}
     if(/unauthenticated|not authenticated/.test(text))return'Your session is no longer active. Sign in again, then resubmit the request.';
     if(/unavailable|network-request-failed|failed to fetch|offline/.test(text))return'The request service is temporarily unavailable. Check the connection and try again.';
     if(/resource-exhausted|quota/.test(text))return'The request could not be saved because the database service limit was reached. Contact the system administrator.';
