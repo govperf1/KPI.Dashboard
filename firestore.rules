@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v15 — Canonical Register Sync + Review Routing Fix
+// FIRESTORE SECURITY RULES v16 — Viewer Read-Only Risk & Incident Access
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -192,7 +192,7 @@ service cloud.firestore {
     function canReadRiskIncidentRegister() {
       return canAccessGrc() && (
         admin() || departmentManager() || riskOwner() ||
-        role() in ['grc_owner', 'GRC Owner', 'grc owner', 'platform_owner', 'Platform Owner', 'platform owner', 'governance_performance_manager', 'Governance & Performance Department Manager'] ||
+        role() in ['grc_owner', 'GRC Owner', 'grc owner', 'platform_owner', 'Platform Owner', 'platform owner', 'governance_performance_manager', 'Governance & Performance Department Manager', 'viewer', 'Viewer'] ||
         hasPerm('edit_risk_management') || hasPerm('edit_incident_register')
       );
     }
