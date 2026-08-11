@@ -585,9 +585,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // an allowed get proves that v24 is actually deployed.
+    // an allowed get proves that v25 is actually deployed.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v24-review-development';
+      allow get: if approved() && versionId == 'v25-review-development';
       allow list, create, update, delete: if false;
     }
 
@@ -703,7 +703,7 @@ service cloud.firestore {
 
     function validAdvisoryManagerChange() {
       return advisoryManagerDepartmentMatch(resource.data) &&
-        !ownEmail(resource.data.userEmail) &&
+        (!('requiresManagerApproval' in resource.data) || resource.data.requiresManagerApproval == true) &&
         resource.data.workflowStage == 'pending_department_manager' &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status', 'workflowStage', 'closureReason',
