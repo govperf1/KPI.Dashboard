@@ -786,7 +786,7 @@ service cloud.firestore {
 
     match /advisory_public/{requestId} {
       allow create: if approved() && advisoryOwner(requestId);
-      allow read: if admin() || hasPerm('view_request_analytics');
+      allow read: if admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics');
       allow update: if
         admin() ||
         (approved() && advisoryOwner(requestId)) ||
