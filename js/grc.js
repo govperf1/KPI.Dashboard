@@ -1205,37 +1205,57 @@
 
   function grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows){
     /*
-      Department-scoped Firestore collections can legitimately contain only the
-      records created after the secure migration. The original approved Risk
-      Register and the two approved Project Management incident rows are still
-      part of the live register and must not disappear for non-admin users.
+      v165 department-register recovery.
 
-      Merge ONLY baseline business IDs that are completely absent from the
-      cloud result. A cloud tombstone also counts as present, so an intentionally
-      deleted baseline row is never resurrected. Cloud/workflow records always
-      win and are never overwritten by seed values.
+      The per-record Firestore migration was introduced after the original GRC
+      catalog already existed. Some accounts therefore have a valid department
+      profile while their scoped collection contains only part of the approved
+      baseline. Never turn that into a blank Governance / Risk page.
+
+      We merge ONLY baseline business IDs that are absent from every cloud row.
+      A cloud tombstone counts as occupied, so a deliberate delete is never
+      resurrected. A live Firestore row always wins over the bundled baseline.
     */
-    if(collectionKey!=='risks'&&collectionKey!=='incidents')return rows||[];
+    var baseline=[];
+    if(collectionKey==='policies')baseline=(MAINTENANCE_POLICY_SEED||[]).concat(SAFETY_POLICY_SEED||[],HOUSEKEEPING_POLICY_SEED||[]);
+    else if(collectionKey==='plans')baseline=(SAFETY_PLAN_SEED||[]).concat(MAINTENANCE_PLAN_SEED||[]);
+    else if(collectionKey==='forms')baseline=(SAFETY_FORM_SEED||[]).concat(HOUSEKEEPING_FORM_SEED||[],PROJECTS_FORM_SEED||[],MAINTENANCE_FORM_SEED||[],INTERNAL_FORM_SEED||[]);
+    else if(collectionKey==='risks')baseline=RISK_REGISTER_SEED||[];
+    else if(collectionKey==='incidents')baseline=PROJECT_MANAGEMENT_INCIDENT_SEED||[];
+    else return rows||[];
+
+    function identity(r){
+      if(collectionKey==='risks'||collectionKey==='incidents')return grcRegisterBusinessKey(r);
+      var code=governanceCodeKey(r&&r.code);if(code)return code;
+      return String(r&&r.id||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+    }
     var occupied={};
-    (rawRows||[]).forEach(function(r){var k=grcRegisterBusinessKey(r);if(k)occupied[k]=true;});
-    (rows||[]).forEach(function(r){var k=grcRegisterBusinessKey(r);if(k)occupied[k]=true;});
-    var baseline=collectionKey==='risks'?(RISK_REGISTER_SEED||[]):(PROJECT_MANAGEMENT_INCIDENT_SEED||[]),missing=[];
-    baseline.forEach(function(seed){
-      var key=grcRegisterBusinessKey(seed);if(!key||occupied[key])return;
-      var r=copyRecord(seed),canonicalId=grcCloudDocId(collectionKey,r,0);
-      r.department=grcRecordDepartment(collectionKey,r);
-      r.recordType=collectionKey;r._cloudId=canonicalId;r.cloudId=canonicalId;r._baselineFallback=true;
+    (rawRows||[]).forEach(function(r){var k=identity(r);if(k)occupied[k]=true;});
+    (rows||[]).forEach(function(r){var k=identity(r);if(k)occupied[k]=true;});
+    var missing=[];
+    baseline.forEach(function(seed,index){
+      var key=identity(seed);if(!key||occupied[key])return;
+      var r=copyRecord(seed),canonicalId=grcCloudDocId(collectionKey,r,index),dept=grcRecordDepartment(collectionKey,r);
+      r.department=dept;r.departmentKey=dept;r.visibility=dept==='division'?'shared':'department';r.recordType=collectionKey;
+      r._cloudId=canonicalId;r.cloudId=canonicalId;r._baselineFallback=true;
       if(collectionKey==='risks')r=normalizeRiskClassification(r);
       missing.push(r);occupied[key]=true;
     });
-    /* Keep the approved baseline sequence first (PM 01..06 / INC-PMD-01..02),
-       then append newer live records such as PM 07 or INC-PMD-03. */
     return missing.concat(rows||[]);
   }
 
   function grcApplyCloudCollection(collectionKey){
     var parts=grcCloudParts[collectionKey]||{},rawRows=[];
     Object.keys(parts).forEach(function(scope){(parts[scope]||[]).forEach(function(r){rawRows.push(copyRecord(r));});});
+    /* Normalize the effective department in memory before any dashboard or
+       register filter runs. Older documents can carry department=division or a
+       display label even when the record code clearly belongs to MNT/SAF/PM/HK.
+       Without this normalization the listener succeeds but filterDept() hides
+       the row, which looks exactly like an empty department register. */
+    rawRows.forEach(function(r){
+      var dept=grcRecordDepartment(collectionKey,r);if(!dept)return;
+      r.department=dept;r.departmentKey=dept;r.visibility=dept==='division'?'shared':'department';
+    });
 
     if(collectionKey==='risks'||collectionKey==='incidents'){
       /* Resolve active rows and tombstones together by business ID and revision.
@@ -1270,11 +1290,14 @@
         rows.push(winner);
       });
       rows=grcDeduplicateRegisterRows(collectionKey,rows);
-      /* v160: once Firestore has hydrated, never merge Seed/local workflow/status
-         projections back into the published register. This guarantees that
-         Super Admin, Department Manager and GRC Owner see the exact same row. */
+      /* Firestore remains authoritative for every existing business ID. The
+         baseline fallback only fills IDs that never reached the scoped
+         collection, and raw tombstones prevent deleted rows from returning. */
       if(collectionKey==='risks')rows=rows.map(normalizeRiskClassification);
       if(collectionKey==='incidents')rows=grcDeduplicateProjectIncidentContent(normalizeProjectIncidentIds(rows));
+      rows=grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows);
+      if(collectionKey==='risks')rows=grcDeduplicateRegisterRows(collectionKey,rows.map(normalizeRiskClassification));
+      if(collectionKey==='incidents')rows=grcDeduplicateProjectIncidentContent(normalizeProjectIncidentIds(grcDeduplicateRegisterRows(collectionKey,rows)));
       state[collectionKey]=rows;
       grcCloudEverHydrated[collectionKey]=true;
       return;
@@ -1282,6 +1305,7 @@
 
     var map={},tombstones={};rawRows.forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');r._cloudId=id;r.cloudId=id;if(r&&r.deleted===true){tombstones[id]=1;if(rk)tombstones[rk]=1;return;}map[id]=r;});
     var rows=Object.keys(map).map(function(id){return map[id];});
+    rows=grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows);
     if(collectionKey==='initiatives')rows=mergeInitiativeSeed(rows);
     if(collectionKey==='codes')rows=mergeEmergencyCodeSeed(rows);
     state[collectionKey]=rows;grcCloudMirror[collectionKey]={};rows.forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i);if(map[id])grcCloudMirror[collectionKey][id]=grcComparable(r);});
@@ -1426,24 +1450,24 @@
     })().catch(function(err){grcMigrationPromise=null;console.error('[GRC Secure Migration] failed',err);throw err;});return grcMigrationPromise;
   }
   window._grcRunSecureMigration=function(){return ensureReportBackend().then(function(b){return migrateLegacyGrcState(b,true);});};
-  async function repairLegacyScopedGrcCollectionsV163(b){
+  async function repairLegacyScopedGrcCollectionsV165(b){
     if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return false;
-    var meta=b.fs.doc(b.db,'grc_meta','legacy_scoped_repair_v163'),metaSnap=await b.fs.getDoc(meta);
+    var meta=b.fs.doc(b.db,'grc_meta','legacy_scoped_repair_v165'),metaSnap=await b.fs.getDoc(meta);
     if(metaSnap.exists()&&metaSnap.data()&&metaSnap.data().status==='completed')return false;
     /* Re-read the original approved workspace exactly once and import only
        missing documents. This recovers older department Policies / Forms /
        Risks / Incidents that were never copied into the per-record collections. */
     var repaired=false;
     try{repaired=await migrateLegacyGrcState(b,true);}catch(err){
-      await b.fs.setDoc(meta,{status:'failed',version:163,error:String(err&&err.message||err),updatedAt:b.fs.serverTimestamp(),updatedBy:String(window._fbUser||'')},{merge:true});
+      await b.fs.setDoc(meta,{status:'failed',version:165,error:String(err&&err.message||err),updatedAt:b.fs.serverTimestamp(),updatedBy:String(window._fbUser||'')},{merge:true});
       throw err;
     }
-    await b.fs.setDoc(meta,{status:'completed',version:163,repaired:repaired===true,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+    await b.fs.setDoc(meta,{status:'completed',version:165,repaired:repaired===true,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
     return repaired;
   }
   async function normalizeDepartmentScopedGrcDocuments(b){
     if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return 0;
-    var meta=b.fs.doc(b.db,'grc_meta','scoped_department_keys_v163'),metaSnap=await b.fs.getDoc(meta);
+    var meta=b.fs.doc(b.db,'grc_meta','scoped_department_keys_v165'),metaSnap=await b.fs.getDoc(meta);
     if(metaSnap.exists()&&metaSnap.data()&&metaSnap.data().status==='completed')return 0;
     var keys=['policies','plans','forms','risks','incidents'],writes=[];
     for(var ki=0;ki<keys.length;ki++){
@@ -1461,12 +1485,12 @@
       });
     }
     if(writes.length){await grcCommitWrites(b,writes);try{window._recordAuditDirect&&window._recordAuditDirect('GRC_DEPARTMENT_KEY_NORMALIZATION','Normalized department keys for scoped GRC registers',null,{records:writes.length},{portal:'grc'});}catch(_){}}
-    await b.fs.setDoc(meta,{status:'completed',version:163,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+    await b.fs.setDoc(meta,{status:'completed',version:165,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
     return writes.length;
   }
   async function ensureGovernanceBaselineCatalog(b){
     if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return false;
-    var meta=b.fs.doc(b.db,'grc_meta','governance_baseline_catalog_v163'),metaSnap=await b.fs.getDoc(meta);
+    var meta=b.fs.doc(b.db,'grc_meta','governance_baseline_catalog_v165'),metaSnap=await b.fs.getDoc(meta);
     if(metaSnap.exists()&&metaSnap.data()&&metaSnap.data().status==='completed')return false;
     var required=[],policies=(MAINTENANCE_POLICY_SEED||[]).concat(SAFETY_POLICY_SEED||[],HOUSEKEEPING_POLICY_SEED||[]),plans=(SAFETY_PLAN_SEED||[]).concat(MAINTENANCE_PLAN_SEED||[]),forms=(SAFETY_FORM_SEED||[]).concat(HOUSEKEEPING_FORM_SEED||[],PROJECTS_FORM_SEED||[],MAINTENANCE_FORM_SEED||[],INTERNAL_FORM_SEED||[]);
     policies.forEach(function(r,i){required.push({key:'policies',record:r,index:i});});
@@ -1475,12 +1499,12 @@
     var writes=[];
     await Promise.all(required.map(async function(item){var prepared=grcPrepareCloudRecord(item.key,item.record,item.index,b),ref=b.fs.doc(b.db,GRC_COLLECTION_MAP[item.key],prepared._cloudId),snap=await b.fs.getDoc(ref);if(!snap.exists())writes.push({op:'set',ref:ref,data:prepared});}));
     if(writes.length)await grcCommitWrites(b,writes);
-    await b.fs.setDoc(meta,{status:'completed',version:163,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+    await b.fs.setDoc(meta,{status:'completed',version:165,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
     return writes.length>0;
   }
   async function ensureRequiredGrcBaselineRecords(b){
     if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return false;
-    var meta=b.fs.doc(b.db,'grc_meta','required_baseline_catalog_v163'),metaSnap=await b.fs.getDoc(meta);
+    var meta=b.fs.doc(b.db,'grc_meta','required_baseline_catalog_v165'),metaSnap=await b.fs.getDoc(meta);
     if(metaSnap.exists()&&metaSnap.data()&&metaSnap.data().status==='completed')return false;
     var required=[];
     /* Repair any baseline Risk Register rows that were absent from an older
@@ -1495,7 +1519,7 @@
       else if(item.key==='codes'&&String(item.record&&item.record.sourceSystem||'')==='Emergency Coding System Admin'&&normalizeStatus(snap.data()&&snap.data().status)!=='successful')await b.fs.updateDoc(ref,{status:'successful',cloudUpdatedAt:b.fs.serverTimestamp(),updatedAtIso:new Date().toISOString()});
     }));
     if(writes.length){await grcCommitWrites(b,writes);try{window._recordAuditDirect&&window._recordAuditDirect('GRC_BASELINE_REPAIR','Added missing approved Risk, Incident and Initiative baseline records',null,{records:writes.length},{portal:'grc'});}catch(_){}}
-    await b.fs.setDoc(meta,{status:'completed',version:163,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+    await b.fs.setDoc(meta,{status:'completed',version:165,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
     return writes.length>0;
   }
   function startRiskStatusOverrideSync(b){
@@ -1525,7 +1549,7 @@
       grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
       if(isGrcAdmin()){
         try{await migrateLegacyGrcState(b,false);}catch(err){console.error('[GRC Secure Migration] automatic migration did not complete',err);}
-        try{await repairLegacyScopedGrcCollectionsV163(b);}catch(errLegacy){console.error('[GRC Legacy Recovery] missing scoped records could not be recovered',errLegacy);}
+        try{await repairLegacyScopedGrcCollectionsV165(b);}catch(errLegacy){console.error('[GRC Legacy Recovery] missing scoped records could not be recovered',errLegacy);}
         /* Remove only the two historical synthetic Project Management incident
            placeholders BEFORE duplicate consolidation. Doing this first avoids
            a newer fake placeholder winning over a real legacy incident that
