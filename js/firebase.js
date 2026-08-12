@@ -41,7 +41,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD='20260812-v166';
+    const QUMC_CLIENT_BUILD='20260812-v167';
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -738,9 +738,9 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:_advNormalizeRoleValue(d.role||'viewer'),rawDepartment:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV25Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v25-review-development'));window.__advRulesV25Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v25 are not active. Publish the firestore.rules file included with this update, then sign in again.');throw e;}
+      if(window.__advRulesV26Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v26-grc-workflow-permissions'));window.__advRulesV26Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v26 are not active. Publish the firestore.rules file included with this update, then sign in again.');throw e;}
     }
     function _advIso(){return new Date().toISOString();}
     function _advTsMs(v){if(!v)return 0;try{return v.toDate?v.toDate().getTime():new Date(v).getTime()||0;}catch(_){return 0;}}
@@ -974,11 +974,20 @@ window._selectPortal=async portal=>{
     };
 
     window._advisoryManagerAction=async function(requestId,action,comment){
-      if(!_advIsDepartmentManager())throw new Error('Access denied.');
-      const current=await _advAuthorizedRequest(requestId,false,true),dept=_advDepartmentKey(),managerEmail=_advEmail(),managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim();
-      if(!dept||String(current.departmentKey||'')!==dept)throw new Error('This request does not belong to your department.');
-      if(current.requiresManagerApproval===false)throw new Error('This request does not require Department Manager approval.');
+      // Re-read the manager profile from the Firestore server immediately before
+      // the decision. This keeps the client department/role exactly aligned with
+      // the values Security Rules evaluate and avoids stale-device permission
+      // failures after a profile change.
+      await _advAssertRulesVersion();
+      const freshProfile=await _advFreshProfile(),managerRoles=['department_manager','dept_manager','departmentmanager','governance_performance_manager'];
+      if(!managerRoles.includes(freshProfile.role))throw new Error('Access denied.');
+      const dept=freshProfile.departmentKey,managerEmail=freshProfile.email,managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim();
+      if(!dept)throw new Error('Your Department Manager profile does not have a valid department.');
+      const loc=await _advLocateRequest(requestId),current=Object.assign(loc.record,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
+      if(String(current.departmentKey||'')!==dept)throw new Error('This request does not belong to your department.');
+      if(String(current.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request. Your request must be reviewed by Super Admin.');
       if(current._storage!=='advisory_requests')throw new Error('Legacy requests cannot use the Department Manager approval workflow.');
+      if(String(current.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
       if(!['approve','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
       if(action==='reject'&&!managerComment)throw new Error('A rejection reason is required.');
       const requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso();
@@ -987,7 +996,7 @@ window._selectPortal=async portal=>{
         const snap=await tx.get(requestRef);if(!snap.exists())throw new Error('Request not found.');const live=snap.data()||{};
         if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
         if(String(live.departmentKey||'')!==dept)throw new Error('This request does not belong to your department.');
-        if(live.requiresManagerApproval===false)throw new Error('This request does not require Department Manager approval.');
+        if(String(live.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request.');
         if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
         else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
         const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:action==='approve'?'approved':'rejected',managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
@@ -1119,11 +1128,17 @@ window._selectPortal=async portal=>{
     function _grcRiskIsManager(){return _grcRiskRole()==='department_manager'||_grcRiskRole()==='dept_manager';}
     function _grcRiskIsSuper(){return _grcRiskRole()==='super_admin';}
     function _grcRiskIsAdmin(){return _grcRiskRole()==='admin'||_grcRiskIsSuper();}
+    async function _grcRiskAssertRulesVersion(){
+      if(window.__grcRulesV26Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v26-grc-workflow-permissions'));window.__grcRulesV26Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v26 are not active. Publish the firestore.rules file included with this update, then sign in again.');throw e;}
+    }
     window._grcRiskDirectStatusUpdate=async function(record,nextStatus){
+      await _grcRiskAssertRulesVersion();
       if(!_grcRiskCanSubmit('risk'))throw new Error('You do not have permission to update Risk status.');
       record=record||{};nextStatus=String(nextStatus||'').trim().toLowerCase();
       if(!['open','closed'].includes(nextStatus))throw new Error('Action Status can only be Open or Closed.');
-      const department=_grcCanonicalDepartment(record.department||_grcRiskDept()),myDepartment=_grcRiskDept();
+      const department=_grcCanonicalDepartment(record.department||record.responsibleDept||record.responsibleDepartment||_grcRiskDept()),myDepartment=_grcRiskDept();
       if(!department||!myDepartment||department!==myDepartment)throw new Error('You can update Risk status only for your assigned department.');
       const cloudId=_grcRegisterCloudId('risk',record),ref=doc(db,GRC_REGISTER_COLLECTIONS.risk,cloudId),now=_grcRiskIso();
       /* v154 SINGLE SOURCE OF TRUTH: Open/Closed is stored on the canonical
@@ -1131,7 +1146,7 @@ window._selectPortal=async portal=>{
       await runTransaction(db,async tx=>{
         const snap=await tx.get(ref);
         if(!snap.exists()||snap.data().deleted===true)throw new Error('Risk record is not synchronized yet. Refresh once and try again.');
-        const live=snap.data()||{},liveDept=_grcCanonicalDepartment(live.department);
+        const live=snap.data()||{},liveDept=_grcCanonicalDepartment(live.departmentKey||live.department||live.responsibleDept||live.responsibleDepartment||record.department||record.responsibleDept||record.responsibleDepartment||department);
         if(liveDept!==myDepartment)throw new Error('You can update Risk status only for your assigned department.');
         tx.update(ref,{actionStatus:nextStatus,updatedAt:serverTimestamp(),updatedAtIso:now,updatedBy:String(window._fbName||window.currentUserName||_grcRiskEmail()),updatedByEmail:_grcRiskEmail(),cloudUpdatedAt:serverTimestamp()});
       });

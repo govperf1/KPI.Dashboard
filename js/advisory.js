@@ -75,8 +75,8 @@
   }
   function workflowStage(r){var x=String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();return x==='submitted'?'pending_super_admin':x;}
   function workflowLabel(r){var x=workflowStage(r),m={pending_department_manager:'Pending Department Manager Approval',pending_super_admin:'Pending Super Admin Review',rejected_manager:'Rejected by Department Manager',responded:'Admin Response Sent',awaiting_requester_information:'Awaiting Requester Information',clarification_received:'Clarification Received',requester_confirmed:'Requester Confirmed',closed:'Closed'};return m[x]||String(x||'Open').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});}
-  function isManagerApprovalRecord(r){return isDepartmentManager()&&userDepartmentKey()&&workflowStage(r)==='pending_department_manager'&&String(r&&r.departmentKey||'')===userDepartmentKey()&&r&&r.requiresManagerApproval!==false;}
-  function isManagerOwnRequest(r){return isDepartmentManager()&&String(r&&r.userEmail||'').toLowerCase().trim()===userEmail()&&workflowStage(r)!=='pending_department_manager'&&r&&r.requiresManagerApproval!==true;}
+  function isManagerApprovalRecord(r){return isDepartmentManager()&&userDepartmentKey()&&workflowStage(r)==='pending_department_manager'&&String(r&&r.departmentKey||'')===userDepartmentKey()&&String(r&&r.userEmail||'').toLowerCase().trim()!==userEmail();}
+  function isManagerOwnRequest(r){return isDepartmentManager()&&String(r&&r.userEmail||'').toLowerCase().trim()===userEmail();}
   function departmentName(k){return(DEPARTMENTS[k]&&DEPARTMENTS[k].name)||String(k||'—');}
   function departmentCode(k){return(DEPARTMENTS[k]&&DEPARTMENTS[k].code)||'FMS';}
   function root(){return document.getElementById(currentRootId);}
