@@ -41,7 +41,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD='20260812-v167';
+    const QUMC_CLIENT_BUILD='20260812-v168';
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -939,9 +939,10 @@ window._selectPortal=async portal=>{
             primary=primary.concat((sources.own&&sources.own.rows)||[]);
           }
           const merged=_advMergeRows(primary,fallback,false);
+          const livePublic=(sources.public&&Array.isArray(sources.public.rows))?sources.public.rows:null;
           callback({
             records:merged,
-            publicRecords:merged.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;}),
+            publicRecords:livePublic||merged.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;}),
             source:'snapshot'
           });
         },90);
@@ -963,6 +964,12 @@ window._selectPortal=async portal=>{
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
         }
         listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
+        /* Governance & Performance Department Manager has the same sanitized
+           Review & Development Dashboard card as Super Admin, but the UI keeps
+           the dashboard scoped to the manager's own department. Use the
+           advisory_public collection so dashboard analytics are not limited to
+           only the manager approval queue + the manager's personal requests. */
+        if(_advRole()==='governance_performance_manager')listen('public',collection(db,ADV_PUBLIC_COLLECTION),'advisory_public');
       }else if(_advCanAnalyze()){
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
         listen('fallback',collection(db,ADV_FALLBACK_COLLECTION),'kpi_requests');
