@@ -15,10 +15,10 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260812-v173');
+  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260812-v174');
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260812-v173');
+  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260812-v174');
   var GRC_CACHE_OWNER_KEY='qumc_grc_workspace_preview_v1_owner';
   var GRC_CACHE_BUILD_KEY='qumc_grc_workspace_preview_build';
   var STATE_VERSION=13;
@@ -1345,6 +1345,7 @@
       if(collectionKey==='incidents')rows=grcDeduplicateProjectIncidentContent(normalizeProjectIncidentIds(rows));
       rows=grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows);
       if(collectionKey==='risks')rows=grcDeduplicateRegisterRows(collectionKey,rows.map(normalizeRiskClassification));
+      if(collectionKey==='risks')rows=applyRiskStatusOverrides(rows);
       if(collectionKey==='incidents')rows=grcDeduplicateProjectIncidentContent(normalizeProjectIncidentIds(grcDeduplicateRegisterRows(collectionKey,rows)));
       state[collectionKey]=rows;
       grcCloudEverHydrated[collectionKey]=true;
@@ -1632,7 +1633,9 @@
          transient listener failure therefore cannot turn valid registers/charts
          into an unexplained empty screen. */
       grcPublishedWorkflowRequests={risks:[],incidents:[]};grcRiskStatusOverrides={};
-      /* v154: legacy grc_risk_status is migrated by Admin, never listened to. */
+      /* Status overrides are required for approved baseline risks that have not
+         yet been materialized as canonical grc_risks documents. */
+      startRiskStatusOverrideSync(b);
       var canAll=canViewAllExecutiveDepartments(),dept=currentGrcDept(),rawDept=rawCurrentGrcDepartment();rawDept=(rawDept===null||rawDept===undefined)?'':String(rawDept).trim();if(['null','none','undefined','n/a','na','unassigned','not assigned','-','—'].indexOf(rawDept.toLowerCase())>=0)rawDept='';
       var aliasMap={
         safety:['safety','Safety','Safety Department','Safety Management','Safety Management Department','السلامة','إدارة السلامة','قسم السلامة'],
@@ -1646,16 +1649,14 @@
         if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){
           grcConfigureCollectionScopes(key,['all']);grcListen(b,key,'all',col);
         }else{
-          /* Keep one live canonical department listener and one live shared
-             Division listener. Also load legacy department-label rows once so
-             records created before departmentKey/schema v2 do not disappear for
-             scoped users while Super Admin normalization catches up. */
-          var legacyAliases=grcLegacyDepartmentAliases(dept),scopes=['department','division'];
-          if(legacyAliases.length)scopes.push('legacy');
+          /* Scoped users bind only to canonical query-safe keys. Historical
+             label-only rows are normalized by the Super Admin maintenance pass;
+             querying them with `in` caused Firestore to reject the whole scope
+             on some accounts even while valid canonical data was available. */
+          var scopes=['department','division'];
           grcConfigureCollectionScopes(key,scopes);
           grcListen(b,key,'department',b.fs.query(col,b.fs.where('departmentKey','==',dept)));
           grcListen(b,key,'division',b.fs.query(col,b.fs.where('departmentKey','==','division')));
-          if(legacyAliases.length)grcLoadScopeOnce(b,key,'legacy',b.fs.query(col,b.fs.where('department','in',legacyAliases)));
         }
       });
     }).catch(function(err){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError='GRC sync initialization: '+String(err&&err.message||err);grcSyncLastErrorAt=new Date().toISOString();console.error('[GRC Secure Sync] init failed',err);renderAtSamePosition(grcViewportPosition());});
