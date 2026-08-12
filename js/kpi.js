@@ -298,7 +298,7 @@ function applyRolePermissions(role,dept,perms){
   }
 
   /* ── Dept lock for users assigned to a specific department ── */
-  if((role==='department_manager'||role==='governance_performance_manager'||role==='kpi_owner'||role==='platform_owner'||role==='viewer'||role==='gap_owner')&&dept){
+  if((role==='department_manager'||role==='kpi_owner'||role==='platform_owner'||role==='viewer'||role==='gap_owner')&&dept){
     window._lockedDept=dept;
     const orig=window.setF;
     window.setF=function(t,v,e){if(t==='dept'&&v!==dept&&v!=='all')return;if(orig)orig(t,v,e);};
@@ -345,10 +345,14 @@ function _qumcDeptKey(v){
   return m[v]||v;
 }
 function _qumcUserLockedDept(){
-  const role=String(window._fbRole||'').toLowerCase().trim();
+  const rawRole=String(window._fbRole||'').trim();
+  const role=(typeof window._normalizePortalRole==='function')?window._normalizePortalRole(rawRole):rawRole.toLowerCase().replace(/[\s-]+/g,'_');
+  const perms=Array.isArray(window._fbPerms)?window._fbPerms:[];
   const dept=_qumcDeptKey(window._lockedDept||window._fbDept||window._fbDepartment||window.userDepartment||'');
   if(!dept || !DM || !DM[dept]) return '';
-  if(role==='super_admin'||role==='admin'||role==='executive') return '';
+  // Platform-wide roles/permissions must never be trapped by a stale or
+  // accidentally populated department field in the browser/user profile.
+  if(role==='super_admin'||role==='admin'||role==='executive'||role==='governance_performance_manager'||perms.indexOf('*')>=0||perms.indexOf('view_all_departments')>=0) return '';
   return dept;
 }
 function applyDepartmentFilterScope(){
@@ -389,7 +393,7 @@ function updateUserBadge(name, role){
   const rl=document.getElementById('_userRole');
   if(rl){
     const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',
-             department_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'GRC Owner',grc_owner:'GRC Owner',platform_owner:'Performance & GRC Owner',viewer:'Viewer'};
+             department_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'GRC Owner',grc_owner:'GRC Owner',platform_owner:'Performance & GRC Owner',governance_performance_manager:'Governance & Performance Department Manager',viewer:'Viewer'};
     rl.textContent=L[role]||role||'—';
     const c=role==='super_admin'||role==='admin'?'#F87171':
              role==='executive'?'#A78BFA':
@@ -866,19 +870,52 @@ function _mergeMasterKpiConfig(masterId){
 }
 window._mergeMasterKpiConfig = _mergeMasterKpiConfig;
 
-/* Evaluate a column-letter formula with provided values
-   formula: "(A + B + C) / 3"
-   vals: { A: 80, B: 90, C: 85 } → returns 85 */
+/* Safely evaluate a KPI formula without executing JavaScript.
+   Supported grammar: numbers, A-Z field references, + - * / %, parentheses,
+   and unary +/-.  Formulas are data stored in Firestore, so they must never be
+   passed to eval/new Function on user devices. */
+function _formulaParseArithmetic(formula, vals){
+  var text=String(formula||''),tokens=[],i=0;
+  while(i<text.length){
+    var ch=text[i];
+    if(/\s/.test(ch)){i++;continue;}
+    if(/[0-9.]/.test(ch)){
+      var start=i,dots=0;
+      while(i<text.length&&/[0-9.]/.test(text[i])){if(text[i]==='.')dots++;i++;}
+      var raw=text.slice(start,i);
+      if(dots>1||raw==='.'||!/^\d*\.?\d+$/.test(raw))throw new Error('Invalid number');
+      tokens.push({t:'n',v:Number(raw)});continue;
+    }
+    if(/[A-Z]/.test(ch)){tokens.push({t:'v',v:ch});i++;continue;}
+    if('+-*/%()'.indexOf(ch)>=0){tokens.push({t:ch,v:ch});i++;continue;}
+    throw new Error('Unsupported token');
+  }
+  if(!tokens.length)throw new Error('Empty formula');
+  var pos=0,values=vals||{};
+  function peek(t){return pos<tokens.length&&tokens[pos].t===t;}
+  function primary(){
+    if(peek('n'))return tokens[pos++].v;
+    if(peek('v')){var k=tokens[pos++].v,v=values[k];return(v===undefined||v===null||v==='')?0:Number(v);}
+    if(peek('(')){pos++;var v=expression();if(!peek(')'))throw new Error('Missing )');pos++;return v;}
+    throw new Error('Expected number, field or (');
+  }
+  function unary(){if(peek('+')){pos++;return unary();}if(peek('-')){pos++;return-unary();}return primary();}
+  function term(){var v=unary();while(pos<tokens.length&&['*','/','%'].indexOf(tokens[pos].t)>=0){var op=tokens[pos++].t,r=unary();if(op==='*')v*=r;else if(op==='/')v/=r;else v%=r;}return v;}
+  function expression(){var v=term();while(pos<tokens.length&&['+','-'].indexOf(tokens[pos].t)>=0){var op=tokens[pos++].t,r=term();v=op==='+'?v+r:v-r;}return v;}
+  var out=expression();if(pos!==tokens.length)throw new Error('Unexpected token');return out;
+}
+function _formulaIsSafeSyntax(formula){
+  if(!String(formula||'').trim())return true;
+  try{var probe={};for(var c=65;c<=90;c++)probe[String.fromCharCode(c)]=2;_formulaParseArithmetic(formula,probe);return true;}catch(_){return false;}
+}
 function _evalFormula(formula, vals){
-  if(!formula || !formula.trim()) return null;
+  if(!formula || !String(formula).trim()) return null;
   try{
-    var expr = formula.replace(/\b([A-Z])\b/g, function(m, letter){
-      return (vals[letter] !== undefined && vals[letter] !== null) ? vals[letter] : 'null';
-    });
-    var result = new Function('return ('+expr+')')();
-    return (result===null||isNaN(result)||!isFinite(result)) ? null : Math.round(result*1000)/1000;
+    var result=_formulaParseArithmetic(formula,vals||{});
+    return (!Number.isFinite(result)) ? null : Math.round(result*1000)/1000;
   }catch(e){ return null; }
 }
+window._formulaIsSafeSyntax=_formulaIsSafeSyntax;
 window._evalFormula = _evalFormula;
 
 /* Find the master KPI config for a given KPI English name.
@@ -1291,6 +1328,8 @@ function loadAuditLog(){
 }
 
 async function clearAuditLog(){
+  var auditRole=(typeof window._normalizePortalRole==='function')?window._normalizePortalRole(window._fbRole||window.currentUserRole||''):String(window._fbRole||window.currentUserRole||'').toLowerCase();
+  if(auditRole!=='super_admin'){toast('Only Super Admin can clear the Audit Trail');return;}
   if(!confirm('Clear all audit records permanently? This cannot be undone.'))return;
   const previous=_combinedAuditLog();
   ST.audit=[];window.__qumcAuditCloudLog=[];

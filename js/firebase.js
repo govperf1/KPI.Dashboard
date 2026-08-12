@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-    import { getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,sendPasswordResetEmail,fetchSignInMethodsForEmail,setPersistence,browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-    import { getFirestore,doc,getDoc,getDocFromServer,setDoc,addDoc,collection,serverTimestamp,onSnapshot,updateDoc,arrayUnion,query,where,orderBy,getDocs,deleteDoc,runTransaction } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,sendPasswordResetEmail,setPersistence,browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+    import { getFirestore,doc,getDoc,getDocFromServer,setDoc,addDoc,collection,serverTimestamp,onSnapshot,updateDoc,arrayUnion,query,where,orderBy,getDocs,deleteDoc,runTransaction,writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     const firebaseConfig={apiKey:"AIzaSyAlLWZvsu4UbHn-LncFdrSHlbL3bIAG4no",authDomain:"qumc-kpi-dashboard-f10dd.firebaseapp.com",projectId:"qumc-kpi-dashboard-f10dd",storageBucket:"qumc-kpi-dashboard-f10dd.firebasestorage.app",messagingSenderId:"659971973475",appId:"1:659971973475:web:483116a0711008a6a97356"};
     const DPERMS={
@@ -8,7 +8,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       admin:['access_performance','access_grc','manage_users','view_all_departments','view_department','edit_kpi','edit_gap_analysis','edit_actions','edit_targets','approve_changes','lock_quarter','unlock_quarter','view_executive_intelligence','export_reports','manage_dashboard_settings','view_audit_trail'],
       executive:['access_performance','access_grc','view_all_departments','view_department','view_executive_intelligence','export_reports'],
       department_manager:['access_performance','access_grc','view_department','view_executive_intelligence','export_reports'],
-      governance_performance_manager:['access_performance','access_grc','view_department','view_grc_department','view_shared_grc','view_executive_intelligence','export_reports','view_request_analytics'],
+      governance_performance_manager:['access_performance','access_grc','view_department','view_all_departments','view_grc_department','view_grc_all_departments','view_shared_grc','view_executive_intelligence','export_reports','view_request_analytics'],
       kpi_owner:['access_performance','view_department','edit_kpi','edit_gap_analysis','export_reports'],
       risk_owner:['access_grc','view_department','view_grc_department','view_shared_grc','edit_risk_management','edit_incident_register','update_risk_status','submit_risk_changes','export_reports'],
       grc_owner:['access_grc','view_department','view_grc_department','view_shared_grc','edit_risk_management','edit_incident_register','update_risk_status','submit_risk_changes','export_reports'],
@@ -24,9 +24,15 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
         platforms:['grc'],systemRole:true,
         permissions:DPERMS.risk_owner.slice()
       },
+      grc_owner:{
+        nameEn:'GRC Owner',nameAr:'مالك الحوكمة والمخاطر والالتزام',
+        description:'Compatibility alias for the department-scoped GRC Owner role.',
+        platforms:['grc'],systemRole:true,
+        permissions:DPERMS.grc_owner.slice()
+      },
       governance_performance_manager:{
         nameEn:'Governance & Performance Department Manager',nameAr:'مدير قسم الحوكمة والأداء',
-        description:'Department-scoped Governance & Performance manager with access to request and review analytics across both platforms.',
+        description:'Platform-wide Governance & Performance manager with cross-department analytics across Performance and GRC.',
         platforms:['performance','grc'],systemRole:true,
         permissions:DPERMS.governance_performance_manager.slice()
       },
@@ -41,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD='20260812-v168';
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260812-v173');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -49,7 +55,12 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       return getDocFromServer(ref);
     }
 
-    function _normalizePortalRole(value){return String(value||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
+    function _normalizePortalRole(value){
+      const r=String(value||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_');
+      const aliases={superadmin:'super_admin',departmentmanager:'department_manager',dept_manager:'department_manager',deptmanager:'department_manager',riskowner:'risk_owner',grcowner:'grc_owner',platformowner:'platform_owner',kpiowner:'kpi_owner',governanceperformancemanager:'governance_performance_manager'};
+      return aliases[r]||r;
+    }
+    window._normalizePortalRole=_normalizePortalRole;
     function _clientHasPerm(perm){const p=Array.isArray(window._fbPerms)?window._fbPerms:[];return p.includes('*')||p.includes(perm);}
     function _canAccessPortal(portal){
       portal=portal==='governance'?'grc':String(portal||'').toLowerCase();
@@ -81,13 +92,59 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     async function _ensureOwnerRoleDefinitions(){
       if(_normalizePortalRole(window._fbRole)!=='super_admin'||!auth.currentUser)return false;
       for(const [roleId,definition] of Object.entries(OWNER_ROLE_DEFINITIONS)){
-        const ref=doc(db,'config_roles',roleId),snap=await getDoc(ref);
-        if(!snap.exists())await setDoc(ref,Object.assign({},definition,{createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdBy:auth.currentUser.email||''}));
-        else if(roleId==='risk_owner'&&(String(snap.data().nameEn||'')!=='GRC Owner'||String(snap.data().nameAr||'')!==definition.nameAr))await setDoc(ref,{nameEn:definition.nameEn,nameAr:definition.nameAr,description:definition.description,updatedAt:serverTimestamp()},{merge:true});
+        const ref=doc(db,'config_roles',roleId),snap=await _getServerDoc(ref);
+        if(!snap.exists()){
+          await setDoc(ref,Object.assign({},definition,{createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdBy:auth.currentUser.email||''}));
+          continue;
+        }
+        const current=snap.data()||{},existing=Array.isArray(current.permissions)?current.permissions:[],required=Array.isArray(definition.permissions)?definition.permissions:[];
+        /* Governance & Performance Manager is a platform-wide analytics role.
+           Keep its system permissions exact so a stale config_roles document
+           cannot accidentally retain old edit/approval privileges. Other owner
+           roles preserve explicitly-added permissions for backward compatibility. */
+        const desired=roleId==='governance_performance_manager'?required.slice():[...new Set(existing.concat(required))];
+        const patch={nameEn:definition.nameEn,nameAr:definition.nameAr,description:definition.description,platforms:definition.platforms,systemRole:true,updatedAt:serverTimestamp()};
+        if(JSON.stringify(existing)!==JSON.stringify(desired))patch.permissions=desired;
+        await setDoc(ref,patch,{merge:true});
       }
       return true;
     }
     window._installOwnerRoles=_ensureOwnerRoleDefinitions;
+
+
+    /* v172 one-time integrity repair for Review & Development analytics.
+       Older builds wrote advisory_requests and advisory_public separately, so a
+       network/rules failure could leave the primary request valid while the G&P
+       dashboard mirror was missing or stale. Super Admin repairs the sanitized
+       mirror once per audited build. Existing mirrors are replaced from the
+       primary source of truth; a failed legacy row is isolated so it cannot stop
+       repairs for every other request. */
+    async function _repairAdvisoryPublicMirrorV172(){
+      if(_normalizePortalRole(window._fbRole)!=='super_admin'||!auth.currentUser)return false;
+      const markerRef=doc(db,'grc_meta','advisory_public_mirror_v172');
+      try{const marker=await _getServerDoc(markerRef);if(marker.exists()&&String(marker.data().status||'')==='completed')return true;}catch(_){ }
+      let primarySnap;
+      try{primarySnap=await getDocs(collection(db,'advisory_requests'));}
+      catch(e){console.warn('[Review Development] public mirror repair could not read requests',e&&e.message||e);return false;}
+      const docs=primarySnap.docs||[];
+      let repaired=0,failed=0;
+      const applyOne=async function(d){
+        try{await setDoc(doc(db,'advisory_public',d.id),_advPublicShape(d.data()||{}),{merge:false});repaired++;return true;}
+        catch(e){failed++;console.warn('[Review Development] public mirror repair skipped',d.id,e&&e.code||e&&e.message||e);return false;}
+      };
+      /* Use moderate batches first for speed. If a legacy row violates the
+         sanitized projection contract, retry that batch row-by-row so one bad
+         document cannot roll back otherwise valid repairs. */
+      for(let start=0;start<docs.length;start+=250){
+        const chunk=docs.slice(start,start+250),batch=writeBatch(db);
+        chunk.forEach(function(d){batch.set(doc(db,'advisory_public',d.id),_advPublicShape(d.data()||{}),{merge:false});});
+        try{await batch.commit();repaired+=chunk.length;}
+        catch(_batchError){for(const d of chunk)await applyOne(d);}
+      }
+      try{await setDoc(markerRef,{status:failed?'partial':'completed',sourceCount:docs.length,repairedCount:repaired,failedCount:failed,build:QUMC_CLIENT_BUILD,updatedAt:serverTimestamp()},{merge:true});}catch(_){ }
+      return failed===0;
+    }
+    window._repairAdvisoryPublicMirrorV172=_repairAdvisoryPublicMirrorV172;
 
 
     /* ── Shared Audit Trail ─────────────────────────────────────────────
@@ -146,9 +203,10 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       return out;
     }
     function _auditIsAdmin(){
-      const r=String(window._fbRole||'').toLowerCase().replace(/[\s-]+/g,'_');
+      const r=_normalizePortalRole(window._fbRole||'');
       return r==='super_admin'||r==='admin';
     }
+    function _auditIsSuper(){return _normalizePortalRole(window._fbRole||'')==='super_admin';}
     function _auditCanView(){
       return _auditIsAdmin()||(Array.isArray(window._fbPerms)&&window._fbPerms.includes('view_audit_trail'))||(Array.isArray(window._fbPerms)&&window._fbPerms.includes('*'));
     }
@@ -175,7 +233,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       _applyAuditCloudLog(_auditMergedSources());
     }
     async function _deleteAuditDocs(predicate){
-      if(!_auditIsAdmin())throw new Error('access denied');
+      if(!_auditIsSuper())throw new Error('access denied');
       const snap=await getDocs(collection(db,AUDIT_COLLECTION)),jobs=[];
       snap.forEach(function(d){
         const row=Object.assign({id:d.id},d.data()||{});
@@ -185,7 +243,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       return jobs.length;
     }
     async function _migrateLegacyAuditToCollection(){
-      if(_auditMigrationRunning||!auth.currentUser||!_auditIsAdmin())return false;
+      if(_auditMigrationRunning||!auth.currentUser||!_auditIsSuper())return false;
       _auditMigrationRunning=true;
       try{
         const snap=await getDoc(AUDIT_DOC_REF),data=snap.exists()?snap.data():{};
@@ -227,14 +285,14 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       return window._appendAuditToFS(Object.assign({},extra||{},{action:action,detail:detail,oldVal:oldVal,newVal:newVal}));
     };
     window._clearAuditFromFS=async function(){
-      if(!_auditIsAdmin())throw new Error('access denied');
+      if(!_auditIsSuper())throw new Error('access denied');
       await _deleteAuditDocs();
       await setDoc(AUDIT_DOC_REF,{log:[],clearedAt:serverTimestamp(),clearedBy:window._fbUser||'',updatedAt:serverTimestamp(),updatedBy:window._fbUser||'',collectionMigratedAt:serverTimestamp(),collectionMigratedBy:window._fbUser||''},{merge:true});
       window.__qumcAuditCollectionLog=[];window.__qumcAuditLegacyLog=[];_refreshAuditMergedView();
       return true;
     };
     window._clearGrcAuditFromFS=async function(){
-      if(!_auditIsAdmin())throw new Error('access denied');
+      if(!_auditIsSuper())throw new Error('access denied');
       const isGrc=function(entry){
         const portal=String(entry&&entry.portal||'').toLowerCase(),action=String(entry&&entry.action||'').toUpperCase();
         return portal==='grc'||action.indexOf('GRC_')===0||(action.indexOf('REVIEW_DEVELOPMENT_')===0&&portal==='grc');
@@ -282,7 +340,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const ge=id=>{const e=document.getElementById(id);if(!e)console.warn('[Auth] Missing element:',id);return e;};
     const cleanAccountName=v=>{v=String(v||'').trim();if(!v)return'';if(['user','username','account','admin','null','undefined','-','—'].includes(v.toLowerCase()))return'';return v;};
     const accountNameFrom=(data,user,email)=>cleanAccountName(data&&data.userName)||cleanAccountName(data&&data.username)||cleanAccountName(data&&data.name)||cleanAccountName(data&&data.fullName)||cleanAccountName(data&&data.displayName)||cleanAccountName(user&&user.displayName)||cleanAccountName(email&&email.split('@')[0])||'';
-    const setUserDisplay=(name,role)=>{try{const n=cleanAccountName(name)||cleanAccountName(window._fbName)||cleanAccountName((window._fbUser||'').split('@')[0])||'';window._fbName=n;window.currentUserName=n;const ids=['_portalUserName','_userName','topUserName','profileName','profileNameRow'];ids.forEach(id=>{const e=ge(id);if(e)e.textContent=n;});const avIds=['_userAvatar','topUserAvatar','profileAvatar'];avIds.forEach(id=>{const av=ge(id);if(av)av.textContent=(n||'U')[0].toUpperCase();});if(role){const rl=ge('_userRole');if(rl)rl.textContent=role;}if(typeof window.updateUserBadge==='function')window.updateUserBadge(n,window._fbRole||role,window._fbPerms||[]);}catch(e){console.warn('[Auth] user display update skipped',e);}};
+    const setUserDisplay=(name,role)=>{try{const n=cleanAccountName(name)||cleanAccountName(window._fbName)||cleanAccountName((window._fbUser||'').split('@')[0])||'';window._fbName=n;window.currentUserName=n;const ids=['_portalUserName','_userName','topUserName','profileName','profileNameRow'];ids.forEach(id=>{const e=ge(id);if(e)e.textContent=n;});const avIds=['_userAvatar','topUserAvatar','profileAvatar'];avIds.forEach(id=>{const av=ge(id);if(av)av.textContent=(n||'U')[0].toUpperCase();});if(role){const rl=ge('_userRole');if(rl)rl.textContent=role;}const auditClear=ge('_auditClearBtn');if(auditClear)auditClear.style.display=_normalizePortalRole(window._fbRole||role)==='super_admin'?'':'none';if(typeof window.updateUserBadge==='function')window.updateUserBadge(n,window._fbRole||role,window._fbPerms||[]);}catch(e){console.warn('[Auth] user display update skipped',e);}};
     const showEntryLoading=(msg)=>{try{let ov=ge('_perfEntryLoading');if(!ov){ov=document.createElement('div');ov.id='_perfEntryLoading';ov.style.cssText='position:fixed;inset:0;z-index:2147483646;background:rgba(239,243,248,.92);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;font-family:inherit;color:#152538';ov.innerHTML='<div style="background:#fff;border:1px solid rgba(15,23,42,.10);border-radius:18px;box-shadow:0 24px 60px rgba(15,23,42,.16);padding:20px 24px;text-align:center;min-width:220px"><div style="width:34px;height:34px;border-radius:50%;border:3px solid rgba(1,149,175,.18);border-top-color:#0195af;margin:0 auto 12px;animation:qumcSpin .85s linear infinite"></div><div id="_perfEntryLoadingText" style="font-size:12px;font-weight:900"></div></div>';document.body.appendChild(ov);let st=document.getElementById('qumc-entry-loading-style');if(!st){st=document.createElement('style');st.id='qumc-entry-loading-style';st.textContent='@keyframes qumcSpin{to{transform:rotate(360deg)}}';document.head.appendChild(st);}}const t=ge('_perfEntryLoadingText');if(t)t.textContent=msg||'Loading dashboard…';ov.style.display='flex';}catch(e){}};
     const hideEntryLoading=()=>{try{const ov=document.getElementById('_perfEntryLoading');if(ov)ov.remove();}catch(e){}};
     window._closePortalAccessDenied=function(){try{const ov=document.getElementById('_portalAccessDenied');if(ov)ov.remove();document.body.classList.remove('portal-access-denied-open');}catch(e){}};
@@ -333,7 +391,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       }
     };
 
-    window._doLogout=async()=>{console.log('[Auth] Logout');try{await window._recordAuditDirect('LOGOUT','User signed out');}catch(e){console.warn('[AUDIT] logout write skipped',e);}try{window._stopAuditListener&&window._stopAuditListener();window._stopReadListener&&window._stopReadListener();window._grcStopSecureSync&&window._grcStopSecureSync();await signOut(auth);}catch(e){console.error('[Auth]',e);}};
+    window._doLogout=async()=>{console.log('[Auth] Logout');try{await window._recordAuditDirect('LOGOUT','User signed out');}catch(e){console.warn('[AUDIT] logout write skipped',e);}try{window._stopAuditListener&&window._stopAuditListener();window._stopReadListener&&window._stopReadListener();window._grcStopSecureSync&&window._grcStopSecureSync();try{sessionStorage.removeItem('qumc_user_email');sessionStorage.removeItem('qumc_last_login');localStorage.removeItem('qumc_user_email');localStorage.removeItem('qumc_last_login');}catch(_storage){}await signOut(auth);}catch(e){console.error('[Auth]',e);}};
 
     window._backToPortal=()=>{console.log('[Auth] Back to portal');try{window._stopReadListener&&window._stopReadListener();if(typeof window._hideGRC==='function')window._hideGRC();}catch(_e){}window.__qumcActivePortal='';const lo=document.getElementById('_authOverlay'),po=document.getElementById('_portalOverlay'),bg=document.getElementById('_bgLayer');if(lo)lo.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
 window._selectPortal=async portal=>{
@@ -434,7 +492,10 @@ window._selectPortal=async portal=>{
     onAuthStateChanged(auth,async user=>{
       console.log('[Auth] onAuthStateChanged — user:',user?user.email:'none');
       window._fbProfileResolved=false;
-      if(!user){window.__qumcAuditLoginLoggedFor='';window._fbDept=null;window.currentUserDept=null;try{window._stopAuditListener&&window._stopAuditListener();}catch(_){}showLogin();return;}
+      if(!user){
+        window.__qumcAuditLoginLoggedFor='';window._fbUser='';window._fbEmail='';window.currentUserEmail='';window._fbRole='viewer';window.currentUserRole='viewer';window._fbDept=null;window.currentUserDept=null;window._fbPerms=[];window._fbName='';window.currentUserName='';window._fbAssignedKpis=null;window._fbProfileResolved=false;
+        try{window._stopAuditListener&&window._stopAuditListener();}catch(_){}try{window._stopReadListener&&window._stopReadListener();}catch(_){}try{window._grcRiskRequestsStop&&window._grcRiskRequestsStop();}catch(_){}try{window._grcStopSecureSync&&window._grcStopSecureSync();}catch(_){}showLogin();return;
+      }
       const email=String(user.email||'').toLowerCase().trim();
       try{
         console.log('[FS READ] users/'+email);
@@ -442,14 +503,22 @@ window._selectPortal=async portal=>{
         if(!snap.exists()){console.warn('[Auth] Not in Firestore:',email);await signOut(auth);setErr('Account not registered. Contact admin.');showLogin();return;}
         const d=snap.data();
         if(!d.approved){console.warn('[Auth] Not approved:',email);await signOut(auth);setErr('Account pending approval.');showLogin();return;}
-        const role=d.role||'viewer';
+        const role=_normalizePortalRole(d.role||'viewer');
         const rawAccountDept=('dept' in d)?d.dept:(('department' in d)?d.department:(('deptKey' in d)?d.deptKey:null));
         const deptText=rawAccountDept==null?'':String(rawAccountDept).trim();
-        const accountDept=(!deptText||['null','none','undefined','n/a','na','unassigned','not assigned','-','—'].includes(deptText.toLowerCase()))?null:rawAccountDept;
+        /* Governance & Performance Manager is intentionally platform-wide.
+           Ignore any legacy/stale operational department stored on the user doc
+           so every device resolves the same All FMS scope. */
+        const parsedAccountDept=(!deptText||['null','none','undefined','n/a','na','unassigned','not assigned','-','—'].includes(deptText.toLowerCase()))?null:rawAccountDept;
+        const accountDept=role==='governance_performance_manager'?null:parsedAccountDept;
         console.log('[Auth] Role:',role,'Dept:',accountDept==null?'all departments':accountDept);
-        let perms=[];console.log('[FS READ] config_roles/'+role);
-        try{
-        const rs = await _getServerDoc(doc(db,'config_roles',role));perms=rs.exists()?(rs.data().permissions||[]):(DPERMS[role]||[]);}catch(_){perms=DPERMS[role]||[];}
+        let perms=[];
+        /* Built-in role permissions are a fixed application/security contract.
+           Do not let a stale config_roles document make two devices behave
+           differently or silently widen a system role. Custom roles still load
+           their permission list from Firestore. */
+        if(Object.prototype.hasOwnProperty.call(DPERMS,role)){perms=(DPERMS[role]||[]).slice();console.log('[Auth] canonical built-in permissions:',role);}
+        else{console.log('[FS READ] config_roles/'+role);try{const rs=await _getServerDoc(doc(db,'config_roles',role));perms=rs.exists()?(rs.data().permissions||[]):[];}catch(_){perms=[];}}
         if(d.extraPermissions)perms=[...new Set([...perms,...d.extraPermissions])];
         if(d.revokedPermissions)perms=perms.filter(p=>!d.revokedPermissions.includes(p));
         const realName=accountNameFrom(d,user,email);
@@ -458,8 +527,7 @@ window._selectPortal=async portal=>{
            profile is known. Otherwise Auth may start them with an empty
            department and approved register changes never reach the dashboard. */
         try{var _grcNow=window.__qumcActivePortal==='grc'||!!(document.body&&document.body.classList.contains('grc-mode'));if(_grcNow&&typeof window._grcRestartSecureSync==='function')window._grcRestartSecureSync();}catch(syncErr){console.warn('[GRC Secure Sync] profile rebind skipped',syncErr);}
-        if(role==='super_admin'||role==='admin')setTimeout(function(){try{window._grcRiskRepairPublishedRequests&&window._grcRiskRepairPublishedRequests(false).catch(function(e){console.warn('[GRC Publish Repair]',e&&e.message||e);});}catch(_){}},700);
-        if(_normalizePortalRole(role)==='super_admin'){try{await _ensureOwnerRoleDefinitions();}catch(re){console.warn('[Roles] Owner role installation skipped:',re&&re.message||re);}}
+        if(_normalizePortalRole(role)==='super_admin'){try{await _ensureOwnerRoleDefinitions();}catch(re){console.warn('[Roles] Owner role installation skipped:',re&&re.message||re);}try{await _repairAdvisoryPublicMirrorV172();}catch(repairErr){console.warn('[Review Development] public mirror integrity repair skipped:',repairErr&&repairErr.message||repairErr);}}
         setUserDisplay(window._fbName,role);
         /* Shared audit: successful authentication + live audit sync for authorized viewers. */
         try{
@@ -501,8 +569,11 @@ window._selectPortal=async portal=>{
       _fsSaveTimer=setTimeout(async()=>{
         _fsSaveTimer=null;
         const d=_fsPending; _fsPending=null;
-        if(!d) return;
         const _localQueue=_fsResolveQueue.splice(0); /* capture resolvers before async work */
+        if(!d){
+          _localQueue.forEach(function(p){p.resolve();});
+          return;
+        }
       try {
         const {audit=[], ...rest} = d;
         await setDoc(doc(db,'kpi_dashboard','state'),
@@ -515,7 +586,10 @@ window._selectPortal=async portal=>{
       } catch(e){
         console.error('[FS WRITE ERROR]',e.code||e.message,'added[] length:', (d.added||[]).length, e);
         _localQueue.forEach(function(p){p.reject(e);});
-        throw e;
+        /* Do not rethrow from the timer callback: awaited callers already receive
+           the rejection above, while a second throw would become an unrelated
+           unhandled promise rejection in the browser. */
+        return;
       }
       }, 800); /* 800ms debounce — prevents double-click double-write */
       return writePromise; /* caller awaits this — resolves when write completes */
@@ -603,7 +677,7 @@ window._selectPortal=async portal=>{
        Separate from Performance kpi_requests, Risk Register approvals,
        and Review & Development Center requests.
        ══════════════════════════════════════════════════════ */
-    function _grcSystemRequestRole(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
+    function _grcSystemRequestRole(){return _normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');}
     function _grcSystemRequestIsAdmin(){const r=_grcSystemRequestRole();return r==='admin'||r==='super_admin';}
     function _grcSystemRequestCanAnalyze(){return _grcSystemRequestIsAdmin()||_clientHasPerm('view_request_analytics')||_grcSystemRequestRole()==='governance_performance_manager';}
     window._grcRequestsSubmit=async function(requestType,message){
@@ -702,9 +776,10 @@ window._selectPortal=async portal=>{
     const ADV_REQUESTS_COLLECTION='advisory_requests';
     const ADV_PUBLIC_COLLECTION='advisory_public';
     const ADV_FALLBACK_COLLECTION='kpi_requests';
-    function _advRole(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
+    function _advRole(){return _normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');}
     function _advIsAdmin(){const r=_advRole();return r==='admin'||r==='super_admin';}
-    function _advIsDepartmentManager(){const r=_advRole();return ['department_manager','dept_manager','departmentmanager','governance_performance_manager'].includes(r);}
+    function _advIsSuperAdmin(){return _advRole()==='super_admin';}
+    function _advIsDepartmentManager(){return _advRole()==='department_manager';}
     function _advCanAnalyze(){return _advIsAdmin()||_clientHasPerm('view_request_analytics')||_advRole()==='governance_performance_manager';}
     function _advEmail(){return String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();}
     function _advRawDepartment(){return Object.prototype.hasOwnProperty.call(window,'_fbDept')?window._fbDept:window.currentUserDept;}
@@ -724,7 +799,7 @@ window._selectPortal=async portal=>{
       return ['safety','maintenance','laundry','housekeeping','projects','governance','division'].includes(normalized)?normalized:'';
     }
     function _advDepartmentKey(){return _advCanonicalDepartment(_advRawDepartment());}
-    function _advNormalizeRoleValue(value){return String(value||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
+    function _advNormalizeRoleValue(value){return _normalizePortalRole(value);}
     function _advMeaningfulDepartment(value){var s=String(value==null?'':value).trim();return !!s&&!/^(null|none|undefined|n\/?a|na|unassigned|not assigned|-|—)$/i.test(s);}
     async function _advFreshProfile(){
       const u=auth.currentUser;if(!u||!u.email)throw new Error('Not authenticated.');
@@ -733,14 +808,14 @@ window._selectPortal=async portal=>{
       if(!snap.exists())throw new Error('Your user profile could not be found in Firestore.');
       const d=snap.data()||{};if(d.approved!==true)throw new Error('Your account is not approved.');
       const raw=Object.prototype.hasOwnProperty.call(d,'dept')?d.dept:(Object.prototype.hasOwnProperty.call(d,'department')?d.department:(Object.prototype.hasOwnProperty.call(d,'deptKey')?d.deptKey:null));
-      const meaningful=_advMeaningfulDepartment(raw),key=_advCanonicalDepartment(raw);
-      if(meaningful&&!key)throw new Error('profile-department-unrecognized:'+String(raw));
-      return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:_advNormalizeRoleValue(d.role||'viewer'),rawDepartment:raw,departmentKey:key};
+      const meaningful=_advMeaningfulDepartment(raw),role=_advNormalizeRoleValue(d.role||'viewer'),parsedKey=_advCanonicalDepartment(raw),key=role==='governance_performance_manager'?'':parsedKey;
+      if(role!=='governance_performance_manager'&&meaningful&&!parsedKey)throw new Error('profile-department-unrecognized:'+String(raw));
+      return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV26Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v26-grc-workflow-permissions'));window.__advRulesV26Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v26 are not active. Publish the firestore.rules file included with this update, then sign in again.');throw e;}
+      if(window.__advRulesV30Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v30-full-audit-hardening'));window.__advRulesV30Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v30 are not active. Publish the firestore.rules file included with this update, then sign in again.');throw e;}
     }
     function _advIso(){return new Date().toISOString();}
     function _advTsMs(v){if(!v)return 0;try{return v.toDate?v.toDate().getTime():new Date(v).getTime()||0;}catch(_){return 0;}}
@@ -774,14 +849,18 @@ window._selectPortal=async portal=>{
       if(!file)return null;
       if(Number(file.size||0)>5*1024*1024)throw new Error('Attachment must be 5 MB or smaller.');
       const attachmentId=_advAttachmentId(),buffer=new Uint8Array(await file.arrayBuffer()),chunkSize=320*1024,chunkCount=Math.max(1,Math.ceil(buffer.length/chunkSize));
-      const writes=[];
+      /* Keep every attachment all-or-nothing. A failed Promise.all used to
+         leave orphan chunks that appeared on one device but could not be opened
+         on another. The whole <=5 MB attachment fits safely in one Firestore
+         write batch (at most 17 chunk documents with the current chunk size). */
+      const batch=writeBatch(db);
       for(let i=0;i<chunkCount;i++){
         const chunk=buffer.subarray(i*chunkSize,Math.min((i+1)*chunkSize,buffer.length));
-        writes.push(setDoc(doc(db,'advisory_attachments',_advChunkDocId(requestId,attachmentId,i)),{
+        batch.set(doc(db,'advisory_attachments',_advChunkDocId(requestId,attachmentId,i)),{
           requestId,attachmentId,index:i,data:_advBytesToBase64(chunk),createdAt:serverTimestamp(),uploadedBy:String(uploadedBy||_advEmail())
-        },{merge:false}));
+        },{merge:false});
       }
-      await Promise.all(writes);
+      await batch.commit();
       return {id:attachmentId,name:String(file.name||'attachment'),type:String(file.type||'application/octet-stream'),size:Number(file.size||0),chunkCount,createdAt:_advIso(),uploadedBy:String(uploadedBy||_advEmail())};
     }
     function _advNormalizeRow(id,r,storage){
@@ -811,7 +890,8 @@ window._selectPortal=async portal=>{
     async function _advAuthorizedRequest(requestId,adminAllowed,managerAllowed){
       const loc=await _advLocateRequest(requestId),r=loc.record,owner=String(r.userEmail||'').toLowerCase().trim()===_advEmail();
       const manager=managerAllowed&&_advIsDepartmentManager()&&!!_advDepartmentKey()&&String(r.departmentKey||'')===_advDepartmentKey()&&String(r.workflowStage||r.status||'')==='pending_department_manager'&&r.requiresManagerApproval!==false;
-      if(!(adminAllowed&&_advIsAdmin())&&!owner&&!manager)throw new Error('Access denied.');
+      const analyticsViewer=adminAllowed&&_advCanAnalyze();
+      if(!analyticsViewer&&!owner&&!manager)throw new Error('Access denied.');
       return Object.assign(r,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
     }
     async function _advGetSorted(collectionName){
@@ -852,9 +932,10 @@ window._selectPortal=async portal=>{
          permission denials after an account was edited while the session stayed open. */
       await _advAssertRulesVersion();
       const freshProfile=await _advFreshProfile(),departmentKey=freshProfile.departmentKey;
-      const isFreshManager=['department_manager','dept_manager','departmentmanager','governance_performance_manager'].includes(freshProfile.role);
+      const isFreshManager=freshProfile.role==='department_manager';
+      const isFreshPlatformManager=freshProfile.role==='governance_performance_manager';
       const isFreshAdmin=['admin','super_admin'].includes(freshProfile.role);
-      const requiresManagerApproval=!!departmentKey&&!isFreshManager&&!isFreshAdmin;
+      const requiresManagerApproval=!!departmentKey&&!isFreshManager&&!isFreshPlatformManager&&!isFreshAdmin;
       const routedDeptCode=departmentKey?_advSafeCode(({safety:'SAF',maintenance:'MNT',laundry:'LND',housekeeping:'HSK',projects:'PRJ',governance:'GOV',division:'FMS'})[departmentKey]||payload.departmentCode):'FMS';
       const year=new Date().getFullYear(),deptCode=routedDeptCode,counterId=year+'_'+deptCode;
       const counterRef=doc(db,'advisory_counters',counterId),primaryRef=doc(collection(db,ADV_REQUESTS_COLLECTION));
@@ -876,7 +957,13 @@ window._selectPortal=async portal=>{
       /* New Review & Development requests intentionally use the dedicated collection only.
          Falling back to kpi_requests would bypass the Department Manager approval route. */
       try{
-        await setDoc(primaryRef,base,{merge:false});
+        /* Primary request + sanitized analytics mirror are one atomic commit.
+           This prevents the G&P dashboard from permanently missing a request
+           when the primary write succeeds but the mirror write fails. */
+        const createBatch=writeBatch(db),publicRef=doc(db,ADV_PUBLIC_COLLECTION,primaryRef.id);
+        createBatch.set(primaryRef,base,{merge:false});
+        createBatch.set(publicRef,_advPublicShape(base),{merge:false});
+        await createBatch.commit();
       }catch(saveError){
         const codeText=String(saveError&&saveError.code||saveError&&saveError.message||saveError||'save-failed');
         if(codeText.toLowerCase().includes('permission')){
@@ -884,8 +971,10 @@ window._selectPortal=async portal=>{
         }
         throw saveError;
       }
-      try{await setDoc(doc(db,ADV_PUBLIC_COLLECTION,primaryRef.id),_advPublicShape(base),{merge:false});}catch(publicError){warning='The request was saved, but dashboard analytics could not be updated.';console.warn('[Review Development] public analytics write failed',publicError&&publicError.code||publicError);}
-      if(file){try{const meta=await _advUploadFile(requestId,file,_advEmail());await updateDoc(primaryRef,{attachments:arrayUnion(meta),attachmentCount:1,updatedAt:serverTimestamp()});try{await updateDoc(doc(db,ADV_PUBLIC_COLLECTION,requestId),{attachmentCount:1,updatedAt:serverTimestamp()});}catch(_){}}catch(fileError){warning=(warning?warning+' ':'')+'The request was submitted, but the attachment could not be uploaded.';console.warn('[Review Development] attachment upload failed',fileError&&fileError.code||fileError);}}
+      if(file){try{
+        const meta=await _advUploadFile(requestId,file,_advEmail()),attachmentUpdates={attachments:arrayUnion(meta),attachmentCount:1,updatedAt:serverTimestamp(),updatedAtIso:_advIso(),updatedBy:_advEmail()};
+        const attachmentBatch=writeBatch(db);attachmentBatch.update(primaryRef,attachmentUpdates);attachmentBatch.set(doc(db,ADV_PUBLIC_COLLECTION,requestId),_advPublicShape(Object.assign({},base,{attachmentCount:1,updatedAt:serverTimestamp()})),{merge:false});await attachmentBatch.commit();
+      }catch(fileError){warning='The request was submitted, but the attachment could not be uploaded.';console.warn('[Review Development] attachment upload failed',fileError&&fileError.code||fileError);}}
       try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_REQUEST_SUBMIT','Submitted '+String(base.platform||'grc')+' Review & Development request '+code,null,{requestId:requestId,code:code,requestType:base.requestType,category:base.category,workflowStage:base.workflowStage,departmentKey:departmentKey},{portal:String(base.platform||'grc')});}catch(_){}
       return {id:requestId,code,storage,warning,workflowStage:base.workflowStage,departmentKey:departmentKey};
     };
@@ -893,8 +982,11 @@ window._selectPortal=async portal=>{
     window._advisoryGetPublic=async function(){
       if(!_advEmail()||!db)return[];
       let primary=[];try{primary=await _advGetSorted(ADV_PUBLIC_COLLECTION);}catch(_){ }
-      const fallback=await _advFallbackRows(!_advIsAdmin());
-      if(!primary.length&&!_advIsAdmin()){
+      /* Analytics roles (notably Governance & Performance Manager) must see
+         historical R&D fallback rows across all departments as well as the new
+         advisory_public mirror. Operational users still query only their own. */
+      const fallback=await _advFallbackRows(!_advCanAnalyze());
+      if(!primary.length&&!_advCanAnalyze()){
         try{const own=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));primary=own.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));}catch(_){ }
       }
       return _advMergeRows(primary,fallback,true);
@@ -940,9 +1032,12 @@ window._selectPortal=async portal=>{
           }
           const merged=_advMergeRows(primary,fallback,false);
           const livePublic=(sources.public&&Array.isArray(sources.public.rows))?sources.public.rows:null;
+          const publicFallback=(sources.publicFallback&&Array.isArray(sources.publicFallback.rows))?sources.publicFallback.rows.filter(_advIsFallbackRow):[];
+          const dashboardRows=livePublic?_advMergeRows(livePublic,publicFallback,true):merged.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
           callback({
             records:merged,
-            publicRecords:livePublic||merged.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;}),
+            publicRecords:dashboardRows,
+            errors:Object.keys(sources).reduce(function(out,k){if(sources[k]&&sources[k].error)out[k]=sources[k].error;return out;},{}),
             source:'snapshot'
           });
         },90);
@@ -952,9 +1047,9 @@ window._selectPortal=async portal=>{
         try{
           unsubs.push(onSnapshot(qref,function(snap){sources[key]={ready:true,rows:rowsFromSnap(snap,storage)};emit();},function(err){
             console.warn('[Review Development] live listener failed',key,err&&err.code||err);
-            sources[key]={ready:true,rows:[]};emit();
+            sources[key]={ready:true,rows:[],error:String(err&&err.message||err&&err.code||err||'listener-failed')};emit();
           }));
-        }catch(err){sources[key]={ready:true,rows:[]};emit();}
+        }catch(err){sources[key]={ready:true,rows:[],error:String(err&&err.message||err||'listener-failed')};emit();}
       };
       if(_advIsDepartmentManager()){
         if(dept){
@@ -964,15 +1059,17 @@ window._selectPortal=async portal=>{
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
         }
         listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
-        /* Governance & Performance Department Manager has the same sanitized
-           Review & Development Dashboard card as Super Admin, but the UI keeps
-           the dashboard scoped to the manager's own department. Use the
-           advisory_public collection so dashboard analytics are not limited to
-           only the manager approval queue + the manager's personal requests. */
-        if(_advRole()==='governance_performance_manager')listen('public',collection(db,ADV_PUBLIC_COLLECTION),'advisory_public');
-      }else if(_advCanAnalyze()){
+      }else if(_advIsAdmin()){
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
         listen('fallback',collection(db,ADV_FALLBACK_COLLECTION),'kpi_requests');
+      }else if(_advCanAnalyze()){
+        /* Analytics roles (including Governance & Performance Manager) are not
+           Department Managers. Their operational request list is their own,
+           while the dashboard reads the sanitized cross-department projection. */
+        listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
+        listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
+        listen('public',collection(db,ADV_PUBLIC_COLLECTION),'advisory_public');
+        listen('publicFallback',collection(db,ADV_FALLBACK_COLLECTION),'kpi_requests');
       }else{
         listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
         listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
@@ -986,7 +1083,7 @@ window._selectPortal=async portal=>{
       // the values Security Rules evaluate and avoids stale-device permission
       // failures after a profile change.
       await _advAssertRulesVersion();
-      const freshProfile=await _advFreshProfile(),managerRoles=['department_manager','dept_manager','departmentmanager','governance_performance_manager'];
+      const freshProfile=await _advFreshProfile(),managerRoles=['department_manager'];
       if(!managerRoles.includes(freshProfile.role))throw new Error('Access denied.');
       const dept=freshProfile.departmentKey,managerEmail=freshProfile.email,managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim();
       if(!dept)throw new Error('Your Department Manager profile does not have a valid department.');
@@ -1007,15 +1104,18 @@ window._selectPortal=async portal=>{
         if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
         else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
         const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:action==='approve'?'approved':'rejected',managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
-        if(action==='reject')updates.closedAt=serverTimestamp();tx.update(requestRef,updates);
+        if(action==='reject')updates.closedAt=serverTimestamp();
+        tx.update(requestRef,updates);
+        /* Update or recreate the analytics mirror in the same transaction so a
+           manager decision can never disappear from the platform dashboard. */
+        tx.set(publicRef,_advPublicShape(Object.assign({},live,updates)),{merge:false});
       });
-      if(publicRef){try{const publicUpdates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:action==='approve'?'approved':'rejected',managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp()};if(action==='reject')publicUpdates.closedAt=serverTimestamp();await updateDoc(publicRef,publicUpdates);}catch(e){console.warn('[Review Development] manager public update failed',e&&e.code||e);}}
       try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':'Rejected ')+String(current.code||requestId),{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:action==='approve'?'approved':'rejected',comment:managerComment},{portal:String(current.platform||'grc')});}catch(_){}
       return true;
     };
 
     window._advisoryAdminAction=async function(requestId,action,data,file){
-      if(!_advIsAdmin())throw new Error('Access denied.');
+      if(!_advIsSuperAdmin())throw new Error('Super Admin approval is required.');
       data=data||{};const current=await _advAuthorizedRequest(requestId,true,false),requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso();const approvalStage=String(current.workflowStage||'');if(approvalStage==='pending_department_manager'||approvalStage==='rejected_manager')throw new Error('This request has not been approved by the Department Manager.');
       const updates={updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:_advEmail()},publicUpdates={updatedAt:serverTimestamp()},messageAttachments=[];
       if(file&&current._storage==='advisory_requests'){try{const meta=await _advUploadFile(requestId,file,_advEmail());messageAttachments.push(meta);updates.attachments=arrayUnion(meta);updates.attachmentCount=Number(current.attachmentCount||0)+1;publicUpdates.attachmentCount=updates.attachmentCount;}catch(e){throw new Error('The response attachment could not be uploaded: '+String(e&&e.message||e));}}
@@ -1031,7 +1131,7 @@ window._selectPortal=async portal=>{
       else throw new Error('Unsupported action.');
       updates.status=status;updates.workflowStage=workflowStage;updates.closureReason=closureReason;publicUpdates.status=status;publicUpdates.workflowStage=workflowStage;publicUpdates.closureReason=closureReason;
       if(messageText||messageAttachments.length)updates.messages=arrayUnion({id:'msg_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),senderRole:_advRole(),senderName:String(window._fbName||'Admin'),senderEmail:_advEmail(),text:messageText,attachments:messageAttachments,createdAt:nowIso});
-      await updateDoc(requestRef,updates);if(publicRef){try{await updateDoc(publicRef,publicUpdates);}catch(_){}}
+      if(publicRef){const actionBatch=writeBatch(db);actionBatch.update(requestRef,updates);actionBatch.set(publicRef,_advPublicShape(Object.assign({},current,publicUpdates,updates)),{merge:false});await actionBatch.commit();}else await updateDoc(requestRef,updates);
       try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_ADMIN_ACTION',String(action||'action')+' on '+String(current.code||requestId),{status:current.status,workflowStage:current.workflowStage},{status:status,workflowStage:workflowStage,comment:messageText},{portal:String(current.platform||'grc')});}catch(_){}
       return true;
     };
@@ -1044,14 +1144,14 @@ window._selectPortal=async portal=>{
       }else if(action==='complete'){var currentStage=String(current.workflowStage||current.status||'');if(currentStage!=='responded')throw new Error('The request must have an admin response first.');updates.status='in_progress';updates.workflowStage='requester_confirmed';updates.completedAt=serverTimestamp();publicUpdates.status='in_progress';publicUpdates.workflowStage='requester_confirmed';publicUpdates.completedAt=serverTimestamp();}
       else if(action==='cancel'){if(_advStatusKey(current.status)==='closed')throw new Error('This request can no longer be cancelled.');updates.status='closed';updates.workflowStage='closed';updates.closureReason='cancelled_by_requester';updates.closedAt=serverTimestamp();publicUpdates.status='closed';publicUpdates.workflowStage='closed';publicUpdates.closureReason='cancelled_by_requester';publicUpdates.closedAt=serverTimestamp();}
       else throw new Error('Unsupported action.');
-      await updateDoc(requestRef,updates);if(publicRef){try{await updateDoc(publicRef,publicUpdates);}catch(_){}}
+      if(publicRef){const requesterBatch=writeBatch(db);requesterBatch.update(requestRef,updates);requesterBatch.set(publicRef,_advPublicShape(Object.assign({},current,publicUpdates,updates)),{merge:false});await requesterBatch.commit();}else await updateDoc(requestRef,updates);
       try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_REQUESTER_ACTION',String(action||'action')+' on '+String(current.code||requestId),{status:current.status,workflowStage:current.workflowStage},{status:updates.status||current.status,workflowStage:updates.workflowStage||current.workflowStage},{portal:String(current.platform||'grc')});}catch(_){}
       return true;
     };
 
     window._advisoryRate=async function(requestId,rating,comment){
       const current=await _advAuthorizedRequest(requestId,false),n=Math.max(1,Math.min(5,Number(rating||0)));if(_advStatusKey(current.status)!=='closed')throw new Error('Only closed requests can be rated.');if(Number(current.rating))throw new Error('This request has already been rated.');
-      const ratingComment=String(comment||'').trim(),updates={rating:n,ratingComment:ratingComment,ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:_advIso(),updatedBy:_advEmail()};await updateDoc(current._requestRef,updates);if(current._publicRef){try{await updateDoc(current._publicRef,{rating:n,ratingComment:ratingComment,ratingAt:serverTimestamp(),updatedAt:serverTimestamp()});}catch(_){}}
+      const ratingComment=String(comment||'').trim(),updates={rating:n,ratingComment:ratingComment,ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:_advIso(),updatedBy:_advEmail()};if(current._publicRef){const ratingBatch=writeBatch(db);ratingBatch.update(current._requestRef,updates);ratingBatch.set(current._publicRef,_advPublicShape(Object.assign({},current,updates)),{merge:false});await ratingBatch.commit();}else await updateDoc(current._requestRef,updates);
       try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_RATING','Rated Review & Development request '+String(current.code||requestId)+' · '+n+'/5',null,{requestId:requestId,rating:n,comment:ratingComment},{portal:String(current.platform||'grc')});}catch(_){}
       return true;
     };
@@ -1105,7 +1205,7 @@ window._selectPortal=async portal=>{
     let _grcRiskRequestUnsub=null;
     let _grcPublishedRepairFor='';
 
-    function _grcRiskRole(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
+    function _grcRiskRole(){return _normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');}
     function _grcRiskEmail(){return String(window._fbUser||window.currentUserEmail||auth.currentUser&&auth.currentUser.email||'').toLowerCase().trim();}
     function _grcRiskUid(){return String(auth.currentUser&&auth.currentUser.uid||'').trim();}
     function _grcRawDeptValue(){if(Object.prototype.hasOwnProperty.call(window,'_fbDept'))return window._fbDept;return window.currentUserDept;}
@@ -1131,18 +1231,20 @@ window._selectPortal=async portal=>{
       r=r||{};const uid=_grcRiskUid(),email=_grcRiskEmail();
       return (!!uid&&String(r.submittedByUid||'')===uid)||String(r.submittedByEmail||'').toLowerCase()===email;
     }
-    function _grcRiskCanSubmit(recordType){recordType=String(recordType||'risk').toLowerCase();const p=_grcRiskPerms(),owner=['risk_owner','grc_owner','platform_owner'].includes(_grcRiskRole()),workflow=p.includes('submit_risk_changes');if(recordType==='incident')return owner||workflow||p.includes('edit_incident_register')||p.includes('edit_risk_management')||p.includes('*');return owner||workflow||p.includes('edit_risk_management')||p.includes('*');}
-    function _grcRiskIsManager(){return _grcRiskRole()==='department_manager'||_grcRiskRole()==='dept_manager';}
+    function _grcRiskCanSubmit(recordType){recordType=String(recordType||'risk').toLowerCase();const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms(),owner=['risk_owner','grc_owner','platform_owner'].includes(r),workflow=p.includes('submit_risk_changes');if(recordType==='incident')return owner||workflow||p.includes('edit_incident_register')||p.includes('edit_risk_management')||p.includes('*');return owner||workflow||p.includes('edit_risk_management')||p.includes('*');}
+    function _grcRiskIsManager(){return _grcRiskRole()==='department_manager';}
     function _grcRiskIsSuper(){return _grcRiskRole()==='super_admin';}
     function _grcRiskIsAdmin(){return _grcRiskRole()==='admin'||_grcRiskIsSuper();}
+    function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();if(r==='viewer'||r==='user')return false;return ['super_admin','admin','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager'].includes(r)||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('*');}
+    function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
-      if(window.__grcRulesV26Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v26-grc-workflow-permissions'));window.__grcRulesV26Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v26 are not active. Publish the firestore.rules file included with this update, then sign in again.');throw e;}
+      if(window.__grcRulesV30Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v30-full-audit-hardening'));window.__grcRulesV30Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v30 are not active. Publish the firestore.rules file included with this update, then sign in again.');throw e;}
     }
     window._grcRiskDirectStatusUpdate=async function(record,nextStatus){
       await _grcRiskAssertRulesVersion();
-      if(!_grcRiskCanSubmit('risk'))throw new Error('You do not have permission to update Risk status.');
+      if(!_grcRiskCanUpdateStatus())throw new Error('You do not have permission to update Risk status.');
       record=record||{};nextStatus=String(nextStatus||'').trim().toLowerCase();
       if(!['open','closed'].includes(nextStatus))throw new Error('Action Status can only be Open or Closed.');
       const department=_grcCanonicalDepartment(record.department||record.responsibleDept||record.responsibleDepartment||_grcRiskDept()),myDepartment=_grcRiskDept();
@@ -1285,7 +1387,7 @@ window._selectPortal=async portal=>{
     };
 
     window._grcRiskRepairPublishedRequests=async function(force){
-      if(!_grcRiskIsAdmin()||!db)return 0;
+      if(!_grcRiskIsSuper()||!db)return 0;
       const who=_grcRiskEmail();if(!force&&_grcPublishedRepairFor===who)return 0;
       const snap=await getDocs(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('status','==','published'))),rows=[];
       snap.forEach(d=>rows.push(Object.assign({id:d.id},d.data()||{})));
@@ -1364,7 +1466,7 @@ window._selectPortal=async portal=>{
     };
     window._grcRiskRequestsGetAll=async function(){if(!_grcRiskIsAdmin())throw new Error('Access denied.');return _grcRiskRead(collection(db,GRC_RISK_REQUESTS_COLLECTION));};
     window._grcRiskRequestsSubscribe=function(callback){
-      if(_grcRiskRequestUnsub){_grcRiskRequestUnsub();_grcRiskRequestUnsub=null;}if(!_grcRiskEmail()||!db)return function(){};
+      if(_grcRiskRequestUnsub){_grcRiskRequestUnsub();_grcRiskRequestUnsub=null;}if(!_grcRiskEmail()||!db)return function(){};if(!_grcRiskCanViewRegister()){callback([]);return function(){};}
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
       if(_grcRiskIsAdmin())qrefs.push(col);
       else{
@@ -1398,7 +1500,7 @@ window._selectPortal=async portal=>{
 
     window._kpiRequestsClearAllForLaunch=async function(){
       if(!window._fbUser||!db) throw new Error('not authenticated');
-      const role=String(window._fbRole||'').toLowerCase().replace(/[\s-]+/g,'_');
+      const role=_normalizePortalRole(window._fbRole||'');
       if(role!=='super_admin'&&role!=='admin') throw new Error('access denied');
       const snap=await getDocs(collection(db,'kpi_requests'));
       await Promise.all(snap.docs.map(function(d){return deleteDoc(doc(db,'kpi_requests',d.id));}));

@@ -2069,7 +2069,10 @@ function drilldept(d){
     return oldMk.apply(this,[id,cfg]);
   };
   ['renderExec','renderDept','renderRegistry','renderAcc'].forEach(function(fn){
-    var old=window[fn]; if(typeof old==='function')window[fn]=eval(fn+'=function(){var r=old.apply(this,arguments);setTimeout(apply,80);setTimeout(apply,350);return r;}');
+    var old=window[fn];
+    if(typeof old==='function'){
+      window[fn]=function(){var r=old.apply(this,arguments);setTimeout(apply,80);setTimeout(apply,350);return r;};
+    }
   });
   setTimeout(apply,500);
 })();

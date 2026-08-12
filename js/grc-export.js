@@ -307,8 +307,8 @@
       return{title:title,node:clone,width:Number(clone.dataset.grcSourceWidth||sec.getBoundingClientRect().width||1280)};
     });
   }
-  function reportRole(){return String(window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_');}
-  function reportCanViewAllDepartments(){var r=reportRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];if(typeof window._grcCanViewAllDepartments==='function')return !!window._grcCanViewAllDepartments();return r==='admin'||r==='super_admin'||p.indexOf('*')>=0||p.indexOf('view_all_departments')>=0||p.indexOf('view_grc_all_departments')>=0;}
+  function reportRole(){var raw=window._fbRole||window.currentUserRole||'viewer';return typeof window._normalizePortalRole==='function'?window._normalizePortalRole(raw):String(raw).trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
+  function reportCanViewAllDepartments(){var r=reportRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];if(typeof window._grcCanViewAllDepartments==='function')return !!window._grcCanViewAllDepartments();return r==='admin'||r==='super_admin'||r==='governance_performance_manager'||p.indexOf('*')>=0||p.indexOf('view_all_departments')>=0||p.indexOf('view_grc_all_departments')>=0;}
   function reportUserDept(){var d='';try{d=typeof window._grcGetCurrentDepartment==='function'?window._grcGetCurrentDepartment():window._fbDept||window.currentUserDept||'';}catch(_){}d=String(d||'').toLowerCase();if(d.indexOf('safe')>=0)return'safety';if(d.indexOf('maint')>=0)return'maintenance';if(d.indexOf('laund')>=0)return'laundry';if(d.indexOf('house')>=0)return'housekeeping';if(d.indexOf('project')>=0)return'projects';return'';}
   function reportSelectable(){return Array.prototype.slice.call(document.querySelectorAll('[data-grc-report-selectable]'));}
   function reportSelectedCount(group){return Array.prototype.slice.call(document.querySelectorAll('input[data-grc-report-group="'+group.id+'"]')).filter(function(x){return x.checked;}).length;}

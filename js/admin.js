@@ -398,7 +398,7 @@ function saveGapKPO(kpiId,qtr){
   sLS(ST);
   console.log('[FS WRITE] gap save — user clicked Save Gap Analysis button');
   /* USER ACTION: Save Gap Analysis button → Firestore write */
-  if(typeof window._saveToFS==='function')window._saveToFS(ST);
+  if(typeof window._saveToFS==='function')window._saveToFS(ST).catch(function(e){console.error('[FS] Save failed',e);});
   addAudit('GAP_EDIT','Gap updated for '+id+' · '+qtr.toUpperCase()+' by '+(window._fbName||role),oldGap,'See ST.gaps.'+gapKey);
 
   const fb=document.getElementById('kpo_fb'+sfx);
@@ -894,6 +894,12 @@ async function saveNewKPI(){
       return;
     }
   }
+  /* Snapshot the server-backed state before the optimistic UI mutation.
+     If Firestore rejects the save, rollback instead of leaving a browser-only
+     KPI that exists on this device but nowhere else. */
+  var _beforeKpiCreate;
+  try{_beforeKpiCreate=JSON.parse(JSON.stringify(ST));}catch(_snapshotErr){_beforeKpiCreate=null;}
+
   /* ── Append to main state array (ST.added) ── */
   if(!ST.added)ST.added=[];
   /* Filter uses case-sensitive compare — code is already uppercase */
@@ -978,8 +984,15 @@ async function saveNewKPI(){
   if(fsSaved){
     _showFb('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" style="flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg> ✓ KPI "'+code+'" saved',true);
   } else {
-    /* Saved locally but not to Firestore */
-    _showFb('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg> KPI saved locally — sync pending',false);
+    /* Cloud is authoritative. Revert the optimistic browser copy when the
+       Firestore write did not succeed; otherwise another device (correctly)
+       would not have this KPI. */
+    if(_beforeKpiCreate){
+      ST=_beforeKpiCreate;window.ST=ST;
+      try{localStorage.setItem('kpi_v3',JSON.stringify(Object.assign({},ST,{_v:3})));}catch(_rollbackStorage){}
+      refreshAllViewsAfterKpiChange('KPI_ADD:'+code+':rollback');
+    }
+    _showFb('<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12" y2="17"/></svg> KPI was not saved — Firestore rejected or could not confirm the write. Please retry.',false);
   }
 
   /* ── 8. Jump filters so the new KPI is immediately VISIBLE on dashboard ── */
@@ -2290,15 +2303,11 @@ function _fcValidateFormula(formula, fieldCount){
     fb.textContent = '⚠ Column(s) ' + invalid.join(',') + ' exceed field count (' + fieldCount + ' fields = ' + String.fromCharCode(64+fieldCount) + ').';
     fb.style.color = '#DC2626'; return false;
   }
-  /* Basic syntax test */
-  try{
-    var test = formula.replace(/[A-Z]/g,'1').replace(/avg\s*\(/g,'(').replace(/\)/g,'+0)');
-    // eslint-disable-next-line no-new-func
-    new Function('return ('+test+')');
-    fb.textContent = '✓ Formula valid.'; fb.style.color = '#16A34A'; return true;
-  }catch(e){
-    fb.textContent = '⚠ Syntax error: ' + e.message; fb.style.color = '#DC2626'; return false;
+  /* Safe syntax test — formulas are arithmetic data, never executable JS. */
+  if(typeof window._formulaIsSafeSyntax==='function'&&window._formulaIsSafeSyntax(formula)){
+    fb.textContent='✓ Formula valid.';fb.style.color='#16A34A';return true;
   }
+  fb.textContent='⚠ Syntax error. Use only A-Z, numbers, + - * / %, and parentheses.';fb.style.color='#DC2626';return false;
 }
 
 function _fcSave(masterKpiId){
@@ -2654,14 +2663,10 @@ function _saveCustomFormula(){
   var masterId = section ? section.getAttribute('data-master') : '';
   if(!inp || !masterId){ if(fb){fb.textContent='No formula config to save.';fb.style.display='block';} return; }
   var newFormula = inp.value.trim();
-  /* Basic validation */
-  try{
-    var testVals = {A:80,B:90,C:85,D:75};
-    var testExpr = newFormula.replace(/\b([A-Z])\b/g,function(m,l){return testVals[l]!==undefined?testVals[l]:'0';});
-    var result = new Function('return ('+testExpr+')')();
-    if(isNaN(result)||!isFinite(result)) throw new Error('Formula returns invalid number');
-  }catch(e){
-    if(fb){fb.textContent='⚠ Invalid formula: '+e.message;fb.style.color='#DC2626';fb.style.display='block';} return;
+  /* Safe arithmetic validation; do not execute formulas as JavaScript. */
+  var testVals={A:80,B:90,C:85,D:75};
+  if(typeof window._formulaIsSafeSyntax!=='function'||!window._formulaIsSafeSyntax(newFormula)||typeof window._evalFormula!=='function'||window._evalFormula(newFormula,testVals)===null){
+    if(fb){fb.textContent='⚠ Invalid formula. Use only A-Z, numbers, + - * / %, and parentheses.';fb.style.color='#DC2626';fb.style.display='block';}return;
   }
   /* Save to ST.masterKpis (overrides BUILTIN for this key) */
   if(!ST.masterKpis) ST.masterKpis = {};
@@ -2725,9 +2730,8 @@ function _saveEditFormula(){
   var section=document.getElementById('editQtrSection');
   var masterId=section?section.getAttribute('data-master'):'';
   if(!inp||!masterId){if(fb){fb.textContent='No formula config.';fb.style.display='block';}return;}
-  var newF=inp.value.trim();
-  try{var tv={A:80,B:90,C:85,D:75};var te=newF.replace(/\b([A-Z])\b/g,function(m,l){return tv[l]!==undefined?tv[l]:'0';});var tr2=new Function('return ('+te+')')();if(isNaN(tr2)||!isFinite(tr2))throw new Error('invalid');}
-  catch(e){if(fb){fb.textContent='⚠ Invalid: '+e.message;fb.style.color='#DC2626';fb.style.display='block';}return;}
+  var newF=inp.value.trim(),tv={A:80,B:90,C:85,D:75};
+  if(typeof window._formulaIsSafeSyntax!=='function'||!window._formulaIsSafeSyntax(newF)||typeof window._evalFormula!=='function'||window._evalFormula(newF,tv)===null){if(fb){fb.textContent='⚠ Invalid formula. Use only A-Z, numbers, + - * / %, and parentheses.';fb.style.color='#DC2626';fb.style.display='block';}return;}
   var kpiId=_adminGetEditKpiId(section);
   var kpiNameEn=_adminGetEditKpiNameEn(section);
   var baseCfg=(typeof _adminMergeKpiSpecificConfig==='function')?_adminMergeKpiSpecificConfig(masterId,kpiId,kpiNameEn):_adminMergedMasterConfig(masterId);
@@ -3189,7 +3193,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   function approvals(){if(!window.ST)window.ST={};if(!Array.isArray(ST.gapApprovals))ST.gapApprovals=[];return ST.gapApprovals;}
   function saveWorkflow(tag){
     try{if(typeof window.sLS==='function')window.sLS(ST);else localStorage.setItem('kpi_v3',JSON.stringify(ST));}catch(_e){}
-    try{if(typeof window._saveToFS==='function')window._saveToFS(ST);}catch(_e){}
+    try{if(typeof window._saveToFS==='function')window._saveToFS(ST).catch(function(e){console.error('[FS] Save failed',e);});}catch(_e){}
     try{if(typeof window.addAudit==='function')window.addAudit(tag||'GAP_APPROVAL','Gap approval workflow update');}catch(_e){}
     try{if(typeof window.renderNotifications==='function')setTimeout(window.renderNotifications,120);}catch(_e){}
   }
@@ -3763,7 +3767,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   function nowIso(){return new Date().toISOString();}
   function save(tag,msg){
     try{if(typeof window.sLS==='function')window.sLS(ST);else localStorage.setItem('kpi_v3',JSON.stringify(ST));}catch(_e){}
-    try{if(typeof window._saveToFS==='function')window._saveToFS(ST);}catch(_e){}
+    try{if(typeof window._saveToFS==='function')window._saveToFS(ST).catch(function(e){console.error('[FS] Save failed',e);});}catch(_e){}
     try{if(typeof window.addAudit==='function')window.addAudit(tag||'GAP_APPROVAL',msg||tag||'Gap approval update');}catch(_e){}
     try{if(typeof window.renderNotifications==='function')setTimeout(window.renderNotifications,120);}catch(_e){}
   }
@@ -3920,7 +3924,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   function qLabel(q){return String(q||'').toUpperCase();}
   function findReq(id){return approvals().find(function(r){return r&&String(r.id)===String(id);});}
   function nowIso(){return new Date().toISOString();}
-  function save(tag,msg){try{if(typeof window.sLS==='function')window.sLS(ST);else localStorage.setItem('kpi_v3',JSON.stringify(ST));}catch(_e){}try{if(typeof window._saveToFS==='function')window._saveToFS(ST);}catch(_e){}try{if(typeof window.addAudit==='function')window.addAudit(tag||'GAP_APPROVAL',msg||tag||'Gap approval update');}catch(_e){}try{if(typeof window.renderNotifications==='function')setTimeout(window.renderNotifications,160);}catch(_e){} }
+  function save(tag,msg){try{if(typeof window.sLS==='function')window.sLS(ST);else localStorage.setItem('kpi_v3',JSON.stringify(ST));}catch(_e){}try{if(typeof window._saveToFS==='function')window._saveToFS(ST).catch(function(e){console.error('[FS] Save failed',e);});}catch(_e){}try{if(typeof window.addAudit==='function')window.addAudit(tag||'GAP_APPROVAL',msg||tag||'Gap approval update');}catch(_e){}try{if(typeof window.renderNotifications==='function')setTimeout(window.renderNotifications,160);}catch(_e){} }
 
   function rejectBoxHtml(reqId,action){var a=isAr();return '<div class="qumc-reject-inline" style="grid-column:1/-1;margin-top:12px;background:#fff7ed;border:1px solid rgba(217,119,6,.42);border-radius:13px;padding:12px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.45)"><div style="font-size:11px;font-weight:900;color:#92400e;margin-bottom:7px">'+(a?'سبب الرفض مطلوب':'Reject comment is required')+'</div><textarea id="gapRejectComment_'+esc(reqId)+'" style="box-sizing:border-box;width:100%;min-height:82px;border:1px solid rgba(217,119,6,.35);border-radius:10px;padding:9px;font-family:inherit;font-size:11.5px;resize:vertical;background:#fff" placeholder="'+(a?'اكتب سبب الرفض هنا...':'Write the rejection reason here...')+'"></textarea><div id="gapRejectWarn_'+esc(reqId)+'" style="display:none;margin-top:7px;color:#b45309;font-size:10.5px;font-weight:800">'+(a?'لازم كتابة سبب الرفض قبل الإرسال.':'A rejection comment is required before submitting.')+'</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:9px"><button type="button" onclick="this.closest(\'.qumc-reject-inline\').remove()" class="gap-apr-btn" style="background:#e2e8f0;color:#334155">'+(a?'إلغاء':'Cancel')+'</button><button type="button" onclick="window._gapApprovalAct(\''+esc(reqId)+'\',\''+esc(action)+'\',document.getElementById(\'gapRejectComment_'+esc(reqId)+'\').value)" class="gap-apr-btn bad">'+(a?'تأكيد الرفض':'Confirm Reject')+'</button></div></div>';}
   window._gapApprovalRejectInline=function(reqId,action){
@@ -4123,7 +4127,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   };
 
   window._perfAdminApplyAnalyticsRoleScope=function(){
-    var role=String(window._fbRole||window.currentUserRole||'').toLowerCase().replace(/[\s-]+/g,'_');
+    var rawRole=window._fbRole||window.currentUserRole||'',role=(typeof window._normalizePortalRole==='function')?window._normalizePortalRole(rawRole):String(rawRole).toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');
     var ov=document.getElementById('adminOv');if(!ov)return;
     var analyticsOnly=role==='governance_performance_manager';
     ov.classList.toggle('perf-analytics-only',analyticsOnly);
