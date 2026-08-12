@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v30 — Full Code Audit, Workflow and Data Consistency Hardening
+// FIRESTORE SECURITY RULES v31 — Permission, Workflow and Query Stability
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -322,16 +322,16 @@ service cloud.firestore {
       return value is string && value in userDepartmentAliases();
     }
 
-    // Query-safe list rule. It mirrors the three queries used by the browser:
-    // canonical departmentKey, shared Division departmentKey, and one-time
-    // legacy department aliases. This avoids blank registers without opening
-    // cross-department data.
+    // Query-safe list rule. Scoped browser listeners use only canonical
+    // departmentKey equality (plus the shared Division key). Legacy department
+    // labels are supported for single-document reads and are normalized by the
+    // Super Admin migration; they are deliberately excluded from list rules so
+    // a legacy `in` query cannot make an otherwise valid GRC page fail.
     function canListDepartmentGrcRecord(data) {
       return canAccessGrc() && (
         viewAllGrcDepartments() ||
         (('departmentKey' in data) && data.departmentKey == userDepartmentKey()) ||
-        (('departmentKey' in data) && data.departmentKey == 'division') ||
-        (('department' in data) && legacyDepartmentMatchesUser(data.department))
+        (('departmentKey' in data) && data.departmentKey == 'division')
       );
     }
 
@@ -644,8 +644,16 @@ service cloud.firestore {
     }
 
     match /kpi_requests/{requestId} {
-      allow create: if approved() && ownEmail(request.resource.data.userEmail);
-      allow read: if approved() && (admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics') || ownEmail(resource.data.userEmail));
+      allow create: if approved() &&
+        request.resource.data.userEmail is string &&
+        request.resource.data.userEmail == authEmail();
+      // Single-document reads keep compatibility with old mixed-case emails.
+      allow get: if approved() && (admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics') || ownEmail(resource.data.userEmail));
+      // List/query authorization must be provable from the actual query field.
+      allow list: if approved() && (
+        admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics') ||
+        (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
+      );
       // Generic Performance User Requests are admin-controlled after submit.
       // Requester-side workflow updates remain only for historical Review &
       // Development fallback rows; new R&D requests use advisory_requests.
@@ -682,9 +690,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // an allowed authenticated get proves that v30 is actually deployed.
+    // an allowed authenticated get proves that v31 is actually deployed.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v30-full-audit-hardening';
+      allow get: if approved() && versionId == 'v31-permission-workflow-stability';
       allow list, create, update, delete: if false;
     }
 
@@ -907,14 +915,32 @@ service cloud.firestore {
     }
 
     match /advisory_requests/{requestId} {
+      // New submissions are canonical: identity, uid and department are copied
+      // directly from the authenticated Firestore profile immediately before
+      // the write. This makes the rule deterministic for every device.
       allow create: if approved() &&
-        ownEmail(request.resource.data.userEmail) &&
+        request.resource.data.userEmail is string &&
+        request.resource.data.userEmail == authEmail() &&
+        request.resource.data.requesterUid is string &&
+        request.resource.data.requesterUid == request.auth.uid &&
         request.resource.data.departmentKey is string &&
         request.resource.data.departmentKey == advisorySubmissionDepartmentKey() &&
         validAdvisoryCreateRoute();
-      allow read: if approved() && (
+      // A direct document open may still encounter a historical mixed-case row.
+      allow get: if approved() && (
         admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics') ||
         ownEmail(resource.data.userEmail) || advisoryManagerCanRead(resource.data)
+      );
+      // Query-safe branches mirror the exact browser queries: own userEmail, or
+      // Department Manager departmentKey + pending workflowStage.
+      allow list: if approved() && (
+        admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics') ||
+        (('userEmail' in resource.data) && resource.data.userEmail == authEmail()) ||
+        (
+          departmentManager() &&
+          ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey() &&
+          ('workflowStage' in resource.data) && resource.data.workflowStage == 'pending_department_manager'
+        )
       );
       allow update: if
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
@@ -924,15 +950,13 @@ service cloud.firestore {
       allow delete: if superAdmin();
     }
 
+    // Legacy sanitized analytics mirror. Operational Review & Development
+    // workflow no longer depends on this secondary document; the primary
+    // advisory_requests collection is authoritative. Super Admin may repair the
+    // mirror for old dashboards, but a mirror failure can never block a request.
     match /advisory_public/{requestId} {
-      allow create: if approved() && validAdvisoryPublicCreate(requestId) && (superAdmin() || advisoryOwnerAfter(requestId) || advisoryManagerForRequest(requestId));
       allow read: if approved() && (admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics'));
-      allow update: if
-        superAdmin() ||
-        (approved() && advisoryOwner(requestId) && validAdvisoryPublicOwnerChange()) ||
-        (approved() && advisoryManagerForRequest(requestId) &&
-          validAdvisoryPublicManagerChange());
-      allow delete: if superAdmin();
+      allow create, update, delete: if superAdmin();
     }
 
     match /advisory_attachments/{chunkId} {
@@ -1031,20 +1055,33 @@ service cloud.firestore {
     }
 
     match /grc_risk_requests/{requestId} {
+      // Every new Risk/Incident request is written with canonical identity and
+      // department fields taken from the authenticated Firestore profile.
       allow create: if canSubmitRiskRequest() &&
-        riskRequestOwner(request.resource.data) &&
-        riskRequestDepartment(request.resource.data) &&
+        request.resource.data.submittedByEmail is string &&
+        request.resource.data.submittedByEmail == authEmail() &&
+        request.resource.data.submittedByUid is string &&
+        request.resource.data.submittedByUid == request.auth.uid &&
+        request.resource.data.department is string &&
+        request.resource.data.department == userDepartmentKey() &&
+        request.resource.data.departmentKey is string &&
+        request.resource.data.departmentKey == userDepartmentKey() &&
         request.resource.data.recordType in ['risk', 'incident'] &&
         request.resource.data.operation in ['add', 'update', 'delete'] &&
         request.resource.data.status == 'pending_manager';
 
-      // Request activity is visible to every authorized GRC user in the
-      // same assigned department so department notifications stay in sync.
-      // Cross-department access remains blocked by riskRequestDepartment().
-      allow read: if canReadRiskIncidentRegister() && (
+      // Direct opens retain compatibility with historical aliases.
+      allow get: if canReadRiskIncidentRegister() && (
+        admin() || riskRequestOwner(resource.data) || riskRequestDepartment(resource.data)
+      );
+      // Query-safe list branches match the client's exact scoped queries.
+      allow list: if canReadRiskIncidentRegister() && (
         admin() ||
-        riskRequestOwner(resource.data) ||
-        riskRequestDepartment(resource.data)
+        (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid) ||
+        (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail()) ||
+        (('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey()) ||
+        (('department' in resource.data) && resource.data.department == userDepartmentKey()) ||
+        (('departmentRaw' in resource.data) && resource.data.departmentRaw == profileDepartmentValue())
       );
 
       allow update: if
@@ -1065,14 +1102,20 @@ service cloud.firestore {
     // per-record cloud migration. This collection stores status only; it cannot
     // be used to add or edit Risk Register content.
     match /grc_risk_status/{recordId} {
-      allow read: if canReadRiskIncidentRegister() && (
+      allow get: if canReadRiskIncidentRegister() && (
         viewAllGrcDepartments() ||
         (('department' in resource.data) && sameDepartment(resource.data.department)) ||
         (('departmentRaw' in resource.data) && rawUserDepartment(resource.data.departmentRaw))
       );
+      allow list: if canReadRiskIncidentRegister() && (
+        viewAllGrcDepartments() ||
+        (('department' in resource.data) && resource.data.department == userDepartmentKey())
+      );
       allow create: if canUpdateRiskStatusOverride() &&
         validRiskStatusOverride(request.resource.data) &&
-        riskRequestDepartment(request.resource.data) &&
+        request.resource.data.department == userDepartmentKey() &&
+        request.resource.data.updatedByEmail == authEmail() &&
+        request.resource.data.updatedByUid == request.auth.uid &&
         request.resource.data.keys().hasOnly([
           'recordId', 'cloudId', 'department', 'departmentRaw', 'actionStatus',
           'updatedAt', 'updatedAtIso', 'updatedBy', 'updatedByEmail',
@@ -1080,7 +1123,9 @@ service cloud.firestore {
         ]);
       allow update: if canUpdateRiskStatusOverride() &&
         validRiskStatusOverride(request.resource.data) &&
-        riskRequestDepartment(request.resource.data) &&
+        request.resource.data.department == userDepartmentKey() &&
+        request.resource.data.updatedByEmail == authEmail() &&
+        request.resource.data.updatedByUid == request.auth.uid &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'recordId', 'cloudId', 'department', 'departmentRaw', 'actionStatus',
           'updatedAt', 'updatedAtIso', 'updatedBy', 'updatedByEmail',
