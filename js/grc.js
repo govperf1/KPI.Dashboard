@@ -18,6 +18,9 @@
   window.__QUMC_GRC_BUILD__='20260729-owner-roles-v84';
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
+  var GRC_CLIENT_BUILD='20260812-v166';
+  var GRC_CACHE_OWNER_KEY='qumc_grc_workspace_preview_v1_owner_v166';
+  var GRC_CACHE_BUILD_KEY='qumc_grc_workspace_preview_build';
   var STATE_VERSION=13;
   var activeTab='executive',executiveDeptFilter='allFms';
   var app=null;
@@ -851,6 +854,36 @@
   state.initiatives=mergeInitiativeSeed(state.initiatives);
   state=repairGovernanceCodeState(state);
   try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}
+
+  /* v166 device-consistency guard. The old GRC cache key was shared by every
+     account using the same browser, so a department-scoped state from another
+     session/device could be rendered before Firestore finished hydrating.
+     Bind the cache to the resolved authenticated profile and discard legacy or
+     mismatched browser state before entering GRC. Firestore remains authoritative. */
+  function grcCurrentCacheOwner(){
+    var email=String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();
+    if(!email)return'';
+    return[email,normalizedRole(),currentGrcDept()||'all'].join('|');
+  }
+  function grcResetLocalCacheForProfile(){
+    var owner=grcCurrentCacheOwner();if(!owner)return false;
+    var savedOwner='',savedBuild='';
+    try{savedOwner=String(localStorage.getItem(GRC_CACHE_OWNER_KEY)||'');savedBuild=String(localStorage.getItem(GRC_CACHE_BUILD_KEY)||'');}catch(_){}
+    if(savedOwner===owner&&savedBuild===GRC_CLIENT_BUILD)return false;
+    state=applyRiskRegisterSeed(repairGovernanceCodeState(defaultState()));
+    state=repairGovernanceCodeState(state);
+    try{
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
+      localStorage.setItem(GRC_CACHE_OWNER_KEY,owner);
+      localStorage.setItem(GRC_CACHE_BUILD_KEY,GRC_CLIENT_BUILD);
+    }catch(_){}
+    console.log('[GRC Cache] reset stale/mismatched browser workspace for',owner);
+    return true;
+  }
+  function grcStampLocalCacheOwner(){
+    var owner=grcCurrentCacheOwner();if(!owner)return;
+    try{localStorage.setItem(GRC_CACHE_OWNER_KEY,owner);localStorage.setItem(GRC_CACHE_BUILD_KEY,GRC_CLIENT_BUILD);}catch(_){}
+  }
   function grcViewportPosition(){
     var main=app&&app.querySelector('.grc-main');
     return{main:main?main.scrollTop:0,winX:window.scrollX||0,winY:window.scrollY||0};
@@ -937,6 +970,10 @@
     var wanted=grcSyncIdentityKey();
     if(!force&&grcSyncStarted&&grcSyncScopeKey===wanted)return;
     stopSharedStateSync();startSharedStateSync();
+  };
+  window._grcDataDiagnostics=function(){
+    var counts={};Object.keys(GRC_COLLECTION_MAP).forEach(function(k){counts[k]=(state[k]||[]).length;});
+    return{build:GRC_CLIENT_BUILD,email:String(window._fbUser||''),role:normalizedRole(),department:currentGrcDept(),syncStarted:grcSyncStarted,cloudReady:grcCloudReady,syncKey:grcSyncScopeKey,counts:counts};
   };
 
   function grcSharedStateRef(b){return b.fs.doc(b.db,'kpi_dashboard',GRC_SHARED_STATE_DOC);}
@@ -1345,18 +1382,19 @@
   }
   function grcHandleCollectionSnapshot(collectionKey,scope,snapshot){
     grcCloudParts[collectionKey]=grcCloudParts[collectionKey]||{};
-    var incoming=grcDocsFromSnapshot(snapshot),existing=grcCloudParts[collectionKey][scope]||[];
-    /* Never let a stale local-cache snapshot replace a newer server snapshot.
-       Merge cached rows monotonically by source document and revision; a later
-       authoritative server snapshot still replaces the complete query scope. */
+    /* A cached first snapshot is device-specific by definition. Do not let it
+       become the initial Governance/Risk/Chart state. Wait for the same query
+       to be confirmed by Firestore server, then hydrate and render. */
+    if(snapshot&&snapshot.metadata&&snapshot.metadata.fromCache){
+      console.log('[GRC Secure Sync] '+collectionKey+' '+scope+' cache snapshot ignored; waiting for server');
+      return;
+    }
+    var incoming=grcDocsFromSnapshot(snapshot);
     if(grcCollectionScopeFailed[collectionKey])delete grcCollectionScopeFailed[collectionKey][scope];
-    if(snapshot.metadata&&snapshot.metadata.fromCache&&existing.length&&(collectionKey==='risks'||collectionKey==='incidents')){
-      var bySource={};existing.forEach(function(r){bySource[String(r._sourceCloudId||r._cloudId||r.cloudId||'')]=r;});
-      incoming.forEach(function(r){var id=String(r._sourceCloudId||r._cloudId||r.cloudId||'');bySource[id]=grcPreferRegisterRecord(bySource[id],r);});
-      grcCloudParts[collectionKey][scope]=Object.keys(bySource).map(function(id){return bySource[id];});
-    }else grcCloudParts[collectionKey][scope]=incoming;
+    grcCloudParts[collectionKey][scope]=incoming;
     if(!grcMarkCollectionScopeReady(collectionKey,scope))return;
     grcApplyReadyCollection(collectionKey);
+    grcStampLocalCacheOwner();
   }
   function grcListen(b,collectionKey,scope,qref){
     var unsub=b.fs.onSnapshot(qref,{includeMetadataChanges:true},function(snap){grcHandleCollectionSnapshot(collectionKey,scope,snap);},function(err){
@@ -1371,7 +1409,8 @@
     grcStateUnsubs.push(unsub);
   }
   function grcLoadScopeOnce(b,collectionKey,scope,qref){
-    b.fs.getDocs(qref).then(function(snap){grcHandleCollectionSnapshot(collectionKey,scope,snap);}).catch(function(err){
+    var read=(typeof b.fs.getDocsFromServer==='function')?b.fs.getDocsFromServer(qref):b.fs.getDocs(qref);
+    read.then(function(snap){grcHandleCollectionSnapshot(collectionKey,scope,snap);}).catch(function(err){
       console.error('[GRC Secure Sync] '+collectionKey+' '+scope+' bootstrap failed',err);
       grcCloudParts[collectionKey]=grcCloudParts[collectionKey]||{};
       grcCollectionScopeFailed[collectionKey]=grcCollectionScopeFailed[collectionKey]||{};grcCollectionScopeFailed[collectionKey][scope]=true;
@@ -4262,7 +4301,7 @@
   }
   window._exitGRC=function(){window._hideGRC();window.__qumcActivePortal='';var bg=document.getElementById('_bgLayer'),po=document.getElementById('_portalOverlay'),auth=document.getElementById('_authOverlay');if(auth)auth.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
   window._openGrcPortal=function(){if(!canEnterGrc()){if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied('grc');else window.alert&&window.alert('Your role does not have access to the GRC platform.');return;}window._enterGRC();};
-  window._enterGRC=function(){if(!canEnterGrc()){if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied('grc');else window._showGrcComingSoon();return;}window.__qumcActivePortal='grc';activeTab=activeTab||'executive';closePerformanceUiForGrc();['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.remove('dashboard-mode','auth-mode','portal-mode','performance-advisory-mode');document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');render();if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();};
+  window._enterGRC=function(){if(!canEnterGrc()){if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied('grc');else window._showGrcComingSoon();return;}window.__qumcActivePortal='grc';activeTab=activeTab||'executive';closePerformanceUiForGrc();['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.remove('dashboard-mode','auth-mode','portal-mode','performance-advisory-mode');document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');try{grcResetLocalCacheForProfile();}catch(cacheErr){console.warn('[GRC Cache] profile reset skipped',cacheErr);}render();if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();};
   window._closeGrcComingSoon=function(){var ov=document.getElementById('_grcComingSoon');if(ov)ov.remove();document.body.classList.remove('grc-coming-open');};
   window._showGrcComingSoon=function(){
     window._closeGrcComingSoon();document.body.classList.add('grc-coming-open');

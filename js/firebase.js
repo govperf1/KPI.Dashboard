@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
     import { getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,sendPasswordResetEmail,fetchSignInMethodsForEmail,setPersistence,browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-    import { getFirestore,doc,getDoc,setDoc,addDoc,collection,serverTimestamp,onSnapshot,updateDoc,arrayUnion,query,where,orderBy,getDocs,deleteDoc,runTransaction } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { getFirestore,doc,getDoc,getDocFromServer,setDoc,addDoc,collection,serverTimestamp,onSnapshot,updateDoc,arrayUnion,query,where,orderBy,getDocs,deleteDoc,runTransaction } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     const firebaseConfig={apiKey:"AIzaSyAlLWZvsu4UbHn-LncFdrSHlbL3bIAG4no",authDomain:"qumc-kpi-dashboard-f10dd.firebaseapp.com",projectId:"qumc-kpi-dashboard-f10dd",storageBucket:"qumc-kpi-dashboard-f10dd.firebasestorage.app",messagingSenderId:"659971973475",appId:"1:659971973475:web:483116a0711008a6a97356"};
     const DPERMS={
@@ -41,6 +41,13 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
+    const QUMC_CLIENT_BUILD='20260812-v166';
+    window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
+    /* v166 device-consistency rule: security/profile and initial dashboard state
+       must come from the Firestore server, never from a browser-specific cache. */
+    async function _getServerDoc(ref){
+      return getDocFromServer(ref);
+    }
 
     function _normalizePortalRole(value){return String(value||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
     function _clientHasPerm(perm){const p=Array.isArray(window._fbPerms)?window._fbPerms:[];return p.includes('*')||p.includes(perm);}
@@ -347,9 +354,13 @@ window._selectPortal=async portal=>{
         setUserDisplay(window._fbName,window._fbRole);
         if(typeof window.applyRolePermissions==='function')window.applyRolePermissions(window._fbRole,window._fbDept,window._fbPerms);
         if(typeof window.updateUserBadge==='function')window.updateUserBadge(window._fbName,window._fbRole,window._fbPerms);
-        /* Load shared Firestore state in the background — no entry loading screen. */
+        /* v166: do not render charts from device-local state first. Resolve the
+           authenticated Firestore state, then render the portal. This removes
+           device-speed/cache races where the same user saw different charts. */
+        showEntryLoading('Syncing latest dashboard data…');
         if(typeof window._onFSLoaded==='function'){
-          window._onFSLoaded().catch(e=>console.warn('[FS] background initial load skipped:',e));
+          try{await window._onFSLoaded({skipRender:window._fbRole==='super_admin'});}
+          catch(e){console.warn('[FS] initial server hydration skipped:',e);}
         }
         /* Role-specific rendering:
            - super_admin → show SA hub landing page immediately, do NOT render dashboard first
@@ -427,7 +438,7 @@ window._selectPortal=async portal=>{
       const email=String(user.email||'').toLowerCase().trim();
       try{
         console.log('[FS READ] users/'+email);
-        const snap = await getDoc(doc(db,'users',email));
+        const snap = await _getServerDoc(doc(db,'users',email));
         if(!snap.exists()){console.warn('[Auth] Not in Firestore:',email);await signOut(auth);setErr('Account not registered. Contact admin.');showLogin();return;}
         const d=snap.data();
         if(!d.approved){console.warn('[Auth] Not approved:',email);await signOut(auth);setErr('Account pending approval.');showLogin();return;}
@@ -438,7 +449,7 @@ window._selectPortal=async portal=>{
         console.log('[Auth] Role:',role,'Dept:',accountDept==null?'all departments':accountDept);
         let perms=[];console.log('[FS READ] config_roles/'+role);
         try{
-        const rs = await getDoc(doc(db,'config_roles',role));perms=rs.exists()?(rs.data().permissions||[]):(DPERMS[role]||[]);}catch(_){perms=DPERMS[role]||[];}
+        const rs = await _getServerDoc(doc(db,'config_roles',role));perms=rs.exists()?(rs.data().permissions||[]):(DPERMS[role]||[]);}catch(_){perms=DPERMS[role]||[];}
         if(d.extraPermissions)perms=[...new Set([...perms,...d.extraPermissions])];
         if(d.revokedPermissions)perms=perms.filter(p=>!d.revokedPermissions.includes(p));
         const realName=accountNameFrom(d,user,email);
@@ -718,7 +729,7 @@ window._selectPortal=async portal=>{
     async function _advFreshProfile(){
       const u=auth.currentUser;if(!u||!u.email)throw new Error('Not authenticated.');
       const profileEmail=String(u.email||'').toLowerCase().trim();
-      const snap=await getDoc(doc(db,'users',profileEmail));
+      const snap=await _getServerDoc(doc(db,'users',profileEmail));
       if(!snap.exists())throw new Error('Your user profile could not be found in Firestore.');
       const d=snap.data()||{};if(d.approved!==true)throw new Error('Your account is not approved.');
       const raw=Object.prototype.hasOwnProperty.call(d,'dept')?d.dept:(Object.prototype.hasOwnProperty.call(d,'department')?d.department:(Object.prototype.hasOwnProperty.call(d,'deptKey')?d.deptKey:null));
@@ -728,7 +739,7 @@ window._selectPortal=async portal=>{
     }
     async function _advAssertRulesVersion(){
       if(window.__advRulesV25Verified===true)return true;
-      try{await getDoc(doc(db,'system_rule_versions','v25-review-development'));window.__advRulesV25Verified=true;return true;}
+      try{await _getServerDoc(doc(db,'system_rule_versions','v25-review-development'));window.__advRulesV25Verified=true;return true;}
       catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v25 are not active. Publish the firestore.rules file included with this update, then sign in again.');throw e;}
     }
     function _advIso(){return new Date().toISOString();}
@@ -1376,119 +1387,74 @@ window._selectPortal=async portal=>{
        READ-ONLY onSnapshot: receives changes from other users.
        RULE: Never writes to Firestore from this listener.
        ══════════════════════════════════════════════════════ */
+    const PERFORMANCE_SHARED_DEFAULTS={
+      added:()=>[], deleted:()=>[], gapApprovals:()=>[], requests:()=>[],
+      gaps:()=>({}), actions:()=>({}), pci:()=>({}), codeOv:()=>({}), ov:()=>({}),
+      textEdits:()=>({}), rptEdits:()=>({}), masterKpis:()=>({}),
+      kpiFormulaOverrides:()=>({}), pciConfig:()=>({})
+    };
+    function _perfClone(value){
+      try{return JSON.parse(JSON.stringify(value));}catch(_){return value;}
+    }
+    function _applyPerformanceCloudState(fsData,clearMissing){
+      if(typeof ST==='undefined'||!ST)return false;
+      fsData=fsData&&typeof fsData==='object'?fsData:{};
+      let changed=false;
+      Object.keys(PERFORMANCE_SHARED_DEFAULTS).forEach(function(field){
+        const has=Object.prototype.hasOwnProperty.call(fsData,field);
+        if(!has&&!clearMissing)return;
+        const next=_perfClone(has?fsData[field]:PERFORMANCE_SHARED_DEFAULTS[field]());
+        try{if(JSON.stringify(ST[field])!==JSON.stringify(next)){ST[field]=next;changed=true;}}
+        catch(_){ST[field]=next;changed=true;}
+      });
+      if(Object.prototype.hasOwnProperty.call(fsData,'audit')){
+        const next=_perfClone(fsData.audit||[]);
+        try{if(JSON.stringify(ST.audit)!==JSON.stringify(next)){ST.audit=next;changed=true;}}catch(_){ST.audit=next;changed=true;}
+      }
+      return changed;
+    }
+    window._applyPerformanceCloudState=_applyPerformanceCloudState;
+
     let _fsListenerUnsub = null;
     window._startReadListener = function(){
       if(_fsListenerUnsub || !db || !window._fbUser) return;
       _fsListenerUnsub = onSnapshot(
         doc(db,'kpi_dashboard','state'),
+        {includeMetadataChanges:true},
         function(snap){
           if(!snap.exists()) return;
+          /* Ignore browser/memory-cache snapshots. A server-confirmed snapshot
+             is the only source allowed to change shared KPI/chart data. */
+          if(snap.metadata&&snap.metadata.fromCache){
+            window.__qumcPerformanceCloudSource='cache-waiting-for-server';
+            console.log('[FS READ] cached snapshot ignored — waiting for server');
+            return;
+          }
+          window.__qumcPerformanceCloudSource='server-live';
           const fsData = snap.data();
           if(!fsData) return;
-          /* Echo suppression: ignore our own writes for 2 seconds */
+          /* Echo suppression: our local state already contains the write. */
           const msSince = Date.now() - (window._lastCloudSaveTime||0);
           if(msSince < 2000){
             console.log('[FS READ] onSnapshot: own echo suppressed ('+Math.round(msSince)+'ms)');
             return;
           }
-          console.log('[FS READ] onSnapshot: remote change — merging + updating UI');
-          /* MERGE into ST — localStorage only, ZERO Firestore write */
-          /* Fields where REMOTE is authoritative (no local writes during normal use) */
-          const safe=['gaps','actions','pci','codeOv','pciConfig','requests']; /* F5: textEdits removed — handled separately below with LOCAL WINS */
-          let changed=false;
-          /* Simple replace: local has no business modifying these */
-          safe.forEach(function(f){
-            if(fsData[f]!==undefined){
-              try{ if(JSON.stringify(ST[f])!==JSON.stringify(fsData[f])){ST[f]=fsData[f];changed=true;} }
-              catch(_){ST[f]=fsData[f];changed=true;}
-            }
-          });
-
-
-          /* F5: textEdits — LOCAL WINS (same pattern as ov).
-             Remote provides entries we don't have locally.
-             Local entries survive any incoming snapshot. */
-          if(fsData.textEdits!==undefined){
-            const teMerged=Object.assign({}, fsData.textEdits||{}, ST.textEdits||{});
-            try{
-              if(JSON.stringify(ST.textEdits)!==JSON.stringify(teMerged)){
-                ST.textEdits=teMerged; changed=true;
-              }
-            }catch(_){ ST.textEdits=teMerged; changed=true; }
-          }
-
-          /* `ov` — KPI overrides written by Edit KPI.
-             LOCAL WINS: user's in-flight edit must survive an incoming snapshot.
-             Merge: remote provides entries we don't have; local entries override remote. */
-          if(fsData.ov!==undefined){
-            const merged=Object.assign({}, fsData.ov||{}, ST.ov||{});
-            try{ if(JSON.stringify(ST.ov)!==JSON.stringify(merged)){ST.ov=merged;changed=true;} }
-            catch(_){ST.ov=merged;changed=true;}
-          }
-
-          /* `rptEdits` — report text edits written by rptDoneEdit.
-             LOCAL WINS: same reason — in-flight edit must survive snapshot. */
-          if(fsData.rptEdits!==undefined){
-            const merged=Object.assign({}, fsData.rptEdits||{}, ST.rptEdits||{});
-            try{ if(JSON.stringify(ST.rptEdits)!==JSON.stringify(merged)){ST.rptEdits=merged;changed=true;} }
-            catch(_){ST.rptEdits=merged;changed=true;}
-          }
-
-          /* `deleted` — UNION (not intersection).
-             ANY entry deleted in EITHER local OR remote stays deleted.
-             This ensures a fresh local delete (not yet in Firestore) survives the snapshot.
-             The reconcile pass below then handles "added wins over deleted". */
-          if(fsData.deleted!==undefined){
-            var localDel=Array.isArray(ST.deleted)?ST.deleted:[];
-            var remoteDel=Array.isArray(fsData.deleted)?fsData.deleted:[];
-            var seen=new Set(); var union=[];
-            localDel.concat(remoteDel).forEach(function(id){
-              var u=String(id||'').toUpperCase();
-              if(u && !seen.has(u)){seen.add(u);union.push(id);}
-            });
-            try{ if(JSON.stringify(ST.deleted)!==JSON.stringify(union)){ST.deleted=union;changed=true;} }
-            catch(_){ST.deleted=union;changed=true;}
-          }
-
-          /* `added` — UNION merge by id (local-only adds survive remote snapshots) */
-          if(fsData.added!==undefined){
-            var localAdded=Array.isArray(ST.added)?ST.added:[];
-            var remoteAdded=Array.isArray(fsData.added)?fsData.added:[];
-            var mergedMap={};
-            remoteAdded.forEach(function(k){if(k&&k.id)mergedMap[String(k.id).toUpperCase()]=k;});
-            localAdded.forEach(function(k){if(k&&k.id&&!mergedMap[String(k.id).toUpperCase()])mergedMap[String(k.id).toUpperCase()]=k;});
-            var merged=Object.values(mergedMap);
-            try{ if(JSON.stringify(ST.added)!==JSON.stringify(merged)){ST.added=merged;changed=true;} }
-            catch(_){ST.added=merged;changed=true;}
-          }
-
-          /* Reconcile: if a KPI in ST.added is also in ST.deleted, remove it from deleted.
-             "Added wins over deleted." Reconcile locally only; the listener never writes. */
-          if(typeof _reconcileDeletedVsAdded==='function'){
-            var reconciled=_reconcileDeletedVsAdded(ST);
-            if(reconciled){
-              changed=true;
-              sLS(ST);
-              /* Read listener is strictly read-only. The repaired local state is
-                 persisted to Firestore only by a later explicit user save. */
-            }
-          }
-          if(!changed){ return; }
-          /* Save to localStorage (NO Firestore!) */
+          console.log('[FS READ] server change — replacing shared client state + updating UI');
+          const changed=_applyPerformanceCloudState(fsData,true);
+          if(typeof _reconcileDeletedVsAdded==='function')_reconcileDeletedVsAdded(ST);
+          if(!changed) return;
           try{ localStorage.setItem('kpi_v3',JSON.stringify({...ST,_v:3})); }catch(_){}
-          /* Update UI — stay on current page */
           const savedPage = window.curPage || 'exec';
           try{ if(typeof renderYearFilter==='function') renderYearFilter(); }catch(_){}
           try{ if(typeof renderCurrent==='function') renderCurrent(); }catch(_){}
           window.curPage = savedPage;
-          /* Restore tab highlight */
           document.querySelectorAll('.tabnav .tab').forEach(function(t){
             t.classList.toggle('on',(t.getAttribute('onclick')||'').indexOf("'"+savedPage+"'")>=0);
           });
         },
         function(err){ console.warn('[FS READ] listener error:',err.code||err.message); }
       );
-      console.log('[FS] Read-only listener active — NEVER writes back to Firestore');
+      console.log('[FS] Server-authoritative read listener active — NEVER writes back to Firestore');
     };
     window._stopReadListener = function(){
       if(_fsListenerUnsub){ _fsListenerUnsub(); _fsListenerUnsub=null; console.log('[FS] Listener stopped'); }
@@ -1497,71 +1463,71 @@ window._selectPortal=async portal=>{
     window._loadFromFS = async () => {
       if(!db) return null;
       try {
-        console.log('[FS READ] kpi_dashboard/state'+(_auditCanView()?' + audit':''));
-        const stateSnap = await getDoc(doc(db,'kpi_dashboard','state'));
-        const state  = stateSnap.exists()  ? stateSnap.data()  : {};
+        console.log('[FS READ] SERVER kpi_dashboard/state'+(_auditCanView()?' + audit':''));
+        const stateSnap = await _getServerDoc(doc(db,'kpi_dashboard','state'));
+        const state  = stateSnap.exists() ? stateSnap.data() : {};
         const {_by, _at, ...clean} = state;
+        window.__qumcPerformanceCloudSource='server-initial';
         if(_auditCanView()){
-          const auditSnap=await getDoc(AUDIT_DOC_REF);
+          const auditSnap=await _getServerDoc(AUDIT_DOC_REF);
           const audit=auditSnap.exists()?auditSnap.data():{};
           return {...clean, audit:_auditSort(audit.log||[]).slice(0,AUDIT_MAX_RECORDS)};
         }
         return clean;
-      } catch(e){ console.warn('[FS] Load error:',e.code||e.message); return null; }
+      } catch(e){
+        window.__qumcPerformanceCloudSource='unavailable-local-fallback';
+        console.warn('[FS] Server load error — keeping local fallback only:',e.code||e.message);
+        return null;
+      }
     };
 
-    /* Hook into onAuthStateChanged success to load FS data */
-    const _origSelectPortal = window._selectPortal;
-    window._onFSLoaded = async () => {
+    /* Initial Performance hydration is server-authoritative. Browser localStorage
+       is only a temporary fallback; it can never override shared KPI/chart data
+       once an authenticated server snapshot has been received. */
+    window._onFSLoaded = async (options) => {
+      options=options||{};
       try{
         const fsData = await window._loadFromFS();
-        if(!fsData||Object.keys(fsData).length===0) return;
-        console.log('[FS] Loaded state from Firestore, keys:',Object.keys(fsData));
-        if(typeof ST==='undefined') return;
-        /* Safe merge: only merge non-destructive fields */
-        const safeFields=['added','gaps','actions','rptEdits','audit','deleted','pci','codeOv']; /* F7: ov handled separately below with LOCAL WINS */
-        safeFields.forEach(f=>{
-          if(fsData[f]!==undefined) ST[f]=fsData[f];
-        });
-
-
-        /* F7: ov — LOCAL WINS (same pattern as onSnapshot).
-           Firestore provides entries we don't have; local entries survive. */
-        if(fsData.ov!==undefined){
-          ST.ov=Object.assign({}, fsData.ov||{}, ST.ov||{});
-        }
-
-        /* F6: Load textEdits from Firestore with LOCAL WINS.
-           If Firestore has edits we don't have locally, bring them in.
-           Local entries (from localStorage) take priority. */
-        if(fsData.textEdits!==undefined){
-          ST.textEdits=Object.assign({}, fsData.textEdits||{}, ST.textEdits||{});
-        }
-
-        /* Reconcile: added KPIs must never be in deleted list.
-           If ST.deleted contains any id from ST.added, remove it.
-           Keep the corrected state local until the next explicit user save. */
-        if(typeof _reconcileDeletedVsAdded==='function' && _reconcileDeletedVsAdded(ST)){
-          sLS(ST);
-          /* Do not auto-write during load. _saveToFS is reserved for explicit user actions. */
-        }        /* Clean nulls from ov (same protection as _loadST) */
-        if(ST.ov){
-          Object.keys(ST.ov).forEach(kId=>{
-            if(!ST.ov[kId])return;
-            ['q1','q2','q3','q4'].forEach(q=>{
-              if(ST.ov[kId][q]===null||ST.ov[kId][q]===undefined)delete ST.ov[kId][q];
-            });
-            if(Object.keys(ST.ov[kId]).length===0)delete ST.ov[kId];
-          });
-        }
-        try{localStorage.setItem('kpi_v3',JSON.stringify(ST));}catch(_){}
-        if(typeof renderYearFilter==='function') renderYearFilter(); /* update year filters with loaded data */
-        if(typeof renderCurrent==='function') renderCurrent();
+        if(fsData===null) return false;
+        if(typeof ST==='undefined') return false;
+        console.log('[FS] Applying authoritative Firestore state, keys:',Object.keys(fsData));
+        _applyPerformanceCloudState(fsData,true);
+        if(typeof _reconcileDeletedVsAdded==='function')_reconcileDeletedVsAdded(ST);
+        /* Keep the per-device cache as a mirror of the latest server state. */
+        try{
+          localStorage.setItem('kpi_v3',JSON.stringify({...ST,_v:3}));
+          localStorage.setItem('qumc_performance_cache_owner_v166',String(window._fbUser||'').toLowerCase().trim());
+          localStorage.setItem('qumc_performance_cache_build',QUMC_CLIENT_BUILD);
+        }catch(_){}
+        if(typeof renderYearFilter==='function') renderYearFilter();
+        if(!options.skipRender&&typeof renderCurrent==='function') renderCurrent();
         if(typeof updateBadge==='function') updateBadge();
-        /* Update notification badge for all roles after Firestore data loads */
         if(typeof window.updateAlertUI==='function') window.updateAlertUI();
         else if(typeof window.renderNotifications==='function') window.renderNotifications(false);
-      }catch(e){ console.warn('[FS] onFSLoaded error:',e); }
+        return true;
+      }catch(e){ console.warn('[FS] onFSLoaded error:',e); return false; }
+    };
+
+    /* Support diagnostic: if one device ever disagrees again, this exposes the
+       exact build/profile/cloud source and shared-state counts without changing
+       any user data. Run _qumcDataDiagnostics() in DevTools Console. */
+    window._qumcDataDiagnostics=function(){
+      const st=(typeof ST!=='undefined'&&ST)||{};
+      return{
+        build:QUMC_CLIENT_BUILD,
+        cloudSource:String(window.__qumcPerformanceCloudSource||''),
+        email:String(window._fbUser||''),
+        role:String(window._fbRole||''),
+        department:window._fbDept==null?null:String(window._fbDept),
+        profileResolved:window._fbProfileResolved===true,
+        counts:{
+          added:Array.isArray(st.added)?st.added.length:0,
+          deleted:Array.isArray(st.deleted)?st.deleted.length:0,
+          gaps:st.gaps&&typeof st.gaps==='object'?Object.keys(st.gaps).length:0,
+          actions:st.actions&&typeof st.actions==='object'?Object.keys(st.actions).length:0,
+          overrides:st.ov&&typeof st.ov==='object'?Object.keys(st.ov).length:0
+        }
+      };
     };
 
     console.log('[Auth] Firebase module initialized');
