@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v24 — Review Routing + Manager Queue + Legacy Scoped Reads
+// FIRESTORE SECURITY RULES v26 — Manager Approval + Direct Risk Status Permissions
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -290,13 +290,21 @@ service cloud.firestore {
     // Action Status is the only Risk field that a Risk Owner may publish
     // directly. Every other Risk field still requires the approval workflow.
     function directRiskStatusChange() {
+      // Status-only writes must also work on approved legacy Risk rows that were
+      // created before schemaVersion/visibility/departmentKey were introduced.
+      // Security stays narrow because the diff below permits only Action Status
+      // plus audit timestamps/identity; department and all Risk content remain
+      // immutable in this direct-write path.
       return canAccessGrc() &&
-        (riskOwner() || hasPerm('submit_risk_changes') || hasPerm('edit_risk_management')) &&
-        ((('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey()) || sameDepartment(resource.data.department)) &&
-        request.resource.data.department == resource.data.department &&
-        request.resource.data.departmentKey == resource.data.departmentKey &&
-        request.resource.data.visibility == resource.data.visibility &&
-        request.resource.data.schemaVersion == resource.data.schemaVersion &&
+        (riskOwner() || hasPerm('submit_risk_changes') || hasPerm('edit_risk_management') || hasPerm('update_risk_status')) &&
+        (
+          (('departmentKey' in resource.data) && sameDepartment(resource.data.departmentKey)) ||
+          (('department' in resource.data) && (
+            sameDepartment(resource.data.department) || legacyDepartmentMatchesUser(resource.data.department)
+          )) ||
+          (('responsibleDept' in resource.data) && sameDepartment(resource.data.responsibleDept)) ||
+          (('responsibleDepartment' in resource.data) && sameDepartment(resource.data.responsibleDepartment))
+        ) &&
         request.resource.data.actionStatus is string &&
         request.resource.data.actionStatus.lower() in ['open', 'closed'] &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -491,7 +499,7 @@ service cloud.firestore {
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if
         (canWriteGrcRecord() && validGrcRecord(request.resource.data)) ||
-        (validGrcRecord(request.resource.data) && directRiskStatusChange());
+        directRiskStatusChange();
       allow delete: if canWriteGrcRecord();
     }
     match /grc_incidents/{recordId} {
@@ -585,9 +593,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // an allowed get proves that v25 is actually deployed.
+    // an allowed get proves that v26 is actually deployed.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v25-review-development';
+      allow get: if approved() && versionId == 'v26-grc-workflow-permissions';
       allow list, create, update, delete: if false;
     }
 
@@ -702,28 +710,34 @@ service cloud.firestore {
     }
 
     function validAdvisoryManagerChange() {
+      // The workflowStage is the authoritative signal that this request is
+      // waiting for the Department Manager. Older requests may not contain the
+      // newer requiresManagerApproval field, so do not reject a valid manager
+      // decision just because that compatibility field is missing.
       return advisoryManagerDepartmentMatch(resource.data) &&
-        (!('requiresManagerApproval' in resource.data) || resource.data.requiresManagerApproval == true) &&
         resource.data.workflowStage == 'pending_department_manager' &&
+        !ownEmail(resource.data.userEmail) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status', 'workflowStage', 'closureReason',
           'managerDecision', 'managerComment', 'managerName', 'managerEmail',
           'managerActionAt', 'managerActionAtIso', 'closedAt',
           'updatedAt', 'updatedAtIso', 'updatedBy'
         ]) &&
+        request.resource.data.managerEmail == authEmail() &&
+        request.resource.data.updatedBy == authEmail() &&
+        request.resource.data.managerComment is string &&
         (
           (
-            request.resource.data.status == 'open' &&
             request.resource.data.workflowStage == 'pending_super_admin' &&
             request.resource.data.managerDecision == 'approved' &&
+            request.resource.data.status == 'open' &&
             request.resource.data.closureReason == ''
           ) ||
           (
-            request.resource.data.status == 'closed' &&
             request.resource.data.workflowStage == 'rejected_manager' &&
             request.resource.data.managerDecision == 'rejected' &&
+            request.resource.data.status == 'closed' &&
             request.resource.data.closureReason == 'rejected_by_department_manager' &&
-            request.resource.data.managerComment is string &&
             request.resource.data.managerComment.size() > 0
           )
         );
