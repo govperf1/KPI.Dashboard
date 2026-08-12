@@ -19,6 +19,26 @@
       "export_reports"
     ]
   },
+  "grc_owner": {
+    "nameEn": "GRC Owner",
+    "nameAr": "مالك الحوكمة والمخاطر والالتزام",
+    "description": "Compatibility alias for the department-scoped GRC Owner role.",
+    "platforms": [
+      "grc"
+    ],
+    "systemRole": true,
+    "permissions": [
+      "access_grc",
+      "view_department",
+      "view_grc_department",
+      "view_shared_grc",
+      "edit_risk_management",
+      "edit_incident_register",
+      "update_risk_status",
+      "submit_risk_changes",
+      "export_reports"
+    ]
+  },
   "platform_owner": {
     "nameEn": "Performance & GRC Owner",
     "nameAr": "مالك الأداء والحوكمة والمخاطر",
@@ -47,7 +67,7 @@
   "governance_performance_manager": {
     "nameEn": "Governance & Performance Department Manager",
     "nameAr": "مدير قسم الحوكمة والأداء",
-    "description": "Department-scoped Governance & Performance manager with access to request and review analytics across both platforms.",
+    "description": "Platform-wide Governance & Performance manager with cross-department analytics across Performance and GRC.",
     "platforms": [
       "performance",
       "grc"
@@ -57,7 +77,9 @@
       "access_performance",
       "access_grc",
       "view_department",
+      "view_all_departments",
       "view_grc_department",
+      "view_grc_all_departments",
       "view_shared_grc",
       "view_executive_intelligence",
       "export_reports",
