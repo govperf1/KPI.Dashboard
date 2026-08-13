@@ -944,7 +944,7 @@
     audits:'grc1_audits',actions:'grc1_actions',documents:'grc1_documents',initiatives:'grc1_initiatives'
   };
 
-  /* GRC1 v180 — business snapshot + file-library repair + query-safe scoped sync.
+  /* GRC1 v181 — business snapshot + file-library repair + dedicated Compliance sync.
      Scope is intentionally limited to operational/business records and uploaded
      controlled files. Requests, approvals, notifications, chats and audit-trail
      history are NOT copied. The migration is idempotent and is executed only by
@@ -1129,6 +1129,76 @@
   }
   window._grc1SyncFileLibrariesFromGrc=function(force){return grc1EnsureFileLibrariesFromGrc(force===true);};
   window._grc1FileImportDiagnostics=function(){return{status:grc1FileImportStatus,error:grc1FileImportError,marker:GRC1_FILE_IMPORT_META_ID};};
+
+  /* GRC1 v181 — dedicated Compliance snapshot.
+     The general v179 business marker may already be completed on an existing
+     installation, so Compliance gets its own one-time marker. This copies:
+       1) operational compliance records,
+       2) current CBAHI/JCI assessment edits,
+       3) Compliance PDF/link index and every referenced PDF chunk.
+     The baseline CBAHI/JCI rows and authority definitions are embedded in
+     grc1.js and are intentionally kept aligned with GRC. */
+  var GRC1_COMPLIANCE_IMPORT_META_ID='compliance_snapshot_from_grc_v3';
+  var grc1ComplianceImportPromise=null,grc1ComplianceImportStatus='idle',grc1ComplianceImportError='';
+  function grc1ComplianceImportMetaRef(b){return b.fs.doc(b.db,'grc1_meta',GRC1_COMPLIANCE_IMPORT_META_ID);}
+  async function grc1EnsureComplianceSnapshotFromGrc(force){
+    if(!isGrcSuperAdmin())return{skipped:true,reason:'super-admin-required'};
+    if(grc1ComplianceImportPromise&&!force)return grc1ComplianceImportPromise;
+    grc1ComplianceImportPromise=(async function(){
+      var b=await ensureReportBackend();await waitForReportAuth(b);
+      var metaRef=grc1ComplianceImportMetaRef(b),metaSnap=await b.fs.getDoc(metaRef),meta=metaSnap.exists()?metaSnap.data()||{}:{};
+      if(!force&&meta.status==='completed'){
+        grc1ComplianceImportStatus='completed';return{skipped:true,counts:meta.counts||{}};
+      }
+      grc1ComplianceImportStatus='running';grc1ComplianceImportError='';
+      await b.fs.setDoc(metaRef,{status:'running',source:'grc',target:'grc1',scope:'compliance',startedAtIso:new Date().toISOString(),startedAt:b.fs.serverTimestamp(),startedBy:String(window._fbUser||'')},{merge:true});
+      try{
+        var counts={};
+        counts.operationalCompliance=await grc1CopyCollectionSnapshot(b,'compliance','grc_compliance','grc1_compliance');
+        counts.assessmentDocuments=await grc1CopyAssessmentEdits(b);
+        counts.cbahiBaselineRows=Array.isArray(CBAHI_FMS_ROWS)?CBAHI_FMS_ROWS.length:0;
+        counts.jciBaselineRows=Array.isArray(JCI_FMS_ROWS)?JCI_FMS_ROWS.length:0;
+        counts.authorities=Array.isArray(COMPLIANCE_AUTHORITIES)?COMPLIANCE_AUTHORITIES.length:0;
+        counts.requirementDocuments=Array.isArray(COMPLIANCE_DOCUMENT_SEED)?COMPLIANCE_DOCUMENT_SEED.length:0;
+
+        var files=await grc1CopyIndexedLibrary(b,'grc_compliance_documents_index','grc1_compliance_documents_index','documents');
+        counts.complianceFileRecords=files.records;counts.complianceFileChunks=files.chunks;
+        counts.complianceFileSourceExists=files.sourceExists===true;
+
+        await b.fs.setDoc(metaRef,{
+          status:'completed',source:'grc',target:'grc1',scope:'compliance',counts:counts,
+          completedAtIso:new Date().toISOString(),completedAt:b.fs.serverTimestamp(),
+          completedBy:String(window._fbUser||'')
+        },{merge:true});
+        grc1ComplianceImportStatus='completed';
+
+        complianceLibraryLoaded=false;
+        try{await loadComplianceLibrary(true);}catch(_libraryErr){}
+        try{
+          if(typeof stopAssessmentCloudSync==='function')stopAssessmentCloudSync();
+          if(typeof startAssessmentCloudSync==='function')startAssessmentCloudSync();
+        }catch(_assessmentRefresh){}
+        renderAtSamePosition(grcViewportPosition());
+        return{skipped:false,counts:counts};
+      }catch(err){
+        grc1ComplianceImportStatus='failed';grc1ComplianceImportError=String(err&&err.message||err);
+        try{await b.fs.setDoc(metaRef,{status:'failed',error:grc1ComplianceImportError,failedAtIso:new Date().toISOString(),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_metaErr){}
+        throw err;
+      }
+    })().finally(function(){grc1ComplianceImportPromise=null;});
+    return grc1ComplianceImportPromise;
+  }
+  window._grc1SyncComplianceFromGrc=function(force){return grc1EnsureComplianceSnapshotFromGrc(force===true);};
+  window._grc1ComplianceImportDiagnostics=function(){
+    return{
+      status:grc1ComplianceImportStatus,error:grc1ComplianceImportError,
+      marker:GRC1_COMPLIANCE_IMPORT_META_ID,
+      cbahiBaselineRows:Array.isArray(CBAHI_FMS_ROWS)?CBAHI_FMS_ROWS.length:0,
+      jciBaselineRows:Array.isArray(JCI_FMS_ROWS)?JCI_FMS_ROWS.length:0,
+      authorities:Array.isArray(COMPLIANCE_AUTHORITIES)?COMPLIANCE_AUTHORITIES.length:0,
+      requirementDocuments:Array.isArray(COMPLIANCE_DOCUMENT_SEED)?COMPLIANCE_DOCUMENT_SEED.length:0
+    };
+  };
 
   // Governance and Risk remain department-scoped. Shared operational modules are visible to every approved GRC user.
   var GRC_GLOBAL_READ_COLLECTIONS={manuals:true,codes:true,compliance:true,audits:true,actions:true,documents:true,initiatives:true}; // GRC1: assigned users query only their department + shared Division rows.
@@ -1833,6 +1903,8 @@
       if(isGrcSuperAdmin()){
         grc1ImportBusinessDataFromGrc(false).then(function(){
           return grc1EnsureFileLibrariesFromGrc(false);
+        }).then(function(){
+          return grc1EnsureComplianceSnapshotFromGrc(false);
         }).catch(function(importErr){
           console.error('[GRC1 Snapshot] import/repair from GRC failed',importErr);
           grcSyncLastError='GRC1 snapshot import: '+String(importErr&&importErr.message||importErr);grcSyncLastErrorAt=new Date().toISOString();renderAtSamePosition(grcViewportPosition());
