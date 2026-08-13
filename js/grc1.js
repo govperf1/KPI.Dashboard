@@ -974,7 +974,19 @@
   }
   async function grc1CopyCollectionSnapshot(b,collectionKey,sourceName,targetName){
     var snap=await b.fs.getDocs(b.fs.collection(b.db,sourceName)),rows=[];
-    snap.forEach(function(d){var data=grc1SerializableClone(d.data()||{});if(GRC_GLOBAL_READ_COLLECTIONS[collectionKey])data.visibility='shared';rows.push({id:d.id,data:data});});
+    snap.forEach(function(d){
+      var data=grc1SerializableClone(d.data()||{}),dept=grcRecordDepartment(collectionKey,data);
+      /* GRC1 scoped users query canonical departmentKey values. The source GRC
+         still contains historical labels such as Project_Management, MNT,
+         Housekeeping Department, or blank departmentKey fields. Copying those
+         values verbatim makes the document visible to Super Admin (all-query)
+         but invisible to the same department user. Normalize the security
+         scope while preserving every business field and the original doc id. */
+      data.department=dept;data.departmentKey=dept;
+      data.visibility=GRC_GLOBAL_READ_COLLECTIONS[collectionKey]?'shared':(dept==='division'?'shared':'department');
+      data.recordType=collectionKey;data.schemaVersion=GRC_SCHEMA_VERSION;
+      rows.push({id:d.id,data:data});
+    });
     await grc1RunLimited(rows,16,async function(row){
       await b.fs.setDoc(b.fs.doc(b.db,targetName,row.id),row.data,{merge:false});
     });
@@ -1081,6 +1093,52 @@
   }
   window._grc1ImportBusinessDataFromGrc=function(force){return grc1ImportBusinessDataFromGrc(force===true);};
   window._grc1BusinessImportDiagnostics=function(){return{status:grc1BusinessImportStatus,error:grc1BusinessImportError,marker:GRC1_IMPORT_META_ID};};
+
+  /* GRC1 v183 — repair department visibility on data already copied by v179.
+     v179 intentionally preserved the raw GRC document fields. That meant older
+     source values (for example departmentKey=Project_Management or a missing
+     departmentKey) were returned by the Super Admin all-query but could never
+     match a scoped user's query departmentKey == projects. This one-time repair
+     canonicalizes every existing GRC1 operational document without changing its
+     business id, code, dates, status, text, or approval-independent content. */
+  var GRC1_SCOPE_REPAIR_META_ID='department_scope_normalization_v4';
+  var grc1ScopeRepairPromise=null,grc1ScopeRepairStatus='idle',grc1ScopeRepairError='';
+  function grc1ScopeRepairMetaRef(b){return b.fs.doc(b.db,'grc1_meta',GRC1_SCOPE_REPAIR_META_ID);}
+  async function grc1NormalizeExistingDepartmentScopes(b,force){
+    if(!isGrcSuperAdmin())return{skipped:true,reason:'super-admin-required'};
+    if(grc1ScopeRepairPromise&&!force)return grc1ScopeRepairPromise;
+    grc1ScopeRepairPromise=(async function(){
+      var metaRef=grc1ScopeRepairMetaRef(b),metaSnap=await b.fs.getDoc(metaRef),meta=metaSnap.exists()?metaSnap.data()||{}:{};
+      if(!force&&meta.status==='completed'){grc1ScopeRepairStatus='completed';return{skipped:true,counts:meta.counts||{}};}
+      grc1ScopeRepairStatus='running';grc1ScopeRepairError='';
+      var counts={scanned:0,updated:0,byCollection:{}};
+      await b.fs.setDoc(metaRef,{status:'running',startedAtIso:new Date().toISOString(),startedAt:b.fs.serverTimestamp(),startedBy:String(window._fbUser||'')},{merge:true});
+      try{
+        for(const key of Object.keys(GRC_COLLECTION_MAP)){
+          var snap=await b.fs.getDocs(b.fs.collection(b.db,GRC_COLLECTION_MAP[key])),updates=[];
+          snap.forEach(function(docSnap){
+            var data=docSnap.data()||{},dept=grcRecordDepartment(key,data),visibility=GRC_GLOBAL_READ_COLLECTIONS[key]?'shared':(dept==='division'?'shared':'department');
+            counts.scanned++;
+            var needs=String(data.department||'')!==dept||String(data.departmentKey||'')!==dept||String(data.visibility||'')!==visibility||String(data.recordType||'')!==key||Number(data.schemaVersion||0)!==Number(GRC_SCHEMA_VERSION);
+            if(needs)updates.push({ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],docSnap.id),data:{department:dept,departmentKey:dept,visibility:visibility,recordType:key,schemaVersion:GRC_SCHEMA_VERSION,scopeNormalizedAt:b.fs.serverTimestamp(),scopeNormalizedBy:String(window._fbUser||'').toLowerCase()}});
+          });
+          counts.byCollection[key]={scanned:snap.size,updated:updates.length};counts.updated+=updates.length;
+          await grc1RunLimited(updates,20,async function(item){await b.fs.setDoc(item.ref,item.data,{merge:true});});
+        }
+        var completedAt=new Date().toISOString();
+        await b.fs.setDoc(metaRef,{status:'completed',counts:counts,completedAtIso:completedAt,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:true});
+        grc1ScopeRepairStatus='completed';
+        return{skipped:false,counts:counts,completedAt:completedAt};
+      }catch(err){
+        grc1ScopeRepairStatus='failed';grc1ScopeRepairError=String(err&&err.message||err);
+        try{await b.fs.setDoc(metaRef,{status:'failed',error:grc1ScopeRepairError,failedAtIso:new Date().toISOString(),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_metaErr){}
+        throw err;
+      }
+    })().finally(function(){grc1ScopeRepairPromise=null;});
+    return grc1ScopeRepairPromise;
+  }
+  window._grc1NormalizeDepartmentScopes=function(force){return ensureReportBackend().then(function(b){return waitForReportAuth(b).then(function(){return grc1NormalizeExistingDepartmentScopes(b,force===true);});});};
+  window._grc1ScopeDiagnostics=function(){return{status:grc1ScopeRepairStatus,error:grc1ScopeRepairError,marker:GRC1_SCOPE_REPAIR_META_ID,role:normalizedRole(),department:currentGrcDept()};};
 
   /* File libraries are verified separately from the business-record marker.
      v179 could mark the business snapshot complete while the report/manual
@@ -1902,6 +1960,8 @@
       });
       if(isGrcSuperAdmin()){
         grc1ImportBusinessDataFromGrc(false).then(function(){
+          return grc1NormalizeExistingDepartmentScopes(b,false);
+        }).then(function(){
           return grc1EnsureFileLibrariesFromGrc(false);
         }).then(function(){
           return grc1EnsureComplianceSnapshotFromGrc(false);
