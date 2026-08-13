@@ -47,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260812-v174');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260813-v175');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -813,9 +813,9 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV31Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v31-permission-workflow-stability'));window.__advRulesV31Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v31 are not active. Publish the firestore.rules file included with this update, then sign in again.');throw e;}
+      if(window.__advRulesV32Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v32-compile-safe-workflow-stability'));window.__advRulesV32Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v32 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     function _advIso(){return new Date().toISOString();}
     function _advTsMs(v){if(!v)return 0;try{return v.toDate?v.toDate().getTime():new Date(v).getTime()||0;}catch(_){return 0;}}
@@ -1228,10 +1228,11 @@ window._selectPortal=async portal=>{
     function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();if(r==='viewer'||r==='user')return false;return ['super_admin','admin','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager'].includes(r)||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('*');}
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
-      if(window.__grcRulesV31Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v31-permission-workflow-stability'));window.__grcRulesV31Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v31 are not active. Publish the firestore.rules file included with this update, then sign in again.');throw e;}
+      if(window.__grcRulesV32Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v32-compile-safe-workflow-stability'));window.__grcRulesV32Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v32 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
+    window._qumcAssertFirestoreRulesV32=_grcRiskAssertRulesVersion;
     window._grcRiskDirectStatusUpdate=async function(record,nextStatus){
       await _grcRiskAssertRulesVersion();
       const freshProfile=await _advFreshProfile();

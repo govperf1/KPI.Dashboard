@@ -15,10 +15,10 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260812-v174');
+  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260813-v175');
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260812-v174');
+  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260813-v175');
   var GRC_CACHE_OWNER_KEY='qumc_grc_workspace_preview_v1_owner';
   var GRC_CACHE_BUILD_KEY='qumc_grc_workspace_preview_build';
   var STATE_VERSION=13;
@@ -1624,6 +1624,10 @@
     if(grcSyncStarted&&grcSyncScopeKey!==wanted)stopSharedStateSync();
     ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;
       var actual=grcSyncIdentityKey();if(actual!==wanted){stopSharedStateSync();setTimeout(startSharedStateSync,0);return;}
+      if(typeof window._qumcAssertFirestoreRulesV32==='function'){
+        try{await window._qumcAssertFirestoreRulesV32();}
+        catch(ruleErr){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError=String(ruleErr&&ruleErr.message||ruleErr).replace(/^rules-version-mismatch:/,'');grcSyncLastErrorAt=new Date().toISOString();renderAtSamePosition(grcViewportPosition());return;}
+      }
       grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
       if(isGrcSuperAdmin()){
         try{await runGrcCodeHealthMaintenanceV170(b);}catch(maintenanceErr){console.error('[GRC Code Health] one-time maintenance did not complete',maintenanceErr);grcSyncLastError='Automatic GRC maintenance failed: '+String(maintenanceErr&&maintenanceErr.message||maintenanceErr);grcSyncLastErrorAt=new Date().toISOString();}
