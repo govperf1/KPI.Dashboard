@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v31 — Permission, Workflow and Query Stability
+// FIRESTORE SECURITY RULES v32 — Compile-Safe Permission and Workflow Stability
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -690,9 +690,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // an allowed authenticated get proves that v31 is actually deployed.
+    // a unique v32 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v31-permission-workflow-stability';
+      allow get: if approved() && versionId == 'v32-compile-safe-workflow-stability';
       allow list, create, update, delete: if false;
     }
 
@@ -851,11 +851,6 @@ service cloud.firestore {
         ownEmail(get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.userEmail);
     }
 
-    function advisoryOwnerAfter(requestId) {
-      // Supports atomic create of the primary request + analytics mirror.
-      return ownEmail(getAfter(/databases/$(database)/documents/advisory_requests/$(requestId)).data.userEmail);
-    }
-
     function advisoryManagerForRequest(requestId) {
       return exists(/databases/$(database)/documents/advisory_requests/$(requestId)) &&
         advisoryManagerDepartmentMatch(
@@ -865,53 +860,6 @@ service cloud.firestore {
           get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.workflowStage == 'pending_department_manager' ||
           ownEmail(get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.managerEmail)
         );
-    }
-
-    function validAdvisoryPublicManagerChange() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        'status', 'workflowStage', 'closureReason', 'managerDecision',
-        'managerActionAt', 'managerActionAtIso', 'closedAt', 'updatedAt'
-      ]);
-    }
-
-    function validAdvisoryPublicOwnerChange() {
-      // advisory_public is an analytics mirror. A requester may update only the
-      // mirror fields produced by requester actions/rating; identity, routing,
-      // department and request metadata are immutable from the owner path.
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        'status', 'workflowStage', 'closureReason', 'completedAt', 'closedAt',
-        'rating', 'ratingComment', 'ratingAt', 'attachmentCount', 'updatedAt'
-      ]);
-    }
-
-    function validAdvisoryPublicCreate(requestId) {
-      // The public document is a sanitized analytics projection of the primary
-      // request. Requesters may create only the exact projection fields and the
-      // routing/identity fields must match the already-created primary record.
-      let primary = getAfter(/databases/$(database)/documents/advisory_requests/$(requestId)).data;
-      return
-        request.resource.data.keys().hasOnly([
-          'code','platform','serviceType','requestType','requestTypeLabel','category',
-          'relatedType','relatedItems','relatedNewText','benchmarkType','formDependencies',
-          'departmentKey','departmentCode','gender','priority','status','workflowStage',
-          'closureReason','requiresManagerApproval','managerDecision','managerActionAt',
-          'managerActionAtIso','createdAt','updatedAt','firstRespondedAt','respondedAt',
-          'responseMinutes','completedAt','closedAt','rating','ratingComment','ratingAt',
-          'attachmentCount'
-        ]) &&
-        request.resource.data.code == primary.code &&
-        request.resource.data.platform == primary.platform &&
-        request.resource.data.serviceType == primary.serviceType &&
-        request.resource.data.requestType == primary.requestType &&
-        request.resource.data.category == primary.category &&
-        request.resource.data.departmentKey == primary.departmentKey &&
-        request.resource.data.departmentCode == primary.departmentCode &&
-        request.resource.data.priority == primary.priority &&
-        request.resource.data.status == primary.status &&
-        request.resource.data.workflowStage == primary.workflowStage &&
-        request.resource.data.requiresManagerApproval == primary.requiresManagerApproval &&
-        request.resource.data.managerDecision == primary.managerDecision &&
-        request.resource.data.attachmentCount == primary.attachmentCount;
     }
 
     match /advisory_requests/{requestId} {
