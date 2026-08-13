@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v32 — Compile-Safe Permission and Workflow Stability
+// FIRESTORE SECURITY RULES v33 — Compile-Safe Permission and Workflow Stability
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -577,6 +577,10 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_risks/{recordId} {
+      // Platform-wide Risk readers get an unconditional collection read branch;
+      // scoped operational roles use the department-safe branch below. Keeping
+      // these paths separate makes full-collection queries provably safe.
+      allow get, list: if admin() || role() == 'governance_performance_manager';
       allow get: if canReadRiskIncidentRegister() && canGetDepartmentGrcRecord(resource.data);
       allow list: if canReadRiskIncidentRegister() && canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
@@ -586,6 +590,7 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_incidents/{recordId} {
+      allow get, list: if admin() || role() == 'governance_performance_manager';
       allow get: if canReadRiskIncidentRegister() && canGetDepartmentGrcRecord(resource.data);
       allow list: if canReadRiskIncidentRegister() && canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
@@ -690,9 +695,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // a unique v32 path prevents an older ruleset from being mistaken for this build.
+    // a unique v33 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v32-compile-safe-workflow-stability';
+      allow get: if approved() && versionId == 'v33-query-safe-advisory-grc';
       allow list, create, update, delete: if false;
     }
 
@@ -702,38 +707,40 @@ service cloud.firestore {
     }
 
     function advisorySubmissionDepartmentKey() {
-      // Governance & Performance Manager is a platform-level role by design;
-      // ignore any stale department field that may remain on an older profile.
+      // Governance & Performance Manager is platform-wide and intentionally
+      // unscoped. Every other role uses the canonical department from the
+      // authenticated Firestore profile.
       return role() == 'governance_performance_manager' ? '' : userDepartmentKey();
     }
 
-    // Compute the create route once from the authenticated Firestore profile.
-    // v23 repeated nested route checks and also compared duplicated requester
-    // identity fields. The browser already reads this exact profile immediately
-    // before submit, so routing is enforced here with only the authoritative
-    // role + department values.
-    function advisoryCreateNeedsManager() {
-      let d = advisorySubmissionDepartmentKey();
-      let r = role();
-      return d != '' && !(r in [
-        'department_manager', 'dept_manager', 'departmentmanager',
-        'governance_performance_manager', 'admin', 'super_admin'
-      ]);
+    function advisoryDirectSubmitter() {
+      return role() in [
+        'department_manager', 'governance_performance_manager',
+        'admin', 'super_admin'
+      ] || advisorySubmissionDepartmentKey() == '';
     }
 
+    function advisoryCreateDepartmentMatches() {
+      return request.resource.data.departmentKey is string &&
+        request.resource.data.departmentKey == advisorySubmissionDepartmentKey();
+    }
+
+    // Keep create validation deliberately small and deterministic. Identity is
+    // bound to the authenticated email; department and route are derived from
+    // the Firestore profile, not from browser storage or requester-supplied role.
     function validAdvisoryCreateRoute() {
-      let needsManager = advisoryCreateNeedsManager();
       return request.resource.data.requiresManagerApproval is bool &&
-        request.resource.data.requiresManagerApproval == needsManager &&
         request.resource.data.workflowStage is string &&
         request.resource.data.managerDecision is string &&
         (
-          (needsManager &&
-            request.resource.data.workflowStage == 'pending_department_manager' &&
-            request.resource.data.managerDecision == 'pending') ||
-          (!needsManager &&
+          (advisoryDirectSubmitter() &&
+            request.resource.data.requiresManagerApproval == false &&
             request.resource.data.workflowStage == 'pending_super_admin' &&
-            request.resource.data.managerDecision == 'not_required')
+            request.resource.data.managerDecision == 'not_required') ||
+          (!advisoryDirectSubmitter() &&
+            request.resource.data.requiresManagerApproval == true &&
+            request.resource.data.workflowStage == 'pending_department_manager' &&
+            request.resource.data.managerDecision == 'pending')
         );
     }
 
@@ -863,33 +870,32 @@ service cloud.firestore {
     }
 
     match /advisory_requests/{requestId} {
-      // New submissions are canonical: identity, uid and department are copied
-      // directly from the authenticated Firestore profile immediately before
-      // the write. This makes the rule deterministic for every device.
+      // Submission is tied only to authenticated identity + authoritative
+      // Firestore department/route. requesterUid remains audit metadata but is
+      // not a permission dependency, avoiding false denials from stale sessions.
       allow create: if approved() &&
         request.resource.data.userEmail is string &&
         request.resource.data.userEmail == authEmail() &&
-        request.resource.data.requesterUid is string &&
-        request.resource.data.requesterUid == request.auth.uid &&
-        request.resource.data.departmentKey is string &&
-        request.resource.data.departmentKey == advisorySubmissionDepartmentKey() &&
+        advisoryCreateDepartmentMatches() &&
         validAdvisoryCreateRoute();
-      // A direct document open may still encounter a historical mixed-case row.
+
+      // Keep read paths separate. Firestore evaluates collection queries against
+      // their potential result set, so each browser query gets one simple rule
+      // branch instead of a large nested OR that is difficult to prove safely.
+      allow get: if admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics');
       allow get: if approved() && (
-        admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics') ||
-        ownEmail(resource.data.userEmail) || advisoryManagerCanRead(resource.data)
+        (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) ||
+        (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
       );
-      // Query-safe branches mirror the exact browser queries: own userEmail, or
-      // Department Manager departmentKey + pending workflowStage.
-      allow list: if approved() && (
-        admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics') ||
-        (('userEmail' in resource.data) && resource.data.userEmail == authEmail()) ||
-        (
-          departmentManager() &&
-          ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey() &&
-          ('workflowStage' in resource.data) && resource.data.workflowStage == 'pending_department_manager'
-        )
-      );
+      allow get: if advisoryManagerCanRead(resource.data);
+
+      allow list: if admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics');
+      allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
+      allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
+      allow list: if departmentManager() &&
+        ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey() &&
+        ('workflowStage' in resource.data) && resource.data.workflowStage == 'pending_department_manager';
+
       allow update: if
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
         (approved() && ownEmail(resource.data.userEmail) &&
@@ -1050,6 +1056,7 @@ service cloud.firestore {
     // per-record cloud migration. This collection stores status only; it cannot
     // be used to add or edit Risk Register content.
     match /grc_risk_status/{recordId} {
+      allow get, list: if admin() || role() == 'governance_performance_manager';
       allow get: if canReadRiskIncidentRegister() && (
         viewAllGrcDepartments() ||
         (('department' in resource.data) && sameDepartment(resource.data.department)) ||
