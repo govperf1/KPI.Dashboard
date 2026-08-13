@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v33 — Compile-Safe Permission and Workflow Stability
+// FIRESTORE SECURITY RULES v34 — GRC1 Isolated Platform, Permissions and Workflow
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -86,41 +86,50 @@ service cloud.firestore {
       let r = role();
       return
         (r == 'admin' && perm in [
-          'access_performance','access_grc','manage_users','view_all_departments','view_department',
+          'access_performance','access_grc','access_grc1','manage_users','view_all_departments','view_department',
+          'view_grc_department','view_grc_all_departments','view_shared_grc',
+          'view_grc1_department','view_grc1_all_departments','view_shared_grc1',
           'edit_kpi','edit_gap_analysis','edit_actions','edit_targets','approve_changes',
           'lock_quarter','unlock_quarter','view_executive_intelligence','export_reports',
-          'manage_dashboard_settings','view_audit_trail'
+          'manage_dashboard_settings','view_audit_trail','view_grc1_audit_trail','view_request_analytics'
         ]) ||
         (r == 'executive' && perm in [
-          'access_performance','access_grc','view_all_departments','view_department',
-          'view_executive_intelligence','export_reports'
+          'access_performance','access_grc','access_grc1','view_all_departments','view_department',
+          'view_grc1_all_departments','view_executive_intelligence','export_reports'
         ]) ||
         (r == 'department_manager' && perm in [
-          'access_performance','access_grc','view_department','view_executive_intelligence','export_reports'
+          'access_performance','access_grc','access_grc1','view_department','view_grc1_department',
+          'view_executive_intelligence','export_reports'
         ]) ||
         (r == 'governance_performance_manager' && perm in [
-          'access_performance','access_grc','view_department','view_all_departments',
+          'access_performance','access_grc','access_grc1','view_department','view_all_departments',
           'view_grc_department','view_grc_all_departments','view_shared_grc',
-          'view_executive_intelligence','export_reports','view_request_analytics'
+          'view_grc1_department','view_grc1_all_departments','view_shared_grc1',
+          'view_executive_intelligence','export_reports','view_request_analytics','view_grc1_audit_trail'
         ]) ||
         (r == 'kpi_owner' && perm in [
           'access_performance','view_department','edit_kpi','edit_gap_analysis','export_reports'
         ]) ||
-        (r in ['risk_owner','grc_owner'] && perm in [
+        (r == 'risk_owner' && perm in [
           'access_grc','view_department','view_grc_department','view_shared_grc',
-          'edit_risk_management','edit_incident_register','update_risk_status',
-          'submit_risk_changes','export_reports'
+          'edit_risk_management','edit_incident_register','update_risk_status','submit_risk_changes','export_reports'
+        ]) ||
+        (r == 'grc_owner' && perm in [
+          'access_grc1','view_department','view_grc1_department','view_shared_grc1',
+          'edit_risk_management','edit_incident_register','update_risk_status','submit_risk_changes','export_reports'
         ]) ||
         (r == 'platform_owner' && perm in [
-          'access_performance','access_grc','view_department','view_grc_department','view_shared_grc',
+          'access_performance','access_grc','access_grc1','view_department',
+          'view_grc_department','view_shared_grc','view_grc1_department','view_shared_grc1',
           'edit_kpi','edit_gap_analysis','edit_actions','edit_risk_management','edit_incident_register',
           'update_risk_status','submit_risk_changes','export_reports'
         ]) ||
         (r == 'viewer' && perm in [
-          'access_performance','access_grc','view_department','view_grc_department','view_shared_grc','export_reports'
+          'access_performance','access_grc','access_grc1','view_department','view_grc_department','view_shared_grc',
+          'view_grc1_department','view_shared_grc1','export_reports'
         ]) ||
         (r == 'user' && perm in [
-          'access_performance','access_grc','view_department','export_reports'
+          'access_performance','access_grc','access_grc1','view_department','view_grc1_department','export_reports'
         ]);
     }
 
@@ -151,7 +160,11 @@ service cloud.firestore {
     }
 
     function riskOwner() {
-      return approved() && role() in ['risk_owner', 'riskowner', 'grc_owner', 'platform_owner'];
+      return approved() && role() in ['risk_owner', 'riskowner', 'platform_owner'];
+    }
+
+    function grc1Owner() {
+      return approved() && role() in ['grc_owner', 'platform_owner'];
     }
 
     function canAccessPerformance() {
@@ -162,9 +175,19 @@ service cloud.firestore {
     }
 
     function canAccessGrc() {
-      return approved() && (
-        role() in ['super_admin','admin','executive','department_manager','dept_manager','departmentmanager','risk_owner','riskowner','grc_owner','platform_owner','governance_performance_manager','viewer','user'] ||
+      // grc_owner is a GRC1-only system role. Do not let stale extra permissions
+      // reopen the existing GRC for that role.
+      return approved() && role() != 'grc_owner' && (
+        role() in ['super_admin','admin','executive','department_manager','dept_manager','departmentmanager','risk_owner','riskowner','platform_owner','governance_performance_manager','viewer','user'] ||
         hasPerm('access_grc')
+      );
+    }
+
+    function canAccessGrc1() {
+      // risk_owner is retained for the existing GRC only.
+      return approved() && role() != 'risk_owner' && (
+        role() in ['super_admin','admin','executive','department_manager','dept_manager','departmentmanager','grc_owner','platform_owner','governance_performance_manager','viewer','user'] ||
+        hasPerm('access_grc1')
       );
     }
 
@@ -287,7 +310,7 @@ service cloud.firestore {
       return canAccessGrc() && !(role() in ['viewer','user']) && (
         admin() || departmentManager() || riskOwner() ||
         role() in [
-          'grc_owner', 'platform_owner',
+          'platform_owner',
           'governance_performance_manager'
         ] ||
         hasPerm('edit_risk_management') || hasPerm('edit_incident_register')
@@ -382,6 +405,71 @@ service cloud.firestore {
         request.resource.data.actionStatus.lower() in ['open', 'closed'] &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'actionStatus', 'updatedAt', 'updatedAtIso', 'updatedBy', 'updatedByEmail', 'cloudUpdatedAt'
+        ]);
+    }
+
+
+    // ── GRC1 isolated platform helpers ───────────────────────────────
+    function viewAllGrc1Departments() {
+      return admin() || role() == 'governance_performance_manager' ||
+        hasPerm('view_grc1_all_departments') || !hasConfiguredDepartment();
+    }
+
+    function canReadGrc1RiskIncidentRegister() {
+      return canAccessGrc1() && (
+        viewAllGrc1Departments() ||
+        role() in ['department_manager','grc_owner','platform_owner','viewer','user'] ||
+        hasPerm('view_grc1_department')
+      );
+    }
+
+    function validGrc1Record(data) {
+      return data.department is string && data.departmentKey is string &&
+        data.departmentKey == data.department &&
+        data.departmentKey in ['safety','maintenance','housekeeping','laundry','projects','division'] &&
+        data.visibility is string && data.visibility in ['department','shared'] &&
+        data.schemaVersion == 2;
+    }
+
+    function canListDepartmentGrc1Record(data) {
+      return canAccessGrc1() && (
+        viewAllGrc1Departments() ||
+        (('departmentKey' in data) && data.departmentKey == userDepartmentKey()) ||
+        (('departmentKey' in data) && data.departmentKey == 'division')
+      );
+    }
+
+    function canGetDepartmentGrc1Record(data) {
+      return canAccessGrc1() && (
+        viewAllGrc1Departments() ||
+        (('departmentKey' in data) && data.departmentKey == userDepartmentKey()) ||
+        (('departmentKey' in data) && data.departmentKey == 'division') ||
+        (('department' in data) && (sameDepartment(data.department) || canonicalDepartment(data.department) == 'division')) ||
+        (('visibility' in data) && data.visibility == 'shared')
+      );
+    }
+
+    function canWriteGrc1Record() {
+      return admin();
+    }
+
+    function canRunGrc1OperationalWorkflow() {
+      return approved() && role() != 'governance_performance_manager' && canAccessGrc1();
+    }
+
+    function directGrc1RiskStatusChange() {
+      return canRunGrc1OperationalWorkflow() &&
+        (grc1Owner() || hasPerm('update_risk_status') || hasPerm('edit_risk_management')) &&
+        (
+          (('departmentKey' in resource.data) && sameDepartment(resource.data.departmentKey)) ||
+          (('department' in resource.data) && sameDepartment(resource.data.department)) ||
+          (('responsibleDept' in resource.data) && sameDepartment(resource.data.responsibleDept)) ||
+          (('responsibleDepartment' in resource.data) && sameDepartment(resource.data.responsibleDepartment))
+        ) &&
+        request.resource.data.actionStatus is string &&
+        request.resource.data.actionStatus.lower() in ['open','closed'] &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'actionStatus','updatedAt','updatedAtIso','updatedBy','updatedByEmail','cloudUpdatedAt'
         ]);
     }
 
@@ -697,7 +785,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // a unique v33 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v33-query-safe-advisory-grc';
+      allow get: if approved() && versionId in ['v33-query-safe-advisory-grc','v34-grc1-isolated-workflow'];
       allow list, create, update, delete: if false;
     }
 
@@ -1113,6 +1201,477 @@ service cloud.firestore {
           .hasOnly(['next', 'recordType', 'updatedAt', 'updatedBy']);
       allow delete: if superAdmin();
     }
+
+
+    // ═════════════════════════════════════════════════════════════════
+    // GRC1 — isolated empty-data platform
+    // ═════════════════════════════════════════════════════════════════
+
+    // ── GRC1 report/document stores ──────────────────────────────────
+    match /kpi_dashboard/grc1_workspace_shared_state_v1 { allow read, write: if false; }
+    match /kpi_dashboard/grc1_reports_index { allow read: if canAccessGrc1(); allow write: if admin(); }
+    match /kpi_dashboard/grc1_compliance_documents_index { allow read: if canAccessGrc1(); allow write: if admin(); }
+    match /kpi_dashboard/grc1_operational_plans_index { allow read: if canAccessGrc1(); allow write: if admin(); }
+    match /kpi_dashboard/{grc1ChunkId} {
+      allow read: if canAccessGrc1() && grc1ChunkId.matches('grc1_report_.*');
+      allow write: if admin() && grc1ChunkId.matches('grc1_report_.*');
+    }
+
+    // ── GRC1 department-scoped registers ─────────────────────────────
+    match /grc1_policies/{recordId} { allow get: if canGetDepartmentGrc1Record(resource.data); allow list: if canListDepartmentGrc1Record(resource.data); allow create, update: if canWriteGrc1Record() && validGrc1Record(request.resource.data); allow delete: if canWriteGrc1Record(); }
+    match /grc1_plans/{recordId} { allow get: if canGetDepartmentGrc1Record(resource.data); allow list: if canListDepartmentGrc1Record(resource.data); allow create, update: if canWriteGrc1Record() && validGrc1Record(request.resource.data); allow delete: if canWriteGrc1Record(); }
+    match /grc1_forms/{recordId} { allow get: if canGetDepartmentGrc1Record(resource.data); allow list: if canListDepartmentGrc1Record(resource.data); allow create, update: if canWriteGrc1Record() && validGrc1Record(request.resource.data); allow delete: if canWriteGrc1Record(); }
+    match /grc1_manuals/{recordId} { allow get: if canGetDepartmentGrc1Record(resource.data); allow list: if canListDepartmentGrc1Record(resource.data); allow create, update: if canWriteGrc1Record() && validGrc1Record(request.resource.data); allow delete: if canWriteGrc1Record(); }
+    match /grc1_risks/{recordId} {
+      allow get: if canReadGrc1RiskIncidentRegister() && canGetDepartmentGrc1Record(resource.data);
+      allow list: if canReadGrc1RiskIncidentRegister() && canListDepartmentGrc1Record(resource.data);
+      allow create: if canWriteGrc1Record() && validGrc1Record(request.resource.data);
+      allow update: if (canWriteGrc1Record() && validGrc1Record(request.resource.data)) || directGrc1RiskStatusChange();
+      allow delete: if canWriteGrc1Record();
+    }
+    match /grc1_incidents/{recordId} {
+      allow get: if canReadGrc1RiskIncidentRegister() && canGetDepartmentGrc1Record(resource.data);
+      allow list: if canReadGrc1RiskIncidentRegister() && canListDepartmentGrc1Record(resource.data);
+      allow create, update: if canWriteGrc1Record() && validGrc1Record(request.resource.data);
+      allow delete: if canWriteGrc1Record();
+    }
+    match /grc1_codes/{recordId} { allow get: if canGetDepartmentGrc1Record(resource.data); allow list: if canListDepartmentGrc1Record(resource.data); allow create, update: if canWriteGrc1Record() && validGrc1Record(request.resource.data); allow delete: if canWriteGrc1Record(); }
+    match /grc1_compliance/{recordId} { allow get: if canGetDepartmentGrc1Record(resource.data); allow list: if canListDepartmentGrc1Record(resource.data); allow create, update: if canWriteGrc1Record() && validGrc1Record(request.resource.data); allow delete: if canWriteGrc1Record(); }
+    match /grc1_audits/{recordId} { allow get: if canGetDepartmentGrc1Record(resource.data); allow list: if canListDepartmentGrc1Record(resource.data); allow create, update: if canWriteGrc1Record() && validGrc1Record(request.resource.data); allow delete: if canWriteGrc1Record(); }
+    match /grc1_actions/{recordId} { allow get: if canGetDepartmentGrc1Record(resource.data); allow list: if canListDepartmentGrc1Record(resource.data); allow create, update: if canWriteGrc1Record() && validGrc1Record(request.resource.data); allow delete: if canWriteGrc1Record(); }
+    match /grc1_documents/{recordId} { allow get: if canGetDepartmentGrc1Record(resource.data); allow list: if canListDepartmentGrc1Record(resource.data); allow create, update: if canWriteGrc1Record() && validGrc1Record(request.resource.data); allow delete: if canWriteGrc1Record(); }
+    match /grc1_initiatives/{recordId} { allow get: if canGetDepartmentGrc1Record(resource.data); allow list: if canListDepartmentGrc1Record(resource.data); allow create, update: if canWriteGrc1Record() && validGrc1Record(request.resource.data); allow delete: if canWriteGrc1Record(); }
+    match /grc1_meta/{metaId} { allow read: if canAccessGrc1(); allow create, update: if admin(); allow delete: if superAdmin(); }
+
+    // GRC1 User Requests are platform-local and go directly to Super Admin.
+    match /grc1_requests/{requestId} {
+      allow create: if canAccessGrc1() && ownEmail(request.resource.data.userEmail);
+      allow get, list: if canAccessGrc1() && (admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics') || ownEmail(resource.data.userEmail));
+      allow update: if superAdmin() || (canAccessGrc1() && ownEmail(resource.data.userEmail) && validGrcRequestRatingChange());
+      allow delete: if superAdmin();
+    }
+
+    // Independent append-only GRC1 Audit Trail.
+    match /grc1_audit_trail/{logId} {
+      allow read: if canAccessGrc1() && (admin() || role() == 'governance_performance_manager' || hasPerm('view_grc1_audit_trail'));
+      allow create: if canAccessGrc1() && ownEmail(request.resource.data.email) && request.resource.data.portal == 'grc1';
+      allow update: if canAccessGrc1() && request.resource.data == resource.data;
+      allow delete: if superAdmin();
+    }
+
+    // ── GRC1 Review & Development Center ──────────────────────────────────
+    function grc1AdvisoryDepartmentManager() {
+      return departmentManager();
+    }
+
+    function grc1AdvisorySubmissionDepartmentKey() {
+      // Governance & Performance Manager is platform-wide and intentionally
+      // unscoped. Every other role uses the canonical department from the
+      // authenticated Firestore profile.
+      return role() == 'governance_performance_manager' ? '' : userDepartmentKey();
+    }
+
+    function grc1AdvisoryDirectSubmitter() {
+      return role() in [
+        'department_manager', 'governance_performance_manager',
+        'admin', 'super_admin'
+      ] || grc1AdvisorySubmissionDepartmentKey() == '';
+    }
+
+    function grc1AdvisoryCreateDepartmentMatches() {
+      return request.resource.data.departmentKey is string &&
+        request.resource.data.departmentKey == grc1AdvisorySubmissionDepartmentKey();
+    }
+
+    // Keep create validation deliberately small and deterministic. Identity is
+    // bound to the authenticated email; department and route are derived from
+    // the Firestore profile, not from browser storage or requester-supplied role.
+    function validGrc1AdvisoryCreateRoute() {
+      return request.resource.data.requiresManagerApproval is bool &&
+        request.resource.data.workflowStage is string &&
+        request.resource.data.managerDecision is string &&
+        (
+          (grc1AdvisoryDirectSubmitter() &&
+            request.resource.data.requiresManagerApproval == false &&
+            request.resource.data.workflowStage == 'pending_super_admin' &&
+            request.resource.data.managerDecision == 'not_required') ||
+          (!grc1AdvisoryDirectSubmitter() &&
+            request.resource.data.requiresManagerApproval == true &&
+            request.resource.data.workflowStage == 'pending_department_manager' &&
+            request.resource.data.managerDecision == 'pending')
+        );
+    }
+
+    // Final Super Admin processing re-checks the requester's current role so a
+    // client cannot bypass the Department Manager step by editing route fields.
+    function grc1AdvisoryRequesterRole(data) {
+      return get(/databases/$(database)/documents/users/$(data.userEmail)).data.role;
+    }
+
+    function grc1AdvisoryRequesterNeedsManager(data) {
+      let rr = normalizedRoleValue(grc1AdvisoryRequesterRole(data));
+      return data.departmentKey != '' &&
+        !(rr in [
+          'department_manager', 'dept_manager', 'departmentmanager',
+          'governance_performance_manager', 'admin', 'super_admin', 'superadmin'
+        ]);
+    }
+
+    function grc1AdvisoryManagerDepartmentMatch(data) {
+      return grc1AdvisoryDepartmentManager() && hasConfiguredDepartment() &&
+        ('departmentKey' in data) && data.departmentKey is string &&
+        data.departmentKey == userDepartmentKey();
+    }
+
+    // The manager queue query is exactly departmentKey + pending stage. Do not
+    // add a userEmail exclusion here: the owner branch already permits the
+    // manager's own request, while the update rule below still blocks self-approval.
+    function grc1AdvisoryManagerCanRead(data) {
+      return grc1AdvisoryManagerDepartmentMatch(data) &&
+        ('workflowStage' in data) && data.workflowStage == 'pending_department_manager';
+    }
+
+    function validGrc1AdvisoryOwnerChange() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'status', 'messages', 'attachments', 'attachmentCount',
+        'completedAt', 'closedAt', 'rating', 'ratingComment', 'ratingAt',
+        'workflowStage', 'closureReason', 'updatedAt',
+        'updatedAtIso', 'updatedBy'
+      ]);
+    }
+
+    function grc1AdvisoryOwnerRoutePreserved() {
+      return
+        (
+          resource.data.workflowStage == 'pending_department_manager' &&
+          request.resource.data.workflowStage in ['pending_department_manager', 'closed']
+        ) ||
+        (
+          resource.data.workflowStage == 'pending_super_admin' &&
+          request.resource.data.workflowStage in ['pending_super_admin', 'closed']
+        ) ||
+        (
+          resource.data.workflowStage == 'rejected_manager' &&
+          request.resource.data.workflowStage == 'rejected_manager'
+        ) ||
+        !(resource.data.workflowStage in [
+          'pending_department_manager', 'pending_super_admin', 'rejected_manager'
+        ]);
+    }
+
+    function validGrc1AdvisoryAdminChange() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'status', 'messages', 'attachments', 'attachmentCount',
+        'firstRespondedAt', 'respondedAt', 'responseMinutes',
+        'completedAt', 'closedAt', 'rating', 'ratingComment', 'ratingAt',
+        'workflowStage', 'closureReason', 'updatedAt', 'updatedAtIso', 'updatedBy'
+      ]);
+    }
+
+    function grc1AdvisoryAdminCanProcess() {
+      return !(resource.data.workflowStage in ['pending_department_manager', 'rejected_manager']) &&
+        (
+          !grc1AdvisoryRequesterNeedsManager(resource.data) ||
+          (resource.data.managerDecision == 'approved' &&
+            resource.data.workflowStage == 'pending_super_admin')
+        );
+    }
+
+    function validGrc1AdvisoryManagerChange() {
+      // The workflowStage is the authoritative signal that this request is
+      // waiting for the Department Manager. Older requests may not contain the
+      // newer requiresManagerApproval field, so do not reject a valid manager
+      // decision just because that compatibility field is missing.
+      return grc1AdvisoryManagerDepartmentMatch(resource.data) &&
+        resource.data.workflowStage == 'pending_department_manager' &&
+        !ownEmail(resource.data.userEmail) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'workflowStage', 'closureReason',
+          'managerDecision', 'managerComment', 'managerName', 'managerEmail',
+          'managerActionAt', 'managerActionAtIso', 'closedAt',
+          'updatedAt', 'updatedAtIso', 'updatedBy'
+        ]) &&
+        request.resource.data.managerEmail == authEmail() &&
+        request.resource.data.updatedBy == authEmail() &&
+        request.resource.data.managerComment is string &&
+        (
+          (
+            request.resource.data.workflowStage == 'pending_super_admin' &&
+            request.resource.data.managerDecision == 'approved' &&
+            request.resource.data.status == 'open' &&
+            request.resource.data.closureReason == ''
+          ) ||
+          (
+            request.resource.data.workflowStage == 'rejected_manager' &&
+            request.resource.data.managerDecision == 'rejected' &&
+            request.resource.data.status == 'closed' &&
+            request.resource.data.closureReason == 'rejected_by_department_manager' &&
+            request.resource.data.managerComment.size() > 0
+          )
+        );
+    }
+
+    function grc1AdvisoryOwner(requestId) {
+      return exists(/databases/$(database)/documents/grc1_advisory_requests/$(requestId)) &&
+        ownEmail(get(/databases/$(database)/documents/grc1_advisory_requests/$(requestId)).data.userEmail);
+    }
+
+    function grc1AdvisoryManagerForRequest(requestId) {
+      return exists(/databases/$(database)/documents/grc1_advisory_requests/$(requestId)) &&
+        grc1AdvisoryManagerDepartmentMatch(
+          get(/databases/$(database)/documents/grc1_advisory_requests/$(requestId)).data
+        ) &&
+        (
+          get(/databases/$(database)/documents/grc1_advisory_requests/$(requestId)).data.workflowStage == 'pending_department_manager' ||
+          ownEmail(get(/databases/$(database)/documents/grc1_advisory_requests/$(requestId)).data.managerEmail)
+        );
+    }
+
+    match /grc1_advisory_requests/{requestId} {
+      // Submission is tied only to authenticated identity + authoritative
+      // Firestore department/route. requesterUid remains audit metadata but is
+      // not a permission dependency, avoiding false denials from stale sessions.
+      allow create: if canAccessGrc1() &&
+        request.resource.data.userEmail is string &&
+        request.resource.data.userEmail == authEmail() &&
+        grc1AdvisoryCreateDepartmentMatches() &&
+        validGrc1AdvisoryCreateRoute();
+
+      // Keep read paths separate. Firestore evaluates collection queries against
+      // their potential result set, so each browser query gets one simple rule
+      // branch instead of a large nested OR that is difficult to prove safely.
+      allow get: if admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics');
+      allow get: if canAccessGrc1() && (
+        (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) ||
+        (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
+      );
+      allow get: if grc1AdvisoryManagerCanRead(resource.data);
+
+      allow list: if admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics');
+      allow list: if canAccessGrc1() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
+      allow list: if canAccessGrc1() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
+      allow list: if departmentManager() &&
+        ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey() &&
+        ('workflowStage' in resource.data) && resource.data.workflowStage == 'pending_department_manager';
+
+      allow update: if
+        (superAdmin() && grc1AdvisoryAdminCanProcess() && validGrc1AdvisoryAdminChange()) ||
+        (canAccessGrc1() && ownEmail(resource.data.userEmail) &&
+          validGrc1AdvisoryOwnerChange() && grc1AdvisoryOwnerRoutePreserved()) ||
+        (canAccessGrc1() && validGrc1AdvisoryManagerChange());
+      allow delete: if superAdmin();
+    }
+
+    // Legacy sanitized analytics mirror. Operational Review & Development
+    // workflow no longer depends on this secondary document; the primary
+    // grc1Advisory_requests collection is authoritative. Super Admin may repair the
+    // mirror for old dashboards, but a mirror failure can never block a request.
+    match /grc1_advisory_public/{requestId} {
+      allow read: if canAccessGrc1() && (admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics'));
+      allow create, update, delete: if superAdmin();
+    }
+
+    match /grc1_advisory_attachments/{chunkId} {
+      allow create: if canAccessGrc1() &&
+        request.resource.data.keys().hasOnly(['requestId','attachmentId','index','data','createdAt','uploadedBy']) &&
+        request.resource.data.requestId is string &&
+        request.resource.data.attachmentId is string &&
+        request.resource.data.index is int && request.resource.data.index >= 0 && request.resource.data.index <= 32 &&
+        request.resource.data.data is string && request.resource.data.data.size() <= 460000 &&
+        (superAdmin() || grc1AdvisoryOwner(request.resource.data.requestId)) &&
+        (superAdmin() || ownEmail(request.resource.data.uploadedBy));
+      allow read: if canAccessGrc1() && (
+        admin() ||
+        (('requestId' in resource.data) && (
+          grc1AdvisoryOwner(resource.data.requestId) ||
+          grc1AdvisoryManagerForRequest(resource.data.requestId)
+        ))
+      );
+      allow update: if false;
+      // Attachment chunks are immutable evidence once uploaded. Requesters may
+      // not delete them directly because that can leave attachment metadata
+      // pointing at missing chunks; only Super Admin may perform cleanup.
+      allow delete: if superAdmin();
+    }
+
+    match /grc1_advisory_counters/{counterId} {
+      allow read: if canAccessGrc1();
+      allow create: if canAccessGrc1() && request.resource.data.next == 1;
+      allow update: if canAccessGrc1() &&
+        request.resource.data.next == resource.data.next + 1 &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['next', 'updatedAt']);
+      allow delete: if superAdmin();
+    }
+
+    // ── Risk and Incident approval workflow ──────────────────────────
+    function canSubmitGrc1RiskRequest() {
+      return canAccessGrc1() && canRunGrc1OperationalWorkflow() && (
+        grc1Owner() || hasPerm('submit_risk_changes') ||
+        hasPerm('edit_risk_management') || hasPerm('edit_incident_register')
+      );
+    }
+
+    function canUpdateGrc1RiskStatusOverride() {
+      return canAccessGrc1() && canRunGrc1OperationalWorkflow() && (
+        grc1Owner() || hasPerm('update_risk_status') ||
+        hasPerm('edit_risk_management')
+      );
+    }
+
+    function grc1RiskRequestOwner(data) {
+      return
+        (('submittedByUid' in data) && ownUid(data.submittedByUid)) ||
+        (('submittedByEmail' in data) && ownEmail(data.submittedByEmail));
+    }
+
+    function grc1RiskRequestDepartment(data) {
+      return
+        (('department' in data) && sameDepartment(data.department)) ||
+        (('departmentKey' in data) && sameDepartment(data.departmentKey)) ||
+        (('departmentRaw' in data) && rawUserDepartment(data.departmentRaw));
+    }
+
+    function validGrc1RiskStatusOverride(data) {
+      return data.recordId is string &&
+        data.department is string &&
+        data.actionStatus is string &&
+        data.actionStatus.lower() in ['open', 'closed'] &&
+        data.schemaVersion == 1;
+    }
+
+    function grc1RiskRequesterChange() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'proposedRecord', 'changedFields', 'requesterNote', 'managerNote',
+        'superAdminNote', 'status', 'updatedAt', 'updatedAtIso', 'history'
+      ]);
+    }
+
+    function grc1RiskManagerChange() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'status', 'managerName', 'managerEmail', 'managerNote',
+        'managerActionAt', 'updatedAt', 'updatedAtIso', 'history'
+      ]);
+    }
+
+    function validRequesterGrc1RiskTransition() {
+      return
+        (resource.data.status == 'returned_requester' &&
+          request.resource.data.status == 'pending_manager') ||
+        (resource.data.status in ['pending_manager', 'returned_requester'] &&
+          request.resource.data.status == 'cancelled');
+    }
+
+    function validManagerGrc1RiskTransition() {
+      return resource.data.status in ['pending_manager', 'returned_manager'] &&
+        request.resource.data.status in ['pending_super_admin', 'returned_requester', 'rejected_manager'];
+    }
+
+    match /grc1_risk_requests/{requestId} {
+      // Every new Risk/Incident request is written with canonical identity and
+      // department fields taken from the authenticated Firestore profile.
+      allow create: if canSubmitGrc1RiskRequest() &&
+        request.resource.data.submittedByEmail is string &&
+        request.resource.data.submittedByEmail == authEmail() &&
+        request.resource.data.submittedByUid is string &&
+        request.resource.data.submittedByUid == request.auth.uid &&
+        request.resource.data.department is string &&
+        request.resource.data.department == userDepartmentKey() &&
+        request.resource.data.departmentKey is string &&
+        request.resource.data.departmentKey == userDepartmentKey() &&
+        request.resource.data.recordType in ['risk', 'incident'] &&
+        request.resource.data.operation in ['add', 'update', 'delete'] &&
+        request.resource.data.status == 'pending_manager';
+
+      // Direct opens retain compatibility with historical aliases.
+      allow get: if canReadGrc1RiskIncidentRegister() && (
+        admin() || grc1RiskRequestOwner(resource.data) || grc1RiskRequestDepartment(resource.data)
+      );
+      // Query-safe list branches match the client's exact scoped queries.
+      allow list: if canReadGrc1RiskIncidentRegister() && (
+        admin() ||
+        (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid) ||
+        (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail()) ||
+        (('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey()) ||
+        (('department' in resource.data) && resource.data.department == userDepartmentKey()) ||
+        (('departmentRaw' in resource.data) && resource.data.departmentRaw == profileDepartmentValue())
+      );
+
+      allow update: if
+        (
+          canAccessGrc1() && grc1RiskRequestOwner(resource.data) &&
+          grc1RiskRequesterChange() && validRequesterGrc1RiskTransition()
+        ) ||
+        (
+          departmentManager() && grc1RiskRequestDepartment(resource.data) &&
+          !grc1RiskRequestOwner(resource.data) &&
+          grc1RiskManagerChange() && validManagerGrc1RiskTransition()
+        ) || superAdmin();
+
+      allow delete: if superAdmin();
+    }
+
+    // Direct Open/Closed state for approved baseline risks that pre-date the
+    // per-record cloud migration. This collection stores status only; it cannot
+    // be used to add or edit Risk Register content.
+    match /grc1_risk_status/{recordId} {
+      allow get, list: if admin() || role() == 'governance_performance_manager';
+      allow get: if canReadGrc1RiskIncidentRegister() && (
+        viewAllGrc1Departments() ||
+        (('department' in resource.data) && sameDepartment(resource.data.department)) ||
+        (('departmentRaw' in resource.data) && rawUserDepartment(resource.data.departmentRaw))
+      );
+      allow list: if canReadGrc1RiskIncidentRegister() && (
+        viewAllGrc1Departments() ||
+        (('department' in resource.data) && resource.data.department == userDepartmentKey())
+      );
+      allow create: if canUpdateGrc1RiskStatusOverride() &&
+        validGrc1RiskStatusOverride(request.resource.data) &&
+        request.resource.data.department == userDepartmentKey() &&
+        request.resource.data.updatedByEmail == authEmail() &&
+        request.resource.data.updatedByUid == request.auth.uid &&
+        request.resource.data.keys().hasOnly([
+          'recordId', 'cloudId', 'department', 'departmentRaw', 'actionStatus',
+          'updatedAt', 'updatedAtIso', 'updatedBy', 'updatedByEmail',
+          'updatedByUid', 'schemaVersion'
+        ]);
+      allow update: if canUpdateGrc1RiskStatusOverride() &&
+        validGrc1RiskStatusOverride(request.resource.data) &&
+        request.resource.data.department == userDepartmentKey() &&
+        request.resource.data.updatedByEmail == authEmail() &&
+        request.resource.data.updatedByUid == request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'recordId', 'cloudId', 'department', 'departmentRaw', 'actionStatus',
+          'updatedAt', 'updatedAtIso', 'updatedBy', 'updatedByEmail',
+          'updatedByUid', 'schemaVersion'
+        ]);
+      allow delete: if admin();
+    }
+
+    // Shared CBAHI/JCI assessment edit deltas. The large baseline catalog stays
+    // in code; only controlled admin edits are centralized here so every device
+    // renders the same assessment state.
+    match /grc1_assessment_edits/{kind} {
+      allow read: if canAccessGrc1() && kind in ['cbahi', 'jci'];
+      allow create, update: if admin() && kind in ['cbahi', 'jci'] &&
+        request.resource.data.keys().hasOnly(['kind', 'payload', 'updatedAt', 'updatedBy']) &&
+        request.resource.data.kind == kind &&
+        request.resource.data.payload is string &&
+        request.resource.data.payload.size() <= 800000 &&
+        request.resource.data.updatedBy is string &&
+        ownEmail(request.resource.data.updatedBy);
+      allow delete: if superAdmin();
+    }
+
+    match /grc1_risk_request_counters/{counterId} {
+      allow read: if canAccessGrc1();
+      allow create: if canSubmitGrc1RiskRequest() && request.resource.data.next == 1;
+      allow update: if canSubmitGrc1RiskRequest() &&
+        request.resource.data.next == resource.data.next + 1 &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['next', 'recordType', 'updatedAt', 'updatedBy']);
+      allow delete: if superAdmin();
+    }
+
 
     // ── Default deny ─────────────────────────────────────────────────
     match /{document=**} {
