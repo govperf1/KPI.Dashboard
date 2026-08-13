@@ -1247,6 +1247,121 @@
     return grc1ComplianceImportPromise;
   }
   window._grc1SyncComplianceFromGrc=function(force){return grc1EnsureComplianceSnapshotFromGrc(force===true);};
+
+  /* GRC1 v184 — independent recovery for Compliance, Reports and Manuals.
+     Earlier migrations were chained: if any unrelated register repair failed,
+     report/manual/compliance copying never ran. They also treated one missing
+     PDF chunk as failure of the entire library. This pass is deliberately
+     independent, record-tolerant and verifies the target indexes before it is
+     marked complete. */
+  var GRC1_LIBRARY_RECOVERY_META_ID='business_libraries_from_grc_v5';
+  var GRC1_COMPLIANCE_RECOVERY_META_ID='compliance_data_from_grc_v5';
+  var grc1LibraryRecoveryPromise=null,grc1LibraryRecoveryStatus='idle',grc1LibraryRecoveryError='';
+  var grc1ComplianceRecoveryPromise=null,grc1ComplianceRecoveryStatus='idle',grc1ComplianceRecoveryError='';
+  function grc1RecoveryMetaRef(b,id){return b.fs.doc(b.db,'grc1_meta',id);}
+  function grc1IndexRows(data,field){return data&&Array.isArray(data[field])?data[field].slice():[];}
+  function grc1RecordKey(record){return String(record&&record.id||'');}
+  async function grc1CopyRecordChunksSafe(b,record){
+    var count=Number(record&&record.chunkCount||0),key=String(record&&record.chunkKey||record&&record.id||'');
+    if(count<1)return{ok:true,chunks:0};
+    if(!key)return{ok:false,chunks:0,error:'missing-chunk-key'};
+    try{
+      for(var i=0;i<count;i++){
+        var sourceRef=b.fs.doc(b.db,'kpi_dashboard',grc1SourceReportChunkId(key,i));
+        var sourceSnap=await b.fs.getDoc(sourceRef);
+        if(!sourceSnap.exists())throw new Error('missing-source-chunk:'+key+':'+i);
+        var data=grc1SerializableClone(sourceSnap.data()||{});
+        data.kind='grc1_report_chunk';data.importedFrom='grc';data.importedAtIso=new Date().toISOString();
+        await b.fs.setDoc(b.fs.doc(b.db,'kpi_dashboard',grc1TargetReportChunkId(key,i)),data,{merge:false});
+      }
+      return{ok:true,chunks:count};
+    }catch(err){return{ok:false,chunks:0,error:String(err&&err.message||err)};}
+  }
+  async function grc1CopyIndexedLibraryResilient(b,sourceId,targetId,field){
+    var sourceRef=b.fs.doc(b.db,'kpi_dashboard',sourceId),targetRef=b.fs.doc(b.db,'kpi_dashboard',targetId);
+    var pair=await Promise.all([b.fs.getDoc(sourceRef),b.fs.getDoc(targetRef)]),sourceSnap=pair[0],targetSnap=pair[1];
+    if(!sourceSnap.exists())return{sourceExists:false,sourceRecords:0,targetRecords:targetSnap.exists()?grc1IndexRows(targetSnap.data()||{},field).length:0,copiedRecords:0,copiedChunks:0,failed:[]};
+    var sourceData=grc1SerializableClone(sourceSnap.data()||{}),sourceRows=grc1IndexRows(sourceData,field),targetData=targetSnap.exists()?grc1SerializableClone(targetSnap.data()||{}):{},targetRows=grc1IndexRows(targetData,field),byId={};
+    targetRows.forEach(function(r){var k=grc1RecordKey(r);if(k)byId[k]=r;});
+    var copiedRecords=0,copiedChunks=0,failed=[];
+    for(var i=0;i<sourceRows.length;i++){
+      var record=grc1SerializableClone(sourceRows[i]||{}),key=grc1RecordKey(record);if(!key){failed.push({id:'row-'+i,error:'missing-record-id'});continue;}
+      var result=await grc1CopyRecordChunksSafe(b,record);
+      if(!result.ok){failed.push({id:key,error:result.error});continue;}
+      byId[key]=record;copiedRecords++;copiedChunks+=Number(result.chunks||0);
+    }
+    var merged=Object.keys(byId).map(function(k){return byId[k];});
+    /* Preserve the original index schema and metadata, changing only its row
+       collection and adding import diagnostics. */
+    var out=sourceData;out[field]=merged;out.importedFrom='grc';out.importedAtIso=new Date().toISOString();out.importedBy=String(window._fbUser||'').toLowerCase();out.importFailures=failed.slice(0,50);
+    await b.fs.setDoc(targetRef,out,{merge:false});
+    return{sourceExists:true,sourceRecords:sourceRows.length,targetRecords:merged.length,copiedRecords:copiedRecords,copiedChunks:copiedChunks,failed:failed};
+  }
+  async function grc1RecoverLibrariesFromGrc(force){
+    if(!isGrcSuperAdmin())return{skipped:true,reason:'super-admin-required'};
+    if(grc1LibraryRecoveryPromise&&!force)return grc1LibraryRecoveryPromise;
+    grc1LibraryRecoveryPromise=(async function(){
+      var b=await ensureReportBackend();await waitForReportAuth(b);var metaRef=grc1RecoveryMetaRef(b,GRC1_LIBRARY_RECOVERY_META_ID),metaSnap=await b.fs.getDoc(metaRef),meta=metaSnap.exists()?metaSnap.data()||{}:{};
+      if(!force&&meta.status==='completed'){grc1LibraryRecoveryStatus='completed';return{skipped:true,counts:meta.counts||{}};}
+      grc1LibraryRecoveryStatus='running';grc1LibraryRecoveryError='';
+      try{
+        var reports=await grc1CopyIndexedLibraryResilient(b,'grc_reports_index','grc1_reports_index','reports');
+        var complianceFiles=await grc1CopyIndexedLibraryResilient(b,'grc_compliance_documents_index','grc1_compliance_documents_index','documents');
+        var opPlans=await grc1CopyIndexedLibraryResilient(b,'grc_operational_plans_index','grc1_operational_plans_index','plans');
+        var counts={reports:reports,complianceFiles:complianceFiles,operationalPlans:opPlans};
+        var waiting=!reports.sourceExists||!complianceFiles.sourceExists;
+        await b.fs.setDoc(metaRef,{status:waiting?'waiting_source':'completed',source:'grc',target:'grc1',counts:counts,completedAtIso:waiting?'':new Date().toISOString(),lastCheckedAtIso:new Date().toISOString(),updatedAt:b.fs.serverTimestamp(),updatedBy:String(window._fbUser||'')},{merge:false});
+        grc1LibraryRecoveryStatus=waiting?'waiting_source':'completed';
+        reportLibraryLoaded=false;complianceLibraryLoaded=false;opPlanLibraryLoaded=false;
+        await Promise.all([loadReportLibrary(true),loadComplianceLibrary(true),loadOpPlanLibrary(true)]);
+        return{skipped:false,waiting:waiting,counts:counts};
+      }catch(err){grc1LibraryRecoveryStatus='failed';grc1LibraryRecoveryError=String(err&&err.message||err);try{await b.fs.setDoc(metaRef,{status:'failed',error:grc1LibraryRecoveryError,failedAtIso:new Date().toISOString(),updatedAt:b.fs.serverTimestamp(),updatedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}throw err;}
+    })().finally(function(){grc1LibraryRecoveryPromise=null;});
+    return grc1LibraryRecoveryPromise;
+  }
+  async function grc1RecoverComplianceDataFromGrc(force){
+    if(!isGrcSuperAdmin())return{skipped:true,reason:'super-admin-required'};
+    if(grc1ComplianceRecoveryPromise&&!force)return grc1ComplianceRecoveryPromise;
+    grc1ComplianceRecoveryPromise=(async function(){
+      var b=await ensureReportBackend();await waitForReportAuth(b);var metaRef=grc1RecoveryMetaRef(b,GRC1_COMPLIANCE_RECOVERY_META_ID),metaSnap=await b.fs.getDoc(metaRef),meta=metaSnap.exists()?metaSnap.data()||{}:{};
+      if(!force&&meta.status==='completed'){grc1ComplianceRecoveryStatus='completed';return{skipped:true,counts:meta.counts||{}};}
+      grc1ComplianceRecoveryStatus='running';grc1ComplianceRecoveryError='';
+      try{
+        var operational=await grc1CopyCollectionSnapshot(b,'compliance','grc_compliance','grc1_compliance');
+        var assessments=await grc1CopyAssessmentEdits(b);
+        var files=await grc1CopyIndexedLibraryResilient(b,'grc_compliance_documents_index','grc1_compliance_documents_index','documents');
+        var counts={operationalCompliance:operational,assessmentDocuments:assessments,cbahiBaselineRows:CBAHI_FMS_ROWS.length,jciBaselineRows:JCI_FMS_ROWS.length,authorities:COMPLIANCE_AUTHORITIES.length,requirementDocuments:COMPLIANCE_DOCUMENT_SEED.length,files:files};
+        await b.fs.setDoc(metaRef,{status:files.sourceExists?'completed':'waiting_source',source:'grc',target:'grc1',counts:counts,lastCheckedAtIso:new Date().toISOString(),updatedAt:b.fs.serverTimestamp(),updatedBy:String(window._fbUser||'')},{merge:false});
+        grc1ComplianceRecoveryStatus=files.sourceExists?'completed':'waiting_source';
+        complianceLibraryLoaded=false;await loadComplianceLibrary(true);
+        try{stopAssessmentCloudSync();startAssessmentCloudSync();}catch(_e){}
+        renderAtSamePosition(grcViewportPosition());
+        return{skipped:false,waiting:!files.sourceExists,counts:counts};
+      }catch(err){grc1ComplianceRecoveryStatus='failed';grc1ComplianceRecoveryError=String(err&&err.message||err);try{await b.fs.setDoc(metaRef,{status:'failed',error:grc1ComplianceRecoveryError,failedAtIso:new Date().toISOString(),updatedAt:b.fs.serverTimestamp(),updatedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}throw err;}
+    })().finally(function(){grc1ComplianceRecoveryPromise=null;});
+    return grc1ComplianceRecoveryPromise;
+  }
+  function grc1StartIndependentRecoveryPasses(){
+    if(!isGrcSuperAdmin())return;
+    var jobs=[
+      grc1ImportBusinessDataFromGrc(false),
+      ensureReportBackend().then(function(b){return waitForReportAuth(b).then(function(){return grc1NormalizeExistingDepartmentScopes(b,false);});}),
+      grc1RecoverLibrariesFromGrc(false),
+      grc1RecoverComplianceDataFromGrc(false)
+    ];
+    Promise.allSettled(jobs).then(function(results){
+      var failed=results.filter(function(r){return r.status==='rejected';});
+      if(failed.length)console.warn('[GRC1 Recovery] Some independent recovery jobs failed',failed.map(function(r){return String(r.reason&&r.reason.message||r.reason||'failed');}));
+      /* A source index can appear a moment after authentication. Retry only
+         waiting/failed recovery jobs; completed snapshots remain immutable. */
+      if(grc1LibraryRecoveryStatus==='waiting_source'||grc1LibraryRecoveryStatus==='failed'||grc1ComplianceRecoveryStatus==='waiting_source'||grc1ComplianceRecoveryStatus==='failed'){
+        setTimeout(function(){if(!isGrcSuperAdmin())return;grc1RecoverLibrariesFromGrc(true).catch(function(e){console.warn('[GRC1 Recovery] library retry',e);});grc1RecoverComplianceDataFromGrc(true).catch(function(e){console.warn('[GRC1 Recovery] compliance retry',e);});},5000);
+      }
+    });
+  }
+  window._grc1RecoverLibrariesFromGrc=function(force){return grc1RecoverLibrariesFromGrc(force===true);};
+  window._grc1RecoverComplianceDataFromGrc=function(force){return grc1RecoverComplianceDataFromGrc(force===true);};
+  window._grc1RecoveryDiagnostics=function(){return{libraries:{status:grc1LibraryRecoveryStatus,error:grc1LibraryRecoveryError,marker:GRC1_LIBRARY_RECOVERY_META_ID},compliance:{status:grc1ComplianceRecoveryStatus,error:grc1ComplianceRecoveryError,marker:GRC1_COMPLIANCE_RECOVERY_META_ID},reportCount:REPORT_LIBRARY.length,guideCount:typeof guideRecords==='function'?guideRecords().length:0,complianceFileCount:COMPLIANCE_DOC_LIBRARY.length,cbahiRows:CBAHI_FMS_ROWS.length,jciRows:JCI_FMS_ROWS.length};};
   window._grc1ComplianceImportDiagnostics=function(){
     return{
       status:grc1ComplianceImportStatus,error:grc1ComplianceImportError,
@@ -1959,16 +2074,10 @@
         }
       });
       if(isGrcSuperAdmin()){
-        grc1ImportBusinessDataFromGrc(false).then(function(){
-          return grc1NormalizeExistingDepartmentScopes(b,false);
-        }).then(function(){
-          return grc1EnsureFileLibrariesFromGrc(false);
-        }).then(function(){
-          return grc1EnsureComplianceSnapshotFromGrc(false);
-        }).catch(function(importErr){
-          console.error('[GRC1 Snapshot] import/repair from GRC failed',importErr);
-          grcSyncLastError='GRC1 snapshot import: '+String(importErr&&importErr.message||importErr);grcSyncLastErrorAt=new Date().toISOString();renderAtSamePosition(grcViewportPosition());
-        });
+        /* v184: file/compliance recovery is independent. A failure in a risk,
+           register or scope migration must never block Reports, Manuals or
+           Compliance from being copied into GRC1. */
+        grc1StartIndependentRecoveryPasses();
       }
     }).catch(function(err){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError='GRC sync initialization: '+String(err&&err.message||err);grcSyncLastErrorAt=new Date().toISOString();console.error('[GRC Secure Sync] init failed',err);renderAtSamePosition(grcViewportPosition());});
   }
