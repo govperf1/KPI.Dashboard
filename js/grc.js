@@ -15,10 +15,10 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260813-v175');
+  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260813-v176');
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260813-v175');
+  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260813-v176');
   var GRC_CACHE_OWNER_KEY='qumc_grc_workspace_preview_v1_owner';
   var GRC_CACHE_BUILD_KEY='qumc_grc_workspace_preview_build';
   var STATE_VERSION=13;
@@ -1059,7 +1059,13 @@
     return !!mine&&(shared||(key&&key===mine)||grcRecordDepartment(collectionKey,record)===mine);
   }
   function enforceLocalGrcScope(){
-    if(!window._fbUser||canViewAllExecutiveDepartments())return;
+    if(!window._fbUser)return;
+    /* Risk/Incident data is intentionally unavailable to Viewer/User/Executive
+       roles. Clear any profile-bound browser cache as well as skipping cloud
+       listeners below, so a previous session can never leak stale register data
+       or trigger a permission warning for a page the role cannot access. */
+    if(!canAccessRiskIncidentRegisters()){state.risks=[];state.incidents=[];}
+    if(canViewAllExecutiveDepartments())return;
     Object.keys(GRC_COLLECTION_MAP).forEach(function(key){state[key]=(state[key]||[]).filter(function(r){return grcRecordAllowedLocally(key,r);});});
   }
   function cleanSharedState(value){
@@ -1602,6 +1608,7 @@
   }
   function startRiskStatusOverrideSync(b){
     if(grcRiskStatusUnsub){try{grcRiskStatusUnsub();}catch(_){}grcRiskStatusUnsub=null;}
+    if(!canAccessRiskIncidentRegisters()){grcRiskStatusOverrides={};return;}
     var col=b.fs.collection(b.db,'grc_risk_status'),qref=col,dept=currentGrcDept();
     /* Subscribe by canonical department so every user assigned to the same
        department receives the same direct Open/Closed status, even if their
@@ -1624,8 +1631,8 @@
     if(grcSyncStarted&&grcSyncScopeKey!==wanted)stopSharedStateSync();
     ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;
       var actual=grcSyncIdentityKey();if(actual!==wanted){stopSharedStateSync();setTimeout(startSharedStateSync,0);return;}
-      if(typeof window._qumcAssertFirestoreRulesV32==='function'){
-        try{await window._qumcAssertFirestoreRulesV32();}
+      if(typeof window._qumcAssertFirestoreRulesV33==='function'){
+        try{await window._qumcAssertFirestoreRulesV33();}
         catch(ruleErr){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError=String(ruleErr&&ruleErr.message||ruleErr).replace(/^rules-version-mismatch:/,'');grcSyncLastErrorAt=new Date().toISOString();renderAtSamePosition(grcViewportPosition());return;}
       }
       grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
@@ -1650,6 +1657,13 @@
       };
       Object.keys(GRC_COLLECTION_MAP).forEach(function(key){
         var col=b.fs.collection(b.db,GRC_COLLECTION_MAP[key]);grcCloudParts[key]={};
+        /* Do not start Firestore listeners that Security Rules intentionally
+           deny. Previously every GRC user subscribed to risks/incidents even
+           when the UI hid those registers, producing the misleading
+           "risks / all|department: Missing or insufficient permissions" banner. */
+        if((key==='risks'||key==='incidents')&&!canAccessRiskIncidentRegisters()){
+          grcConfigureCollectionScopes(key,[]);state[key]=[];return;
+        }
         if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){
           grcConfigureCollectionScopes(key,['all']);grcListen(b,key,'all',col);
         }else{
