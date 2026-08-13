@@ -944,7 +944,7 @@
     audits:'grc1_audits',actions:'grc1_actions',documents:'grc1_documents',initiatives:'grc1_initiatives'
   };
 
-  /* GRC1 v179 — one-time business-data snapshot from the live GRC platform.
+  /* GRC1 v180 — business snapshot + file-library repair + query-safe scoped sync.
      Scope is intentionally limited to operational/business records and uploaded
      controlled files. Requests, approvals, notifications, chats and audit-trail
      history are NOT copied. The migration is idempotent and is executed only by
@@ -1002,13 +1002,13 @@
   }
   async function grc1CopyIndexedLibrary(b,sourceId,targetId,field){
     var sourceRef=b.fs.doc(b.db,'kpi_dashboard',sourceId),sourceSnap=await b.fs.getDoc(sourceRef);
-    if(!sourceSnap.exists())return{records:0,chunks:0};
+    if(!sourceSnap.exists())return{records:0,chunks:0,sourceExists:false};
     var data=grc1SerializableClone(sourceSnap.data()||{}),records=Array.isArray(data[field])?data[field].length:0;
     /* Copy bytes first so the GRC1 index never points at an incomplete file. */
     var chunks=await grc1CopyReferencedFileChunks(b,data,field);
     data.importedFrom='grc';data.importedAt=b.fs.serverTimestamp();
     await b.fs.setDoc(b.fs.doc(b.db,'kpi_dashboard',targetId),data,{merge:false});
-    return{records:records,chunks:chunks};
+    return{records:records,chunks:chunks,sourceExists:true};
   }
   async function grc1CopyAssessmentEdits(b){
     var count=0;
@@ -1081,6 +1081,54 @@
   }
   window._grc1ImportBusinessDataFromGrc=function(force){return grc1ImportBusinessDataFromGrc(force===true);};
   window._grc1BusinessImportDiagnostics=function(){return{status:grc1BusinessImportStatus,error:grc1BusinessImportError,marker:GRC1_IMPORT_META_ID};};
+
+  /* File libraries are verified separately from the business-record marker.
+     v179 could mark the business snapshot complete while the report/manual
+     indexes were temporarily absent, leaving GRC1 with records but no PDFs.
+     This v2 pass retries independently and copies Reports, Manuals/Guides,
+     Compliance PDFs and Annual Operational Plans including every byte chunk. */
+  var GRC1_FILE_IMPORT_META_ID='business_file_snapshot_from_grc_v2';
+  var grc1FileImportPromise=null,grc1FileImportStatus='idle',grc1FileImportError='';
+  function grc1FileImportMetaRef(b){return b.fs.doc(b.db,'grc1_meta',GRC1_FILE_IMPORT_META_ID);}
+  async function grc1EnsureFileLibrariesFromGrc(force){
+    if(!isGrcSuperAdmin())return{skipped:true,reason:'super-admin-required'};
+    if(grc1FileImportPromise&&!force)return grc1FileImportPromise;
+    grc1FileImportPromise=(async function(){
+      var b=await ensureReportBackend();await waitForReportAuth(b);
+      var metaRef=grc1FileImportMetaRef(b),metaSnap=await b.fs.getDoc(metaRef),meta=metaSnap.exists()?metaSnap.data()||{}:{};
+      if(!force&&meta.status==='completed'){
+        grc1FileImportStatus='completed';return{skipped:true,counts:meta.counts||{}};
+      }
+      grc1FileImportStatus='running';grc1FileImportError='';
+      await b.fs.setDoc(metaRef,{status:'running',source:'grc',target:'grc1',startedAtIso:new Date().toISOString(),startedAt:b.fs.serverTimestamp(),startedBy:String(window._fbUser||'')},{merge:true});
+      try{
+        var reports=await grc1CopyIndexedLibrary(b,'grc_reports_index','grc1_reports_index','reports');
+        var complianceFiles=await grc1CopyIndexedLibrary(b,'grc_compliance_documents_index','grc1_compliance_documents_index','documents');
+        var opPlans=await grc1CopyIndexedLibrary(b,'grc_operational_plans_index','grc1_operational_plans_index','plans');
+        var counts={reportRecords:reports.records,reportChunks:reports.chunks,complianceFileRecords:complianceFiles.records,complianceFileChunks:complianceFiles.chunks,operationalPlanRecords:opPlans.records,operationalPlanChunks:opPlans.chunks};
+        /* Reports + manuals/guides share grc_reports_index. If that source index
+           is not visible yet, do not permanently mark the repair complete; the
+           next Super Admin entry will retry instead of freezing a zero library. */
+        if(!reports.sourceExists){
+          grc1FileImportStatus='waiting_source';
+          await b.fs.setDoc(metaRef,{status:'waiting_source',counts:counts,lastCheckedAtIso:new Date().toISOString(),lastCheckedAt:b.fs.serverTimestamp()},{merge:true});
+          return{skipped:false,waiting:true,counts:counts};
+        }
+        await b.fs.setDoc(metaRef,{status:'completed',source:'grc',target:'grc1',counts:counts,completedAtIso:new Date().toISOString(),completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:true});
+        grc1FileImportStatus='completed';
+        reportLibraryLoaded=false;complianceLibraryLoaded=false;opPlanLibraryLoaded=false;
+        await Promise.all([loadReportLibrary(true),loadComplianceLibrary(true),loadOpPlanLibrary(true)]);
+        return{skipped:false,counts:counts};
+      }catch(err){
+        grc1FileImportStatus='failed';grc1FileImportError=String(err&&err.message||err);
+        try{await b.fs.setDoc(metaRef,{status:'failed',error:grc1FileImportError,failedAtIso:new Date().toISOString(),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_metaErr){}
+        throw err;
+      }
+    })().finally(function(){grc1FileImportPromise=null;});
+    return grc1FileImportPromise;
+  }
+  window._grc1SyncFileLibrariesFromGrc=function(force){return grc1EnsureFileLibrariesFromGrc(force===true);};
+  window._grc1FileImportDiagnostics=function(){return{status:grc1FileImportStatus,error:grc1FileImportError,marker:GRC1_FILE_IMPORT_META_ID};};
 
   // Governance and Risk remain department-scoped. Shared operational modules are visible to every approved GRC user.
   var GRC_GLOBAL_READ_COLLECTIONS={manuals:true,codes:true,compliance:true,audits:true,actions:true,documents:true,initiatives:true}; // GRC1: assigned users query only their department + shared Division rows.
@@ -1759,8 +1807,18 @@
         if((key==='risks'||key==='incidents')&&!canAccessRiskIncidentRegisters()){
           grcConfigureCollectionScopes(key,[]);state[key]=[];return;
         }
-        if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){
+        if(canAll){
           grcConfigureCollectionScopes(key,['all']);grcListen(b,key,'all',col);
+        }else if(GRC_GLOBAL_READ_COLLECTIONS[key]){
+          /* Firestore rules are not filters. An unbounded `all` listener cannot
+             be authorized for a department-scoped user even when every current
+             document happens to be shared. Bind explicit, provable scopes:
+             own department + Division + records marked shared. */
+          var globalScopes=['department','division','shared'];
+          grcConfigureCollectionScopes(key,globalScopes);
+          grcListen(b,key,'department',b.fs.query(col,b.fs.where('departmentKey','==',dept)));
+          grcListen(b,key,'division',b.fs.query(col,b.fs.where('departmentKey','==','division')));
+          grcListen(b,key,'shared',b.fs.query(col,b.fs.where('visibility','==','shared')));
         }else{
           /* Scoped users bind only to canonical query-safe keys. Historical
              label-only rows are normalized by the Super Admin maintenance pass;
@@ -1773,9 +1831,11 @@
         }
       });
       if(isGrcSuperAdmin()){
-        grc1ImportBusinessDataFromGrc(false).catch(function(importErr){
-          console.error('[GRC1 Business Snapshot] import from GRC failed',importErr);
-          grcSyncLastError='GRC1 business-data import: '+String(importErr&&importErr.message||importErr);grcSyncLastErrorAt=new Date().toISOString();renderAtSamePosition(grcViewportPosition());
+        grc1ImportBusinessDataFromGrc(false).then(function(){
+          return grc1EnsureFileLibrariesFromGrc(false);
+        }).catch(function(importErr){
+          console.error('[GRC1 Snapshot] import/repair from GRC failed',importErr);
+          grcSyncLastError='GRC1 snapshot import: '+String(importErr&&importErr.message||importErr);grcSyncLastErrorAt=new Date().toISOString();renderAtSamePosition(grcViewportPosition());
         });
       }
     }).catch(function(err){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError='GRC sync initialization: '+String(err&&err.message||err);grcSyncLastErrorAt=new Date().toISOString();console.error('[GRC Secure Sync] init failed',err);renderAtSamePosition(grcViewportPosition());});
