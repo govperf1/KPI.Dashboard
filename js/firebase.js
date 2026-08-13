@@ -395,7 +395,52 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       ov.addEventListener('click',e=>{if(e.target===ov)close();});
       ov.addEventListener('keydown',e=>{if(e.key==='Escape')close();});
     };
-    const showLogin=()=>{console.log('[Auth] showLogin');/* A signed-out screen must never expose the last Performance/GRC workspace behind the login card. */try{window.__qumcActivePortal='';if(typeof window._hideGRC==='function')window._hideGRC();if(typeof window._hideGRC1==='function')window._hideGRC1();}catch(_){ }try{document.body&&document.body.classList.remove('grc-mode','dashboard-mode','portal-mode','performance-advisory-mode','dashboard-ready');document.body&&document.body.classList.add('auth-mode');}catch(_){ }const bg=ge('_bgLayer');if(bg)bg.style.display='block';/* Show overlay (already visible, but ensure it is) */const ao=ge('_authOverlay');if(ao){ao.style.display='flex';ao.style.alignItems='flex-end';ao.style.background='rgba(245,247,252,0)'}/* Hide loading spinner, show login form */const ld=ge('_authLoading');if(ld)ld.style.display='none';const lp=ge('_loginPanel');if(lp)lp.style.display='block';const po=ge('_portalOverlay');if(po)po.style.display='none';const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
+    function _clearClientAuthState(){
+      window.__qumcActivePortal='';
+      window._fbUser='';window._fbEmail='';window.currentUserEmail='';
+      window._fbRole='viewer';window.currentUserRole='viewer';
+      window._fbDept=null;window.currentUserDept=null;
+      window._fbPerms=[];window._fbName='';window.currentUserName='';
+      window._fbAssignedKpis=null;window._fbProfileResolved=false;
+    }
+    const showLogin=()=>{
+      console.log('[Auth] showLogin');
+      try{
+        window.__qumcActivePortal='';
+        window._closePortalAccessDenied&&window._closePortalAccessDenied();
+        window._hideGRC&&window._hideGRC();
+        window._hideGRC1&&window._hideGRC1();
+        hideEntryLoading();
+      }catch(_){ }
+      try{
+        if(document.body){
+          document.body.classList.remove('grc-mode','grc1-mode','dashboard-mode','portal-mode','performance-advisory-mode','dashboard-ready','modal-mode');
+          document.body.classList.add('auth-mode');
+        }
+        window.scrollTo(0,0);
+      }catch(_){ }
+      const bg=ge('_bgLayer');
+      if(bg){bg.style.display='block';bg.style.zIndex='2147483490';}
+      const ao=ge('_authOverlay');
+      if(ao){
+        ao.style.setProperty('position','fixed','important');
+        ao.style.setProperty('inset','0','important');
+        ao.style.setProperty('z-index','2147483500','important');
+        ao.style.setProperty('display','flex','important');
+        ao.style.setProperty('align-items','center','important');
+        ao.style.setProperty('justify-content','center','important');
+        ao.style.setProperty('overflow-y','auto','important');
+        ao.style.setProperty('background','transparent','important');
+        ao.style.setProperty('padding','24px 12px','important');
+      }
+      const fo=ge('_forgotOverlay');if(fo)fo.style.display='none';
+      const po=ge('_portalOverlay');if(po)po.style.display='none';
+      const ld=ge('_authLoading');if(ld)ld.style.display='none';
+      const lp=ge('_loginPanel');if(lp){lp.style.display='block';lp.style.margin='auto';}
+      const pw=ge('_fbPass');if(pw)pw.value='';
+      const err=ge('_fbErr');if(err)err.textContent='';
+      const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}
+    };
     const showPortal=(name,role)=>{console.log('[Auth] showPortal:',name,role);const po=ge('_portalOverlay'),lo=ge('_authOverlay');if(lo)lo.style.display='none';if(po){po.style.display='flex';console.log('[Auth] _portalOverlay is now flex');}else{console.error('[Auth] PORTAL OVERLAY NOT FOUND');return;}const nm=ge('_portalUserName'),rl=ge('_portalUserRole');const realName=cleanAccountName(name)||cleanAccountName(window._fbName)||cleanAccountName((window._fbUser||'').split('@')[0])||'';if(nm)nm.textContent=realName;if(rl){const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'GRC Owner',grc_owner:'GRC1 Owner',platform_owner:'Platform Owner',governance_performance_manager:'Governance & Performance Department Manager',viewer:'Viewer',user:'User'};rl.textContent=L[_normalizePortalRole(role)]||role;}setTimeout(_syncPortalCards,0);console.log('[Auth] Portal ready');};
     const setErr=msg=>{console.warn('[Auth] Error:',msg);const e=ge('_fbErr');if(e)e.textContent=msg;const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
 
@@ -415,7 +460,26 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       }
     };
 
-    window._doLogout=async()=>{console.log('[Auth] Logout');try{await window._recordAuditDirect('LOGOUT','User signed out');}catch(e){console.warn('[AUDIT] logout write skipped',e);}try{window._stopAuditListener&&window._stopAuditListener();window._stopReadListener&&window._stopReadListener();window._grcStopSecureSync&&window._grcStopSecureSync();window._grc1StopSecureSync&&window._grc1StopSecureSync();window._grc1StopAuditListener&&window._grc1StopAuditListener();try{sessionStorage.removeItem('qumc_user_email');sessionStorage.removeItem('qumc_last_login');localStorage.removeItem('qumc_user_email');localStorage.removeItem('qumc_last_login');}catch(_storage){}await signOut(auth);}catch(e){console.error('[Auth]',e);}};
+    window._doLogout=async()=>{
+      console.log('[Auth] Logout');
+      showLogin();
+      try{
+        const auditPromise=window._recordAuditDirect?window._recordAuditDirect('LOGOUT','User signed out'):Promise.resolve();
+        await Promise.race([Promise.resolve(auditPromise).catch(function(e){console.warn('[AUDIT] logout write skipped',e);}),new Promise(function(resolve){setTimeout(resolve,450);})]);
+      }catch(e){console.warn('[AUDIT] logout write skipped',e);}
+      try{
+        window._stopAuditListener&&window._stopAuditListener();
+        window._stopReadListener&&window._stopReadListener();
+        window._grcStopSecureSync&&window._grcStopSecureSync();
+        window._grc1StopSecureSync&&window._grc1StopSecureSync();
+        window._grc1StopAuditListener&&window._grc1StopAuditListener();
+        window._grcRiskRequestsStop&&window._grcRiskRequestsStop();
+        window._grc1RiskRequestsStop&&window._grc1RiskRequestsStop();
+        try{sessionStorage.removeItem('qumc_user_email');sessionStorage.removeItem('qumc_last_login');localStorage.removeItem('qumc_user_email');localStorage.removeItem('qumc_last_login');}catch(_storage){}
+        await signOut(auth);
+      }catch(e){console.error('[Auth]',e);}
+      finally{_clearClientAuthState();showLogin();}
+    };
 
     window._backToPortal=()=>{console.log('[Auth] Back to portal');try{window._stopReadListener&&window._stopReadListener();if(typeof window._hideGRC==='function')window._hideGRC();if(typeof window._hideGRC1==='function')window._hideGRC1();}catch(_e){}window.__qumcActivePortal='';const lo=document.getElementById('_authOverlay'),po=document.getElementById('_portalOverlay'),bg=document.getElementById('_bgLayer');if(lo)lo.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
 window._selectPortal=async portal=>{
@@ -474,7 +538,7 @@ window._selectPortal=async portal=>{
       console.log('[Auth] onAuthStateChanged — user:',user?user.email:'none');
       window._fbProfileResolved=false;
       if(!user){
-        window.__qumcAuditLoginLoggedFor='';window._fbUser='';window._fbEmail='';window.currentUserEmail='';window._fbRole='viewer';window.currentUserRole='viewer';window._fbDept=null;window.currentUserDept=null;window._fbPerms=[];window._fbName='';window.currentUserName='';window._fbAssignedKpis=null;window._fbProfileResolved=false;
+        window.__qumcAuditLoginLoggedFor='';_clearClientAuthState();
         try{window._stopAuditListener&&window._stopAuditListener();}catch(_){}try{window._stopReadListener&&window._stopReadListener();}catch(_){}try{window._grcRiskRequestsStop&&window._grcRiskRequestsStop();}catch(_){}try{window._grc1RiskRequestsStop&&window._grc1RiskRequestsStop();}catch(_){}try{window._grcStopSecureSync&&window._grcStopSecureSync();window._grc1StopSecureSync&&window._grc1StopSecureSync();window._grc1StopAuditListener&&window._grc1StopAuditListener();}catch(_){}showLogin();return;
       }
       const email=String(user.email||'').toLowerCase().trim();
