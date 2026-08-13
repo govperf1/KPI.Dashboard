@@ -1,3 +1,4 @@
+/* GRC1 v179 — exact visual mirror of current GRC styles; ids namespaced only. */
 /* QUMC GRC build 20260707-grc-executive-chart-polish-v14 */
 /* ======================================================================
    QUMC GRC Workspace
@@ -332,10 +333,10 @@ body.grc-coming-open #_portalPanel{opacity:.22!important;filter:blur(5px)!import
 
 /* ===== GRC refinement v8: clear Coming Soon, register hub, org chart ===== */
 body.grc-coming-open{overflow:hidden!important}
-#_grcComingSoon.grc-coming-backdrop{position:fixed!important;inset:0!important;display:flex!important;align-items:center!important;justify-content:center!important;background:rgba(3,13,31,.84)!important;z-index:2147483646!important;padding:22px!important}
-#_grcComingSoon .grc-coming-card{display:block!important;box-sizing:border-box!important;width:min(520px,calc(100vw - 34px))!important;max-width:520px!important;min-height:360px!important;margin:auto!important;background:#fff!important;border:1px solid rgba(1,149,175,.28)!important;border-radius:22px!important;padding:38px 34px 31px!important;opacity:1!important;visibility:visible!important;filter:none!important;transform:none!important;color:#17384a!important;box-shadow:0 30px 90px rgba(0,0,0,.52)!important}
-#_grcComingSoon .grc-coming-card>*{position:relative;z-index:2}
-#_grcComingSoon .grc-coming-card:after{content:"";position:absolute;inset:auto -80px -120px auto;width:240px;height:240px;border:38px solid rgba(0,163,196,.055);border-radius:50%;z-index:1}
+#_grc1ComingSoon.grc-coming-backdrop{position:fixed!important;inset:0!important;display:flex!important;align-items:center!important;justify-content:center!important;background:rgba(3,13,31,.84)!important;z-index:2147483646!important;padding:22px!important}
+#_grc1ComingSoon .grc-coming-card{display:block!important;box-sizing:border-box!important;width:min(520px,calc(100vw - 34px))!important;max-width:520px!important;min-height:360px!important;margin:auto!important;background:#fff!important;border:1px solid rgba(1,149,175,.28)!important;border-radius:22px!important;padding:38px 34px 31px!important;opacity:1!important;visibility:visible!important;filter:none!important;transform:none!important;color:#17384a!important;box-shadow:0 30px 90px rgba(0,0,0,.52)!important}
+#_grc1ComingSoon .grc-coming-card>*{position:relative;z-index:2}
+#_grc1ComingSoon .grc-coming-card:after{content:"";position:absolute;inset:auto -80px -120px auto;width:240px;height:240px;border:38px solid rgba(0,163,196,.055);border-radius:50%;z-index:1}
 #grc1App .grc-footer{height:42px;min-height:42px;padding:0 18px}
 #grc1App .grc-footer-left{display:flex;align-items:center;gap:12px;min-width:0}
 #grc1App .grc-footer-back{height:30px!important;min-width:76px!important;padding:0 13px!important;font-size:10px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;flex:0 0 auto}
@@ -382,7 +383,7 @@ body.grc-coming-open{overflow:hidden!important}
 .grc-org-branch.safety .grc-org-node.branch{border-bottom:4px solid #F87171}
 .grc-org-branch.housekeeping .grc-org-node.branch{border-bottom:4px solid #34D399}
 .grc-org-branch.projects .grc-org-node.branch{border-bottom:4px solid #FBBF24}
-@media(max-width:760px){#_grcComingSoon .grc-coming-card{min-height:330px!important;padding:31px 22px 26px!important}#grc1App .grc-footer-left>span{display:none}#grc1App .grc-registers-board{padding:12px;border-radius:14px}#grc1App .grc-domain-section{padding:11px}}
+@media(max-width:760px){#_grc1ComingSoon .grc-coming-card{min-height:330px!important;padding:31px 22px 26px!important}#grc1App .grc-footer-left>span{display:none}#grc1App .grc-registers-board{padding:12px;border-radius:14px}#grc1App .grc-domain-section{padding:11px}}
 
 /* ===== GRC refinement v9: risk status, HK/Laundry split, dynamic risk charts ===== */
 #grc1App .grc-risk-summary-grid{margin-bottom:14px}
@@ -956,7 +957,7 @@ body.grc-mode #filterChips,body.grc-mode #yearBtns,body.grc-mode .filter-chips,b
 #grc1App .grc-tab-count{background:#eaf3f7!important;color:#416173!important}.grc-tab.is-active .grc-tab-count{background:#00a3c4!important;color:#fff!important}
 .grc-export-dropdown-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.grc-export-compact-group{position:relative}.grc-export-dropdown-btn{width:100%;min-height:48px;border:1px solid #d7e3e9;border-radius:12px;background:#fff;padding:9px 11px;display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;cursor:pointer}.grc-export-dropdown-btn span{display:flex;flex-direction:column;gap:3px}.grc-export-dropdown-btn b{font-size:10px;color:#183b50}.grc-export-dropdown-btn small{font-size:8px;color:#6e8491}.grc-export-dropdown-btn i{font-style:normal;color:#62808f}.grc-export-dropdown-menu{display:none;position:absolute;z-index:2147483600;top:calc(100% + 5px);left:0;right:0;max-height:260px;overflow:auto;background:#fff;border:1px solid #d5e2e8;border-radius:12px;padding:8px;box-shadow:0 18px 44px rgba(21,37,56,.2)}.grc-export-dropdown-menu.is-open{display:grid;gap:4px}.grc-export-dropdown-menu .group-all{border-bottom:1px solid #e4ecef;padding-bottom:7px;margin-bottom:3px;font-weight:900}
 /* GRC chat uses the same visual language as Performance but its own data */
-#grc1AiFloatBtn{right:22px!important;bottom:56px!important;z-index:2147483000!important}#grc1AiWin{right:22px!important;bottom:108px!important;z-index:2147483001!important}body:not(.grc-mode) #grc1AiFloatBtn,body:not(.grc-mode) #grc1AiWin{display:none!important}#grc1AiWin.open{display:flex!important}
+#grcAiFloatBtn{right:22px!important;bottom:56px!important;z-index:2147483000!important}#grcAiWin{right:22px!important;bottom:108px!important;z-index:2147483001!important}body:not(.grc-mode) #grcAiFloatBtn,body:not(.grc-mode) #grcAiWin{display:none!important}#grcAiWin.open{display:flex!important}
 /* Native page export: print the actual GRC page layout instead of rebuilding cards */
 @media print{
  @page{size:A4 landscape;margin:8mm}
@@ -990,7 +991,7 @@ body.grc-mode #filterChips,body.grc-mode #yearBtns,body.grc-mode .filter-chips,b
 #grc1App .grc-tab{flex:0 0 auto!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:7px!important;min-width:128px!important;max-width:none!important;height:38px!important;padding:0 18px!important;border-radius:12px!important;border:1px solid rgba(14,116,144,.10)!important;background:rgba(255,255,255,.75)!important;color:rgba(51,65,85,.76)!important;font-size:10.5px!important;font-weight:850!important;letter-spacing:.02em!important;white-space:nowrap!important;overflow:visible!important;text-overflow:clip!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.75)!important}
 #grc1App .grc-tab-icon{display:none!important}#grc1App .grc-tab-label{display:block!important;white-space:nowrap!important;overflow:visible!important;line-height:1!important}#grc1App .grc-tab:hover{color:#07596a!important;background:rgba(226,248,255,.58)!important;border-color:rgba(1,149,175,.20)!important}#grc1App .grc-tab.is-active{color:#07596a!important;background:linear-gradient(135deg,rgba(226,248,255,.92),rgba(255,255,255,.84))!important;border-color:rgba(1,149,175,.28)!important;box-shadow:0 9px 20px rgba(1,149,175,.10),inset 0 1px 0 rgba(255,255,255,.80)!important}
 #grc1App .grc-tab-count{flex:0 0 auto!important;min-width:19px!important;height:19px!important;border-radius:999px!important;display:grid!important;place-items:center!important;font-size:7.5px!important;background:#eaf3f7!important;color:#416173!important}#grc1App .grc-tab.is-active .grc-tab-count{background:#0195af!important;color:#fff!important}
-#grc1AiFloatBtn{pointer-events:auto!important}#grc1AiWin{pointer-events:auto!important}#grc1AiWin.open{display:flex!important}
+#grcAiFloatBtn{pointer-events:auto!important}#grcAiWin{pointer-events:auto!important}#grcAiWin.open{display:flex!important}
 @media(max-width:1050px){#grc1App .grc-tab{min-width:112px!important;padding:0 14px!important;font-size:10px!important}#grc1App .grc-user-copy{display:none!important}#grc1App .grc-user-profile-btn{min-width:50px!important}}
 @media print{
  body.grc-native-export #grc1App .grc-page.is-active{zoom:.82!important;width:121.95%!important;transform-origin:top left!important}
@@ -1007,11 +1008,11 @@ body.grc-mode #filterChips,body.grc-mode #yearBtns,body.grc-mode .filter-chips,b
 #grc1App .grc-tab[onclick*="executive"]{min-width:136px!important}
 #grc1App .grc-export-actions{flex:0 0 auto!important}
 /* GRC Chat is self-contained and does not depend on Performance chat CSS */
-#grc1AiFloatBtn{position:fixed!important;right:22px!important;bottom:56px!important;z-index:2147483000!important;width:56px!important;height:56px!important;padding:0!important;border:0!important;border-radius:50%!important;background:linear-gradient(135deg,#12233a,#0195af)!important;color:#fff!important;box-shadow:0 16px 38px rgba(1,149,175,.36)!important;display:grid;place-items:center!important;cursor:pointer!important}
-#grc1AiFloatBtn .ai-float-chart{width:42px!important;height:42px!important;border-radius:50%!important;background:rgba(255,255,255,.16)!important;display:grid!important;place-items:center!important;font-size:19px!important}
-#grc1AiWin{display:none;position:fixed!important;right:22px!important;bottom:118px!important;z-index:2147483001!important;width:min(390px,calc(100vw - 28px))!important;height:560px!important;max-height:calc(100vh - 135px)!important;background:#fff!important;border:1px solid rgba(1,149,175,.18)!important;border-radius:24px!important;box-shadow:0 22px 70px rgba(15,23,42,.25)!important;overflow:hidden!important;flex-direction:column!important;font-family:inherit!important;color:#0f172a!important}
-#grc1AiWin.open{display:flex!important}#grc1AiWin .ai-chat-head{padding:16px 18px!important;background:linear-gradient(135deg,#12233a,#0195af)!important;color:#fff!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px!important;flex:0 0 auto!important}#grc1AiWin .ai-chat-title-wrap{display:flex!important;align-items:center!important;gap:12px!important}#grc1AiWin .ai-chat-icon{width:42px!important;height:42px!important;border-radius:16px!important;background:rgba(255,255,255,.16)!important;display:grid!important;place-items:center!important;font-size:20px!important;border:1px solid rgba(255,255,255,.22)!important}#grc1AiWin .ai-chat-title{font-weight:900!important;font-size:13px!important}#grc1AiWin .ai-chat-subtitle{font-size:10px!important;opacity:.75!important;margin-top:2px!important}#grc1AiWin .ai-chat-close{width:34px!important;height:34px!important;border-radius:12px!important;border:1px solid rgba(255,255,255,.22)!important;background:rgba(255,255,255,.12)!important;color:#fff!important;font-size:0!important;cursor:pointer!important;position:relative!important}#grc1AiWin .ai-chat-close:before{content:'×';font-size:22px;line-height:1;color:#fff;font-weight:900}#grc1AiWin .ai-chat-messages{flex:1!important;overflow-y:auto!important;padding:16px!important;background:linear-gradient(180deg,#f8fbfd,#fff)!important;display:flex!important;flex-direction:column!important;gap:11px!important}#grc1AiWin .ai-msg-bubble{max-width:90%!important;border-radius:17px!important;padding:11px 13px!important;font-size:12px!important;line-height:1.7!important;box-shadow:0 6px 18px rgba(15,23,42,.06)!important;word-break:break-word!important}#grc1AiWin .ai-msg-bubble.assistant{align-self:flex-start!important;background:#fff!important;border:1px solid #dbeafe!important;color:#1e293b!important}#grc1AiWin .ai-msg-bubble.user{align-self:flex-end!important;background:linear-gradient(135deg,#0195af,#0f3753)!important;color:#fff!important;border:0!important}#grc1AiWin .ai-suggestion-row{display:flex!important;flex-wrap:wrap!important;gap:7px!important}#grc1AiWin .ai-suggestion-row button{border:1px solid #cfe8ef!important;background:#effcff!important;color:#075985!important;border-radius:999px!important;padding:7px 10px!important;font-size:11px!important;font-weight:700!important;cursor:pointer!important}#grc1AiWin .ai-chat-inputbar{padding:12px!important;background:#fff!important;border-top:1px solid #e2e8f0!important;display:flex!important;gap:9px!important;align-items:flex-end!important}#grc1AiWin .ai-chat-inputbar textarea{flex:1!important;border:1.5px solid #dbeafe!important;border-radius:16px!important;background:#f8fafc!important;color:#0f172a!important;padding:11px 12px!important;font-size:12px!important;font-family:inherit!important;resize:none!important;outline:none!important;line-height:1.45!important;max-height:90px!important}#grc1AiSendBtn{width:44px!important;height:44px!important;border:0!important;border-radius:16px!important;background:linear-gradient(135deg,#0195af,#12233a)!important;color:#fff!important;font-size:16px!important;cursor:pointer!important;box-shadow:0 10px 22px rgba(1,149,175,.25)!important}
-@media(max-width:900px){#grc1App .grc-nav{max-width:calc(100% - 205px)!important}#grc1App .grc-tab{min-width:98px!important}#grc1AiWin{right:10px!important;bottom:92px!important;width:calc(100vw - 20px)!important;height:calc(100vh - 120px)!important}}
+#grcAiFloatBtn{position:fixed!important;right:22px!important;bottom:56px!important;z-index:2147483000!important;width:56px!important;height:56px!important;padding:0!important;border:0!important;border-radius:50%!important;background:linear-gradient(135deg,#12233a,#0195af)!important;color:#fff!important;box-shadow:0 16px 38px rgba(1,149,175,.36)!important;display:grid;place-items:center!important;cursor:pointer!important}
+#grcAiFloatBtn .ai-float-chart{width:42px!important;height:42px!important;border-radius:50%!important;background:rgba(255,255,255,.16)!important;display:grid!important;place-items:center!important;font-size:19px!important}
+#grcAiWin{display:none;position:fixed!important;right:22px!important;bottom:118px!important;z-index:2147483001!important;width:min(390px,calc(100vw - 28px))!important;height:560px!important;max-height:calc(100vh - 135px)!important;background:#fff!important;border:1px solid rgba(1,149,175,.18)!important;border-radius:24px!important;box-shadow:0 22px 70px rgba(15,23,42,.25)!important;overflow:hidden!important;flex-direction:column!important;font-family:inherit!important;color:#0f172a!important}
+#grcAiWin.open{display:flex!important}#grcAiWin .ai-chat-head{padding:16px 18px!important;background:linear-gradient(135deg,#12233a,#0195af)!important;color:#fff!important;display:flex!important;align-items:center!important;justify-content:space-between!important;gap:10px!important;flex:0 0 auto!important}#grcAiWin .ai-chat-title-wrap{display:flex!important;align-items:center!important;gap:12px!important}#grcAiWin .ai-chat-icon{width:42px!important;height:42px!important;border-radius:16px!important;background:rgba(255,255,255,.16)!important;display:grid!important;place-items:center!important;font-size:20px!important;border:1px solid rgba(255,255,255,.22)!important}#grcAiWin .ai-chat-title{font-weight:900!important;font-size:13px!important}#grcAiWin .ai-chat-subtitle{font-size:10px!important;opacity:.75!important;margin-top:2px!important}#grcAiWin .ai-chat-close{width:34px!important;height:34px!important;border-radius:12px!important;border:1px solid rgba(255,255,255,.22)!important;background:rgba(255,255,255,.12)!important;color:#fff!important;font-size:0!important;cursor:pointer!important;position:relative!important}#grcAiWin .ai-chat-close:before{content:'×';font-size:22px;line-height:1;color:#fff;font-weight:900}#grcAiWin .ai-chat-messages{flex:1!important;overflow-y:auto!important;padding:16px!important;background:linear-gradient(180deg,#f8fbfd,#fff)!important;display:flex!important;flex-direction:column!important;gap:11px!important}#grcAiWin .ai-msg-bubble{max-width:90%!important;border-radius:17px!important;padding:11px 13px!important;font-size:12px!important;line-height:1.7!important;box-shadow:0 6px 18px rgba(15,23,42,.06)!important;word-break:break-word!important}#grcAiWin .ai-msg-bubble.assistant{align-self:flex-start!important;background:#fff!important;border:1px solid #dbeafe!important;color:#1e293b!important}#grcAiWin .ai-msg-bubble.user{align-self:flex-end!important;background:linear-gradient(135deg,#0195af,#0f3753)!important;color:#fff!important;border:0!important}#grcAiWin .ai-suggestion-row{display:flex!important;flex-wrap:wrap!important;gap:7px!important}#grcAiWin .ai-suggestion-row button{border:1px solid #cfe8ef!important;background:#effcff!important;color:#075985!important;border-radius:999px!important;padding:7px 10px!important;font-size:11px!important;font-weight:700!important;cursor:pointer!important}#grcAiWin .ai-chat-inputbar{padding:12px!important;background:#fff!important;border-top:1px solid #e2e8f0!important;display:flex!important;gap:9px!important;align-items:flex-end!important}#grcAiWin .ai-chat-inputbar textarea{flex:1!important;border:1.5px solid #dbeafe!important;border-radius:16px!important;background:#f8fafc!important;color:#0f172a!important;padding:11px 12px!important;font-size:12px!important;font-family:inherit!important;resize:none!important;outline:none!important;line-height:1.45!important;max-height:90px!important}#grcAiSendBtn{width:44px!important;height:44px!important;border:0!important;border-radius:16px!important;background:linear-gradient(135deg,#0195af,#12233a)!important;color:#fff!important;font-size:16px!important;cursor:pointer!important;box-shadow:0 10px 22px rgba(1,149,175,.25)!important}
+@media(max-width:900px){#grc1App .grc-nav{max-width:calc(100% - 205px)!important}#grc1App .grc-tab{min-width:98px!important}#grcAiWin{right:10px!important;bottom:92px!important;width:calc(100vw - 20px)!important;height:calc(100vh - 120px)!important}}
 
 
 /* v68 — GRC header/account dimensions exactly match the active Performance header */
@@ -1247,70 +1248,70 @@ body.grc-mode #grc1App>.footbar.grc-performance-footer{display:flex!important;vi
 #grc1App .grc-status-confirm-text{font-size:10.5px;line-height:1.7;color:#667f8c;max-width:340px;margin:0 auto 18px}
 #grc1App .grc-status-confirm-ok{min-width:105px!important;height:38px!important}
 
-/* v119 — light GRC Administration workspace. Keep the gear button unchanged. */
-#_grcAdminCenterOv .grc-ac-shell{background:#F8FAFC!important;color:#152538!important;border-color:#D6E2EE!important;box-shadow:0 28px 90px rgba(15,23,42,.28)!important}
-#_grcAdminCenterOv .grc-ac-head{background:#FFFFFF!important;border-bottom:1px solid #DCE6EB!important}
-#_grcAdminCenterOv .grc-ac-title{color:#152538!important}
-#_grcAdminCenterOv .grc-ac-sub{color:#64748B!important}
-#_grcAdminCenterOv .grc-ac-close{background:#F1F5F9!important;border-color:#D6E2EE!important;color:#475569!important}
-#_grcAdminCenterOv .grc-ac-tabs{background:#F1F5F9!important;border-bottom:1px solid #DCE6EB!important}
-#_grcAdminCenterOv .grc-ac-tab{background:#FFFFFF!important;border-color:#D6E2EE!important;color:#52657A!important;box-shadow:0 2px 8px rgba(15,23,42,.04)!important}
-#_grcAdminCenterOv .grc-ac-tab.on{background:#E8F7FA!important;border-color:rgba(1,149,175,.34)!important;color:#087A90!important}
-#_grcAdminCenterOv .grc-ac-body{background:#F8FAFC!important}
-#_grcAdminCenterOv .grc-ac-page-head h2{color:#152538!important}
-#_grcAdminCenterOv .grc-ac-page-head p{color:#64748B!important}
-#_grcAdminCenterOv .grc-ac-table-wrap{background:#FFFFFF!important;border-color:#DCE6EB!important}
-#_grcAdminCenterOv .grc-ac-table th{background:#EEF4F7!important;color:#52657A!important;border-bottom-color:#DCE6EB!important}
-#_grcAdminCenterOv .grc-ac-table td{color:#334155!important;border-bottom-color:#E7EEF2!important}
-#_grcAdminCenterOv .grc-ac-table td b,#_grcAdminCenterOv .grc-ac-table td strong{color:#152538!important}
-#_grcAdminCenterOv .grc-ac-table tr:hover td{background:#F8FBFC!important}
-#_grcAdminCenterOv .grc-ac-comment{background:#FFFFFF!important;color:#152538!important;border-color:#CBDCE3!important}
-#_grcAdminCenterOv .grc-ac-filters label{color:#52657A!important}
-#_grcAdminCenterOv .grc-ac-filters select,#_grcAdminCenterOv .grc-ac-filters input{background:#FFFFFF!important;color:#152538!important;border-color:#CBDCE3!important}
-#_grcAdminCenterOv .grc-ac-empty{color:#64748B!important}
-#_grcAdminCenterOv .grc-ac-metric{background:#FFFFFF!important;border-color:#DCE6EB!important;box-shadow:0 3px 12px rgba(15,23,42,.04)!important}
-#_grcAdminCenterOv .grc-ac-metric span{color:#64748B!important}
-#_grcAdminCenterOv .grc-ac-metric b{color:#152538!important}
-#_grcAdminCenterOv .grc-ac-metric small{color:#718394!important}
-#_grcAdminCenterOv .grc-ac-insight{background:#FFFFFF!important;border-color:#DCE6EB!important}
-#_grcAdminCenterOv .grc-ac-insight h3{color:#152538!important}
-#_grcAdminCenterOv .grc-ac-mini-row{color:#64748B!important}
-#_grcAdminCenterOv .grc-ac-mini-track{background:#E7EEF2!important}
-#_grcAdminCenterOv .grc-ac-rating-comment{color:#64748B!important}
-#_grcAdminCenterOv .grc-ac-btn.secondary{background:#E8F7FA!important;border-color:rgba(1,149,175,.30)!important;color:#087A90!important}
-#_grcAdminCenterOv .grc-ac-btn.danger{background:#FEF2F2!important;border-color:#FECACA!important;color:#B91C1C!important}
+/* v119 — light GRC1 Administration workspace. Keep the gear button unchanged. */
+#_grc1AdminCenterOv .grc-ac-shell{background:#F8FAFC!important;color:#152538!important;border-color:#D6E2EE!important;box-shadow:0 28px 90px rgba(15,23,42,.28)!important}
+#_grc1AdminCenterOv .grc-ac-head{background:#FFFFFF!important;border-bottom:1px solid #DCE6EB!important}
+#_grc1AdminCenterOv .grc-ac-title{color:#152538!important}
+#_grc1AdminCenterOv .grc-ac-sub{color:#64748B!important}
+#_grc1AdminCenterOv .grc-ac-close{background:#F1F5F9!important;border-color:#D6E2EE!important;color:#475569!important}
+#_grc1AdminCenterOv .grc-ac-tabs{background:#F1F5F9!important;border-bottom:1px solid #DCE6EB!important}
+#_grc1AdminCenterOv .grc-ac-tab{background:#FFFFFF!important;border-color:#D6E2EE!important;color:#52657A!important;box-shadow:0 2px 8px rgba(15,23,42,.04)!important}
+#_grc1AdminCenterOv .grc-ac-tab.on{background:#E8F7FA!important;border-color:rgba(1,149,175,.34)!important;color:#087A90!important}
+#_grc1AdminCenterOv .grc-ac-body{background:#F8FAFC!important}
+#_grc1AdminCenterOv .grc-ac-page-head h2{color:#152538!important}
+#_grc1AdminCenterOv .grc-ac-page-head p{color:#64748B!important}
+#_grc1AdminCenterOv .grc-ac-table-wrap{background:#FFFFFF!important;border-color:#DCE6EB!important}
+#_grc1AdminCenterOv .grc-ac-table th{background:#EEF4F7!important;color:#52657A!important;border-bottom-color:#DCE6EB!important}
+#_grc1AdminCenterOv .grc-ac-table td{color:#334155!important;border-bottom-color:#E7EEF2!important}
+#_grc1AdminCenterOv .grc-ac-table td b,#_grc1AdminCenterOv .grc-ac-table td strong{color:#152538!important}
+#_grc1AdminCenterOv .grc-ac-table tr:hover td{background:#F8FBFC!important}
+#_grc1AdminCenterOv .grc-ac-comment{background:#FFFFFF!important;color:#152538!important;border-color:#CBDCE3!important}
+#_grc1AdminCenterOv .grc-ac-filters label{color:#52657A!important}
+#_grc1AdminCenterOv .grc-ac-filters select,#_grc1AdminCenterOv .grc-ac-filters input{background:#FFFFFF!important;color:#152538!important;border-color:#CBDCE3!important}
+#_grc1AdminCenterOv .grc-ac-empty{color:#64748B!important}
+#_grc1AdminCenterOv .grc-ac-metric{background:#FFFFFF!important;border-color:#DCE6EB!important;box-shadow:0 3px 12px rgba(15,23,42,.04)!important}
+#_grc1AdminCenterOv .grc-ac-metric span{color:#64748B!important}
+#_grc1AdminCenterOv .grc-ac-metric b{color:#152538!important}
+#_grc1AdminCenterOv .grc-ac-metric small{color:#718394!important}
+#_grc1AdminCenterOv .grc-ac-insight{background:#FFFFFF!important;border-color:#DCE6EB!important}
+#_grc1AdminCenterOv .grc-ac-insight h3{color:#152538!important}
+#_grc1AdminCenterOv .grc-ac-mini-row{color:#64748B!important}
+#_grc1AdminCenterOv .grc-ac-mini-track{background:#E7EEF2!important}
+#_grc1AdminCenterOv .grc-ac-rating-comment{color:#64748B!important}
+#_grc1AdminCenterOv .grc-ac-btn.secondary{background:#E8F7FA!important;border-color:rgba(1,149,175,.30)!important;color:#087A90!important}
+#_grc1AdminCenterOv .grc-ac-btn.danger{background:#FEF2F2!important;border-color:#FECACA!important;color:#B91C1C!important}
 
-/* v120 — GRC Administration analytics aligned with Performance */
-#_grcAdminCenterOv .grc-ac-shell{background:#FFFFFF!important;color:#152538!important;border:1px solid #DCE6EB!important;box-shadow:0 28px 80px rgba(15,23,42,.26)!important}
-#_grcAdminCenterOv .grc-ac-head{background:#F8FAFC!important;border-bottom:1px solid #DCE6EB!important}
-#_grcAdminCenterOv .grc-ac-title{color:#152538!important}#_grcAdminCenterOv .grc-ac-sub{color:#64748B!important}
-#_grcAdminCenterOv .grc-ac-close{background:#fff!important;border-color:#DCE6EB!important;color:#64748B!important}
-#_grcAdminCenterOv .grc-ac-tabs{background:#F8FAFC!important;border-bottom:1px solid #DCE6EB!important}
-#_grcAdminCenterOv .grc-ac-tab{background:#fff!important;border-color:#DCE6EB!important;color:#64748B!important}
-#_grcAdminCenterOv .grc-ac-tab.on{background:#E8F7FA!important;border-color:rgba(1,149,175,.34)!important;color:#087A90!important}
-#_grcAdminCenterOv .grc-ac-page-head h2{color:#152538!important}#_grcAdminCenterOv .grc-ac-page-head p{color:#64748B!important}
-#_grcAdminCenterOv .grc-ac-btn.secondary{background:#E8F7FA!important;border-color:rgba(1,149,175,.30)!important;color:#087A90!important}
-#_grcAdminCenterOv .grc-ac-metrics{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))!important;gap:10px!important}
-#_grcAdminCenterOv .grc-ac-metric{min-height:92px!important;border:1px solid #DCE6EB!important;border-radius:12px!important;background:#fff!important;padding:12px 13px!important;box-shadow:0 3px 12px rgba(15,23,42,.04)!important}
-#_grcAdminCenterOv .grc-ac-metric span{color:#64748B!important;letter-spacing:0!important}#_grcAdminCenterOv .grc-ac-metric b{color:#152538!important;font-size:25px!important}#_grcAdminCenterOv .grc-ac-metric small{color:#718394!important}
-#_grcAdminCenterOv .grc-ac-insight-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important}
-#_grcAdminCenterOv .grc-ac-insight{border:1px solid #DCE6EB!important;border-radius:12px!important;background:#fff!important;padding:13px!important;box-shadow:0 3px 12px rgba(15,23,42,.035)!important}
-#_grcAdminCenterOv .grc-ac-insight h3{color:#152538!important;font-size:10px!important}
-#_grcAdminCenterOv .grc-ac-mini-row{color:#64748B!important}#_grcAdminCenterOv .grc-ac-mini-track{background:#E7EEF2!important}#_grcAdminCenterOv .grc-ac-mini-row b{color:#152538!important}
-#_grcAdminCenterOv .grc-ac-table-wrap{border:1px solid #DCE6EB!important;background:#fff!important}#_grcAdminCenterOv .grc-ac-table th{background:#EEF4F7!important;color:#52657A!important;border-bottom-color:#DCE6EB!important}#_grcAdminCenterOv .grc-ac-table td{color:#334155!important;border-bottom-color:#E7EEF2!important}#_grcAdminCenterOv .grc-ac-table td b{color:#152538!important}#_grcAdminCenterOv .grc-ac-table tr:hover td{background:#F8FBFC!important}
-#_grcAdminCenterOv .grc-ac-comment{background:#fff!important;color:#152538!important;border-color:#CBDCE3!important}
-#_grcAdminCenterOv .grc-ac-rating-comment{color:#64748B!important}
-#_grcAdminCenterOv .grc-ac-donut-layout{display:grid;grid-template-columns:126px minmax(0,1fr);gap:18px;align-items:center;min-height:142px}
-#_grcAdminCenterOv .grc-ac-donut{width:120px;height:120px;border-radius:50%;display:grid;place-items:center;margin:auto}
-#_grcAdminCenterOv .grc-ac-donut>div{width:72px;height:72px;border-radius:50%;display:grid;place-items:center;align-content:center;background:#fff;box-shadow:inset 0 0 0 1px #DCE6EB}
-#_grcAdminCenterOv .grc-ac-donut strong{font-size:22px;color:#152538;line-height:1}#_grcAdminCenterOv .grc-ac-donut small{font-size:8px;color:#64748B;margin-top:3px}
-#_grcAdminCenterOv .grc-ac-donut-legend{display:grid;gap:7px}#_grcAdminCenterOv .grc-ac-donut-legend>div{display:grid;grid-template-columns:9px minmax(0,1fr) 28px;gap:7px;align-items:center;font-size:9px;color:#64748B}#_grcAdminCenterOv .grc-ac-donut-legend i{width:9px;height:9px;border-radius:3px}#_grcAdminCenterOv .grc-ac-donut-legend b{text-align:right;color:#152538}
-@media(max-width:800px){#_grcAdminCenterOv .grc-ac-insight-grid{grid-template-columns:1fr!important}#_grcAdminCenterOv .grc-ac-donut-layout{grid-template-columns:110px 1fr}}
+/* v120 — GRC1 Administration analytics aligned with Performance */
+#_grc1AdminCenterOv .grc-ac-shell{background:#FFFFFF!important;color:#152538!important;border:1px solid #DCE6EB!important;box-shadow:0 28px 80px rgba(15,23,42,.26)!important}
+#_grc1AdminCenterOv .grc-ac-head{background:#F8FAFC!important;border-bottom:1px solid #DCE6EB!important}
+#_grc1AdminCenterOv .grc-ac-title{color:#152538!important}#_grc1AdminCenterOv .grc-ac-sub{color:#64748B!important}
+#_grc1AdminCenterOv .grc-ac-close{background:#fff!important;border-color:#DCE6EB!important;color:#64748B!important}
+#_grc1AdminCenterOv .grc-ac-tabs{background:#F8FAFC!important;border-bottom:1px solid #DCE6EB!important}
+#_grc1AdminCenterOv .grc-ac-tab{background:#fff!important;border-color:#DCE6EB!important;color:#64748B!important}
+#_grc1AdminCenterOv .grc-ac-tab.on{background:#E8F7FA!important;border-color:rgba(1,149,175,.34)!important;color:#087A90!important}
+#_grc1AdminCenterOv .grc-ac-page-head h2{color:#152538!important}#_grc1AdminCenterOv .grc-ac-page-head p{color:#64748B!important}
+#_grc1AdminCenterOv .grc-ac-btn.secondary{background:#E8F7FA!important;border-color:rgba(1,149,175,.30)!important;color:#087A90!important}
+#_grc1AdminCenterOv .grc-ac-metrics{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))!important;gap:10px!important}
+#_grc1AdminCenterOv .grc-ac-metric{min-height:92px!important;border:1px solid #DCE6EB!important;border-radius:12px!important;background:#fff!important;padding:12px 13px!important;box-shadow:0 3px 12px rgba(15,23,42,.04)!important}
+#_grc1AdminCenterOv .grc-ac-metric span{color:#64748B!important;letter-spacing:0!important}#_grc1AdminCenterOv .grc-ac-metric b{color:#152538!important;font-size:25px!important}#_grc1AdminCenterOv .grc-ac-metric small{color:#718394!important}
+#_grc1AdminCenterOv .grc-ac-insight-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important}
+#_grc1AdminCenterOv .grc-ac-insight{border:1px solid #DCE6EB!important;border-radius:12px!important;background:#fff!important;padding:13px!important;box-shadow:0 3px 12px rgba(15,23,42,.035)!important}
+#_grc1AdminCenterOv .grc-ac-insight h3{color:#152538!important;font-size:10px!important}
+#_grc1AdminCenterOv .grc-ac-mini-row{color:#64748B!important}#_grc1AdminCenterOv .grc-ac-mini-track{background:#E7EEF2!important}#_grc1AdminCenterOv .grc-ac-mini-row b{color:#152538!important}
+#_grc1AdminCenterOv .grc-ac-table-wrap{border:1px solid #DCE6EB!important;background:#fff!important}#_grc1AdminCenterOv .grc-ac-table th{background:#EEF4F7!important;color:#52657A!important;border-bottom-color:#DCE6EB!important}#_grc1AdminCenterOv .grc-ac-table td{color:#334155!important;border-bottom-color:#E7EEF2!important}#_grc1AdminCenterOv .grc-ac-table td b{color:#152538!important}#_grc1AdminCenterOv .grc-ac-table tr:hover td{background:#F8FBFC!important}
+#_grc1AdminCenterOv .grc-ac-comment{background:#fff!important;color:#152538!important;border-color:#CBDCE3!important}
+#_grc1AdminCenterOv .grc-ac-rating-comment{color:#64748B!important}
+#_grc1AdminCenterOv .grc-ac-donut-layout{display:grid;grid-template-columns:126px minmax(0,1fr);gap:18px;align-items:center;min-height:142px}
+#_grc1AdminCenterOv .grc-ac-donut{width:120px;height:120px;border-radius:50%;display:grid;place-items:center;margin:auto}
+#_grc1AdminCenterOv .grc-ac-donut>div{width:72px;height:72px;border-radius:50%;display:grid;place-items:center;align-content:center;background:#fff;box-shadow:inset 0 0 0 1px #DCE6EB}
+#_grc1AdminCenterOv .grc-ac-donut strong{font-size:22px;color:#152538;line-height:1}#_grc1AdminCenterOv .grc-ac-donut small{font-size:8px;color:#64748B;margin-top:3px}
+#_grc1AdminCenterOv .grc-ac-donut-legend{display:grid;gap:7px}#_grc1AdminCenterOv .grc-ac-donut-legend>div{display:grid;grid-template-columns:9px minmax(0,1fr) 28px;gap:7px;align-items:center;font-size:9px;color:#64748B}#_grc1AdminCenterOv .grc-ac-donut-legend i{width:9px;height:9px;border-radius:3px}#_grc1AdminCenterOv .grc-ac-donut-legend b{text-align:right;color:#152538}
+@media(max-width:800px){#_grc1AdminCenterOv .grc-ac-insight-grid{grid-template-columns:1fr!important}#_grc1AdminCenterOv .grc-ac-donut-layout{grid-template-columns:110px 1fr}}
 
 /* v120.1 — GRC analytics final light-theme contrast */
-#_grcAdminCenterOv .grc-ac-table td [style*="color:#e2e8f0"],#_grcAdminCenterOv .grc-ac-table td [style*="color:#fff"]{color:#152538!important}
-#_grcAdminCenterOv .grc-ac-table td [style*="color:#627989"]{color:#64748B!important}
-#_grcAdminCenterOv .grc-ac-stars{color:#D69E16!important;letter-spacing:1px!important}
+#_grc1AdminCenterOv .grc-ac-table td [style*="color:#e2e8f0"],#_grc1AdminCenterOv .grc-ac-table td [style*="color:#fff"]{color:#152538!important}
+#_grc1AdminCenterOv .grc-ac-table td [style*="color:#627989"]{color:#64748B!important}
+#_grc1AdminCenterOv .grc-ac-stars{color:#D69E16!important;letter-spacing:1px!important}
 
 
 /* v121 — professional in-platform confirmation for direct Risk status updates */
@@ -1346,26 +1347,26 @@ body > .grc-status-confirm-backdrop .grc-status-confirm-ok:hover{transform:trans
 body > .grc-status-confirm-backdrop .grc-status-confirm-ok:focus{outline:3px solid rgba(18,167,181,.18)!important;outline-offset:2px!important}
 
 /* v122 — analytics parity with Performance: colored cards + shared chart layout */
-#_grcAdminCenterOv .grc-ac-metric.info{background:linear-gradient(180deg,#F0FBFE 0%,#FFFFFF 78%)!important;border-color:#B9E8F0!important;border-top:3px solid #06B6D4!important}
-#_grcAdminCenterOv .grc-ac-metric.good{background:linear-gradient(180deg,#F0FDF4 0%,#FFFFFF 78%)!important;border-color:#BBF7D0!important;border-top:3px solid #22C55E!important}
-#_grcAdminCenterOv .grc-ac-metric.warn{background:linear-gradient(180deg,#FFFBEB 0%,#FFFFFF 78%)!important;border-color:#FDE68A!important;border-top:3px solid #F59E0B!important}
-#_grcAdminCenterOv .grc-ac-metric.bad{background:linear-gradient(180deg,#FEF2F2 0%,#FFFFFF 78%)!important;border-color:#FECACA!important;border-top:3px solid #EF4444!important}
-#_grcAdminCenterOv .grc-ac-metric.purple{background:linear-gradient(180deg,#F5F3FF 0%,#FFFFFF 78%)!important;border-color:#DDD6FE!important;border-top:3px solid #8B5CF6!important}
-#_grcAdminCenterOv .grc-ac-metric.rating{background:linear-gradient(180deg,#FFFBEB 0%,#FFFFFF 78%)!important;border-color:#FDE68A!important;border-top:3px solid #D69E16!important}
-#_grcAdminCenterOv .grc-ac-metrics-secondary{grid-template-columns:repeat(3,minmax(130px,1fr))!important;max-width:570px!important}
-#_grcAdminCenterOv .grc-ac-insight-grid-two{grid-template-columns:repeat(2,minmax(0,1fr))!important}
-#_grcAdminCenterOv .grc-ac-insight-grid-three{grid-template-columns:repeat(3,minmax(0,1fr))!important}
-#_grcAdminCenterOv .grc-ac-insight{min-height:184px;box-sizing:border-box}
-#_grcAdminCenterOv .grc-ac-table{min-width:980px}
-@media(max-width:980px){#_grcAdminCenterOv .grc-ac-insight-grid-three{grid-template-columns:1fr!important}#_grcAdminCenterOv .grc-ac-insight-grid-two{grid-template-columns:1fr!important}}
-@media(max-width:700px){#_grcAdminCenterOv .grc-ac-metrics-secondary{grid-template-columns:1fr!important;max-width:none!important}}
+#_grc1AdminCenterOv .grc-ac-metric.info{background:linear-gradient(180deg,#F0FBFE 0%,#FFFFFF 78%)!important;border-color:#B9E8F0!important;border-top:3px solid #06B6D4!important}
+#_grc1AdminCenterOv .grc-ac-metric.good{background:linear-gradient(180deg,#F0FDF4 0%,#FFFFFF 78%)!important;border-color:#BBF7D0!important;border-top:3px solid #22C55E!important}
+#_grc1AdminCenterOv .grc-ac-metric.warn{background:linear-gradient(180deg,#FFFBEB 0%,#FFFFFF 78%)!important;border-color:#FDE68A!important;border-top:3px solid #F59E0B!important}
+#_grc1AdminCenterOv .grc-ac-metric.bad{background:linear-gradient(180deg,#FEF2F2 0%,#FFFFFF 78%)!important;border-color:#FECACA!important;border-top:3px solid #EF4444!important}
+#_grc1AdminCenterOv .grc-ac-metric.purple{background:linear-gradient(180deg,#F5F3FF 0%,#FFFFFF 78%)!important;border-color:#DDD6FE!important;border-top:3px solid #8B5CF6!important}
+#_grc1AdminCenterOv .grc-ac-metric.rating{background:linear-gradient(180deg,#FFFBEB 0%,#FFFFFF 78%)!important;border-color:#FDE68A!important;border-top:3px solid #D69E16!important}
+#_grc1AdminCenterOv .grc-ac-metrics-secondary{grid-template-columns:repeat(3,minmax(130px,1fr))!important;max-width:570px!important}
+#_grc1AdminCenterOv .grc-ac-insight-grid-two{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+#_grc1AdminCenterOv .grc-ac-insight-grid-three{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+#_grc1AdminCenterOv .grc-ac-insight{min-height:184px;box-sizing:border-box}
+#_grc1AdminCenterOv .grc-ac-table{min-width:980px}
+@media(max-width:980px){#_grc1AdminCenterOv .grc-ac-insight-grid-three{grid-template-columns:1fr!important}#_grc1AdminCenterOv .grc-ac-insight-grid-two{grid-template-columns:1fr!important}}
+@media(max-width:700px){#_grc1AdminCenterOv .grc-ac-metrics-secondary{grid-template-columns:1fr!important;max-width:none!important}}
 
 /* v130 — keep Edit & Resubmit form above the GRC approval requests overlay */
-#_grcFormModal.grc-modal-backdrop{
+#_grc1FormModal.grc-modal-backdrop{
   z-index:2147483647!important;
   isolation:isolate!important;
 }
-#_grcFormModal .grc-modal{
+#_grc1FormModal .grc-modal{
   position:relative!important;
   z-index:2!important;
 }
