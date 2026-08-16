@@ -15,10 +15,10 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260813-v176');
+  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260816-v187-canonical-register-sync');
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260813-v176');
+  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260816-v187-canonical-register-sync');
   var GRC_CACHE_OWNER_KEY='qumc_grc_workspace_preview_v1_owner';
   var GRC_CACHE_BUILD_KEY='qumc_grc_workspace_preview_build';
   var STATE_VERSION=13;
@@ -948,7 +948,7 @@
   // Governance and Risk remain department-scoped. Shared operational modules are visible to every approved GRC user.
   var GRC_GLOBAL_READ_COLLECTIONS={manuals:true,codes:true,compliance:true,audits:true,actions:true,documents:true,initiatives:true};
   var grcStateUnsubs=[],grcStateSaveTimer=null,grcApplyingRemote=false,grcSyncStarted=false,grcCloudReady=false;
-  var grcCloudParts={},grcCloudMirror={},grcCloudDuplicates={},grcCloudEverHydrated={},grcInitialScopes={},grcCollectionScopeReady={},grcCollectionScopeFailed={},grcMigrationPromise=null,grcPendingCloudSave=false;
+  var grcCloudParts={},grcCloudMirror={},grcCloudDuplicates={},grcCloudEverHydrated={},grcInitialScopes={},grcCollectionScopeReady={},grcCollectionScopeFailed={},grcMigrationPromise=null,grcPendingCloudSave=false,grcCanonicalCatalogV187Promise=null;
   var grcRiskStatusOverrides={},grcRiskStatusUnsub=null,grcSyncScopeKey='',grcPendingLocalDeletes={risks:{},incidents:{}},grcSyncLastError='',grcSyncLastErrorAt='';
   function grcPendingDeleteKey(collectionKey,record){if(collectionKey!=='risks'&&collectionKey!=='incidents')return'';return grcRegisterBusinessKey(record||{});}
   function grcMarkPendingLocalDelete(collectionKey,record){var key=grcPendingDeleteKey(collectionKey,record);if(!key)return;grcPendingLocalDeletes[collectionKey]=grcPendingLocalDeletes[collectionKey]||{};grcPendingLocalDeletes[collectionKey][key]=Date.now();}
@@ -1258,6 +1258,10 @@
   });
 
   function grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows){
+    /* v187: bundled baseline is only a Super Admin repair source. All other
+       roles render Firestore records only, so every device/role sees the same
+       canonical server dataset instead of a different local seed merge. */
+    if(!isGrcSuperAdmin())return rows||[];
     /*
       v165 department-register recovery.
 
@@ -1364,8 +1368,8 @@
     /* Seed catalogs are fallback data only. A Firestore tombstone is an
        explicit administrator decision and must suppress the bundled seed on
        every device; otherwise deleted codes/initiatives reappear after sync. */
-    if(collectionKey==='initiatives')rows=mergeInitiativeSeed(rows,tombstones);
-    if(collectionKey==='codes')rows=mergeEmergencyCodeSeed(rows,tombstones);
+    if(collectionKey==='initiatives'&&isGrcSuperAdmin())rows=mergeInitiativeSeed(rows,tombstones);
+    if(collectionKey==='codes'&&isGrcSuperAdmin())rows=mergeEmergencyCodeSeed(rows,tombstones);
     state[collectionKey]=rows;grcCloudMirror[collectionKey]={};rows.forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i);if(map[id])grcCloudMirror[collectionKey][id]=grcComparable(r);});
     grcCloudEverHydrated[collectionKey]=true;
   }
@@ -1398,7 +1402,7 @@
   function grcApplyReadyCollection(collectionKey){
     if(!grcInitialScopes[collectionKey])return;
     grcApplyingRemote=true;grcApplyCloudCollection(collectionKey);state=repairGovernanceCodeState(state);enforceLocalGrcScope();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}grcApplyingRemote=false;
-    if(grcAllInitialScopesReady()&&grcAllInitialScopesHealthy()){grcCloudReady=true;if(grcPendingCloudSave){grcPendingCloudSave=false;queueSharedStateSave(true);}}else grcCloudReady=false;
+    if(grcAllInitialScopesReady()&&grcAllInitialScopesHealthy()){grcCloudReady=true;if(grcPendingCloudSave){grcPendingCloudSave=false;queueSharedStateSave(true);}if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV187().catch(function(err){console.error('[GRC Canonical Catalog v187]',err);});},0);}else grcCloudReady=false;
     renderAtSamePosition(grcViewportPosition());
   }
   function grcHandleCollectionSnapshot(collectionKey,scope,snapshot){
@@ -1671,17 +1675,77 @@
              label-only rows are normalized by the Super Admin maintenance pass;
              querying them with `in` caused Firestore to reject the whole scope
              on some accounts even while valid canonical data was available. */
-          var scopes=['department','division'];
+          var scopes=(key==='risks'||key==='incidents')?['department']:['department','division'];
           grcConfigureCollectionScopes(key,scopes);
           grcListen(b,key,'department',b.fs.query(col,b.fs.where('departmentKey','==',dept)));
-          grcListen(b,key,'division',b.fs.query(col,b.fs.where('departmentKey','==','division')));
+          if(scopes.indexOf('division')>=0)grcListen(b,key,'division',b.fs.query(col,b.fs.where('departmentKey','==','division')));
         }
       });
+      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV187().catch(function(err){console.error('[GRC Canonical Catalog v187]',err);});},350);
     }).catch(function(err){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError='GRC sync initialization: '+String(err&&err.message||err);grcSyncLastErrorAt=new Date().toISOString();console.error('[GRC Secure Sync] init failed',err);renderAtSamePosition(grcViewportPosition());});
   }
+  async function grcPrimeAdminMirrorsFromServer(b,preserveLocalState){
+    if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return false;
+    var pending=preserveLocalState?grcSerializable(state):null;
+    for(var ki=0,keys=Object.keys(GRC_COLLECTION_MAP);ki<keys.length;ki++){
+      var key=keys[ki],col=b.fs.collection(b.db,GRC_COLLECTION_MAP[key]);
+      var snap=(typeof b.fs.getDocsFromServer==='function')?await b.fs.getDocsFromServer(col):await b.fs.getDocs(col);
+      grcCloudParts[key]={all:grcDocsFromSnapshot(snap)};
+      grcApplyCloudCollection(key);
+      grcInitialScopes[key]=true;
+      grcCollectionScopeFailed[key]={};
+    }
+    grcCloudReady=true;
+    if(pending){state=cleanSharedState(pending);state=repairGovernanceCodeState(state);state.risks=(state.risks||[]).map(normalizeRiskClassification);state.initiatives=normalizeInitiativePeople(state.initiatives);}
+    else{state=repairGovernanceCodeState(state);enforceLocalGrcScope();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}}
+    return true;
+  }
+
+  async function ensureSuperAdminCanonicalCatalogV187(){
+    if(!isGrcSuperAdmin())return false;
+    if(grcCanonicalCatalogV187Promise)return grcCanonicalCatalogV187Promise;
+    grcCanonicalCatalogV187Promise=ensureReportBackend().then(async function(b){
+      if(!b.auth.currentUser)return false;
+      if(!grcCloudReady)await grcPrimeAdminMirrorsFromServer(b,false);
+      var markerRef=b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v187'),marker=await b.fs.getDoc(markerRef);
+      if(marker.exists()&&marker.data()&&marker.data().status==='completed')return false;
+      await b.fs.setDoc(markerRef,{status:'running',build:GRC_CLIENT_BUILD,startedAt:b.fs.serverTimestamp(),startedBy:String(window._fbUser||'')},{merge:true});
+      var writes=[],counts={};
+      Object.keys(GRC_COLLECTION_MAP).forEach(function(key){
+        var rows=Array.isArray(state[key])?state[key].slice():[];
+        if(key==='initiatives')rows=mergeInitiativeSeed(rows);
+        if(key==='codes')rows=mergeEmergencyCodeSeed(rows);
+        counts[key]=rows.length;
+        rows.forEach(function(record,index){
+          var prepared=grcPrepareCloudRecord(key,record,index,b),id=prepared._cloudId;
+          prepared.canonicalCatalogVersion=187;
+          prepared.canonicalCatalogSource='super_admin_complete_state';
+          writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],id),data:prepared});
+        });
+      });
+      await grcCommitWrites(b,writes);
+      await b.fs.setDoc(markerRef,{status:'completed',build:GRC_CLIENT_BUILD,counts:counts,writes:writes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+      try{window._recordAuditDirect&&window._recordAuditDirect('GRC_CANONICAL_CATALOG_V187','Published the complete Super Admin GRC register catalog as the canonical Firestore dataset',null,{counts:counts,writes:writes.length},{portal:'grc'});}catch(_audit){}
+      return true;
+    }).then(function(changed){
+      if(changed&&typeof window._grcRestartSecureSync==='function')setTimeout(function(){window._grcRestartSecureSync(true);},80);
+      return changed;
+    }).catch(async function(err){
+      try{var b=await ensureReportBackend();await b.fs.setDoc(b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v187'),{status:'failed',build:GRC_CLIENT_BUILD,error:String(err&&err.message||err).slice(0,500),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}
+      throw err;
+    }).finally(function(){grcCanonicalCatalogV187Promise=null;});
+    return grcCanonicalCatalogV187Promise;
+  }
+  window._grcEnsureCanonicalCatalogV187=ensureSuperAdminCanonicalCatalogV187;
+
   async function flushSecureState(){
-    if(grcApplyingRemote||!isGrcAdmin())return false;if(!grcCloudReady){grcPendingCloudSave=true;return false;}
-    var b=await ensureReportBackend();if(!b.auth.currentUser)throw new Error('not-authenticated');var writes=[],now=new Date().toISOString();
+    if(grcApplyingRemote||!isGrcAdmin())return false;
+    var b=await ensureReportBackend();if(!b.auth.currentUser)throw new Error('not-authenticated');
+    /* v187: an unrelated failed listener must never turn a Super Admin edit into
+       a device-local change. Rebuild the server mirror directly, preserve the
+       pending local edit, then write it through to Firestore. */
+    if(!grcCloudReady)await grcPrimeAdminMirrorsFromServer(b,true);
+    var writes=[],now=new Date().toISOString();
     Object.keys(GRC_COLLECTION_MAP).forEach(function(key){
       var current={},arr=Array.isArray(state[key])?state[key]:[],isRegister=key==='risks'||key==='incidents';
       arr.forEach(function(record,index){
@@ -1723,7 +1787,7 @@
     if(!writes.length)return true;await grcCommitWrites(b,writes);return true;
   }
   function queueSharedStateSave(immediate){
-    if(grcApplyingRemote||!isGrcAdmin())return;clearTimeout(grcStateSaveTimer);grcStateSaveTimer=setTimeout(function(){flushSecureState().catch(function(err){console.error('[GRC Secure Sync] save failed',err);grcPendingLocalDeletes={risks:{},incidents:{}};try{['risks','incidents'].forEach(function(key){if(grcCloudParts[key])grcApplyCloudCollection(key);});renderAtSamePosition(grcViewportPosition());}catch(_){}});},immediate?0:220);
+    if(grcApplyingRemote||!isGrcAdmin())return;clearTimeout(grcStateSaveTimer);grcStateSaveTimer=setTimeout(function(){flushSecureState().catch(function(err){console.error('[GRC Secure Sync] save failed',err);grcPendingLocalDeletes={risks:{},incidents:{}};ensureReportBackend().then(function(b){return grcPrimeAdminMirrorsFromServer(b,false);}).then(function(){renderAtSamePosition(grcViewportPosition());}).catch(function(reloadErr){console.error('[GRC Secure Sync] server restore failed',reloadErr);});});},immediate?0:220);
   }
 
 
@@ -1946,7 +2010,7 @@
           '</div>'+
         '</div>'+
       '</div>'+
-      '<main class="grc-main">'+(grcSyncLastError?'<div role="alert" style="margin:10px 18px 0;padding:10px 13px;border:1px solid #f0b8b8;border-radius:10px;background:#fff2f2;color:#9f1d1d;font-size:11px;font-weight:700">GRC data sync issue: '+esc(grcSyncLastError)+' — existing verified data is kept on screen.</div>':'')+((typeof assessmentCloudError==='string'&&assessmentCloudError)?'<div role="alert" style="margin:10px 18px 0;padding:10px 13px;border:1px solid #f0c97a;border-radius:10px;background:#fff8e8;color:#8a5b00;font-size:11px;font-weight:700">Compliance assessment sync issue: '+esc(assessmentCloudError)+' — changes are retained locally and will retry.</div>':'')+'<section id="grc-page-'+activeTab+'" class="grc-page is-active">'+pageHtml(activeTab)+'</section></main>'+
+      '<main class="grc-main">'+((typeof assessmentCloudError==='string'&&assessmentCloudError)?'<div role="alert" style="margin:10px 18px 0;padding:10px 13px;border:1px solid #f0c97a;border-radius:10px;background:#fff8e8;color:#8a5b00;font-size:11px;font-weight:700">Compliance assessment sync issue: '+esc(assessmentCloudError)+' — changes are retained locally and will retry.</div>':'')+'<section id="grc-page-'+activeTab+'" class="grc-page is-active">'+pageHtml(activeTab)+'</section></main>'+
       '<footer class="footbar grc-performance-footer"><div class="footbar-l"><div class="footbar-back-wrap"><button class="footer-back-glass" onclick="window._exitGRC()" type="button" title="Back to Portal Selection"><span>'+(isAr()?'رجوع':'← Back')+'</span></button></div><div class="footbar-logo"><img alt="QUMC" src="'+logo+'"></div><div class="footbar-info"><span class="footbar-title">Governance, Risk &amp; Compliance</span><span class="footbar-sub">Facility Management &amp; Safety Division — Governance &amp; Performance</span></div></div><div class="footbar-r"><div class="footbar-status"><span class="live-dot"></span><span class="footbar-live">Live</span></div><span class="footbar-sep" style="opacity:.4">·</span><span class="footbar-clock" id="grcClockEl">--:--</span><span class="footbar-sep" style="opacity:.4">·</span><span class="footbar-copy">© 2026 QUMC</span></div></footer>';
   }
   function enhanceRegisterFilters(){
@@ -2441,7 +2505,7 @@
     /* Always reconcile the live collection with the approved initiative seed.
        Firestore can legitimately return an empty/partial collection for a moment;
        using [] directly made the Selected Initiatives Register look empty. */
-    var rows=mergeInitiativeSeed(state.initiatives||[]);
+    var rows=isGrcSuperAdmin()?mergeInitiativeSeed(state.initiatives||[]):(state.initiatives||[]).slice();
     if(dept&&dept!=='allFms')rows=filterDept(rows,dept);
     return rows.filter(function(r){var st=normalizeStatus(r.status);return st==='selected'||st==='approved';});
   }
@@ -2721,27 +2785,34 @@
       return'<div class="grc-initiative-person-line"><strong>'+esc(role)+'</strong><span>'+esc(value)+'</span></div>';
     }).join('')+'</div>';
   }
-  function selectedInitiativesRegisterTable(){
+  function initiativesRegisterTable(){
     var departmentScope=canViewAllExecutiveDepartments()?'allFms':currentGrcDept();
-    var selectedRows=selectedInitiatives('allFms');
-    /* The Selected Initiatives Register must never depend on a transient empty
-       scoped listener. Approved baseline initiatives are a guaranteed fallback,
-       then the same department/team visibility rule is applied. */
-    if(!selectedRows.length)selectedRows=mergeInitiativeSeed(INITIATIVE_SEED).filter(function(r){var st=normalizeStatus(r.status);return st==='selected'||st==='approved';});
-    var visibleInitiatives=selectedRows.filter(function(r){return initiativeHasMemberFromDepartment(r,departmentScope);});
-    var rows=visibleInitiatives.map(function(r,index){
-      var progress=initiativeProgress(r),execution=progress>=100||normalizeStatus(r.executionStatus)==='done'?(isAr()?'مكتملة':'Done'):(isAr()?'قيد التنفيذ':'In Progress');
-      return'<tr><td class="grc-id">'+esc(initiativeCode(r,index))+'</td>'+
-        '<td>'+esc(r.nameAr||'—')+'</td><td>'+esc(r.nameEn||'—')+'</td>'+
-        '<td>'+initiativePeopleCell(r,'team')+'</td>'+
-        '<td>'+initiativePeopleCell(r,'gender')+'</td>'+
-        '<td>'+initiativePeopleCell(r,'department')+'</td>'+
+    var source=(state.initiatives||[]).slice();
+    /* Super Admin owns the canonical complete catalog. The seed is only a
+       repair source for that role; every other user receives the same rows from
+       Firestore and is scoped only at presentation time. */
+    if(isGrcSuperAdmin())source=mergeInitiativeSeed(source);
+    var visible=source.filter(function(r){
+      if(departmentScope==='allFms')return true;
+      var ownerDept=canonicalGrcDepartment(r&&r.department);
+      return ownerDept===departmentScope||initiativeHasMemberFromDepartment(r,departmentScope);
+    });
+    visible.sort(function(a,b){return String(a&&a.id||a&&a.code||'').localeCompare(String(b&&b.id||b&&b.code||''),undefined,{numeric:true});});
+    var rows=visible.map(function(r,index){
+      var progress=initiativeProgress(r),status=normalizeStatus(r.status||'proposed'),execution=progress>=100||normalizeStatus(r.executionStatus)==='done'?(isAr()?'مكتملة':'Done'):(isAr()?'قيد التنفيذ':'In Progress');
+      return'<tr><td class="grc-id">'+esc(initiativeCode(r,index))+'</td>'+ 
+        '<td>'+esc(r.nameAr||'—')+'</td><td>'+esc(r.nameEn||'—')+'</td>'+ 
+        '<td>'+badge(status)+'</td>'+ 
+        '<td>'+initiativePeopleCell(r,'team')+'</td>'+ 
+        '<td>'+initiativePeopleCell(r,'gender')+'</td>'+ 
+        '<td>'+initiativePeopleCell(r,'department')+'</td>'+ 
         '<td>'+badge(execution)+'</td><td>'+progress+'%</td></tr>';
     }).join('');
     return tableHtml('plan',[
       isAr()?'كود المبادرة':'Initiative Code',
       isAr()?'اسم المبادرة بالعربي':'Arabic Name',
       isAr()?'اسم المبادرة بالإنجليزي':'English Name',
+      isAr()?'حالة المبادرة':'Initiative Status',
       isAr()?'الفريق':'Team',
       isAr()?'الجنس':'Gender',
       isAr()?'القسم':'Department',
@@ -2755,7 +2826,7 @@
       registerBlock('plan',L('actionsTitle'),L('allDepartments'),isGrcAdmin()?addBtn('action',L('addAction')):'',tableHtml('plan',['id','title','source','department','owner','dueDate','progress','status'],actionRows))+
       registerBlock('policy',L('manualRegister'),L('guideManagerDesc'),isGrcAdmin()?'<button class="grc-btn primary" onclick="window._grcOpenGuideUpload()">＋ '+L('uploadGuide')+'</button>':'',guideRegisterTable())+
       registerBlock('policy',L('reportRegister'),L('reportRegisterDesc'),'',reportRegisterTable())+
-      registerBlock('plan',isAr()?'سجل المبادرات المختارة':'Selected Initiatives Register',isAr()?'بيانات المبادرات المختارة وفرق العمل':'Selected initiatives and team details',isGrcAdmin()?addBtn('initiative',isAr()?'إضافة مبادرة':'Add Initiative'):'',selectedInitiativesRegisterTable())+'</section>';
+      registerBlock('plan',isAr()?'سجل المبادرات':'Initiatives Register',isAr()?'جميع المبادرات وحالتها وفرق العمل':'All initiatives, status and team details',isGrcAdmin()?addBtn('initiative',isAr()?'إضافة مبادرة':'Add Initiative'):'',initiativesRegisterTable())+'</section>';
   }
   function registerPage(){
     var showAll=canViewAllExecutiveDepartments();
