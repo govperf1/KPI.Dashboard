@@ -275,7 +275,7 @@ function updateExecTrend(yr){
 /* -- Profile topbar helper only (legacy notification writes disabled) -- */
 (function(){
   function roleLabel(role){
-    return ({super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'GRC Owner',grc_owner:'GRC1 Owner',platform_owner:'Platform Owner',gap_owner:'Gap Owner',viewer:'Viewer'})[role]||role||'—';
+    return ({super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'GRC Owner',grc_owner:'GRC Owner',platform_owner:'Performance & GRC Owner',governance_performance_manager:'Governance & Performance Manager',gap_owner:'Gap Owner',viewer:'Viewer'})[role]||role||'—';
   }
   window.refreshUserTopbar=function(){
     try{
@@ -329,7 +329,7 @@ function updateExecTrend(yr){
   function norm(s){ return String(s || '').toLowerCase().trim().replace(/[\u200e\u200f]/g,'').replace(/[_\s\-]+/g,' '); }
   function normKey(s){ return norm(s).replace(/[^a-z0-9\u0600-\u06ff]+/g,''); }
   function isAr(){ return (typeof window.lang !== 'undefined' && window.lang === 'ar') || document.documentElement.dir === 'rtl' || document.documentElement.lang === 'ar'; }
-  function role(){ return norm(window._fbRole || window.currentUserRole || '').replace(/\s+/g,'_'); }
+  function role(){ var raw=window._fbRole || window.currentUserRole || ''; try{if(typeof window._normalizePortalRole==='function')return window._normalizePortalRole(raw);}catch(_){} return norm(raw).replace(/\s+/g,'_'); }
   function rawEmail(){
     var candidates = [];
     try{
@@ -402,7 +402,7 @@ function updateExecTrend(yr){
   function isExecutive(){ var r=role(); return r === 'executive'; }
   /* Global notification scope is intentionally limited to leadership/admin roles.
      Viewer is NOT global here; it follows the user's assigned department/KPIs. */
-  function isGlobalViewer(){ return isSuper() || isExecutive(); }
+  function isGlobalViewer(){ var r=role(); return isSuper() || isExecutive() || r==='governance_performance_manager'; }
   function isDeptScoped(){ var r=role(); return r === 'department_manager' || r === 'dept_manager' || r === 'viewer'; }
   function assigned(){
     var a = window._fbAssignedKpis; if(a === undefined || a === null) a = window.assignedKpis;
@@ -691,7 +691,7 @@ function updateExecTrend(yr){
     panel.style.position='fixed'; panel.style.width=w+'px'; panel.style.top=(r.bottom+10)+'px'; panel.style.left=Math.max(12, Math.min(window.innerWidth-w-12, r.right-w))+'px'; panel.style.right='auto'; panel.style.zIndex='2147483646';
   }
   function closePanel(id){ var el=$(id); if(el){ el.style.display='none'; el.classList.remove('qumc-final-open','qumc-stay-open','qumc-profile-open'); } }
-  function roleLabel(r){ return ({super_admin:'Super Admin',superadmin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',dept_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'GRC Owner',grc_owner:'GRC1 Owner',platform_owner:'Platform Owner',gap_owner:'Gap Owner',viewer:'Viewer'})[r] || r || '—'; }
+  function roleLabel(r){ return ({super_admin:'Super Admin',superadmin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',dept_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'GRC Owner',grc_owner:'GRC Owner',platform_owner:'Performance & GRC Owner',governance_performance_manager:'Governance & Performance Manager',gap_owner:'Gap Owner',viewer:'Viewer'})[r] || r || '—'; }
   function refreshProfile(){
     var name=uname(), mail=rawEmail() || '—', r=roleLabel(role()), d=dept() || window._fbDept || '—';
     var ids={topUserName:name, topUserRole:r, profileName:name, profileEmail:mail, profileNameRow:name, profileRoleRow:r, profileDeptRow:d, profileLastLoginRow:'Current session'};
@@ -931,18 +931,14 @@ function updateExecTrend(yr){
     }).catch(function(e){
       var errMsg = (e.code ? e.code : '') + (e.message ? ': '+e.message : '');
       if(!errMsg) errMsg = String(e);
-      /* Firestore permission-denied — show exact rule needed */
-      if(e.code === 'permission-denied') errMsg = '⛔ Firestore permission-denied.\nAdd this rule in Firebase Console → Firestore → Rules:\n  match /kpi_requests/{doc}{\n    allow read, write: if request.auth != null;\n  }';
-      /* Fallback: save to localStorage */
-      try{
-        if(!window.ST) window.ST={};
-        if(!window.ST.requests) window.ST.requests=[];
-        window.ST.requests.unshift({id:'req_'+Date.now(),user:window._fbName||window._fbUser,type:reqType,msg:message,status:'pending (local)',ts:new Date().toISOString()});
-        if(typeof localStorage!=='undefined') localStorage.setItem('kpi_v3',JSON.stringify(window.ST));
-        if(fbEl){fbEl.textContent='⚠ Saved locally (Firestore rules not set — see details above)';fbEl.style.color='#D97706';fbEl.style.background='rgba(217,119,6,.08)';fbEl.style.display='block';}
-        if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'تم الحفظ محلياً':'Saved Locally';}
-        return;
-      }catch(_){}
+      /* Never suggest an open authenticated-write rule. A permission error means
+         the deployed project rules/profile must be corrected, not bypassed. */
+      if(e.code === 'permission-denied') errMsg = '⛔ Firestore permission-denied. Publish the audited firestore.rules (v30), then verify this user\'s approved role and department in Firestore and sign in again.';
+      /* A request is not submitted unless Firestore confirms it. Older builds
+         created a browser-only "pending (local)" request after a permission or
+         network failure. That made the same account show different request data
+         on different devices and falsely told the user that the request existed.
+         Keep the form intact and surface the real error so the user can retry. */
       _showErr('⚠ '+errMsg);
       if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'إرسال الطلب':'Submit Request';}
     });
