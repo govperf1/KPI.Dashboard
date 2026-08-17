@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v34 — Canonical GRC Sync and Owner Workflow Stability
+// FIRESTORE SECURITY RULES v35 — Viewer Risk Read + Advisory Submission Stability
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -37,17 +37,14 @@ service cloud.firestore {
     }
 
     function role() {
-      let raw = ('role' in userData()) && userData().role is string ? userData().role.lower().trim() : 'viewer';
-      let r = normalizedRoleValue(raw);
-      // Accept both canonical stored values and the legacy/display spellings
-      // that existed before roles were normalized in the client.
-      return raw in ['super admin','super-admin','superadmin'] || r == 'superadmin' ? 'super_admin' :
-             raw in ['department manager','department-manager','dept manager','dept-manager','deptmanager'] || r in ['departmentmanager','dept_manager','deptmanager'] ? 'department_manager' :
-             raw in ['risk owner','risk-owner','riskowner'] || r == 'riskowner' ? 'risk_owner' :
-             raw in ['grc owner','grc-owner','grcowner'] || r == 'grcowner' ? 'grc_owner' :
-             raw in ['platform owner','platform-owner','platformowner'] || r == 'platformowner' ? 'platform_owner' :
-             raw in ['kpi owner','kpi-owner','kpiowner'] || r == 'kpiowner' ? 'kpi_owner' :
-             raw in ['governance performance manager','governance & performance manager','governance-performance-manager','governanceperformancemanager'] || r == 'governanceperformancemanager' ? 'governance_performance_manager' : r;
+      let r = ('role' in userData()) ? normalizedRoleValue(userData().role) : 'viewer';
+      return r == 'superadmin' ? 'super_admin' :
+             (r in ['departmentmanager', 'dept_manager', 'deptmanager']) ? 'department_manager' :
+             r == 'riskowner' ? 'risk_owner' :
+             r == 'grcowner' ? 'grc_owner' :
+             r == 'platformowner' ? 'platform_owner' :
+             r == 'kpiowner' ? 'kpi_owner' :
+             r == 'governanceperformancemanager' ? 'governance_performance_manager' : r;
     }
 
     function rolePath() {
@@ -287,12 +284,20 @@ service cloud.firestore {
 
 
     function canReadRiskIncidentRegister() {
+      // Every approved GRC user may READ Risk and Incident registers. Department
+      // scope is still enforced by canGet/ListDepartmentGrcRecord below.
+      // Viewer/User remain read-only because all write paths require Admin or
+      // the dedicated Risk/Incident owner workflow permissions.
+      return canAccessGrc();
+    }
+
+    function canReadRiskIncidentWorkflow() {
+      // Approval requests contain proposed changes and workflow notes. Viewer
+      // and User may read the published Risk/Incident registers, but not the
+      // operational approval inbox/history for those registers.
       return canAccessGrc() && !(role() in ['viewer','user']) && (
         admin() || departmentManager() || riskOwner() ||
-        role() in [
-          'grc_owner', 'platform_owner',
-          'governance_performance_manager'
-        ] ||
+        role() in ['grc_owner','platform_owner','governance_performance_manager'] ||
         hasPerm('edit_risk_management') || hasPerm('edit_incident_register')
       );
     }
@@ -698,9 +703,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // a unique v34 path prevents an older ruleset from being mistaken for this build.
+    // a unique v35 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v34-grc-canonical-sync-owner-20260817';
+      allow get: if approved() && versionId == 'v35-viewer-risk-advisory-20260817';
       allow list, create, update, delete: if false;
     }
 
@@ -723,27 +728,21 @@ service cloud.firestore {
       ] || advisorySubmissionDepartmentKey() == '';
     }
 
-    function advisoryCreateDepartmentMatches() {
-      return request.resource.data.departmentKey is string &&
-        request.resource.data.departmentKey == advisorySubmissionDepartmentKey();
-    }
-
-    // Keep create validation deliberately small and deterministic. Identity is
-    // bound to the authenticated email; department and route are derived from
-    // the Firestore profile, not from browser storage or requester-supplied role.
+    // Create authorization is based only on authenticated identity, the
+    // authoritative Firestore department and the required workflow stage.
+    // Optional compatibility fields (requiresManagerApproval/managerDecision)
+    // are not permission dependencies, so Viewer/GRC Owner submissions cannot
+    // be rejected because of stale client metadata. A scoped non-manager still
+    // cannot bypass Department Manager approval.
     function validAdvisoryCreateRoute() {
-      return request.resource.data.requiresManagerApproval is bool &&
-        request.resource.data.workflowStage is string &&
-        request.resource.data.managerDecision is string &&
+      return request.resource.data.workflowStage is string &&
+        request.resource.data.departmentKey is string &&
+        request.resource.data.departmentKey == advisorySubmissionDepartmentKey() &&
         (
           (advisoryDirectSubmitter() &&
-            request.resource.data.requiresManagerApproval == false &&
-            request.resource.data.workflowStage == 'pending_super_admin' &&
-            request.resource.data.managerDecision == 'not_required') ||
+            request.resource.data.workflowStage == 'pending_super_admin') ||
           (!advisoryDirectSubmitter() &&
-            request.resource.data.requiresManagerApproval == true &&
-            request.resource.data.workflowStage == 'pending_department_manager' &&
-            request.resource.data.managerDecision == 'pending')
+            request.resource.data.workflowStage == 'pending_department_manager')
         );
     }
 
@@ -877,9 +876,7 @@ service cloud.firestore {
       // Firestore department/route. requesterUid remains audit metadata but is
       // not a permission dependency, avoiding false denials from stale sessions.
       allow create: if approved() &&
-        request.resource.data.userEmail is string &&
-        request.resource.data.userEmail == authEmail() &&
-        advisoryCreateDepartmentMatches() &&
+        ownEmail(request.resource.data.userEmail) &&
         validAdvisoryCreateRoute();
 
       // Keep read paths separate. Firestore evaluates collection queries against
@@ -1017,6 +1014,8 @@ service cloud.firestore {
       allow create: if canSubmitRiskRequest() &&
         request.resource.data.submittedByEmail is string &&
         request.resource.data.submittedByEmail == authEmail() &&
+        request.resource.data.submittedByUid is string &&
+        request.resource.data.submittedByUid == request.auth.uid &&
         request.resource.data.department is string &&
         request.resource.data.department == userDepartmentKey() &&
         request.resource.data.departmentKey is string &&
@@ -1026,11 +1025,11 @@ service cloud.firestore {
         request.resource.data.status == 'pending_manager';
 
       // Direct opens retain compatibility with historical aliases.
-      allow get: if canReadRiskIncidentRegister() && (
+      allow get: if canReadRiskIncidentWorkflow() && (
         admin() || riskRequestOwner(resource.data) || riskRequestDepartment(resource.data)
       );
       // Query-safe list branches match the client's exact scoped queries.
-      allow list: if canReadRiskIncidentRegister() && (
+      allow list: if canReadRiskIncidentWorkflow() && (
         admin() ||
         (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid) ||
         (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail()) ||
@@ -1071,6 +1070,7 @@ service cloud.firestore {
         validRiskStatusOverride(request.resource.data) &&
         request.resource.data.department == userDepartmentKey() &&
         request.resource.data.updatedByEmail == authEmail() &&
+        request.resource.data.updatedByUid == request.auth.uid &&
         request.resource.data.keys().hasOnly([
           'recordId', 'cloudId', 'department', 'departmentRaw', 'actionStatus',
           'updatedAt', 'updatedAtIso', 'updatedBy', 'updatedByEmail',
@@ -1080,6 +1080,7 @@ service cloud.firestore {
         validRiskStatusOverride(request.resource.data) &&
         request.resource.data.department == userDepartmentKey() &&
         request.resource.data.updatedByEmail == authEmail() &&
+        request.resource.data.updatedByUid == request.auth.uid &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'recordId', 'cloudId', 'department', 'departmentRaw', 'actionStatus',
           'updatedAt', 'updatedAtIso', 'updatedBy', 'updatedByEmail',
