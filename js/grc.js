@@ -15,10 +15,10 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260817-v190-grc-root-sync');
+  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260817-v193-grc-department-root-fix');
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260817-v190-grc-root-sync');
+  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260817-v193-grc-department-root-fix');
   var GRC_CACHE_OWNER_KEY='qumc_grc_workspace_preview_v1_owner';
   var GRC_CACHE_BUILD_KEY='qumc_grc_workspace_preview_build';
   var STATE_VERSION=13;
@@ -504,7 +504,8 @@
     var id=normalizeRiskId(v);
     if(id.indexOf('SAF')===0)return'safety';
     if(id.indexOf('MNT')===0)return'maintenance';
-    if(id.indexOf('HK')===0||id.indexOf('LUND')===0)return'housekeeping';
+    if(id.indexOf('HK')===0)return'housekeeping';
+    if(id.indexOf('LUND')===0)return'laundry';
     if(id.indexOf('PM')===0)return'projects';
     return'';
   }
@@ -965,7 +966,7 @@
   // Governance and Risk remain department-scoped. Shared operational modules are visible to every approved GRC user.
   var GRC_GLOBAL_READ_COLLECTIONS={manuals:true,codes:true,compliance:true,audits:true,actions:true,documents:true,initiatives:true};
   var grcStateUnsubs=[],grcStateSaveTimer=null,grcApplyingRemote=false,grcSyncStarted=false,grcCloudReady=false;
-  var grcCloudParts={},grcCloudMirror={},grcCloudDuplicates={},grcCloudEverHydrated={},grcInitialScopes={},grcCollectionScopeReady={},grcCollectionScopeFailed={},grcMigrationPromise=null,grcPendingCloudSave=false,grcCanonicalCatalogV187Promise=null,grcCanonicalCatalogV190Promise=null,grcRemoteRenderTimer=null,grcRemoteRenderPosition=null,grcCachePersistTimer=null;
+  var grcCloudParts={},grcCloudMirror={},grcCloudDuplicates={},grcCloudEverHydrated={},grcInitialScopes={},grcCollectionScopeReady={},grcCollectionScopeFailed={},grcMigrationPromise=null,grcPendingCloudSave=false,grcCanonicalCatalogV187Promise=null,grcCanonicalCatalogV193Promise=null,grcRemoteRenderTimer=null,grcRemoteRenderPosition=null,grcCachePersistTimer=null;
   var grcRiskStatusOverrides={},grcRiskStatusUnsub=null,grcSyncScopeKey='',grcPendingLocalDeletes={risks:{},incidents:{}},grcSyncLastError='',grcSyncLastErrorAt='';
   function grcPendingDeleteKey(collectionKey,record){if(collectionKey!=='risks'&&collectionKey!=='incidents')return'';return grcRegisterBusinessKey(record||{});}
   function grcMarkPendingLocalDelete(collectionKey,record){var key=grcPendingDeleteKey(collectionKey,record);if(!key)return;grcPendingLocalDeletes[collectionKey]=grcPendingLocalDeletes[collectionKey]||{};grcPendingLocalDeletes[collectionKey][key]=Date.now();}
@@ -1009,20 +1010,15 @@
   function grcHash(text){var h=2166136261,s=String(text||'');for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return(h>>>0).toString(36);}
   function grcSafeDocPart(value){var out=String(value||'').trim().replace(/[^A-Za-z0-9_-]+/g,'_').replace(/^_+|_+$/g,'');return(out||'record').slice(0,86);}
   function grcRecordDepartment(collectionKey,record){
-    record=record||{};var raw=String(record.department||record.responsibleDept||record.responsibleDepartment||'').trim();
+    record=record||{};
+    var raw=String(record.department||record.responsibleDept||record.responsibleDepartment||'').trim();
+    var keyRaw=String(record.departmentKey||'').trim();
     var identity=String(record.id||record.code||'').toUpperCase(),id=identity.replace(/\s+/g,'');
-    /* Department inference is a fallback for older register rows that were saved
-       before the department field was normalized. Explicit department values
-       still take precedence, except for the historical Laundry risk prefix. */
+    /* Business IDs are the strongest legacy signal. Old builds sometimes saved
+       the correct risk/incident under a stale department label/key, which made
+       the same approved record appear in one role but disappear in another. */
     if(collectionKey==='risks'&&/^LUND/.test(id))return'laundry';
     if(collectionKey==='risks'&&/^HK/.test(id))return'housekeeping';
-    var rawIsDivision=/^(all\s*fms|allfms|division|governance|governanceDept)$/i.test(raw.replace(/[&/_-]+/g,' ')),d=canonicalGrcDepartment(raw);
-    /* Operational department values are authoritative. Generic legacy values
-       such as allFms/division are NOT returned yet: older governance rows were
-       sometimes saved with a generic department even though their code clearly
-       identifies PM/MNT/SAF/HK. Infer from the business code first so scoped
-       users receive those records instead of losing them to the shared scope. */
-    if(d&&d!=='allfms'&&d!=='all_fms'&&d!=='governance'&&d!=='division')return d;
     if(collectionKey==='risks'){
       var riskDept=departmentFromRiskCode(identity);if(riskDept)return riskDept;
     }
@@ -1037,7 +1033,11 @@
     if(/(?:^|[- ])(?:MNT|MINT)(?:[- ]|$)/.test(code))return'maintenance';
     if(/(?:^|[- ])(?:HSK|HK)(?:[- ]|$)/.test(code))return'housekeeping';
     if(/(?:^|[- ])(?:LND|LUND)(?:[- ]|$)/.test(code))return'laundry';
-    if(rawIsDivision||d==='governance'||d==='division')return'division';
+    var d=canonicalGrcDepartment(raw),k=canonicalGrcDepartment(keyRaw);
+    if(d&&d!=='allfms'&&d!=='all_fms'&&d!=='governance'&&d!=='division')return d;
+    if(k&&k!=='allfms'&&k!=='all_fms'&&k!=='governance'&&k!=='division')return k;
+    var rawIsDivision=/^(all\s*fms|allfms|division|governance|governanceDept)$/i.test(raw.replace(/[&/_-]+/g,' '));
+    if(rawIsDivision||d==='governance'||d==='division'||k==='governance'||k==='division')return'division';
     return'division';
   }
   function grcRecordVisibility(collectionKey,record){return grcRecordDepartment(collectionKey,record)==='division'?'shared':'department';}
@@ -1383,7 +1383,7 @@
     var rows=Object.keys(map).map(function(id){return map[id];});
     rows=grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows);
     /* Do not merge local seed catalogs into Super Admin only. Firestore is the
-       render authority for every role; the v190 repair publishes any genuinely
+       render authority for every role; the v193 repair publishes any genuinely
        missing approved seed rows to Firestore and respects tombstones. */
     state[collectionKey]=rows;grcCloudMirror[collectionKey]={};rows.forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i);if(map[id])grcCloudMirror[collectionKey][id]=grcComparable(r);});
     grcCloudEverHydrated[collectionKey]=true;
@@ -1421,7 +1421,7 @@
     if(grcAllInitialScopesReady()&&grcAllInitialScopesHealthy()){
       grcCloudReady=true;
       if(grcPendingCloudSave){grcPendingCloudSave=false;queueSharedStateSave(true);}
-      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV190().catch(function(err){console.error('[GRC Canonical Catalog v190]',err);});},0);
+      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV193().catch(function(err){console.error('[GRC Canonical Catalog v193]',err);});},0);
       /* All initial collection snapshots arrive in a burst. Render once after
          the burst, not once per collection. Later live updates are debounced. */
       grcScheduleRemoteRender(position,wasReady?90:20);
@@ -1657,8 +1657,8 @@
     if(grcSyncStarted&&grcSyncScopeKey!==wanted)stopSharedStateSync();
     ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;
       var actual=grcSyncIdentityKey();if(actual!==wanted){stopSharedStateSync();setTimeout(startSharedStateSync,0);return;}
-      if(typeof window._qumcAssertFirestoreRulesV36==='function'||typeof window._qumcAssertFirestoreRulesV35==='function'||typeof window._qumcAssertFirestoreRulesV34==='function'||typeof window._qumcAssertFirestoreRulesV33==='function'){
-        try{await (window._qumcAssertFirestoreRulesV36||window._qumcAssertFirestoreRulesV35||window._qumcAssertFirestoreRulesV34||window._qumcAssertFirestoreRulesV33)();}
+      if(typeof window._qumcAssertFirestoreRulesV38==='function'||typeof window._qumcAssertFirestoreRulesV36==='function'||typeof window._qumcAssertFirestoreRulesV35==='function'||typeof window._qumcAssertFirestoreRulesV34==='function'||typeof window._qumcAssertFirestoreRulesV33==='function'){
+        try{await (window._qumcAssertFirestoreRulesV38||window._qumcAssertFirestoreRulesV36||window._qumcAssertFirestoreRulesV35||window._qumcAssertFirestoreRulesV34||window._qumcAssertFirestoreRulesV33)();}
         catch(ruleErr){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError=String(ruleErr&&ruleErr.message||ruleErr).replace(/^rules-version-mismatch:/,'');grcSyncLastErrorAt=new Date().toISOString();renderAtSamePosition(grcViewportPosition());return;}
       }
       grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
@@ -1693,17 +1693,24 @@
         if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){
           grcConfigureCollectionScopes(key,['all']);grcListen(b,key,'all',col);
         }else{
-          /* Scoped users bind only to canonical query-safe keys. Historical
-             label-only rows are normalized by the Super Admin maintenance pass;
-             querying them with `in` caused Firestore to reject the whole scope
-             on some accounts even while valid canonical data was available. */
-          var scopes=(key==='risks'||key==='incidents')?['department']:['department','division'];
+          /* Read the canonical departmentKey AND legacy department field.
+             Each listener uses one direct equality so Firestore can prove the
+             query against Rules. The v193 Super Admin repair rewrites old rows
+             into one canonical departmentKey; these fallbacks keep them visible
+             during the migration instead of leaving a stale device cache. */
+          var scopes=['departmentKey','departmentCanonical'];
+          var canonicalRaw=canonicalGrcDepartment(rawDept);
+          if(rawDept&&canonicalRaw===dept&&rawDept!==dept)scopes.push('departmentRaw');
+          if(key!=='risks'&&key!=='incidents')scopes.push('divisionKey','divisionLegacy');
           grcConfigureCollectionScopes(key,scopes);
-          grcListen(b,key,'department',b.fs.query(col,b.fs.where('departmentKey','==',dept)));
-          if(scopes.indexOf('division')>=0)grcListen(b,key,'division',b.fs.query(col,b.fs.where('departmentKey','==','division')));
+          grcListen(b,key,'departmentKey',b.fs.query(col,b.fs.where('departmentKey','==',dept)));
+          grcListen(b,key,'departmentCanonical',b.fs.query(col,b.fs.where('department','==',dept)));
+          if(scopes.indexOf('departmentRaw')>=0)grcListen(b,key,'departmentRaw',b.fs.query(col,b.fs.where('department','==',rawDept)));
+          if(scopes.indexOf('divisionKey')>=0)grcListen(b,key,'divisionKey',b.fs.query(col,b.fs.where('departmentKey','==','division')));
+          if(scopes.indexOf('divisionLegacy')>=0)grcListen(b,key,'divisionLegacy',b.fs.query(col,b.fs.where('department','==','division')));
         }
       });
-      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV190().catch(function(err){console.error('[GRC Canonical Catalog v190]',err);});},350);
+      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV193().catch(function(err){console.error('[GRC Canonical Catalog v193]',err);});},350);
     }).catch(function(err){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError='GRC sync initialization: '+String(err&&err.message||err);grcSyncLastErrorAt=new Date().toISOString();console.error('[GRC Secure Sync] init failed',err);renderAtSamePosition(grcViewportPosition());});
   }
   async function grcPrimeAdminMirrorsFromServer(b,preserveLocalState){
@@ -1761,12 +1768,12 @@
   window._grcEnsureCanonicalCatalogV187=ensureSuperAdminCanonicalCatalogV187;
 
 
-  async function ensureSuperAdminCanonicalCatalogV190(){
+  async function ensureSuperAdminCanonicalCatalogV193(){
     if(!isGrcSuperAdmin())return false;
-    if(grcCanonicalCatalogV190Promise)return grcCanonicalCatalogV190Promise;
-    grcCanonicalCatalogV190Promise=ensureReportBackend().then(async function(b){
+    if(grcCanonicalCatalogV193Promise)return grcCanonicalCatalogV193Promise;
+    grcCanonicalCatalogV193Promise=ensureReportBackend().then(async function(b){
       if(!b.auth.currentUser)return false;
-      var markerRef=b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v190'),marker=await b.fs.getDoc(markerRef);
+      var markerRef=b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v193'),marker=await b.fs.getDoc(markerRef);
       if(marker.exists()&&marker.data()&&marker.data().status==='completed')return false;
       await b.fs.setDoc(markerRef,{status:'running',build:GRC_CLIENT_BUILD,startedAt:b.fs.serverTimestamp(),startedBy:String(window._fbUser||'')},{merge:true});
       /* Rebuild the canonical server catalog from the current Firestore state.
@@ -1785,8 +1792,8 @@
         rows.forEach(function(record,index){
           var sourceId=String(record&&record._sourceCloudId||'').trim();
           var prepared=grcPrepareCloudRecord(key,record,index,b),id=prepared._cloudId;
-          prepared.canonicalCatalogVersion=190;
-          prepared.canonicalCatalogSource='server_single_source_repair';
+          prepared.canonicalCatalogVersion=193;
+          prepared.canonicalCatalogSource='server_single_source_repair_v193';
           writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],id),data:prepared});
           if((key==='risks'||key==='incidents')&&sourceId&&sourceId!==id)obsolete.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],sourceId)});
         });
@@ -1805,20 +1812,21 @@
       await grcCommitWrites(b,writes);
       if(obsolete.length)await grcCommitWrites(b,obsolete);
       await b.fs.setDoc(markerRef,{status:'completed',build:GRC_CLIENT_BUILD,counts:counts,writes:writes.length,deletes:obsolete.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
-      try{window._recordAuditDirect&&window._recordAuditDirect('GRC_CANONICAL_CATALOG_V190','Published one canonical Firestore GRC catalog for all roles and departments',null,{counts:counts,writes:writes.length,deletes:obsolete.length},{portal:'grc'});}catch(_audit){}
+      try{window._recordAuditDirect&&window._recordAuditDirect('GRC_CANONICAL_CATALOG_V193','Published one canonical Firestore GRC catalog for all roles and departments',null,{counts:counts,writes:writes.length,deletes:obsolete.length},{portal:'grc'});}catch(_audit){}
       return true;
     }).then(function(changed){
       if(changed&&typeof window._grcRestartSecureSync==='function')setTimeout(function(){window._grcRestartSecureSync(true);},100);
       return changed;
     }).catch(async function(err){
-      try{var b=await ensureReportBackend();await b.fs.setDoc(b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v190'),{status:'failed',build:GRC_CLIENT_BUILD,error:String(err&&err.message||err).slice(0,500),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}
+      try{var b=await ensureReportBackend();await b.fs.setDoc(b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v193'),{status:'failed',build:GRC_CLIENT_BUILD,error:String(err&&err.message||err).slice(0,500),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}
       throw err;
-    }).finally(function(){grcCanonicalCatalogV190Promise=null;});
-    return grcCanonicalCatalogV190Promise;
+    }).finally(function(){grcCanonicalCatalogV193Promise=null;});
+    return grcCanonicalCatalogV193Promise;
   }
-  window._grcEnsureCanonicalCatalogV190=ensureSuperAdminCanonicalCatalogV190;
-  window._grcEnsureCanonicalCatalogV188=ensureSuperAdminCanonicalCatalogV190;
-  window._grcEnsureCanonicalCatalogV187=ensureSuperAdminCanonicalCatalogV190;
+  window._grcEnsureCanonicalCatalogV193=ensureSuperAdminCanonicalCatalogV193;
+  window._grcEnsureCanonicalCatalogV190=ensureSuperAdminCanonicalCatalogV193;
+  window._grcEnsureCanonicalCatalogV188=ensureSuperAdminCanonicalCatalogV193;
+  window._grcEnsureCanonicalCatalogV187=ensureSuperAdminCanonicalCatalogV193;
 
   async function flushSecureState(){
     if(grcApplyingRemote||!isGrcAdmin())return false;

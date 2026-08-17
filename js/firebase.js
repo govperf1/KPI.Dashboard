@@ -47,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260817-v190-grc-root-sync');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260817-v193-grc-department-root-fix');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -969,9 +969,9 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV36Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v36-grc-canonical-profile-20260817'));window.__advRulesV36Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v36 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__advRulesV38Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v38-grc-department-source-20260817'));window.__advRulesV38Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v38 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     function _advIso(){return new Date().toISOString();}
     function _advTsMs(v){if(!v)return 0;try{return v.toDate?v.toDate().getTime():new Date(v).getTime()||0;}catch(_){return 0;}}
@@ -1394,22 +1394,24 @@ window._selectPortal=async portal=>{
     function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();return ['super_admin','admin','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].includes(r)||p.includes('access_grc')||p.includes('view_grc_department')||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('*');}
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
-      if(window.__grcRulesV36Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v36-grc-canonical-profile-20260817'));window.__grcRulesV36Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v36 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__grcRulesV38Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v38-grc-department-source-20260817'));window.__grcRulesV38Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v38 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
+    window._qumcAssertFirestoreRulesV38=_grcRiskAssertRulesVersion;
     window._qumcAssertFirestoreRulesV36=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV35=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV34=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV33=_grcRiskAssertRulesVersion;
     function _grcRiskRecordDepartment(record,fallback){
       record=record||{};const id=String(record.id||record.code||record.riskId||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
-      /* Historical Laundry risks were stored with department=housekeeping even
-         though their LUND business IDs belong to Laundry. Infer the operational
-         department from stable business IDs before consulting legacy labels. */
-      if(/^LUND/.test(id))return'laundry';
-      if(/^HK/.test(id))return'housekeeping';
-      if(/^SAF/.test(id))return'safety';
-      if(/^MNT/.test(id))return'maintenance';
-      if(/^(PM|PMD|PRJ)/.test(id))return'projects';
-      return _grcCanonicalDepartment(record.departmentKey||record.department||record.responsibleDept||record.responsibleDepartment||fallback);
+      /* Stable business IDs outrank legacy scope fields. This also handles old
+         Incident IDs whose departmentKey may not have been backfilled yet. */
+      if(/^LUND/.test(id)||/^INCLND/.test(id)||/^INCLAUNDRY/.test(id))return'laundry';
+      if(/^HK/.test(id)||/^INCHSK/.test(id)||/^INCHK/.test(id))return'housekeeping';
+      if(/^SAF/.test(id)||/^INCSAF/.test(id))return'safety';
+      if(/^MNT/.test(id)||/^INCMNT/.test(id))return'maintenance';
+      if(/^(PM|PMD|PRJ)/.test(id)||/^INC(PM|PMD|PRJ)/.test(id))return'projects';
+      /* users/{email}.dept and historical record.department are the original
+         schema authorities; departmentKey is a canonical compatibility field. */
+      return _grcCanonicalDepartment(record.department||record.departmentKey||record.responsibleDept||record.responsibleDepartment||fallback);
     }
     window._grcRiskDirectStatusUpdate=async function(record,nextStatus){
       await _grcRiskAssertRulesVersion();
