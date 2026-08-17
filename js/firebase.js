@@ -454,9 +454,28 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     };
 
     window._backToPortal=()=>{console.log('[Auth] Back to portal');try{window._stopReadListener&&window._stopReadListener();if(typeof window._hideGRC==='function')window._hideGRC();}catch(_e){}window.__qumcActivePortal='';const lo=document.getElementById('_authOverlay'),po=document.getElementById('_portalOverlay'),bg=document.getElementById('_bgLayer');if(lo)lo.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
+
+    /* v191 cold-entry barrier. The portal is normally shown only after the
+       Firestore profile resolves, but the old GRC card bypassed this coordinator
+       and could render while role/department globals were still transitioning.
+       A refresh masked the race because Auth + profile were already warm. */
+    async function _waitForResolvedPortalProfile(maxMs){
+      const deadline=Date.now()+(Number(maxMs)||5000);
+      while(Date.now()<deadline){
+        if(window._fbProfileResolved===true && window._fbUser && window._fbRole)return true;
+        await new Promise(resolve=>setTimeout(resolve,40));
+      }
+      return window._fbProfileResolved===true && !!window._fbUser;
+    }
+
 window._selectPortal=async portal=>{
       portal=portal==='governance'?'grc':portal;
       console.log('[Auth] Selected:',portal);
+      if(!(await _waitForResolvedPortalProfile(5000))){
+        console.warn('[Auth] Portal entry paused — authenticated profile is not ready.');
+        showPortal(window._fbName,window._fbRole);
+        return;
+      }
       if(!_canAccessPortal(portal)){
         if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied(portal);
         else alert(portal==='grc'?'Your role does not have access to the GRC platform.':'Your role does not have access to the Performance platform.');
@@ -508,16 +527,29 @@ window._selectPortal=async portal=>{
         console.log('[Auth] ✓ Performance portal entered');
       }else{
         try{window._stopReadListener&&window._stopReadListener();}catch(_perfStop){}
-        hideEntryLoading();
+        showEntryLoading('Preparing GRC workspace…');
         ['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(id=>{const e=ge(id);if(e)e.style.display='none';});
         setUserDisplay(window._fbName,window._fbRole);
         if(typeof window.applyRolePermissions==='function')window.applyRolePermissions(window._fbRole,window._fbDept,window._fbPerms);
         if(typeof window.updateUserBadge==='function')window.updateUserBadge(window._fbName,window._fbRole,window._fbPerms);
+        /* Yield one paint after closing the portal overlay so the dynamically
+           created GRC root is attached to the final body layout, not the old
+           portal frame. */
+        await new Promise(resolve=>requestAnimationFrame(()=>resolve()));
         if(typeof window._enterGRC==='function'){
           if(typeof window._grcRiskApprovalEntryNoticeReset==='function')window._grcRiskApprovalEntryNoticeReset();
           window._enterGRC();
+          /* Verify the first shell instead of requiring a manual refresh. These
+             checks are no-ops when Header/Tabs/Page already rendered correctly. */
+          if(typeof window._grcEnsureFirstRender==='function'){
+            try{window._grcEnsureFirstRender();}catch(firstRenderErr){console.warn('[GRC] first render verification skipped',firstRenderErr);}
+            setTimeout(()=>{try{if(window.__qumcActivePortal==='grc')window._grcEnsureFirstRender();}catch(_){}},90);
+            setTimeout(()=>{try{if(window.__qumcActivePortal==='grc')window._grcEnsureFirstRender();}catch(_){}},360);
+          }
+          hideEntryLoading();
           console.log('[Auth] ✓ GRC portal entered for',window._fbRole,window._fbDept);
         }else{
+          hideEntryLoading();
           console.error('[Auth] GRC runtime is not ready.');
           showPortal(window._fbName,window._fbRole);
           alert('GRC is still loading. Please try again.');

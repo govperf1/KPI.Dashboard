@@ -4528,8 +4528,24 @@
     setPerformanceChromeHidden(true);document.body.classList.remove('modal-mode');
   }
   window._exitGRC=function(){window._hideGRC();window.__qumcActivePortal='';var bg=document.getElementById('_bgLayer'),po=document.getElementById('_portalOverlay'),auth=document.getElementById('_authOverlay');if(auth)auth.style.display='none';if(bg)bg.style.display='block';if(po)po.style.display='flex';};
-  window._openGrcPortal=function(){if(!canEnterGrc()){if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied('grc');else window.alert&&window.alert('Your role does not have access to the GRC platform.');return;}window._enterGRC();};
-  window._enterGRC=function(){if(!canEnterGrc()){if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied('grc');else window._showGrcComingSoon();return;}window.__qumcActivePortal='grc';activeTab=activeTab||'executive';closePerformanceUiForGrc();['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.remove('dashboard-mode','auth-mode','portal-mode','performance-advisory-mode');document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');try{grcResetLocalCacheForProfile();}catch(cacheErr){console.warn('[GRC Cache] profile reset skipped',cacheErr);}render();if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();};
+  /* Always use Firebase's centralized portal coordinator when it is available.
+     The old direct call was the cold-login race that made GRC blank until F5. */
+  window._openGrcPortal=function(){if(typeof window._selectPortal==='function'){window._selectPortal('grc');return;}if(!canEnterGrc()){if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied('grc');else window.alert&&window.alert('Your role does not have access to the GRC platform.');return;}window._enterGRC();};
+  function grcFirstShellReady(){
+    return !!(app&&app.classList.contains('grc-visible')&&app.querySelector(':scope > .topbar.grc-performance-topbar')&&app.querySelector(':scope > .grc-performance-nav')&&app.querySelector('.grc-main .grc-page.is-active'));
+  }
+  window._grcEnsureFirstRender=function(){
+    if(window.__qumcActivePortal!=='grc'||window._fbProfileResolved!==true)return false;
+    ensureApp();
+    document.body.classList.remove('dashboard-mode','auth-mode','portal-mode','performance-advisory-mode');
+    document.body.classList.add('grc-mode');
+    app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');
+    if(!grcFirstShellReady())render();
+    try{startSharedStateSync();}catch(syncErr){console.warn('[GRC] first-entry sync retry skipped',syncErr);}
+    if(window._grcRiskRefreshUi)try{window._grcRiskRefreshUi();}catch(_){}
+    return grcFirstShellReady();
+  };
+  window._enterGRC=function(){if(!canEnterGrc()){if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied('grc');else window._showGrcComingSoon();return;}window.__qumcActivePortal='grc';activeTab=activeTab||'executive';closePerformanceUiForGrc();['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.remove('dashboard-mode','auth-mode','portal-mode','performance-advisory-mode');document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');try{grcResetLocalCacheForProfile();}catch(cacheErr){console.warn('[GRC Cache] profile reset skipped',cacheErr);}render();window._grcEnsureFirstRender();};
   window._closeGrcComingSoon=function(){var ov=document.getElementById('_grcComingSoon');if(ov)ov.remove();document.body.classList.remove('grc-coming-open');};
   window._showGrcComingSoon=function(){
     window._closeGrcComingSoon();document.body.classList.add('grc-coming-open');
