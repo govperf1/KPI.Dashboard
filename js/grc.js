@@ -15,10 +15,10 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260817-v188-auth-sync-scroll-owner');
+  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260817-v189-viewer-risk-advisory');
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260817-v188-auth-sync-scroll-owner');
+  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260817-v189-viewer-risk-advisory');
   var GRC_CACHE_OWNER_KEY='qumc_grc_workspace_preview_v1_owner';
   var GRC_CACHE_BUILD_KEY='qumc_grc_workspace_preview_build';
   var STATE_VERSION=13;
@@ -1659,8 +1659,8 @@
     if(grcSyncStarted&&grcSyncScopeKey!==wanted)stopSharedStateSync();
     ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;
       var actual=grcSyncIdentityKey();if(actual!==wanted){stopSharedStateSync();setTimeout(startSharedStateSync,0);return;}
-      if(typeof window._qumcAssertFirestoreRulesV34==='function'||typeof window._qumcAssertFirestoreRulesV33==='function'){
-        try{await (window._qumcAssertFirestoreRulesV34||window._qumcAssertFirestoreRulesV33)();}
+      if(typeof window._qumcAssertFirestoreRulesV35==='function'||typeof window._qumcAssertFirestoreRulesV34==='function'||typeof window._qumcAssertFirestoreRulesV33==='function'){
+        try{await (window._qumcAssertFirestoreRulesV35||window._qumcAssertFirestoreRulesV34||window._qumcAssertFirestoreRulesV33)();}
         catch(ruleErr){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError=String(ruleErr&&ruleErr.message||ruleErr).replace(/^rules-version-mismatch:/,'');grcSyncLastErrorAt=new Date().toISOString();renderAtSamePosition(grcViewportPosition());return;}
       }
       grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
@@ -1875,7 +1875,7 @@
   function isGrcAdmin(){var r=normalizedRole();return r==='super_admin'||r==='admin';}
   function isGrcAnalyticsManager(){return normalizedRole()==='governance_performance_manager'||(Array.isArray(window._fbPerms)&&window._fbPerms.indexOf('view_request_analytics')>=0);}
   function canOpenGrcAdminCenter(){return isGrcAdmin()||isGrcAnalyticsManager();}
-  function canAccessRiskIncidentRegisters(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];if(r==='viewer'||r==='user')return false;return ['super_admin','admin','department_manager','dept_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager'].indexOf(r)>=0||p.indexOf('edit_risk_management')>=0||p.indexOf('edit_incident_register')>=0||p.indexOf('*')>=0;}
+  function canAccessRiskIncidentRegisters(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return ['super_admin','admin','department_manager','dept_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].indexOf(r)>=0||p.indexOf('access_grc')>=0||p.indexOf('view_grc_department')>=0||p.indexOf('edit_risk_management')>=0||p.indexOf('edit_incident_register')>=0||p.indexOf('*')>=0;}
   window._grcCanAccessRiskIncidentRegisters=canAccessRiskIncidentRegisters;
   function isGrcSuperAdmin(){return normalizedRole()==='super_admin';}
   function canonicalGrcDepartment(value){
