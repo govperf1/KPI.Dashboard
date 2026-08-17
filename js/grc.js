@@ -15,10 +15,10 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260817-v189-viewer-risk-advisory');
+  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260817-v190-grc-root-sync');
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260817-v189-viewer-risk-advisory');
+  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260817-v190-grc-root-sync');
   var GRC_CACHE_OWNER_KEY='qumc_grc_workspace_preview_v1_owner';
   var GRC_CACHE_BUILD_KEY='qumc_grc_workspace_preview_build';
   var STATE_VERSION=13;
@@ -965,7 +965,7 @@
   // Governance and Risk remain department-scoped. Shared operational modules are visible to every approved GRC user.
   var GRC_GLOBAL_READ_COLLECTIONS={manuals:true,codes:true,compliance:true,audits:true,actions:true,documents:true,initiatives:true};
   var grcStateUnsubs=[],grcStateSaveTimer=null,grcApplyingRemote=false,grcSyncStarted=false,grcCloudReady=false;
-  var grcCloudParts={},grcCloudMirror={},grcCloudDuplicates={},grcCloudEverHydrated={},grcInitialScopes={},grcCollectionScopeReady={},grcCollectionScopeFailed={},grcMigrationPromise=null,grcPendingCloudSave=false,grcCanonicalCatalogV187Promise=null,grcCanonicalCatalogV188Promise=null,grcRemoteRenderTimer=null,grcRemoteRenderPosition=null,grcCachePersistTimer=null;
+  var grcCloudParts={},grcCloudMirror={},grcCloudDuplicates={},grcCloudEverHydrated={},grcInitialScopes={},grcCollectionScopeReady={},grcCollectionScopeFailed={},grcMigrationPromise=null,grcPendingCloudSave=false,grcCanonicalCatalogV187Promise=null,grcCanonicalCatalogV190Promise=null,grcRemoteRenderTimer=null,grcRemoteRenderPosition=null,grcCachePersistTimer=null;
   var grcRiskStatusOverrides={},grcRiskStatusUnsub=null,grcSyncScopeKey='',grcPendingLocalDeletes={risks:{},incidents:{}},grcSyncLastError='',grcSyncLastErrorAt='';
   function grcPendingDeleteKey(collectionKey,record){if(collectionKey!=='risks'&&collectionKey!=='incidents')return'';return grcRegisterBusinessKey(record||{});}
   function grcMarkPendingLocalDelete(collectionKey,record){var key=grcPendingDeleteKey(collectionKey,record);if(!key)return;grcPendingLocalDeletes[collectionKey]=grcPendingLocalDeletes[collectionKey]||{};grcPendingLocalDeletes[collectionKey][key]=Date.now();}
@@ -1077,10 +1077,9 @@
   }
   function enforceLocalGrcScope(){
     if(!window._fbUser)return;
-    /* Risk/Incident data is intentionally unavailable to Viewer/User/Executive
-       roles. Clear any profile-bound browser cache as well as skipping cloud
-       listeners below, so a previous session can never leak stale register data
-       or trigger a permission warning for a page the role cannot access. */
+    /* Clear Risk/Incident browser state only for roles that truly cannot read
+       the published registers. Viewer/User are intentionally allowed and remain
+       department-scoped by the canonical Firestore listeners below. */
     if(!canAccessRiskIncidentRegisters()){state.risks=[];state.incidents=[];}
     if(canViewAllExecutiveDepartments())return;
     Object.keys(GRC_COLLECTION_MAP).forEach(function(key){state[key]=(state[key]||[]).filter(function(r){return grcRecordAllowedLocally(key,r);});});
@@ -1099,7 +1098,7 @@
   }
   function applyRiskStatusOverrides(rows){
     var byRecord={};Object.keys(grcRiskStatusOverrides||{}).forEach(function(id){var o=grcRiskStatusOverrides[id]||{},rk=String(o.recordId||'').toUpperCase().replace(/[^A-Z0-9]/g,'');if(rk)byRecord[rk]=o;});
-    return (rows||[]).map(function(r,i){var cloudId=grcCloudDocId('risks',r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,''),o=grcRiskStatusOverrides[cloudId]||byRecord[rk];if(!o)return r;var st=String(o.actionStatus||'').toLowerCase();if(st!=='open'&&st!=='closed')return r;var rd=canonicalGrcDepartment(r&&r.department),od=canonicalGrcDepartment(o.department);if(rd&&od&&rd!==od)return r;return Object.assign({},r,{actionStatus:st,_statusOverride:true,_statusUpdatedAt:o.updatedAtIso||''});});
+    return (rows||[]).map(function(r,i){var cloudId=grcCloudDocId('risks',r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,''),o=grcRiskStatusOverrides[cloudId]||byRecord[rk];if(!o)return r;var st=String(o.actionStatus||'').toLowerCase();if(st!=='open'&&st!=='closed')return r;/* Use the same business-ID-aware department resolver as register scope. Historical LUND risks may still say housekeeping in the bundled/source row while the canonical operational department is Laundry. */var rd=grcRecordDepartment('risks',r),od=canonicalGrcDepartment(o.department);if(rd&&od&&rd!==od)return r;return Object.assign({},r,{actionStatus:st,_statusOverride:true,_statusUpdatedAt:o.updatedAtIso||''});});
   }
   function grcWorkflowRequestTime(request){
     request=request||{};
@@ -1274,11 +1273,12 @@
     try{grcSetPublishedWorkflowRequests(event&&event.detail&&event.detail.rows||event&&event.detail||[]);}catch(err){console.warn('[GRC Published Register Projection]',err);}
   });
 
-  function grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows){
-    /* v187: bundled baseline is only a Super Admin repair source. All other
-       roles render Firestore records only, so every device/role sees the same
-       canonical server dataset instead of a different local seed merge. */
-    if(!isGrcSuperAdmin())return rows||[];
+  function grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows,repairMode){
+    /* v190 SINGLE SOURCE: bundled baseline is never merged into the live UI.
+       It is used only by the explicit Super Admin repair job, which publishes
+       missing approved rows to Firestore first. Every role/device then renders
+       the exact same server dataset. */
+    if(repairMode!==true||!isGrcSuperAdmin())return rows||[];
     /*
       v165 department-register recovery.
 
@@ -1382,11 +1382,9 @@
     var map={},tombstones={};rawRows.forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');r._cloudId=id;r.cloudId=id;if(r&&r.deleted===true){tombstones[id]=1;if(rk)tombstones[rk]=1;return;}map[id]=r;});
     var rows=Object.keys(map).map(function(id){return map[id];});
     rows=grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows);
-    /* Seed catalogs are fallback data only. A Firestore tombstone is an
-       explicit administrator decision and must suppress the bundled seed on
-       every device; otherwise deleted codes/initiatives reappear after sync. */
-    if(collectionKey==='initiatives'&&isGrcSuperAdmin())rows=mergeInitiativeSeed(rows,tombstones);
-    if(collectionKey==='codes'&&isGrcSuperAdmin())rows=mergeEmergencyCodeSeed(rows,tombstones);
+    /* Do not merge local seed catalogs into Super Admin only. Firestore is the
+       render authority for every role; the v190 repair publishes any genuinely
+       missing approved seed rows to Firestore and respects tombstones. */
     state[collectionKey]=rows;grcCloudMirror[collectionKey]={};rows.forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i);if(map[id])grcCloudMirror[collectionKey][id]=grcComparable(r);});
     grcCloudEverHydrated[collectionKey]=true;
   }
@@ -1423,7 +1421,7 @@
     if(grcAllInitialScopesReady()&&grcAllInitialScopesHealthy()){
       grcCloudReady=true;
       if(grcPendingCloudSave){grcPendingCloudSave=false;queueSharedStateSave(true);}
-      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV188().catch(function(err){console.error('[GRC Canonical Catalog v188]',err);});},0);
+      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV190().catch(function(err){console.error('[GRC Canonical Catalog v190]',err);});},0);
       /* All initial collection snapshots arrive in a burst. Render once after
          the burst, not once per collection. Later live updates are debounced. */
       grcScheduleRemoteRender(position,wasReady?90:20);
@@ -1659,8 +1657,8 @@
     if(grcSyncStarted&&grcSyncScopeKey!==wanted)stopSharedStateSync();
     ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;
       var actual=grcSyncIdentityKey();if(actual!==wanted){stopSharedStateSync();setTimeout(startSharedStateSync,0);return;}
-      if(typeof window._qumcAssertFirestoreRulesV35==='function'||typeof window._qumcAssertFirestoreRulesV34==='function'||typeof window._qumcAssertFirestoreRulesV33==='function'){
-        try{await (window._qumcAssertFirestoreRulesV35||window._qumcAssertFirestoreRulesV34||window._qumcAssertFirestoreRulesV33)();}
+      if(typeof window._qumcAssertFirestoreRulesV36==='function'||typeof window._qumcAssertFirestoreRulesV35==='function'||typeof window._qumcAssertFirestoreRulesV34==='function'||typeof window._qumcAssertFirestoreRulesV33==='function'){
+        try{await (window._qumcAssertFirestoreRulesV36||window._qumcAssertFirestoreRulesV35||window._qumcAssertFirestoreRulesV34||window._qumcAssertFirestoreRulesV33)();}
         catch(ruleErr){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError=String(ruleErr&&ruleErr.message||ruleErr).replace(/^rules-version-mismatch:/,'');grcSyncLastErrorAt=new Date().toISOString();renderAtSamePosition(grcViewportPosition());return;}
       }
       grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
@@ -1705,7 +1703,7 @@
           if(scopes.indexOf('division')>=0)grcListen(b,key,'division',b.fs.query(col,b.fs.where('departmentKey','==','division')));
         }
       });
-      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV188().catch(function(err){console.error('[GRC Canonical Catalog v188]',err);});},350);
+      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV190().catch(function(err){console.error('[GRC Canonical Catalog v190]',err);});},350);
     }).catch(function(err){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError='GRC sync initialization: '+String(err&&err.message||err);grcSyncLastErrorAt=new Date().toISOString();console.error('[GRC Secure Sync] init failed',err);renderAtSamePosition(grcViewportPosition());});
   }
   async function grcPrimeAdminMirrorsFromServer(b,preserveLocalState){
@@ -1763,36 +1761,36 @@
   window._grcEnsureCanonicalCatalogV187=ensureSuperAdminCanonicalCatalogV187;
 
 
-  async function ensureSuperAdminCanonicalCatalogV188(){
+  async function ensureSuperAdminCanonicalCatalogV190(){
     if(!isGrcSuperAdmin())return false;
-    if(grcCanonicalCatalogV188Promise)return grcCanonicalCatalogV188Promise;
-    grcCanonicalCatalogV188Promise=ensureReportBackend().then(async function(b){
+    if(grcCanonicalCatalogV190Promise)return grcCanonicalCatalogV190Promise;
+    grcCanonicalCatalogV190Promise=ensureReportBackend().then(async function(b){
       if(!b.auth.currentUser)return false;
-      var markerRef=b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v188'),marker=await b.fs.getDoc(markerRef);
+      var markerRef=b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v190'),marker=await b.fs.getDoc(markerRef);
       if(marker.exists()&&marker.data()&&marker.data().status==='completed')return false;
       await b.fs.setDoc(markerRef,{status:'running',build:GRC_CLIENT_BUILD,startedAt:b.fs.serverTimestamp(),startedBy:String(window._fbUser||'')},{merge:true});
-      /* Read the same complete server catalog visible to Super Admin, then let
-         the normal Super Admin baseline repair fill only genuinely missing
-         approved rows. Every record is re-published with one canonical
-         departmentKey so scoped queries (Projects, Maintenance, Safety, etc.)
-         return exactly the corresponding subset of the Super Admin register. */
+      /* Rebuild the canonical server catalog from the current Firestore state.
+         Bundled approved baseline rows are used only here as a repair source.
+         Tombstones remain authoritative, so deleted rows are never resurrected. */
       await grcPrimeAdminMirrorsFromServer(b,false);
-      var writes=[],counts={},obsolete=[];
+      var writes=[],counts={},obsolete=[],protectedTombstoneSources={};
       Object.keys(GRC_COLLECTION_MAP).forEach(function(key){
-        var rows=Array.isArray(state[key])?state[key].slice():[];
-        if(key==='initiatives')rows=mergeInitiativeSeed(rows);
-        if(key==='codes')rows=mergeEmergencyCodeSeed(rows);
+        var rows=Array.isArray(state[key])?state[key].slice():[],rawRows=[];
+        Object.keys(grcCloudParts[key]||{}).forEach(function(scope){(grcCloudParts[key][scope]||[]).forEach(function(r){rawRows.push(copyRecord(r));});});
+        rows=grcMergeMissingApprovedBaseline(key,rows,rawRows,true);
+        var tombstones={};rawRows.forEach(function(r,i){if(!r||r.deleted!==true)return;var id=grcCloudDocId(key,r,i),rk=String(r.id||r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,''),sourceId=String(r._sourceCloudId||'').trim();tombstones[id]=1;if(rk)tombstones[rk]=1;if(sourceId)protectedTombstoneSources[(GRC_COLLECTION_MAP[key]||key)+'/'+sourceId]=1;});
+        if(key==='initiatives')rows=mergeInitiativeSeed(rows,tombstones);
+        if(key==='codes')rows=mergeEmergencyCodeSeed(rows,tombstones);
         counts[key]=rows.length;
         rows.forEach(function(record,index){
           var sourceId=String(record&&record._sourceCloudId||'').trim();
           var prepared=grcPrepareCloudRecord(key,record,index,b),id=prepared._cloudId;
-          prepared.canonicalCatalogVersion=188;
-          prepared.canonicalCatalogSource='super_admin_complete_state';
+          prepared.canonicalCatalogVersion=190;
+          prepared.canonicalCatalogSource='server_single_source_repair';
           writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],id),data:prepared});
           if((key==='risks'||key==='incidents')&&sourceId&&sourceId!==id)obsolete.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],sourceId)});
         });
       });
-      /* Remove every known Risk/Incident duplicate after canonical rows exist. */
       ['risks','incidents'].forEach(function(key){
         Object.keys(grcCloudDuplicates[key]||{}).forEach(function(canonicalId){
           (grcCloudDuplicates[key][canonicalId]||[]).forEach(function(oldId){
@@ -1800,22 +1798,27 @@
           });
         });
       });
-      var seenDelete={};obsolete=obsolete.filter(function(w){var k=w.ref.path;if(seenDelete[k])return false;seenDelete[k]=1;return true;});
+      /* Never delete the only server tombstone while canonicalizing duplicate
+         document IDs. Tombstones are what prevent a deliberately deleted bundled
+         baseline row from being reintroduced by a later repair release. */
+      var seenDelete={};obsolete=obsolete.filter(function(w){var k=w.ref.path;if(protectedTombstoneSources[k]||seenDelete[k])return false;seenDelete[k]=1;return true;});
       await grcCommitWrites(b,writes);
       if(obsolete.length)await grcCommitWrites(b,obsolete);
       await b.fs.setDoc(markerRef,{status:'completed',build:GRC_CLIENT_BUILD,counts:counts,writes:writes.length,deletes:obsolete.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
-      try{window._recordAuditDirect&&window._recordAuditDirect('GRC_CANONICAL_CATALOG_V188','Normalized the complete Super Admin GRC catalog for department-scoped real-time sync',null,{counts:counts,writes:writes.length,deletes:obsolete.length},{portal:'grc'});}catch(_audit){}
+      try{window._recordAuditDirect&&window._recordAuditDirect('GRC_CANONICAL_CATALOG_V190','Published one canonical Firestore GRC catalog for all roles and departments',null,{counts:counts,writes:writes.length,deletes:obsolete.length},{portal:'grc'});}catch(_audit){}
       return true;
     }).then(function(changed){
       if(changed&&typeof window._grcRestartSecureSync==='function')setTimeout(function(){window._grcRestartSecureSync(true);},100);
       return changed;
     }).catch(async function(err){
-      try{var b=await ensureReportBackend();await b.fs.setDoc(b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v188'),{status:'failed',build:GRC_CLIENT_BUILD,error:String(err&&err.message||err).slice(0,500),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}
+      try{var b=await ensureReportBackend();await b.fs.setDoc(b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v190'),{status:'failed',build:GRC_CLIENT_BUILD,error:String(err&&err.message||err).slice(0,500),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}
       throw err;
-    }).finally(function(){grcCanonicalCatalogV188Promise=null;});
-    return grcCanonicalCatalogV188Promise;
+    }).finally(function(){grcCanonicalCatalogV190Promise=null;});
+    return grcCanonicalCatalogV190Promise;
   }
-  window._grcEnsureCanonicalCatalogV188=ensureSuperAdminCanonicalCatalogV188;
+  window._grcEnsureCanonicalCatalogV190=ensureSuperAdminCanonicalCatalogV190;
+  window._grcEnsureCanonicalCatalogV188=ensureSuperAdminCanonicalCatalogV190;
+  window._grcEnsureCanonicalCatalogV187=ensureSuperAdminCanonicalCatalogV190;
 
   async function flushSecureState(){
     if(grcApplyingRemote||!isGrcAdmin())return false;
@@ -1903,11 +1906,11 @@
   function resolvedExecutiveDept(value){var raw=String(value||executiveDeptFilter||'');if(/^(all\s*fms|allfms|all_departments|all)$/i.test(raw.replace(/[&/_-]+/g,' ')))return canViewAllExecutiveDepartments()?'allFms':(currentGrcDept()||'allFms');var d=canonicalGrcDepartment(raw);if(canViewAllExecutiveDepartments())return d&&d!=='division'?d:'allFms';d=currentGrcDept();return d&&d!=='division'?d:'allFms';}
   function executiveDepartmentFilterHtml(selected){if(!canViewAllExecutiveDepartments())return'';var choices=[['allFms',isAr()?'جميع الأقسام':'All Departments'],['safety',deptName('safety')],['maintenance',deptName('maintenance')],['housekeeping',deptName('housekeeping')],['laundry',deptName('laundry')],['projects',deptName('projects')]];return'<div class="grc-executive-filter"><label><span>'+(isAr()?'تصفية القسم':'Department Filter')+'</span><select onchange="window._grcSetExecutiveDepartment(this.value)">'+choices.map(function(x){return'<option value="'+x[0]+'" '+(selected===x[0]?'selected':'')+'>'+esc(x[1])+'</option>';}).join('')+'</select></label></div>';}
   window._grcSetExecutiveDepartment=function(value){var raw=String(value||'allFms');executiveDeptFilter=/^(all\s*fms|allfms|all_departments|all)$/i.test(raw.replace(/[&/_-]+/g,' '))?'allFms':canonicalGrcDepartment(raw);renderAtSamePosition(grcViewportPosition());};
-  function currentRiskRecordDept(){return currentGrcDept()==='laundry'?'housekeeping':currentGrcDept();}
-  function riskRecordBelongsToUser(record){var d=currentGrcDept(),id=String(record&&record.id||record&&record.code||'').toUpperCase().replace(/\s+/g,''),rd=canonicalGrcDepartment(record&&record.department||record&&record.responsibleDept||record&&record.responsibleDepartment);if(d==='laundry')return (rd==='housekeeping'||rd==='laundry')&&/^LUND/.test(id);if(d==='housekeeping')return (rd==='housekeeping'||rd==='laundry')&&!/^LUND/.test(id);return rd===d;}
+  function currentRiskRecordDept(){return currentGrcDept();}
+  function riskRecordBelongsToUser(record){var d=currentGrcDept();return !!d&&grcRecordDepartment('risks',record||{})===d;}
   function nextRiskIdForCurrentUser(){var d=currentGrcDept(),prefix=d==='laundry'?'LUND':d==='housekeeping'?'HK':d==='safety'?'SAF':d==='maintenance'?'MNT':d==='projects'?'PM':'RSK',max=0,width=2;(state.risks||[]).forEach(function(r){var raw=String(r.id||r.code||'').toUpperCase().replace(/\s+/g,''),m=raw.match(new RegExp('^'+prefix+'(\\d+)$'));if(m){max=Math.max(max,Number(m[1])||0);width=Math.max(width,m[1].length);}});return prefix+((prefix==='HK'||prefix==='LUND')?'':' ')+String(max+1).padStart(width,'0');}
 
-  function incidentRecordBelongsToUser(record){var d=currentGrcDept(),rd=canonicalGrcDepartment(record&&record.department||record&&record.responsibleDept||record&&record.responsibleDepartment);return !!d&&rd===d;}
+  function incidentRecordBelongsToUser(record){var d=currentGrcDept();return !!d&&grcRecordDepartment('incidents',record||{})===d;}
   function registerRecordBelongsToUser(record,type){return type==='risk'?riskRecordBelongsToUser(record):type==='incident'?incidentRecordBelongsToUser(record):false;}
   function nextIncidentIdForCurrentUser(){var d=currentGrcDept(),max=0;if(d==='projects'){(state.incidents||[]).forEach(function(r){if(canonicalGrcDepartment(r.department||r.responsibleDept)!=='projects')return;var raw=String(r.id||r.code||'').toUpperCase(),m=raw.match(/^(?:INC[- ]?)?PMD[- ]?(\d+)$/);if(m)max=Math.max(max,Number(m[1])||0);});return'INC-PMD-'+String(max+1).padStart(2,'0');}var deptCode=({safety:'SAF',maintenance:'MNT',housekeeping:'HSK',laundry:'LND'})[d]||'FMS',prefix='INC-'+deptCode+'-'+new Date().getFullYear()+'-';(state.incidents||[]).forEach(function(r){if(canonicalGrcDepartment(r.department||r.responsibleDept)!==d)return;var raw=String(r.id||r.code||'').toUpperCase(),m=raw.match(/(\d+)$/);if(m)max=Math.max(max,Number(m[1])||0);});return prefix+String(max+1).padStart(3,'0');}
   function nextRegisterIdForCurrentUser(type){return type==='incident'?nextIncidentIdForCurrentUser():nextRiskIdForCurrentUser();}
@@ -4507,8 +4510,8 @@
     grcHoldRegisterViewport();
     if(!request||!canSubmitRegisterRequest(request.recordType||'risk'))return;var recordType=request.recordType==='incident'?'incident':'risk',record=Object.assign({},request.proposedRecord||request.currentRecord||{}),spec=formSpec(recordType,request.department||currentGrcDept()),old=document.getElementById('_grcFormModal');if(old)old.remove();
     var ov=document.createElement('div');ov.id='_grcFormModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(isAr()?'تعديل وإعادة إرسال الطلب':'Edit & Resubmit Request')+'</div><div class="grc-modal-sub">'+esc(request.requestCode||'')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcFormModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcRiskResubmitForm"><div class="grc-form-grid">'+spec.fields+'</div><div id="_grcFormErr"></div><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcFormModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-primary-btn">'+(isAr()?'إعادة الإرسال للاعتماد':'Resubmit for Approval')+'</button></div></form></div>';document.body.appendChild(ov);
-    var f=document.getElementById('_grcRiskResubmitForm');Object.keys(record).forEach(function(k){if(f.elements[k])f.elements[k].value=record[k]==null?'':record[k];});if(f.elements.department){f.elements.department.value=request.department==='laundry'?'housekeeping':(request.department||currentRiskRecordDept());f.elements.department.disabled=true;}
-    f.addEventListener('submit',function(e){e.preventDefault();var fd=new FormData(f),updated=Object.assign({},record,{department:request.department==='laundry'?'housekeeping':(request.department||currentRiskRecordDept()),updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){updated[k]=v;});if(recordType==='risk'){updated.likelihood=Number(updated.likelihood||0);updated.impact=Number(updated.impact||0);}updated=normalizeRecordBeforeSave(recordType,updated);var btn=f.querySelector('button[type=submit]');if(btn)btn.disabled=true;window._grcRiskRequestResubmit(request.id,updated,'Updated and resubmitted').then(function(){ov.remove();window.toast&&window.toast(isAr()?'تمت إعادة إرسال الطلب.':'Request resubmitted.');if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();}).catch(function(err){document.getElementById('_grcFormErr').textContent=String(err&&err.message||err);if(btn)btn.disabled=false;});});
+    var f=document.getElementById('_grcRiskResubmitForm');Object.keys(record).forEach(function(k){if(f.elements[k])f.elements[k].value=record[k]==null?'':record[k];});if(f.elements.department){f.elements.department.value=request.department||currentRiskRecordDept();f.elements.department.disabled=true;}
+    f.addEventListener('submit',function(e){e.preventDefault();var fd=new FormData(f),updated=Object.assign({},record,{department:request.department||currentRiskRecordDept(),updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){updated[k]=v;});if(recordType==='risk'){updated.likelihood=Number(updated.likelihood||0);updated.impact=Number(updated.impact||0);}updated=normalizeRecordBeforeSave(recordType,updated);var btn=f.querySelector('button[type=submit]');if(btn)btn.disabled=true;window._grcRiskRequestResubmit(request.id,updated,'Updated and resubmitted').then(function(){ov.remove();window.toast&&window.toast(isAr()?'تمت إعادة إرسال الطلب.':'Request resubmitted.');if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();}).catch(function(err){document.getElementById('_grcFormErr').textContent=String(err&&err.message||err);if(btn)btn.disabled=false;});});
   };
 
   window._grcDelete=function(collection,id){if(!isGrcAdmin())return;grcHoldRegisterViewport();if(!window.confirm(L('confirmDelete')))return;var deleted=(state[collection]||[]).find(function(r){return String(r.id)===String(id);});_grcAuditRegisterChange('GRC_REGISTER_DELETE',collection,deleted,null);grcMarkPendingLocalDelete(collection,deleted);state[collection]=(state[collection]||[]).filter(function(r){return String(r.id)!==String(id);});saveState(true);};

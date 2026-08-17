@@ -47,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260817-v189-viewer-risk-advisory');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260817-v190-grc-root-sync');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -57,7 +57,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
 
     function _normalizePortalRole(value){
       const r=String(value||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_');
-      const aliases={superadmin:'super_admin',departmentmanager:'department_manager',dept_manager:'department_manager',deptmanager:'department_manager',riskowner:'risk_owner',grcowner:'grc_owner',platformowner:'platform_owner',kpiowner:'kpi_owner',governanceperformancemanager:'governance_performance_manager'};
+      const aliases={superadmin:'super_admin',departmentmanager:'department_manager',dept_manager:'department_manager',deptmanager:'department_manager',riskowner:'risk_owner',grcowner:'grc_owner',platformowner:'platform_owner',kpiowner:'kpi_owner',governanceperformancemanager:'governance_performance_manager',view:'viewer'};
       return aliases[r]||r;
     }
     window._normalizePortalRole=_normalizePortalRole;
@@ -564,7 +564,7 @@ window._selectPortal=async portal=>{
         const d=snap.data();
         if(!d.approved){console.warn('[Auth] Not approved:',email);await signOut(auth);setErr('Account pending approval.');showLogin();return;}
         const role=_normalizePortalRole(d.role||'viewer');
-        const rawAccountDept=('dept' in d)?d.dept:(('department' in d)?d.department:(('deptKey' in d)?d.deptKey:null));
+        const rawAccountDept=_advProfileDepartmentValue(d);
         const deptText=rawAccountDept==null?'':String(rawAccountDept).trim();
         /* Governance & Performance Manager is intentionally platform-wide.
            Ignore any legacy/stale operational department stored on the user doc
@@ -859,8 +859,8 @@ window._selectPortal=async portal=>{
       const has=function(x){return tokens.indexOf(x)>=0;};
       if(low.includes('السلامة')||low.includes('سلامة')||low.includes('safety')||has('saf'))return'safety';
       if(low.includes('الصيانة')||low.includes('صيانة')||low.includes('maintenance')||has('mnt'))return'maintenance';
-      if(low.includes('المغسلة')||low.includes('مغسلة')||low.includes('الغسيل')||low.includes('laundry')||has('lnd'))return'laundry';
-      if(low.includes('النظافة')||low.includes('نظافة')||low.includes('housekeeping')||low.includes('cleaning')||has('hsk'))return'housekeeping';
+      if(low.includes('المغسلة')||low.includes('مغسلة')||low.includes('الغسيل')||low.includes('laundry')||has('lnd')||has('lund'))return'laundry';
+      if(low.includes('النظافة')||low.includes('نظافة')||low.includes('housekeeping')||low.includes('cleaning')||has('hsk')||has('hk'))return'housekeeping';
       if(low.includes('المشاريع')||low.includes('مشاريع')||low.includes('project')||has('prj')||has('pmd')||low==='pm')return'projects';
       if(low.includes('الحوكمة')||low.includes('حوكمة')||low.includes('الأداء')||low.includes('الاداء')||low.includes('governance')||low.includes('performance')||has('gov'))return'governance';
       if(low.includes('facility management')||low.includes('facilities management')||low.includes('المرافق')||low.includes('division')||low==='fms')return'division';
@@ -870,21 +870,33 @@ window._selectPortal=async portal=>{
     function _advDepartmentKey(){return _advCanonicalDepartment(_advRawDepartment());}
     function _advNormalizeRoleValue(value){return _normalizePortalRole(value);}
     function _advMeaningfulDepartment(value){var s=String(value==null?'':value).trim();return !!s&&!/^(null|none|undefined|n\/?a|na|unassigned|not assigned|-|—)$/i.test(s);}
+    function _advProfileDepartmentValue(data){
+      data=data||{};var fields=['dept','department','deptKey'],i,value;
+      /* User documents have existed in three schemas. Never let an old blank or
+         unrecognized `dept` shadow a valid department/departmentKey value.
+         First pick the first field in the historical precedence that actually
+         canonicalizes; only then retain an unrecognized meaningful value so the
+         caller can surface an explicit profile error instead of silently
+         widening the user to All Departments. */
+      for(i=0;i<fields.length;i++){if(!Object.prototype.hasOwnProperty.call(data,fields[i]))continue;value=data[fields[i]];if(_advCanonicalDepartment(value))return value;}
+      for(i=0;i<fields.length;i++){if(!Object.prototype.hasOwnProperty.call(data,fields[i]))continue;value=data[fields[i]];if(_advMeaningfulDepartment(value))return value;}
+      return null;
+    }
     async function _advFreshProfile(){
       const u=auth.currentUser;if(!u||!u.email)throw new Error('Not authenticated.');
       const profileEmail=String(u.email||'').toLowerCase().trim();
       const snap=await _getServerDoc(doc(db,'users',profileEmail));
       if(!snap.exists())throw new Error('Your user profile could not be found in Firestore.');
       const d=snap.data()||{};if(d.approved!==true)throw new Error('Your account is not approved.');
-      const raw=Object.prototype.hasOwnProperty.call(d,'dept')?d.dept:(Object.prototype.hasOwnProperty.call(d,'department')?d.department:(Object.prototype.hasOwnProperty.call(d,'deptKey')?d.deptKey:null));
+      const raw=_advProfileDepartmentValue(d);
       const meaningful=_advMeaningfulDepartment(raw),role=_advNormalizeRoleValue(d.role||'viewer'),parsedKey=_advCanonicalDepartment(raw),key=role==='governance_performance_manager'?'':parsedKey;
       if(role!=='governance_performance_manager'&&meaningful&&!parsedKey)throw new Error('profile-department-unrecognized:'+String(raw));
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV35Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v35-viewer-risk-advisory-20260817'));window.__advRulesV35Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v35 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__advRulesV36Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v36-grc-canonical-profile-20260817'));window.__advRulesV36Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v36 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     function _advIso(){return new Date().toISOString();}
     function _advTsMs(v){if(!v)return 0;try{return v.toDate?v.toDate().getTime():new Date(v).getTime()||0;}catch(_){return 0;}}
@@ -1267,7 +1279,7 @@ window._selectPortal=async portal=>{
       const collectionName=GRC_REGISTER_COLLECTIONS[recordType],wantedKey=_grcRegisterBusinessKey(record),wantedDept=_grcCanonicalDepartment(record.department),keep=String(keepCloudId||record._cloudId||record.cloudId||'');
       if(!collectionName||!wantedKey||!keep)return 0;
       const snap=await getDocs(collection(db,collectionName)),deletes=[];
-      snap.forEach(d=>{if(d.id===keep)return;const data=d.data()||{},key=_grcRegisterBusinessKey(data),dept=_grcCanonicalDepartment(data.department);if(key===wantedKey&&(!wantedDept||!dept||dept===wantedDept))deletes.push(deleteDoc(doc(db,collectionName,d.id)));});
+      snap.forEach(d=>{if(d.id===keep)return;const data=d.data()||{},key=_grcRegisterBusinessKey(data),dept=_grcRiskRecordDepartment(data);if(key===wantedKey&&(!wantedDept||!dept||dept===wantedDept))deletes.push(deleteDoc(doc(db,collectionName,d.id)));});
       if(deletes.length)await Promise.all(deletes);
       return deletes.length;
     }
@@ -1307,11 +1319,23 @@ window._selectPortal=async portal=>{
     function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();return ['super_admin','admin','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].includes(r)||p.includes('access_grc')||p.includes('view_grc_department')||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('*');}
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
-      if(window.__grcRulesV35Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v35-viewer-risk-advisory-20260817'));window.__grcRulesV35Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v35 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__grcRulesV36Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v36-grc-canonical-profile-20260817'));window.__grcRulesV36Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v36 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
-    window._qumcAssertFirestoreRulesV35=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV34=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV33=_grcRiskAssertRulesVersion;
+    window._qumcAssertFirestoreRulesV36=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV35=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV34=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV33=_grcRiskAssertRulesVersion;
+    function _grcRiskRecordDepartment(record,fallback){
+      record=record||{};const id=String(record.id||record.code||record.riskId||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
+      /* Historical Laundry risks were stored with department=housekeeping even
+         though their LUND business IDs belong to Laundry. Infer the operational
+         department from stable business IDs before consulting legacy labels. */
+      if(/^LUND/.test(id))return'laundry';
+      if(/^HK/.test(id))return'housekeeping';
+      if(/^SAF/.test(id))return'safety';
+      if(/^MNT/.test(id))return'maintenance';
+      if(/^(PM|PMD|PRJ)/.test(id))return'projects';
+      return _grcCanonicalDepartment(record.departmentKey||record.department||record.responsibleDept||record.responsibleDepartment||fallback);
+    }
     window._grcRiskDirectStatusUpdate=async function(record,nextStatus){
       await _grcRiskAssertRulesVersion();
       const freshProfile=await _advFreshProfile();
@@ -1320,7 +1344,7 @@ window._selectPortal=async portal=>{
       if(freshProfile.role==='governance_performance_manager'||(!canByRole&&!canByPerm))throw new Error('You do not have permission to update Risk status.');
       record=record||{};nextStatus=String(nextStatus||'').trim().toLowerCase();
       if(!['open','closed'].includes(nextStatus))throw new Error('Action Status can only be Open or Closed.');
-      const myDepartment=freshProfile.departmentKey,department=_grcCanonicalDepartment(record.departmentKey||record.department||record.responsibleDept||record.responsibleDepartment||myDepartment);
+      const myDepartment=freshProfile.departmentKey,department=_grcRiskRecordDepartment(record,myDepartment);
       if(!department||!myDepartment||department!==myDepartment)throw new Error('You can update Risk status only for your assigned department.');
       const now=_grcRiskIso(),businessKey=_grcRiskRecordKey(record),canonicalCloudId=_grcRegisterCloudId('risk',record);
       let liveRef=null,liveData=null;
@@ -1342,10 +1366,10 @@ window._selectPortal=async portal=>{
       }
       let statusStoredInRecord=false;
       if(liveRef){
-        const liveDept=_grcCanonicalDepartment(liveData&& (liveData.departmentKey||liveData.department||liveData.responsibleDept||liveData.responsibleDepartment)||department);
+        const liveDept=_grcRiskRecordDepartment(Object.assign({},liveData||{},{id:(liveData&& (liveData.id||liveData.code))||record.id||record.code}),department);
         /* Legacy rows can still carry a stale department field even though the
            business ID is visibly part of the user's register. Prefer the
-           canonical v188 migration, but if Firestore rejects this legacy row,
+           canonical v190 migration, but if Firestore rejects this legacy row,
            fall back to the dedicated status-only collection instead of blocking
            the GRC Owner. No Risk content other than Open/Closed is written. */
         if(liveDept===myDepartment){
@@ -1413,7 +1437,7 @@ window._selectPortal=async portal=>{
       const recordType=String(request.recordType||'risk').toLowerCase(),label=recordType==='incident'?'Incident':'Risk',op=String(request.operation||''),targetKey=_grcRiskKey(request.targetRecordId||request.targetRiskId||request.currentRecord&&request.currentRecord.id||request.currentRecord&&request.currentRecord.code),proposed=_grcRiskJson(request.proposedRecord||{});
       if(op==='add'){
         const assigned=_grcRegisterNextId(records,request.department,proposed.id||proposed.code,recordType);proposed.id=assigned;proposed.code=proposed.code&&_grcRiskKey(proposed.code)!==_grcRiskKey(request.proposedRecord&&request.proposedRecord.id)?proposed.code:assigned;if(recordType==='incident'&&_grcCanonicalDepartment(request.department)==='projects')proposed.code=assigned;
-        proposed.department=recordType==='risk'&&request.department==='laundry'?'housekeeping':request.department;proposed.createdAt=proposed.createdAt||_grcRiskIso();proposed.createdBy=proposed.createdBy||request.submittedByName||request.submittedByEmail;proposed.updatedAt=_grcRiskIso();proposed.updatedBy=_grcRiskEmail();records.push(proposed);return{records,record:proposed};
+        proposed.department=request.department;proposed.createdAt=proposed.createdAt||_grcRiskIso();proposed.createdBy=proposed.createdBy||request.submittedByName||request.submittedByEmail;proposed.updatedAt=_grcRiskIso();proposed.updatedBy=_grcRiskEmail();records.push(proposed);return{records,record:proposed};
       }
       const index=records.findIndex(r=>_grcRiskRecordKey(r)===targetKey);if(index<0)throw new Error(label+' record no longer exists.');
       if(op==='delete'){const removed=records[index];records.splice(index,1);return{records,record:removed};}
@@ -1432,10 +1456,16 @@ window._selectPortal=async portal=>{
       const freshOwner=['risk_owner','grc_owner','platform_owner'].includes(freshProfile.role);
       if(!['risk','incident'].includes(recordType)||freshProfile.role==='governance_performance_manager'||(!freshOwner&&!_grcRiskCanSubmit(recordType)))throw new Error('Access denied.');
       operation=String(operation||'').toLowerCase();if(!['add','update','delete'].includes(operation))throw new Error('Invalid operation.');
-      const department=_grcCanonicalDepartment(payload.department||payload.proposedRecord&&payload.proposedRecord.department||payload.currentRecord&&payload.currentRecord.department||freshProfile.departmentKey);
       const userDepartment=freshProfile.departmentKey,departmentRaw=String(freshProfile.rawDepartment==null?'':freshProfile.rawDepartment).trim();
       if(!userDepartment)throw new Error('No department is assigned to your account. Contact the administrator before submitting.');
-      if(!department||department!==userDepartment)throw new Error('You can submit requests for your assigned department only.');
+      /* The authenticated Firestore profile is the workflow authority. Never let
+         a stale department stored inside a legacy Risk/Incident row reroute or
+         block its owner's request. For existing records, infer the business-ID
+         department only as a cross-department safety check; the request itself is
+         always stamped with the user's canonical server department. */
+      const existingRecord=payload.currentRecord||payload.proposedRecord||{},recordDepartment=_grcRiskRecordDepartment(existingRecord,userDepartment);
+      if((operation==='update'||operation==='delete')&&recordDepartment&&recordDepartment!==userDepartment)throw new Error('You can submit requests for your assigned department only.');
+      const department=userDepartment;
       const current=_grcRiskJson(payload.currentRecord),proposed=_grcRiskJson(payload.proposedRecord),year=new Date().getFullYear(),deptCode=_grcRiskDeptCode(department),kindCode=recordType==='incident'?'INC':'RSK',counterRef=doc(db,GRC_RISK_COUNTERS_COLLECTION,kindCode+'_'+deptCode+'_'+year),requestRef=doc(collection(db,GRC_RISK_REQUESTS_COLLECTION)),nowIso=_grcRiskIso();
       let requestCode='';
       try{
