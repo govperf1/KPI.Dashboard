@@ -416,7 +416,50 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       const err=ge('_fbErr');if(err)err.textContent='';
       const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}
     };
-    const showPortal=(name,role)=>{console.log('[Auth] showPortal:',name,role);const po=ge('_portalOverlay'),lo=ge('_authOverlay');if(lo)lo.style.display='none';if(po){po.style.display='flex';console.log('[Auth] _portalOverlay is now flex');}else{console.error('[Auth] PORTAL OVERLAY NOT FOUND');return;}const nm=ge('_portalUserName'),rl=ge('_portalUserRole');const realName=cleanAccountName(name)||cleanAccountName(window._fbName)||cleanAccountName((window._fbUser||'').split('@')[0])||'';if(nm)nm.textContent=realName;if(rl){const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'GRC Owner',grc_owner:'GRC Owner',platform_owner:'Performance & GRC Owner',governance_performance_manager:'Governance & Performance Department Manager',viewer:'Viewer',user:'User'};rl.textContent=L[_normalizePortalRole(role)]||role;}setTimeout(_syncPortalCards,0);console.log('[Auth] Portal ready');};
+    /* v192: Cold-login portal transition must undo the !important login layer.
+       showLogin() intentionally hard-locks the auth overlay above every app panel.
+       A normal `style.display = none` cannot override that inline !important, and
+       showLogin() also raises _bgLayer above the portal. On a browser refresh the
+       authenticated session skips showLogin(), which is why the two portal cards
+       appeared only after F5. Reset those layers explicitly before showing Portal. */
+    const showPortal=(name,role)=>{
+      console.log('[Auth] showPortal:',name,role);
+      const po=ge('_portalOverlay'),lo=ge('_authOverlay'),bg=ge('_bgLayer'),fo=ge('_forgotOverlay');
+      if(document.body){
+        document.body.classList.remove('auth-mode','dashboard-mode','grc-mode','performance-advisory-mode','modal-mode','grc-coming-open','portal-access-denied-open');
+        document.body.classList.add('portal-mode');
+      }
+      if(lo){
+        lo.style.setProperty('display','none','important');
+      }
+      if(fo)fo.style.display='none';
+      /* Keep the institutional background visible, but always behind Portal. */
+      if(bg){bg.style.display='block';bg.style.zIndex='9990';}
+      if(po){
+        po.style.display='flex';
+        po.style.visibility='visible';
+        po.style.opacity='1';
+        po.style.pointerEvents='auto';
+        console.log('[Auth] _portalOverlay is now flex');
+      }else{console.error('[Auth] PORTAL OVERLAY NOT FOUND');return;}
+      const nm=ge('_portalUserName'),rl=ge('_portalUserRole');
+      const realName=cleanAccountName(name)||cleanAccountName(window._fbName)||cleanAccountName((window._fbUser||'').split('@')[0])||'';
+      if(nm)nm.textContent=realName;
+      if(rl){const L={super_admin:'Super Admin',admin:'Admin',executive:'Executive',department_manager:'Dept Manager',kpi_owner:'KPI Owner',risk_owner:'GRC Owner',grc_owner:'GRC Owner',platform_owner:'Performance & GRC Owner',governance_performance_manager:'Governance & Performance Department Manager',viewer:'Viewer',user:'User'};rl.textContent=L[_normalizePortalRole(role)]||role;}
+      const forcePortalCards=()=>{
+        const grid=ge('_portalCardGrid'),performance=ge('_portalPerformanceCard'),grc=ge('_portalGrcCard'),panel=ge('_portalPanel');
+        if(panel){panel.style.display='flex';panel.style.visibility='visible';panel.style.opacity='1';panel.style.filter='none';panel.style.pointerEvents='auto';}
+        if(grid){grid.style.display='grid';grid.style.visibility='visible';grid.style.opacity='1';grid.style.gridTemplateColumns='1fr 1fr';}
+        if(performance){performance.style.display='block';performance.style.visibility='visible';performance.style.opacity='1';}
+        if(grc){grc.style.display='block';grc.style.visibility='visible';grc.style.opacity='1';}
+        _syncPortalCards();
+      };
+      forcePortalCards();
+      if(typeof requestAnimationFrame==='function')requestAnimationFrame(forcePortalCards);
+      setTimeout(forcePortalCards,80);
+      setTimeout(forcePortalCards,300);
+      console.log('[Auth] Portal ready');
+    };
     const setErr=msg=>{console.warn('[Auth] Error:',msg);const e=ge('_fbErr');if(e)e.textContent=msg;const b=ge('_fbLoginBtn');if(b){b.disabled=false;b.textContent='Sign In';}};
 
     window._doLogin=async()=>{
