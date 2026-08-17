@@ -15,10 +15,10 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260816-v187-canonical-register-sync');
+  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260817-v188-auth-sync-scroll-owner');
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260816-v187-canonical-register-sync');
+  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260817-v188-auth-sync-scroll-owner');
   var GRC_CACHE_OWNER_KEY='qumc_grc_workspace_preview_v1_owner';
   var GRC_CACHE_BUILD_KEY='qumc_grc_workspace_preview_build';
   var STATE_VERSION=13;
@@ -921,14 +921,31 @@
       window.scrollTo(Number(position.winX)||0,Number(position.winY)||0);
     };
     requestAnimationFrame(apply);
-    /* Re-apply after asynchronous register/workflow refreshes so a Firestore
-       listener cannot move the page back to the top after the first frame. */
-    setTimeout(apply,80);setTimeout(apply,260);setTimeout(apply,700);setTimeout(apply,1400);
+    /* v188: never keep forcing scrollTop for 1.4 seconds after a render. Those
+       delayed writes fought the user's wheel/touch scrolling and made GRC feel
+       frozen. One short stabilization pass is enough for layout settling. */
+    setTimeout(apply,60);
   }
   function renderAtSamePosition(position){
     position=grcRegisterViewportPosition(position||grcViewportPosition());
     render();
     grcApplyViewportPosition(position);
+  }
+  function grcScheduleRemoteRender(position,delay){
+    grcRemoteRenderPosition=position||grcRemoteRenderPosition||grcViewportPosition();
+    if(grcRemoteRenderTimer)clearTimeout(grcRemoteRenderTimer);
+    grcRemoteRenderTimer=setTimeout(function(){
+      var pos=grcRemoteRenderPosition||grcViewportPosition();
+      grcRemoteRenderTimer=null;grcRemoteRenderPosition=null;
+      renderAtSamePosition(pos);
+    },Math.max(0,Number(delay)||0));
+  }
+  function grcScheduleLocalCachePersist(delay){
+    if(grcCachePersistTimer)clearTimeout(grcCachePersistTimer);
+    grcCachePersistTimer=setTimeout(function(){
+      grcCachePersistTimer=null;
+      try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}
+    },Math.max(40,Number(delay)||120));
   }
   function saveState(immediateCloudSave){var position=grcRegisterViewportPosition(grcViewportPosition());applyAutomaticExpiry();state=repairGovernanceCodeState(state);state.risks=(state.risks||[]).map(normalizeRiskClassification);state.initiatives=normalizeInitiativePeople(state.initiatives);state.version=STATE_VERSION;state.updatedAt=new Date().toISOString();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}renderAtSamePosition(position);queueSharedStateSave(immediateCloudSave===true);}
 
@@ -948,7 +965,7 @@
   // Governance and Risk remain department-scoped. Shared operational modules are visible to every approved GRC user.
   var GRC_GLOBAL_READ_COLLECTIONS={manuals:true,codes:true,compliance:true,audits:true,actions:true,documents:true,initiatives:true};
   var grcStateUnsubs=[],grcStateSaveTimer=null,grcApplyingRemote=false,grcSyncStarted=false,grcCloudReady=false;
-  var grcCloudParts={},grcCloudMirror={},grcCloudDuplicates={},grcCloudEverHydrated={},grcInitialScopes={},grcCollectionScopeReady={},grcCollectionScopeFailed={},grcMigrationPromise=null,grcPendingCloudSave=false,grcCanonicalCatalogV187Promise=null;
+  var grcCloudParts={},grcCloudMirror={},grcCloudDuplicates={},grcCloudEverHydrated={},grcInitialScopes={},grcCollectionScopeReady={},grcCollectionScopeFailed={},grcMigrationPromise=null,grcPendingCloudSave=false,grcCanonicalCatalogV187Promise=null,grcCanonicalCatalogV188Promise=null,grcRemoteRenderTimer=null,grcRemoteRenderPosition=null,grcCachePersistTimer=null;
   var grcRiskStatusOverrides={},grcRiskStatusUnsub=null,grcSyncScopeKey='',grcPendingLocalDeletes={risks:{},incidents:{}},grcSyncLastError='',grcSyncLastErrorAt='';
   function grcPendingDeleteKey(collectionKey,record){if(collectionKey!=='risks'&&collectionKey!=='incidents')return'';return grcRegisterBusinessKey(record||{});}
   function grcMarkPendingLocalDelete(collectionKey,record){var key=grcPendingDeleteKey(collectionKey,record);if(!key)return;grcPendingLocalDeletes[collectionKey]=grcPendingLocalDeletes[collectionKey]||{};grcPendingLocalDeletes[collectionKey][key]=Date.now();}
@@ -1401,9 +1418,16 @@
   }
   function grcApplyReadyCollection(collectionKey){
     if(!grcInitialScopes[collectionKey])return;
-    grcApplyingRemote=true;grcApplyCloudCollection(collectionKey);state=repairGovernanceCodeState(state);enforceLocalGrcScope();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}grcApplyingRemote=false;
-    if(grcAllInitialScopesReady()&&grcAllInitialScopesHealthy()){grcCloudReady=true;if(grcPendingCloudSave){grcPendingCloudSave=false;queueSharedStateSave(true);}if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV187().catch(function(err){console.error('[GRC Canonical Catalog v187]',err);});},0);}else grcCloudReady=false;
-    renderAtSamePosition(grcViewportPosition());
+    var wasReady=grcCloudReady,position=grcViewportPosition();
+    grcApplyingRemote=true;grcApplyCloudCollection(collectionKey);state=repairGovernanceCodeState(state);enforceLocalGrcScope();grcScheduleLocalCachePersist(140);grcApplyingRemote=false;
+    if(grcAllInitialScopesReady()&&grcAllInitialScopesHealthy()){
+      grcCloudReady=true;
+      if(grcPendingCloudSave){grcPendingCloudSave=false;queueSharedStateSave(true);}
+      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV188().catch(function(err){console.error('[GRC Canonical Catalog v188]',err);});},0);
+      /* All initial collection snapshots arrive in a burst. Render once after
+         the burst, not once per collection. Later live updates are debounced. */
+      grcScheduleRemoteRender(position,wasReady?90:20);
+    }else grcCloudReady=false;
   }
   function grcHandleCollectionSnapshot(collectionKey,scope,snapshot){
     grcCloudParts[collectionKey]=grcCloudParts[collectionKey]||{};
@@ -1618,7 +1642,7 @@
        department receives the same direct Open/Closed status, even if their
        user profile uses a different display label such as Project Management. */
     if(!canViewAllExecutiveDepartments()&&dept)qref=b.fs.query(col,b.fs.where('department','==',dept));
-    grcRiskStatusUnsub=b.fs.onSnapshot(qref,function(snap){var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});grcRiskStatusOverrides=next;if(grcCloudParts.risks){grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}grcApplyingRemote=false;renderAtSamePosition(grcViewportPosition());}},function(err){console.warn('[GRC Risk Status] sync failed',err);});
+    grcRiskStatusUnsub=b.fs.onSnapshot(qref,function(snap){var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});grcRiskStatusOverrides=next;if(grcCloudParts.risks){grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();grcScheduleLocalCachePersist(140);grcApplyingRemote=false;grcScheduleRemoteRender(grcViewportPosition(),80);}},function(err){console.warn('[GRC Risk Status] sync failed',err);});
   }
   function startSharedStateSync(){
     var grcActive=window.__qumcActivePortal==='grc'||!!(document.body&&document.body.classList.contains('grc-mode'));
@@ -1635,8 +1659,8 @@
     if(grcSyncStarted&&grcSyncScopeKey!==wanted)stopSharedStateSync();
     ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;
       var actual=grcSyncIdentityKey();if(actual!==wanted){stopSharedStateSync();setTimeout(startSharedStateSync,0);return;}
-      if(typeof window._qumcAssertFirestoreRulesV33==='function'){
-        try{await window._qumcAssertFirestoreRulesV33();}
+      if(typeof window._qumcAssertFirestoreRulesV34==='function'||typeof window._qumcAssertFirestoreRulesV33==='function'){
+        try{await (window._qumcAssertFirestoreRulesV34||window._qumcAssertFirestoreRulesV33)();}
         catch(ruleErr){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError=String(ruleErr&&ruleErr.message||ruleErr).replace(/^rules-version-mismatch:/,'');grcSyncLastErrorAt=new Date().toISOString();renderAtSamePosition(grcViewportPosition());return;}
       }
       grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
@@ -1681,7 +1705,7 @@
           if(scopes.indexOf('division')>=0)grcListen(b,key,'division',b.fs.query(col,b.fs.where('departmentKey','==','division')));
         }
       });
-      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV187().catch(function(err){console.error('[GRC Canonical Catalog v187]',err);});},350);
+      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV188().catch(function(err){console.error('[GRC Canonical Catalog v188]',err);});},350);
     }).catch(function(err){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError='GRC sync initialization: '+String(err&&err.message||err);grcSyncLastErrorAt=new Date().toISOString();console.error('[GRC Secure Sync] init failed',err);renderAtSamePosition(grcViewportPosition());});
   }
   async function grcPrimeAdminMirrorsFromServer(b,preserveLocalState){
@@ -1737,6 +1761,61 @@
     return grcCanonicalCatalogV187Promise;
   }
   window._grcEnsureCanonicalCatalogV187=ensureSuperAdminCanonicalCatalogV187;
+
+
+  async function ensureSuperAdminCanonicalCatalogV188(){
+    if(!isGrcSuperAdmin())return false;
+    if(grcCanonicalCatalogV188Promise)return grcCanonicalCatalogV188Promise;
+    grcCanonicalCatalogV188Promise=ensureReportBackend().then(async function(b){
+      if(!b.auth.currentUser)return false;
+      var markerRef=b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v188'),marker=await b.fs.getDoc(markerRef);
+      if(marker.exists()&&marker.data()&&marker.data().status==='completed')return false;
+      await b.fs.setDoc(markerRef,{status:'running',build:GRC_CLIENT_BUILD,startedAt:b.fs.serverTimestamp(),startedBy:String(window._fbUser||'')},{merge:true});
+      /* Read the same complete server catalog visible to Super Admin, then let
+         the normal Super Admin baseline repair fill only genuinely missing
+         approved rows. Every record is re-published with one canonical
+         departmentKey so scoped queries (Projects, Maintenance, Safety, etc.)
+         return exactly the corresponding subset of the Super Admin register. */
+      await grcPrimeAdminMirrorsFromServer(b,false);
+      var writes=[],counts={},obsolete=[];
+      Object.keys(GRC_COLLECTION_MAP).forEach(function(key){
+        var rows=Array.isArray(state[key])?state[key].slice():[];
+        if(key==='initiatives')rows=mergeInitiativeSeed(rows);
+        if(key==='codes')rows=mergeEmergencyCodeSeed(rows);
+        counts[key]=rows.length;
+        rows.forEach(function(record,index){
+          var sourceId=String(record&&record._sourceCloudId||'').trim();
+          var prepared=grcPrepareCloudRecord(key,record,index,b),id=prepared._cloudId;
+          prepared.canonicalCatalogVersion=188;
+          prepared.canonicalCatalogSource='super_admin_complete_state';
+          writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],id),data:prepared});
+          if((key==='risks'||key==='incidents')&&sourceId&&sourceId!==id)obsolete.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],sourceId)});
+        });
+      });
+      /* Remove every known Risk/Incident duplicate after canonical rows exist. */
+      ['risks','incidents'].forEach(function(key){
+        Object.keys(grcCloudDuplicates[key]||{}).forEach(function(canonicalId){
+          (grcCloudDuplicates[key][canonicalId]||[]).forEach(function(oldId){
+            if(oldId&&oldId!==canonicalId)obsolete.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],oldId)});
+          });
+        });
+      });
+      var seenDelete={};obsolete=obsolete.filter(function(w){var k=w.ref.path;if(seenDelete[k])return false;seenDelete[k]=1;return true;});
+      await grcCommitWrites(b,writes);
+      if(obsolete.length)await grcCommitWrites(b,obsolete);
+      await b.fs.setDoc(markerRef,{status:'completed',build:GRC_CLIENT_BUILD,counts:counts,writes:writes.length,deletes:obsolete.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+      try{window._recordAuditDirect&&window._recordAuditDirect('GRC_CANONICAL_CATALOG_V188','Normalized the complete Super Admin GRC catalog for department-scoped real-time sync',null,{counts:counts,writes:writes.length,deletes:obsolete.length},{portal:'grc'});}catch(_audit){}
+      return true;
+    }).then(function(changed){
+      if(changed&&typeof window._grcRestartSecureSync==='function')setTimeout(function(){window._grcRestartSecureSync(true);},100);
+      return changed;
+    }).catch(async function(err){
+      try{var b=await ensureReportBackend();await b.fs.setDoc(b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v188'),{status:'failed',build:GRC_CLIENT_BUILD,error:String(err&&err.message||err).slice(0,500),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}
+      throw err;
+    }).finally(function(){grcCanonicalCatalogV188Promise=null;});
+    return grcCanonicalCatalogV188Promise;
+  }
+  window._grcEnsureCanonicalCatalogV188=ensureSuperAdminCanonicalCatalogV188;
 
   async function flushSecureState(){
     if(grcApplyingRemote||!isGrcAdmin())return false;

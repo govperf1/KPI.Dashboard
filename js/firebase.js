@@ -587,19 +587,27 @@ window._selectPortal=async portal=>{
            profile is known. Otherwise Auth may start them with an empty
            department and approved register changes never reach the dashboard. */
         try{var _grcNow=window.__qumcActivePortal==='grc'||!!(document.body&&document.body.classList.contains('grc-mode'));if(_grcNow&&typeof window._grcRestartSecureSync==='function')window._grcRestartSecureSync();}catch(syncErr){console.warn('[GRC Secure Sync] profile rebind skipped',syncErr);}
-        if(_normalizePortalRole(role)==='super_admin'){try{await _ensureOwnerRoleDefinitions();}catch(re){console.warn('[Roles] Owner role installation skipped:',re&&re.message||re);}try{await _repairAdvisoryPublicMirrorV172();}catch(repairErr){console.warn('[Review Development] public mirror integrity repair skipped:',repairErr&&repairErr.message||repairErr);}}
+        /* v188: profile resolution is the only work allowed to block the portal.
+           Role repair, advisory repair and audit writes are maintenance jobs and
+           may take seconds on a slow connection. Show the two portal cards now,
+           then run those jobs in the background so first login never stalls on
+           the full-screen background until the user manually refreshes. */
         setUserDisplay(window._fbName,role);
-        /* Shared audit: successful authentication + live audit sync for authorized viewers. */
-        try{
-          /* Audit history listener is lazy: start it only when an Audit Trail UI is opened. */
-          await _flushPendingAudit();
-          if(window.__qumcAuditLoginLoggedFor!==email){
-            window.__qumcAuditLoginLoggedFor=email;
-            await window._recordAuditDirect('LOGIN','Successful sign in');
-          }
-        }catch(ae){console.warn('[AUDIT] login event failed',ae&&ae.message||ae);}
-        console.log('[Auth] All checks passed — showing portal');
+        console.log('[Auth] Profile resolved — showing portal immediately');
         showPortal(window._fbName,role);
+        setTimeout(async function(){
+          try{
+            if(_normalizePortalRole(role)==='super_admin'){
+              try{await _ensureOwnerRoleDefinitions();}catch(re){console.warn('[Roles] Owner role installation skipped:',re&&re.message||re);}
+              try{await _repairAdvisoryPublicMirrorV172();}catch(repairErr){console.warn('[Review Development] public mirror integrity repair skipped:',repairErr&&repairErr.message||repairErr);}
+            }
+            try{await _flushPendingAudit();}catch(ae){console.warn('[AUDIT] pending audit flush failed',ae&&ae.message||ae);}
+            if(window.__qumcAuditLoginLoggedFor!==email){
+              window.__qumcAuditLoginLoggedFor=email;
+              try{await window._recordAuditDirect('LOGIN','Successful sign in');}catch(ae){console.warn('[AUDIT] login event failed',ae&&ae.message||ae);}
+            }
+          }catch(backgroundErr){console.warn('[Auth] background post-login work skipped',backgroundErr&&backgroundErr.message||backgroundErr);}
+        },0);
       }catch(e){console.error('[Auth] Error:',e);setErr('Connection error. Try again.');showLogin();}
     });
 
@@ -874,9 +882,9 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV33Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v33-query-safe-advisory-grc'));window.__advRulesV33Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v33 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__advRulesV34Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v34-grc-canonical-sync-owner-20260817'));window.__advRulesV34Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v34 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     function _advIso(){return new Date().toISOString();}
     function _advTsMs(v){if(!v)return 0;try{return v.toDate?v.toDate().getTime():new Date(v).getTime()||0;}catch(_){return 0;}}
@@ -1299,11 +1307,11 @@ window._selectPortal=async portal=>{
     function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();if(r==='viewer'||r==='user')return false;return ['super_admin','admin','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager'].includes(r)||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('*');}
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
-      if(window.__grcRulesV33Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v33-query-safe-advisory-grc'));window.__grcRulesV33Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v33 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__grcRulesV34Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v34-grc-canonical-sync-owner-20260817'));window.__grcRulesV34Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v34 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
-    window._qumcAssertFirestoreRulesV33=_grcRiskAssertRulesVersion;
+    window._qumcAssertFirestoreRulesV34=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV33=_grcRiskAssertRulesVersion;
     window._grcRiskDirectStatusUpdate=async function(record,nextStatus){
       await _grcRiskAssertRulesVersion();
       const freshProfile=await _advFreshProfile();
@@ -1332,16 +1340,27 @@ window._selectPortal=async portal=>{
           for(const d of deptSnap.docs){const x=d.data()||{};if(x.deleted===true)continue;if(_grcRiskRecordKey(x)===businessKey){liveRef=d.ref;liveData=x;break;}}
         }catch(e){console.warn('[GRC Risk Status] canonical lookup failed',e&&e.code||e);}
       }
+      let statusStoredInRecord=false;
       if(liveRef){
         const liveDept=_grcCanonicalDepartment(liveData&& (liveData.departmentKey||liveData.department||liveData.responsibleDept||liveData.responsibleDepartment)||department);
-        if(liveDept!==myDepartment)throw new Error('You can update Risk status only for your assigned department.');
-        await updateDoc(liveRef,{actionStatus:nextStatus,updatedAt:serverTimestamp(),updatedAtIso:now,updatedBy:String(window._fbName||window.currentUserName||freshProfile.email),updatedByEmail:freshProfile.email,cloudUpdatedAt:serverTimestamp()});
-        try{await deleteDoc(doc(db,GRC_RISK_STATUS_COLLECTION,canonicalCloudId));}catch(_legacyDelete){}
-      }else{
-        /* Baseline-only approved risks have no writable grc_risks document yet.
-           Persist only their Open/Closed value in the dedicated status override;
-           the register listener applies it to every device and Super Admin can
-           later fold it into the canonical record. */
+        /* Legacy rows can still carry a stale department field even though the
+           business ID is visibly part of the user's register. Prefer the
+           canonical v188 migration, but if Firestore rejects this legacy row,
+           fall back to the dedicated status-only collection instead of blocking
+           the GRC Owner. No Risk content other than Open/Closed is written. */
+        if(liveDept===myDepartment){
+          try{
+            await updateDoc(liveRef,{actionStatus:nextStatus,updatedAt:serverTimestamp(),updatedAtIso:now,updatedBy:String(window._fbName||window.currentUserName||freshProfile.email),updatedByEmail:freshProfile.email,cloudUpdatedAt:serverTimestamp()});
+            statusStoredInRecord=true;
+            try{await deleteDoc(doc(db,GRC_RISK_STATUS_COLLECTION,canonicalCloudId));}catch(_legacyDelete){}
+          }catch(writeErr){
+            const code=String(writeErr&&writeErr.code||writeErr&&writeErr.message||'').toLowerCase();
+            if(!code.includes('permission'))throw writeErr;
+            console.warn('[GRC Risk Status] legacy row denied; using status-only override until canonical migration completes');
+          }
+        }
+      }
+      if(!statusStoredInRecord){
         await setDoc(doc(db,GRC_RISK_STATUS_COLLECTION,canonicalCloudId),{
           recordId:String(record.id||record.code||record.riskId||''),cloudId:canonicalCloudId,department:myDepartment,departmentRaw:String(freshProfile.rawDepartment==null?'':freshProfile.rawDepartment),actionStatus:nextStatus,updatedAt:serverTimestamp(),updatedAtIso:now,updatedBy:String(window._fbName||window.currentUserName||freshProfile.email),updatedByEmail:freshProfile.email,updatedByUid:freshProfile.uid,schemaVersion:1
         },{merge:false});
