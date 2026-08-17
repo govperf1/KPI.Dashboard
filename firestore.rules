@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v38 — Canonical Department Source + GRC Root Sync
+// FIRESTORE SECURITY RULES v39 — Canonical Department Normalization + GRC Root Sync
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -137,7 +137,11 @@ service cloud.firestore {
     }
 
     function normalizedDepartment(value) {
-      return value is string ? value.lower().trim() : '';
+      // User profiles historically store the same department with spaces,
+      // underscores, hyphens, or slashes (for example Project_Management).
+      // Normalize separators before alias matching so Rules and JavaScript
+      // resolve the exact same canonical department.
+      return value is string ? value.lower().trim().replace('[_/-]+', ' ').replace('[ ]+', ' ') : '';
     }
 
     function canonicalDepartment(value) {
@@ -176,8 +180,15 @@ service cloud.firestore {
     }
 
     
+    function hasNoConfiguredDepartment() {
+      return !meaningfulDepartmentValue(profileDepartmentValue());
+    }
+
     function viewAllGrcDepartments() {
-      return admin() || role() == 'governance_performance_manager' || userDepartmentKey() == '';
+      // A genuinely null/unassigned profile may use the platform-wide fallback.
+      // An UNKNOWN non-empty department must never be treated as All Departments.
+      return admin() || role() == 'governance_performance_manager' ||
+        (userDepartmentKey() == '' && hasNoConfiguredDepartment());
     }
 
     function canReadRiskIncidentRegister() {
@@ -558,7 +569,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // a unique v38 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v38-grc-department-source-20260817';
+      allow get: if approved() && versionId == 'v39-grc-department-normalization-20260817';
       allow list, create, update, delete: if false;
     }
 
@@ -569,7 +580,7 @@ service cloud.firestore {
 
     function advisoryDirectSubmitter() {
       return role() in ['department_manager','governance_performance_manager','admin','super_admin'] ||
-        advisorySubmissionDepartmentKey() == '';
+        (advisorySubmissionDepartmentKey() == '' && hasNoConfiguredDepartment());
     }
 
     function validAdvisoryCreateRoute() {
