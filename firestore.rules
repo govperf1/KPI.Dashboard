@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v33 — Compile-Safe Permission and Workflow Stability
+// FIRESTORE SECURITY RULES v34 — Canonical GRC Sync and Owner Workflow Stability
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -37,14 +37,17 @@ service cloud.firestore {
     }
 
     function role() {
-      let r = ('role' in userData()) ? normalizedRoleValue(userData().role) : 'viewer';
-      return r == 'superadmin' ? 'super_admin' :
-             (r in ['departmentmanager', 'dept_manager', 'deptmanager']) ? 'department_manager' :
-             r == 'riskowner' ? 'risk_owner' :
-             r == 'grcowner' ? 'grc_owner' :
-             r == 'platformowner' ? 'platform_owner' :
-             r == 'kpiowner' ? 'kpi_owner' :
-             r == 'governanceperformancemanager' ? 'governance_performance_manager' : r;
+      let raw = ('role' in userData()) && userData().role is string ? userData().role.lower().trim() : 'viewer';
+      let r = normalizedRoleValue(raw);
+      // Accept both canonical stored values and the legacy/display spellings
+      // that existed before roles were normalized in the client.
+      return raw in ['super admin','super-admin','superadmin'] || r == 'superadmin' ? 'super_admin' :
+             raw in ['department manager','department-manager','dept manager','dept-manager','deptmanager'] || r in ['departmentmanager','dept_manager','deptmanager'] ? 'department_manager' :
+             raw in ['risk owner','risk-owner','riskowner'] || r == 'riskowner' ? 'risk_owner' :
+             raw in ['grc owner','grc-owner','grcowner'] || r == 'grcowner' ? 'grc_owner' :
+             raw in ['platform owner','platform-owner','platformowner'] || r == 'platformowner' ? 'platform_owner' :
+             raw in ['kpi owner','kpi-owner','kpiowner'] || r == 'kpiowner' ? 'kpi_owner' :
+             raw in ['governance performance manager','governance & performance manager','governance-performance-manager','governanceperformancemanager'] || r == 'governanceperformancemanager' ? 'governance_performance_manager' : r;
     }
 
     function rolePath() {
@@ -695,9 +698,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // a unique v33 path prevents an older ruleset from being mistaken for this build.
+    // a unique v34 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v33-query-safe-advisory-grc';
+      allow get: if approved() && versionId == 'v34-grc-canonical-sync-owner-20260817';
       allow list, create, update, delete: if false;
     }
 
@@ -1014,8 +1017,6 @@ service cloud.firestore {
       allow create: if canSubmitRiskRequest() &&
         request.resource.data.submittedByEmail is string &&
         request.resource.data.submittedByEmail == authEmail() &&
-        request.resource.data.submittedByUid is string &&
-        request.resource.data.submittedByUid == request.auth.uid &&
         request.resource.data.department is string &&
         request.resource.data.department == userDepartmentKey() &&
         request.resource.data.departmentKey is string &&
@@ -1070,7 +1071,6 @@ service cloud.firestore {
         validRiskStatusOverride(request.resource.data) &&
         request.resource.data.department == userDepartmentKey() &&
         request.resource.data.updatedByEmail == authEmail() &&
-        request.resource.data.updatedByUid == request.auth.uid &&
         request.resource.data.keys().hasOnly([
           'recordId', 'cloudId', 'department', 'departmentRaw', 'actionStatus',
           'updatedAt', 'updatedAtIso', 'updatedBy', 'updatedByEmail',
@@ -1080,7 +1080,6 @@ service cloud.firestore {
         validRiskStatusOverride(request.resource.data) &&
         request.resource.data.department == userDepartmentKey() &&
         request.resource.data.updatedByEmail == authEmail() &&
-        request.resource.data.updatedByUid == request.auth.uid &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'recordId', 'cloudId', 'department', 'departmentRaw', 'actionStatus',
           'updatedAt', 'updatedAtIso', 'updatedBy', 'updatedByEmail',
