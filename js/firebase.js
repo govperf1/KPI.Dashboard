@@ -47,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260818-v196-manager-queue-admin-save');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260818-v197-project-code-manager-authority');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -1177,16 +1177,17 @@ window._selectPortal=async portal=>{
       return _advMergeRows(primary,await _advFallbackRows(true),false);
     };
     window._advisoryGetManagerQueue=async function(){
-      if(!_advIsDepartmentManager())throw new Error('Access denied.');
-      const dept=_advDepartmentKey(),own=await window._advisoryGetMine();if(!dept)return own;
-      /* One canonical department query only. Firestore Rules authorize the
-         department scope; workflow status is filtered in memory so the manager
-         inbox cannot disappear because one extra query predicate/index/rule
-         branch fails. */
+      /* The submitter already uses a server-fresh profile. The manager inbox used
+         the session-cached _fbDept instead, so a stale login/profile could make a
+         valid request invisible to its Department Manager. Resolve the manager
+         from the same authoritative users/{email} document before every read. */
+      const fresh=await _advFreshProfile();
+      if(fresh.role!=='department_manager')throw new Error('Access denied.');
+      const dept=fresh.departmentKey;window.__grcManagerDepartmentKey=dept;const own=await window._advisoryGetMine();if(!dept)return own;
       const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)));
       const departmentRows=snap.docs
         .map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'))
-        .filter(r=>stageOfManagerRow(r)==='pending_department_manager');
+        .filter(r=>stageOfManagerRow(r)==='pending_department_manager'&&String(r&&r.userEmail||'').toLowerCase().trim()!==fresh.email);
       return _advMergeRows(departmentRows,own,false);
     };
     function stageOfManagerRow(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
@@ -1698,14 +1699,12 @@ window._selectPortal=async portal=>{
       return _grcRiskReadMany(qrefs);
     };
     window._grcRiskRequestsGetForManager=async function(){
-      if(!_grcRiskIsManager())return[];
-      const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),key=_grcRiskDept();
-      /* Manager approvals use one canonical departmentKey query. Historical
-         aliases are repaired at write/migration time instead of creating
-         several listeners that can disagree or fail independently. */
+      const fresh=await _advFreshProfile();
+      if(fresh.role!=='department_manager')return[];
+      const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),key=fresh.departmentKey;window.__grcManagerDepartmentKey=key;
       if(!key)return[];
       const rows=await _grcRiskRead(query(col,where('departmentKey','==',key)));
-      return rows.filter(function(r){return ['pending_manager','returned_manager'].includes(String(r&&r.status||'').toLowerCase());});
+      return rows.filter(function(r){return ['pending_manager','returned_manager'].includes(String(r&&r.status||'').toLowerCase())&&String(r&&r.submittedByEmail||'').toLowerCase().trim()!==fresh.email;});
     };
     window._grcRiskRequestsGetAll=async function(){if(!_grcRiskIsAdmin())throw new Error('Access denied.');return _grcRiskRead(collection(db,GRC_RISK_REQUESTS_COLLECTION));};
     window._grcRiskRequestsSubscribe=function(callback){

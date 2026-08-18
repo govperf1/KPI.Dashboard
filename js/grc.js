@@ -15,10 +15,10 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260818-v196-manager-queue-admin-save');
+  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260818-v197-project-code-manager-authority');
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260818-v196-manager-queue-admin-save');
+  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260818-v197-project-code-manager-authority');
   var GRC_CACHE_OWNER_KEY='qumc_grc_workspace_preview_v1_owner';
   var GRC_CACHE_BUILD_KEY='qumc_grc_workspace_preview_build';
   var STATE_VERSION=13;
@@ -577,32 +577,48 @@
     if(canonicalCode)merged.code=canonicalCode;
     return merged;
   }
-  function repairGovernanceCollection(records){
+  function repairGovernanceCollection(collection,records){
     var source=Array.isArray(records)?records:[],slots=[],groups={};
+    /* Governance codes are not globally unique across the FMS Division. A code
+       that exists in Maintenance and Project Management represents two distinct
+       department records. The old repair grouped by code alone, so Super Admin
+       (who loads every department) silently merged cross-department rows while a
+       scoped user still saw the original Project Management records. */
+    var departmentScoped={policies:1,plans:1,forms:1,manuals:1,documents:1,initiatives:1,actions:1};
     source.forEach(function(record){
       var item=copyRecord(record||{}),code=item.code;
       if(!isFmsGovernanceCode(code)){
         slots.push({record:item});
         return;
       }
-      var canonical=canonicalGovernanceCode(code),key=governanceCodeKey(canonical);
+      var canonical=canonicalGovernanceCode(code),dept=departmentScoped[collection]?grcRecordDepartment(collection,item):'';
+      var scopePart=collection==='forms'?String(item.scope||item.formScope||'').trim().toLowerCase():'';
+      var key=(departmentScoped[collection]?(dept||'unassigned')+'|':'')+governanceCodeKey(canonical)+(scopePart?'|'+scopePart:'');
       item.code=canonical;
+      if(dept){item.department=dept;item.departmentKey=dept;}
       if(!groups[key]){
-        groups[key]={key:key,canonical:canonical,records:[]};
+        groups[key]={key:key,canonical:canonical,department:dept,records:[]};
         slots.push({group:key});
       }
       groups[key].records.push(item);
     });
     return slots.map(function(slot){
       if(slot.record)return slot.record;
-      var group=groups[slot.group];
-      return mergeDuplicateGovernanceRecords(group.records,group.canonical);
+      var group=groups[slot.group],merged=mergeDuplicateGovernanceRecords(group.records,group.canonical);
+      if(group.department){merged.department=group.department;merged.departmentKey=group.department;}
+      return merged;
     });
+  }
+  function departmentGovernanceCodeKey(collection,record){
+    record=record||{};
+    var dept=grcRecordDepartment(collection,record)||'unassigned';
+    var scope=collection==='forms'?String(record.scope||record.formScope||'').trim().toLowerCase():'';
+    return dept+'|'+governanceCodeKey(record.code)+(scope?'|'+scope:'');
   }
   function repairGovernanceCodeState(value){
     var target=value&&typeof value==='object'?value:defaultState();
     GRC_CODE_COLLECTIONS.forEach(function(collection){
-      target[collection]=repairGovernanceCollection(target[collection]);
+      target[collection]=repairGovernanceCollection(collection,target[collection]);
     });
     return target;
   }
@@ -621,27 +637,27 @@
   function applySafetyFormSeed(s){
     s=s||defaultState();
     var seeds=SAFETY_FORM_SEED.concat(HOUSEKEEPING_FORM_SEED,PROJECTS_FORM_SEED,MAINTENANCE_FORM_SEED,INTERNAL_FORM_SEED),seededKeys={},existingByKey={},unmatched=[];
-    function formSeedKey(r){return governanceCodeKey(r&&r.code)+'|'+String(r&&r.name||'').trim().toLowerCase();}
+    function formSeedKey(r){return departmentGovernanceCodeKey('forms',r)+'|'+String(r&&r.name||'').trim().toLowerCase();}
     (s.forms||[]).forEach(function(r){
       var key=formSeedKey(r);
       if(key&&key!=='|'&&!existingByKey[key])existingByKey[key]=r;else unmatched.push(r);
     });
     var merged=seeds.map(function(seed){
       var key=formSeedKey(seed),old=existingByKey[key],r=copyRecord(seed);
-      if(old){
-        if(old.id)r.id=old.id;
-        if(old.createdAt)r.createdAt=old.createdAt;
-        if(old.createdBy)r.createdBy=old.createdBy;
-        if(old.updatedAt)r.updatedAt=old.updatedAt;
-      }
+      /* Seeds provide a missing-record baseline only. Once a cloud/admin record
+         exists, its editable values must win; otherwise every render/save would
+         silently restore the hard-coded seed and make Super Admin edits appear
+         briefly then disappear. */
+      if(old)Object.keys(old).forEach(function(p){if(old[p]!==undefined&&old[p]!==null&&old[p]!=='')r[p]=old[p];});
       r.department=seed.department;
-      r.scope=String(seed.scope||'internal').toLowerCase()==='external'?'external':'internal';
-      r.status=normalizeStatus(seed.status);
+      r.departmentKey=seed.department;
+      r.scope=String(r.scope||seed.scope||'internal').toLowerCase()==='external'?'external':'internal';
+      r.status=normalizeStatus(r.status||seed.status);
       seededKeys[key]=1;
       return r;
     });
     Object.keys(existingByKey).forEach(function(key){if(!seededKeys[key])unmatched.push(existingByKey[key]);});
-    s.forms=repairGovernanceCollection(merged.concat(unmatched.filter(function(r){return !seededKeys[formSeedKey(r)];})));
+    s.forms=repairGovernanceCollection('forms',merged.concat(unmatched.filter(function(r){return !seededKeys[formSeedKey(r)];})));
     return s;
   }
 
@@ -649,11 +665,11 @@
     s=repairGovernanceCodeState(s||defaultState());
     var seededCodes={},existingByCode={},unmatched=[];
     (s.policies||[]).forEach(function(r){
-      var key=governanceCodeKey(r.code);
+      var key=departmentGovernanceCodeKey('policies',r);
       if(key&&!existingByCode[key])existingByCode[key]=r;else unmatched.push(r);
     });
     var merged=MAINTENANCE_POLICY_SEED.concat(SAFETY_POLICY_SEED,HOUSEKEEPING_POLICY_SEED).map(function(seed){
-      var key=governanceCodeKey(seed.code),old=existingByCode[key],r=copyRecord(seed);
+      var key=departmentGovernanceCodeKey('policies',seed),old=existingByCode[key],r=copyRecord(seed);
       if(old)r=mergeDuplicateGovernanceRecords([r,old],canonicalGovernanceCode(seed.code));
       r.code=canonicalGovernanceCode(r.code||seed.code);
       r.department=seed.department||r.department||'maintenance';
@@ -662,7 +678,7 @@
       return r;
     });
     Object.keys(existingByCode).forEach(function(key){if(!seededCodes[key])unmatched.push(existingByCode[key]);});
-    s.policies=repairGovernanceCollection(merged.concat(unmatched.filter(function(r){return !seededCodes[governanceCodeKey(r.code)];})));
+    s.policies=repairGovernanceCollection('policies',merged.concat(unmatched.filter(function(r){return !seededCodes[departmentGovernanceCodeKey('policies',r)];})));
     return applySafetyFormSeed(s);
   }
 
@@ -670,24 +686,20 @@
     s=s||defaultState();
     var seededCodes={},existingByCode={},unmatched=[];
     (s.plans||[]).forEach(function(r){
-      var key=governanceCodeKey(r.code);
+      var key=departmentGovernanceCodeKey('plans',r);
       if(key&&!existingByCode[key])existingByCode[key]=r;else unmatched.push(r);
     });
     var merged=SAFETY_PLAN_SEED.concat(MAINTENANCE_PLAN_SEED).map(function(seed){
-      var key=governanceCodeKey(seed.code),old=existingByCode[key],r=copyRecord(seed);
-      if(old){
-        if(old.id)r.id=old.id;
-        if(old.createdAt)r.createdAt=old.createdAt;
-        if(old.createdBy)r.createdBy=old.createdBy;
-        if(old.updatedAt)r.updatedAt=old.updatedAt;
-      }
-      r.department=seed.department||'safety';
-      r.status=normalizeStatus(seed.status);
+      var key=departmentGovernanceCodeKey('plans',seed),old=existingByCode[key],r=copyRecord(seed);
+      if(old)Object.keys(old).forEach(function(p){if(old[p]!==undefined&&old[p]!==null&&old[p]!=='')r[p]=old[p];});
+      r.department=seed.department||r.department||'safety';
+      r.departmentKey=r.department;
+      r.status=normalizeStatus(r.status||seed.status);
       seededCodes[key]=1;
       return r;
     });
     Object.keys(existingByCode).forEach(function(key){if(!seededCodes[key])unmatched.push(existingByCode[key]);});
-    s.plans=repairGovernanceCollection(merged.concat(unmatched.filter(function(r){return !seededCodes[governanceCodeKey(r.code)];})));
+    s.plans=repairGovernanceCollection('plans',merged.concat(unmatched.filter(function(r){return !seededCodes[departmentGovernanceCodeKey('plans',r)];})));
     return applyMaintenancePolicySeed(s);
   }
   function applyRiskRegisterSeed(s){
