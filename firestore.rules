@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v41 — Manager Queue + Targeted Admin Save
+// FIRESTORE SECURITY RULES v42 — Canonical Manager Inbox + Firestore-Authoritative GRC
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -176,7 +176,7 @@ service cloud.firestore {
     function profileRoleFrom(data) {
       let r = ('role' in data) ? normalizedRoleValue(data.role) : 'viewer';
       return r == 'superadmin' ? 'super_admin' :
-             (r in ['departmentmanager', 'dept_manager', 'deptmanager']) ? 'department_manager' :
+             (r in ['departmentmanager', 'dept_manager', 'deptmanager', 'manager']) ? 'department_manager' :
              r == 'riskowner' ? 'risk_owner' :
              r == 'grcowner' ? 'grc_owner' :
              r == 'platformowner' ? 'platform_owner' :
@@ -593,9 +593,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // a unique v41 path prevents an older ruleset from being mistaken for this build.
+    // a unique v42 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v41-grc-manager-queue-admin-save-20260818';
+      allow get: if approved() && versionId == 'v42-grc-canonical-manager-inbox-20260818';
       allow list, create, update, delete: if false;
     }
 
@@ -610,6 +610,34 @@ service cloud.firestore {
       allow get: if signedIn() && userData().approved == true &&
         roleId == profileRoleFrom(userData());
       allow list, create, update, delete: if false;
+    }
+
+    // Canonical Department Manager inbox. New GRC Review & Development and
+    // Risk/Incident requests are indexed here atomically with the source
+    // request. The path itself is department-scoped, so the manager query does
+    // not depend on Firestore treating a resource-data rule as a filter.
+    match /grc_department_approval_queues/{departmentKey}/items/{itemId} {
+      allow get, list: if signedIn() && userData().approved == true && (
+        profileRoleFrom(userData()) in ['admin','super_admin'] ||
+        (profileRoleFrom(userData()) == 'department_manager' &&
+          profileDepartmentKeyFrom(userData()) == departmentKey)
+      );
+      allow create, update: if signedIn() && userData().approved == true &&
+        request.resource.data.departmentKey is string &&
+        request.resource.data.departmentKey == departmentKey &&
+        request.resource.data.requesterEmail is string &&
+        request.resource.data.requestKind in ['review','risk','incident'] &&
+        (
+          profileRoleFrom(userData()) in ['admin','super_admin'] ||
+          (profileRoleFrom(userData()) == 'department_manager' && profileDepartmentKeyFrom(userData()) == departmentKey) ||
+          (ownEmail(request.resource.data.requesterEmail) && profileDepartmentKeyFrom(userData()) == departmentKey &&
+            (request.resource.data.requestKind == 'review' || profileRoleFrom(userData()) in ['risk_owner','grc_owner','platform_owner']))
+        );
+      allow delete: if signedIn() && userData().approved == true && (
+        profileRoleFrom(userData()) in ['admin','super_admin'] ||
+        (profileRoleFrom(userData()) == 'department_manager' && profileDepartmentKeyFrom(userData()) == departmentKey) ||
+        (resource.data.requesterEmail is string && ownEmail(resource.data.requesterEmail) && profileDepartmentKeyFrom(userData()) == departmentKey)
+      );
     }
 
     // ── Review & Development Center ──────────────────────────────────
