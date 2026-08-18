@@ -4,7 +4,7 @@
    Review & Development Center requests.
    ===================================================================== */
 (function(){
-  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V198__)return;window.__QUMC_GRC_RISK_WORKFLOW_V198__=true;
+  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V200__)return;window.__QUMC_GRC_RISK_WORKFLOW_V200__=true;
   var cache=[],unsub=null,startedFor='',reviewApprovalRows=[],approvalNoticeKey='',approvalNoticeEntry=0,approvalNoticeTimer=null,feedbackNormalRows=[],feedbackReviewRows=[],feedbackNormalUnsub=null,feedbackReviewUnsub=null,feedbackStartedFor='',feedbackTimer=null,managerPullBusy=false,managerPullAt=0;
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function role(){var raw=window._fbRole||window.currentUserRole||'viewer';return typeof window._normalizePortalRole==='function'?window._normalizePortalRole(raw):String(raw).trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
@@ -184,12 +184,11 @@
     if(!isManager())return Promise.resolve();
     var now=Date.now();if(managerPullBusy||(!force&&now-managerPullAt<5000))return Promise.resolve();
     managerPullBusy=true;managerPullAt=now;
-    var risk=typeof window._grcRiskRequestsGetForManager==='function'?window._grcRiskRequestsGetForManager():Promise.resolve([]);
-    var review=typeof window._advisoryGetManagerQueue==='function'?window._advisoryGetManagerQueue():Promise.resolve([]);
-    return Promise.all([risk,review]).then(function(rows){
-      window.__grcManagerApprovalError='';
-      cache=(Array.isArray(rows[0])?rows[0]:[]).filter(managerDepartmentRequest);
-      reviewApprovalRows=(Array.isArray(rows[1])?rows[1]:[]).filter(reviewManagerRequest);
+    if(typeof window._grcGetDepartmentApprovalQueue!=='function'){managerPullBusy=false;window.__grcManagerApprovalError='Department approval service is unavailable.';return Promise.resolve();}
+    return window._grcGetDepartmentApprovalQueue(true).then(function(bundle){
+      window.__grcManagerApprovalError=Array.isArray(bundle&&bundle.errors)&&bundle.errors.length?bundle.errors.join(' · '):'';
+      cache=Array.isArray(bundle&&bundle.risk)?bundle.risk:[];
+      reviewApprovalRows=Array.isArray(bundle&&bundle.review)?bundle.review:[];
       window.__grcRiskRequestCache=cache;
       try{document.dispatchEvent(new CustomEvent('grc:riskRequestsUpdated',{detail:{rows:cache}}));}catch(_e){}
       refreshBadge();

@@ -15,10 +15,10 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260818-v198-manager-inbox-dept-record-identity');
+  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260818-v200-canonical-manager-inbox-firestore-authority');
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260818-v198-manager-inbox-dept-record-identity');
+  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260818-v200-canonical-manager-inbox-firestore-authority');
   var GRC_CACHE_OWNER_KEY='qumc_grc_workspace_preview_v1_owner';
   var GRC_CACHE_BUILD_KEY='qumc_grc_workspace_preview_build';
   var STATE_VERSION=13;
@@ -578,35 +578,15 @@
     return merged;
   }
   function repairGovernanceCollection(collection,records){
-    var source=Array.isArray(records)?records:[],slots=[],groups={};
-    /* Governance codes are not globally unique across the FMS Division. A code
-       that exists in Maintenance and Project Management represents two distinct
-       department records. The old repair grouped by code alone, so Super Admin
-       (who loads every department) silently merged cross-department rows while a
-       scoped user still saw the original Project Management records. */
-    var departmentScoped={policies:1,plans:1,forms:1,manuals:1,documents:1,initiatives:1,actions:1};
-    source.forEach(function(record){
-      var item=copyRecord(record||{}),code=item.code;
-      if(!isFmsGovernanceCode(code)){
-        slots.push({record:item});
-        return;
-      }
-      var canonical=canonicalGovernanceCode(code),dept=departmentScoped[collection]?grcRecordDepartment(collection,item):'';
-      var scopePart=collection==='forms'?String(item.scope||item.formScope||'').trim().toLowerCase():'';
-      var key=(departmentScoped[collection]?(dept||'unassigned')+'|':'')+governanceCodeKey(canonical)+(scopePart?'|'+scopePart:'');
-      item.code=canonical;
+    /* v200: never deduplicate Governance rows at runtime. Firestore document
+       identity is authoritative. Two departments may legitimately use the same
+       business code, and two rows in one department must not be silently merged
+       by a browser-side repair pass. */
+    return (Array.isArray(records)?records:[]).map(function(record){
+      var item=copyRecord(record||{}),dept=grcRecordDepartment(collection,item);
+      if(isFmsGovernanceCode(item.code))item.code=canonicalGovernanceCode(item.code);
       if(dept){item.department=dept;item.departmentKey=dept;}
-      if(!groups[key]){
-        groups[key]={key:key,canonical:canonical,department:dept,records:[]};
-        slots.push({group:key});
-      }
-      groups[key].records.push(item);
-    });
-    return slots.map(function(slot){
-      if(slot.record)return slot.record;
-      var group=groups[slot.group],merged=mergeDuplicateGovernanceRecords(group.records,group.canonical);
-      if(group.department){merged.department=group.department;merged.departmentKey=group.department;}
-      return merged;
+      return item;
     });
   }
   function departmentGovernanceCodeKey(collection,record){
@@ -1026,6 +1006,15 @@
     var raw=String(record.department||record.responsibleDept||record.responsibleDepartment||'').trim();
     var keyRaw=String(record.departmentKey||'').trim();
     var identity=String(record.id||record.code||'').toUpperCase(),id=identity.replace(/\s+/g,'');
+    /* For Governance/Policy/Plan/Form records the canonical Firestore
+       departmentKey is authoritative. Do not infer a different department from
+       a business code or stale display label. */
+    if(collectionKey!=='risks'&&collectionKey!=='incidents'){
+      var genericKey=canonicalGrcDepartment(keyRaw),genericRaw=canonicalGrcDepartment(raw);
+      if(genericKey&&genericKey!=='allfms'&&genericKey!=='all_fms')return genericKey==='governance'?'division':genericKey;
+      if(genericRaw&&genericRaw!=='allfms'&&genericRaw!=='all_fms')return genericRaw==='governance'?'division':genericRaw;
+      return'division';
+    }
     /* Business IDs are the strongest legacy signal. Old builds sometimes saved
        the correct risk/incident under a stale department label/key, which made
        the same approved record appear in one role but disappear in another. */
@@ -1046,8 +1035,8 @@
     if(/(?:^|[- ])(?:HSK|HK)(?:[- ]|$)/.test(code))return'housekeeping';
     if(/(?:^|[- ])(?:LND|LUND)(?:[- ]|$)/.test(code))return'laundry';
     var d=canonicalGrcDepartment(raw),k=canonicalGrcDepartment(keyRaw);
-    if(d&&d!=='allfms'&&d!=='all_fms'&&d!=='governance'&&d!=='division')return d;
     if(k&&k!=='allfms'&&k!=='all_fms'&&k!=='governance'&&k!=='division')return k;
+    if(d&&d!=='allfms'&&d!=='all_fms'&&d!=='governance'&&d!=='division')return d;
     var rawIsDivision=/^(all\s*fms|allfms|division|governance|governanceDept)$/i.test(raw.replace(/[&/_-]+/g,' '));
     if(rawIsDivision||d==='governance'||d==='division'||k==='governance'||k==='division')return'division';
     return'division';
@@ -1412,30 +1401,19 @@
       return;
     }
 
-    var map={},order=[],sourceMap={};
-    function preferGeneric(current,candidate){
-      if(!current)return candidate;
-      var a=grcRecordFreshness(current),b=grcRecordFreshness(candidate);
-      if(a!==b)return b>a?candidate:current;
-      var ad=current&&current.deleted===true,bd=candidate&&candidate.deleted===true;
-      if(ad!==bd)return bd?candidate:current;
-      return candidate;
-    }
+    /* v200 Firestore-authoritative generic registers: preserve every server
+       document exactly once by its real Firestore document id. No runtime
+       code-based dedupe, no source-id migration, and no bundled baseline merge. */
+    var rows=[];grcCloudMirror[collectionKey]={};grcCloudDuplicates[collectionKey]={};
     rawRows.forEach(function(r,i){
       var sourceId=String(r&&r._sourceCloudId||r&&r._cloudId||r&&r.cloudId||'').trim();
-      var id=grcCloudDocId(collectionKey,r,i);
-      r._sourceCloudId=sourceId||id;r._cloudId=id;r.cloudId=id;
-      if(!Object.prototype.hasOwnProperty.call(map,id))order.push(id);
-      map[id]=preferGeneric(map[id],r);
-      sourceMap[id]=sourceMap[id]||[];
-      if(sourceId&&sourceMap[id].indexOf(sourceId)<0)sourceMap[id].push(sourceId);
+      if(!sourceId)sourceId=grcCloudDocId(collectionKey,r,i);
+      r._sourceCloudId=sourceId;r._cloudId=sourceId;r.cloudId=sourceId;
+      grcCloudMirror[collectionKey][sourceId]=grcComparable(r);
+      if(r.deleted===true)return;
+      delete r.deleted;delete r.deletedAt;
+      rows.push(r);
     });
-    var rows=[];grcCloudMirror[collectionKey]={};grcCloudDuplicates[collectionKey]=sourceMap;
-    order.forEach(function(id){var winner=map[id];if(!winner)return;grcCloudMirror[collectionKey][id]=grcComparable(winner);if(winner.deleted===true)return;delete winner.deleted;delete winner.deletedAt;rows.push(winner);});
-    rows=grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows);
-    /* Firestore is the render authority. Department-scoped governance rows are
-       keyed by department+business identity, so Super Admin and scoped users
-       now resolve the same canonical records. */
     state[collectionKey]=rows;
     grcCloudEverHydrated[collectionKey]=true;
   }
@@ -1483,7 +1461,7 @@
     if(grcAllInitialScopesReady()&&grcAllInitialScopesHealthy()){
       grcCloudReady=true;
       if(grcPendingCloudSave){grcPendingCloudSave=false;queueSharedStateSave(true);}
-      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminGovernanceIdentityV198().catch(function(err){console.error('[GRC Governance Identity v198]',err);});},0);
+      /* v200: no destructive governance identity migration runs during render/snapshot hydration. */
       /* All initial collection snapshots arrive in a burst. Render once after
          the burst, not once per collection. Later live updates are debounced. */
       grcScheduleRemoteRender(position,wasReady?90:20);
@@ -1704,6 +1682,33 @@
     if(!canViewAllExecutiveDepartments()&&dept)qref=b.fs.query(col,b.fs.where('department','==',dept));
     grcRiskStatusUnsub=b.fs.onSnapshot(qref,function(snap){var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});grcRiskStatusOverrides=next;if(grcCloudParts.risks){grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();grcScheduleLocalCachePersist(140);grcApplyingRemote=false;grcScheduleRemoteRender(grcViewportPosition(),80);}},function(err){console.warn('[GRC Risk Status] sync failed',err);});
   }
+
+  var grcCanonicalScopeRepairV200For='';
+  async function grcNormalizeServerDepartmentFieldsV200(b){
+    if(!isGrcSuperAdmin()||!b||!b.auth||!b.auth.currentUser)return 0;
+    var who=String(window._fbUser||b.auth.currentUser.email||'').toLowerCase();
+    if(grcCanonicalScopeRepairV200For===who)return 0;
+    var keys=['policies','plans','forms','risks','incidents'],writes=[],changed=0;
+    for(var i=0;i<keys.length;i++){
+      var key=keys[i],col=b.fs.collection(b.db,GRC_COLLECTION_MAP[key]);
+      var snap=(typeof b.fs.getDocsFromServer==='function')?await b.fs.getDocsFromServer(col):await b.fs.getDocs(col);
+      snap.forEach(function(d){
+        var row=grcSerializable(d.data()||{}),dept=grcRecordDepartment(key,row);
+        if(!dept)return;
+        var visibility=dept==='division'?'shared':'department';
+        if(String(row.department||'')===dept&&String(row.departmentKey||'')===dept&&
+           String(row.visibility||'')===visibility&&row.schemaVersion===GRC_SCHEMA_VERSION&&String(row.recordType||'')===key)return;
+        writes.push({op:'update',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],d.id),data:{
+          department:dept,departmentKey:dept,visibility:visibility,recordType:key,schemaVersion:GRC_SCHEMA_VERSION,canonicalScopeVersion:200
+        }});changed++;
+      });
+    }
+    if(writes.length)await grcCommitWrites(b,writes);
+    grcCanonicalScopeRepairV200For=who;
+    return changed;
+  }
+  window._grcNormalizeServerDepartmentFieldsV200=function(){return ensureReportBackend().then(grcNormalizeServerDepartmentFieldsV200);};
+
   function startSharedStateSync(){
     var grcActive=window.__qumcActivePortal==='grc'||!!(document.body&&document.body.classList.contains('grc-mode'));
     if(!grcActive)return;
@@ -1719,13 +1724,16 @@
     if(grcSyncStarted&&grcSyncScopeKey!==wanted)stopSharedStateSync();
     ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;
       var actual=grcSyncIdentityKey();if(actual!==wanted){stopSharedStateSync();setTimeout(startSharedStateSync,0);return;}
-      if(typeof window._qumcAssertFirestoreRulesV41==='function'||typeof window._qumcAssertFirestoreRulesV39==='function'||typeof window._qumcAssertFirestoreRulesV38==='function'||typeof window._qumcAssertFirestoreRulesV36==='function'||typeof window._qumcAssertFirestoreRulesV35==='function'||typeof window._qumcAssertFirestoreRulesV34==='function'||typeof window._qumcAssertFirestoreRulesV33==='function'){
-        try{await (window._qumcAssertFirestoreRulesV41||window._qumcAssertFirestoreRulesV39||window._qumcAssertFirestoreRulesV38||window._qumcAssertFirestoreRulesV36||window._qumcAssertFirestoreRulesV35||window._qumcAssertFirestoreRulesV34||window._qumcAssertFirestoreRulesV33)();}
+      if(typeof window._qumcAssertFirestoreRulesV42==='function'||typeof window._qumcAssertFirestoreRulesV41==='function'||typeof window._qumcAssertFirestoreRulesV39==='function'||typeof window._qumcAssertFirestoreRulesV38==='function'||typeof window._qumcAssertFirestoreRulesV36==='function'||typeof window._qumcAssertFirestoreRulesV35==='function'||typeof window._qumcAssertFirestoreRulesV34==='function'||typeof window._qumcAssertFirestoreRulesV33==='function'){
+        try{await (window._qumcAssertFirestoreRulesV42||window._qumcAssertFirestoreRulesV41||window._qumcAssertFirestoreRulesV39||window._qumcAssertFirestoreRulesV38||window._qumcAssertFirestoreRulesV36||window._qumcAssertFirestoreRulesV35||window._qumcAssertFirestoreRulesV34||window._qumcAssertFirestoreRulesV33)();}
         catch(ruleErr){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError=String(ruleErr&&ruleErr.message||ruleErr).replace(/^rules-version-mismatch:/,'');grcSyncLastErrorAt=new Date().toISOString();renderAtSamePosition(grcViewportPosition());return;}
+      }
+      if(isGrcSuperAdmin()){
+        try{await grcNormalizeServerDepartmentFieldsV200(b);}catch(scopeRepairErr){console.warn('[GRC Canonical Scope v200]',scopeRepairErr);}
       }
       grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
       if(isGrcSuperAdmin()){
-        try{await runGrcCodeHealthMaintenanceV170(b);}catch(maintenanceErr){console.error('[GRC Code Health] one-time maintenance did not complete',maintenanceErr);grcSyncLastError='Automatic GRC maintenance failed: '+String(maintenanceErr&&maintenanceErr.message||maintenanceErr);grcSyncLastErrorAt=new Date().toISOString();}
+        /* v200: automatic destructive code/catalog maintenance is disabled. Firestore live records are preserved as-is. */
       }
       /* Keep the last cache only when it belongs to this exact profile/build.
          Firestore replaces it as soon as server-confirmed snapshots arrive. A
@@ -1767,7 +1775,7 @@
           if(scopes.indexOf('divisionKey')>=0)grcListen(b,key,'divisionKey',b.fs.query(col,b.fs.where('departmentKey','==','division')));
         }
       });
-      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminGovernanceIdentityV198().catch(function(err){console.error('[GRC Governance Identity v198]',err);});},350);
+      if(isGrcSuperAdmin()&&typeof window._grcRepairDepartmentApprovalInboxV200==='function')setTimeout(function(){window._grcRepairDepartmentApprovalInboxV200(false).catch(function(err){console.warn('[GRC Approval Inbox Repair v200]',err);});},350);
     }).catch(function(err){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError='GRC sync initialization: '+String(err&&err.message||err);grcSyncLastErrorAt=new Date().toISOString();console.error('[GRC Secure Sync] init failed',err);renderAtSamePosition(grcViewportPosition());});
   }
   async function grcPrimeAdminMirrorsFromServer(b,preserveLocalState,pendingOverride){
@@ -2069,9 +2077,10 @@
   function riskSubgroup(r){return normalizeRiskId(r&&r.id).indexOf('LUND')===0?'laundryRisk':'housekeepingRisk';}
   function filterDept(arr,dept){
     if(!dept||dept==='allFms')return(arr||[]).slice();
-    if(dept==='housekeepingRisk'||dept==='laundryRisk')return(arr||[]).filter(function(r){var rd=canonicalGrcDepartment(r&& (r.department||r.responsibleDept||r.responsibleDepartment));return (rd==='housekeeping'||rd==='laundry')&&riskSubgroup(r)===dept;});
+    function rowDept(r){return canonicalGrcDepartment(r&& (r.departmentKey||r.department||r.responsibleDept||r.responsibleDepartment));}
+    if(dept==='housekeepingRisk'||dept==='laundryRisk')return(arr||[]).filter(function(r){var rd=rowDept(r);return (rd==='housekeeping'||rd==='laundry')&&riskSubgroup(r)===dept;});
     var wanted=canonicalGrcDepartment(dept);
-    return(arr||[]).filter(function(r){return canonicalGrcDepartment(r&& (r.department||r.responsibleDept||r.responsibleDepartment))===wanted;});
+    return(arr||[]).filter(function(r){return rowDept(r)===wanted;});
   }
   function isSharedBrownWaterCode(r,wanted){
     if(wanted!=='safety'&&wanted!=='maintenance')return false;
@@ -3895,8 +3904,8 @@
     },0);
   };
   window._grcAdminContinue=function(){var page=document.getElementById('_grcAdminPage').value,action=document.getElementById('_grcAdminAction').value,type=document.getElementById('_grcAdminType').value,dept=document.getElementById('_grcAdminDept').value,scope=document.getElementById('_grcAdminScope').value,id=document.getElementById('_grcAdminRecord')&&document.getElementById('_grcAdminRecord').value,ov=document.getElementById('_grcAdminControl');if(ov)ov.remove();if(type==='cbahi'||type==='jci'){window._grcOpenAssessmentModal(type,action,id);return;}if(action==='delete'){if(type==='report'){window._grcDeleteReport(id);return;}if(type==='guide'){window._grcDeleteGuide(id);return;}window._grcDeleteAdminRecord(type,id);return;}if(type==='report'){window._grcOpenReportUpload(action==='edit'?id:null);return;}if(type==='guide'){window._grcOpenGuideUpload(action==='edit'?id:null);return;}if(action==='add'){window._grcOpenForm(type,dept);setTimeout(function(){var f=document.getElementById('_grcForm');if(f&&type==='form'&&f.elements.scope)f.elements.scope.value=scope;},0);}else window._grcOpenRecordEditor(type,id,dept);};
-  window._grcDeleteAdminRecord=function(type,id){if(!isGrcAdmin()||!window.confirm(isAr()?'هل تريد حذف هذا السجل؟':'Delete this record?'))return;var collection=_grcTypeCollection(type),arr=state[collection]||[],idx=arr.findIndex(function(r,i){return String(r.id||i)===String(id);});if(idx<0)return;arr.splice(idx,1);saveState(true,collection);render();};
-  window._grcOpenRecordEditor=function(type,id,dept){if(!isGrcAdmin())return;var spec=formSpec(type,dept),arr=state[spec.collection]||[],record=arr.find(function(r){return String(r.id)===String(id);});if(!record)return;var old=document.getElementById('_grcFormModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcFormModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(isAr()?'تعديل':'Edit')+' · '+esc(record.code||record.id||recordName(record))+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcFormModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcForm"><div class="grc-form-grid">'+spec.fields+'</div><div id="_grcFormErr"></div><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcFormModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-primary-btn">'+L('save')+'</button></div></form></div>';document.body.appendChild(ov);var f=document.getElementById('_grcForm');Object.keys(record).forEach(function(k){if(f.elements[k])f.elements[k].value=record[k]==null?'':record[k];});prepareConditionalFields(f,record);f.addEventListener('submit',function(e){e.preventDefault();var ok=true,first=null;Array.prototype.forEach.call(f.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);var wrap=el.closest('.grc-field,.grc-report-upload-field');if(wrap)wrap.classList.toggle('required-missing',miss);if(miss){ok=false;if(!first)first=el;}});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(f),updated=Object.assign({},record,{updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){if(k!=='code'||type==='policy')updated[k]=v;});updated=resolveConditionalFields(updated);updated=normalizeRecordBeforeSave(type,updated);var idx=arr.indexOf(record);_grcAuditRegisterChange('GRC_REGISTER_UPDATE',type,record,updated);arr[idx]=updated;ov.remove();saveState(true,spec.collection);});};
+  window._grcDeleteAdminRecord=async function(type,id){if(!isGrcAdmin()||!window.confirm(isAr()?'هل تريد حذف هذا السجل؟':'Delete this record?'))return;var collection=_grcTypeCollection(type),arr=state[collection]||[],idx=arr.findIndex(function(r,i){return String(r.id||i)===String(id);});if(idx<0)return;var deleted=arr[idx];try{await grcAdminDeleteRecordExact(collection,deleted);_grcAuditRegisterChange('GRC_REGISTER_DELETE',type,deleted,null);arr.splice(idx,1);grcSaveVerifiedLocalState(grcViewportPosition());}catch(err){window.alert&&window.alert(String(err&&err.message||err));}};
+  window._grcOpenRecordEditor=function(type,id,dept){if(!isGrcAdmin())return;var spec=formSpec(type,dept),arr=state[spec.collection]||[],record=arr.find(function(r){return String(r.id)===String(id);});if(!record)return;var old=document.getElementById('_grcFormModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcFormModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(isAr()?'تعديل':'Edit')+' · '+esc(record.code||record.id||recordName(record))+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcFormModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcForm"><div class="grc-form-grid">'+spec.fields+'</div><div id="_grcFormErr"></div><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcFormModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-primary-btn">'+L('save')+'</button></div></form></div>';document.body.appendChild(ov);var f=document.getElementById('_grcForm');Object.keys(record).forEach(function(k){if(f.elements[k])f.elements[k].value=record[k]==null?'':record[k];});prepareConditionalFields(f,record);f.addEventListener('submit',async function(e){e.preventDefault();var ok=true,first=null;Array.prototype.forEach.call(f.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);var wrap=el.closest('.grc-field,.grc-report-upload-field');if(wrap)wrap.classList.toggle('required-missing',miss);if(miss){ok=false;if(!first)first=el;}});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(f),updated=Object.assign({},record,{updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){if(k!=='code'||type==='policy')updated[k]=v;});updated=resolveConditionalFields(updated);updated=normalizeRecordBeforeSave(type,updated);var idx=arr.indexOf(record);var submitBtn=f.querySelector('button[type=submit]');if(submitBtn)submitBtn.disabled=true;try{var verified=await grcAdminPersistRecordExact(spec.collection,updated,record);_grcAuditRegisterChange('GRC_REGISTER_UPDATE',type,record,verified);arr[idx]=verified;ov.remove();grcSaveVerifiedLocalState(grcViewportPosition());}catch(err){document.getElementById('_grcFormErr').textContent=String(err&&err.message||err);if(submitBtn)submitBtn.disabled=false;}});};
   window._grcOpenAdminAddHub=function(){if(!isGrcAdmin())return;var old=document.getElementById('_grcAdminHub');if(old)old.remove();var items=[['CBAHI',"window._grcOpenAssessmentModal('cbahi','add')"],['JCI',"window._grcOpenAssessmentModal('jci','add')"],[L('addPolicy'),"window._grcOpenForm('policy')"],[L('addPlan'),"window._grcOpenForm('plan')"],[L('addForm'),"window._grcOpenForm('form')"],[L('uploadReport'),"window._grcOpenReportUpload()"],[L('uploadGuide'),"window._grcOpenGuideUpload()"]];var ov=document.createElement('div');ov.id='_grcAdminHub';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div class="grc-modal-title">'+(isAr()?'إضافة سجل أو مستند':'Add record or document')+'</div><button class="grc-modal-close" onclick="document.getElementById(\'_grcAdminHub\').remove()">×</button></div><div class="grc-modal-body"><div class="grc-admin-hub-grid">'+items.map(function(x){return'<button onclick="document.getElementById(\'_grcAdminHub\').remove();'+x[1]+'">＋ '+x[0]+'</button>';}).join('')+'</div></div></div>';document.body.appendChild(ov);};
   window._grcOpenAdminEditHub=function(){if(activeTab==='compliance')window._grcOpenAssessmentModal('cbahi','edit');else{var old=document.getElementById('_grcAdminHub');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcAdminHub';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div class="grc-modal-title">'+(isAr()?'اختيار التعديل':'Choose edit action')+'</div><button class="grc-modal-close" onclick="document.getElementById(\'_grcAdminHub\').remove()">×</button></div><div class="grc-modal-body"><div class="grc-admin-hub-grid"><button onclick="document.getElementById(\'_grcAdminHub\').remove();window._grcOpenAssessmentModal(\'cbahi\',\'edit\')">✎ CBAHI</button><button onclick="document.getElementById(\'_grcAdminHub\').remove();window._grcOpenAssessmentModal(\'jci\',\'edit\')">✎ JCI</button><button onclick="document.getElementById(\'_grcAdminHub\').remove();window._grcSwitch(\'reports\')">✎ '+L('reportsTitle')+'</button><button onclick="document.getElementById(\'_grcAdminHub\').remove();window._grcSwitch(\'manuals\')">✎ '+(isAr()?'الدليل':'Manual')+'</button></div></div></div>';document.body.appendChild(ov);}};
 
@@ -4510,12 +4519,57 @@
     ov.innerHTML='<section class="grc-status-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="_grcRiskStatusTitle"><div class="grc-status-confirm-icon">✓</div><h2 id="_grcRiskStatusTitle" class="grc-status-confirm-title">'+esc(title)+'</h2><p class="grc-status-confirm-text">'+esc(message)+'</p><button type="button" class="grc-status-confirm-ok">'+(isAr()?'حسنًا':'OK')+'</button></section>';
     document.body.appendChild(ov);var close=function(){ov.remove();};ov.querySelector('.grc-status-confirm-ok').onclick=close;ov.addEventListener('click',function(e){if(e.target===ov)close();});setTimeout(function(){var b=ov.querySelector('.grc-status-confirm-ok');if(b)b.focus();},20);
   }
+
+  function grcSaveVerifiedLocalState(position){
+    applyAutomaticExpiry();
+    state=repairGovernanceCodeState(state);
+    state.risks=(state.risks||[]).map(normalizeRiskClassification);
+    state.initiatives=normalizeInitiativePeople(state.initiatives);
+    state.version=STATE_VERSION;state.updatedAt=new Date().toISOString();
+    try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}
+    renderAtSamePosition(position||grcViewportPosition());
+  }
+  async function grcAdminPersistRecordExact(collectionKey,record,previous){
+    if(!isGrcAdmin())throw new Error('Admin access is required.');
+    if(!GRC_COLLECTION_MAP[collectionKey])throw new Error('Unsupported GRC collection: '+collectionKey);
+    var b=await ensureReportBackend();if(!b.auth.currentUser)throw new Error('Not authenticated.');
+    var sourceId=String(previous&& (previous._sourceCloudId||previous._cloudId||previous.cloudId)||record&& (record._sourceCloudId||record._cloudId||record.cloudId)||'').trim();
+    var cloudId=sourceId||grcCloudDocId(collectionKey,record,Date.now());
+    var prepared=grcPrepareCloudRecord(collectionKey,record,0,b);
+    prepared._cloudId=cloudId;prepared.cloudId=cloudId;prepared.updatedAt=String(record&&record.updatedAt||new Date().toISOString());prepared.updatedAtIso=prepared.updatedAt;
+    prepared.updatedBy=String(record&&record.updatedBy||currentName());prepared.updatedByEmail=String(window._fbUser||b.auth.currentUser.email||'').toLowerCase();
+    prepared.cloudUpdatedAt=b.fs.serverTimestamp();
+    var ref=b.fs.doc(b.db,GRC_COLLECTION_MAP[collectionKey],cloudId);
+    await b.fs.setDoc(ref,prepared,{merge:false});
+    var verified=(typeof b.fs.getDocFromServer==='function')?await b.fs.getDocFromServer(ref):await b.fs.getDoc(ref);
+    if(!verified.exists())throw new Error('Firestore did not persist the '+collectionKey+' record.');
+    var server=grcSerializable(verified.data()||{}),serverDept=grcRecordDepartment(collectionKey,server),wantedDept=grcRecordDepartment(collectionKey,record);
+    if(wantedDept&&serverDept!==wantedDept)throw new Error('Firestore verification failed: department mismatch after save.');
+    server._sourceCloudId=verified.id;server._cloudId=verified.id;server.cloudId=verified.id;
+    grcCloudMirror[collectionKey]=grcCloudMirror[collectionKey]||{};grcCloudMirror[collectionKey][verified.id]=grcComparable(server);
+    return server;
+  }
+  async function grcAdminDeleteRecordExact(collectionKey,record){
+    if(!isGrcAdmin())throw new Error('Admin access is required.');
+    if(!GRC_COLLECTION_MAP[collectionKey])throw new Error('Unsupported GRC collection: '+collectionKey);
+    var b=await ensureReportBackend();if(!b.auth.currentUser)throw new Error('Not authenticated.');
+    var cloudId=String(record&& (record._sourceCloudId||record._cloudId||record.cloudId)||'').trim()||grcCloudDocId(collectionKey,record,0);
+    var ref=b.fs.doc(b.db,GRC_COLLECTION_MAP[collectionKey],cloudId);
+    await b.fs.deleteDoc(ref);
+    var verified=(typeof b.fs.getDocFromServer==='function')?await b.fs.getDocFromServer(ref):await b.fs.getDoc(ref);
+    if(verified.exists())throw new Error('Firestore deletion verification failed.');
+    if(grcCloudMirror[collectionKey])delete grcCloudMirror[collectionKey][cloudId];
+    return true;
+  }
+  window._grcAdminPersistRecordExact=grcAdminPersistRecordExact;
+  window._grcAdminDeleteRecordExact=grcAdminDeleteRecordExact;
+
   function _grcAuditRegisterChange(action,type,before,after){
     try{var rec=after||before||{},id=rec.id||rec.code||'',dept=rec.department||rec.responsibleDept||rec.responsibleDepartment||currentGrcDept();window._recordAuditDirect&&window._recordAuditDirect(action,(type||'register')+' '+id,before||null,after||null,{portal:'grc',recordType:type||'',dept:dept});}catch(_e){}
   }
   async function _grcSaveInlineEdit(block,map){
     grcHoldRegisterViewport();
-    var records=state[map.collection]||[],changed=false,requests=[],directStatusUpdates=[];
+    var records=state[map.collection]||[],changed=false,requests=[],directStatusUpdates=[],adminUpdates=[];
     _grcDataRows(block).forEach(function(row){
       var index=Number(row.dataset.grcRecordIndex);if(!isFinite(index)||!records[index])return;
       var original=records[index],updated=Object.assign({},original),editedFields=_grcInlineChangedInputFields(row,original);
@@ -4534,7 +4588,7 @@
            changes, continue through the approval workflow. */
         if(_grcCanDirectRiskStatusChange(original,updated,map,editedFields))directStatusUpdates.push({index:index,original:original,updated:updated});
         else requests.push({recordType:map.type,currentRecord:original,proposedRecord:updated,targetRiskId:original.id||original.code,targetRecordId:original.id||original.code,department:currentGrcDept()});
-      }else{records[index]=updated;changed=true;_grcAuditRegisterChange('GRC_REGISTER_UPDATE',map.type,original,updated);}
+      }else{adminUpdates.push({index:index,original:original,updated:updated});}
     });
     try{
       if(directStatusUpdates.length){
@@ -4553,7 +4607,13 @@
         for(var i=0;i<requests.length;i++)await window._grcRiskRequestSubmit('update',requests[i]);
         window.toast&&window.toast((isAr()?'تم إرسال ':'Sent ')+requests.length+(isAr()?' طلب تعديل للاعتماد.':' update request(s) for approval.'));
       }
-      if(changed){state[map.collection]=records;saveState(true,map.collection);}
+      if(adminUpdates.length){
+        for(var a=0;a<adminUpdates.length;a++){
+          var change=adminUpdates[a],verified=await grcAdminPersistRecordExact(map.collection,change.updated,change.original);
+          records[change.index]=verified;_grcAuditRegisterChange('GRC_REGISTER_UPDATE',map.type,change.original,verified);
+        }
+        state[map.collection]=records;grcSaveVerifiedLocalState(grcViewportPosition());
+      }else if(changed){state[map.collection]=records;grcSaveVerifiedLocalState(grcViewportPosition());}
       else renderAtSamePosition(grcViewportPosition());
       if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();
     }catch(err){_grcInlineMessage(block,String(err&&err.message||err),'bad');}
@@ -4563,7 +4623,7 @@
   }
   function _grcOpenDeleteDecision(block,map,resolved,current){
     grcHoldRegisterViewport();
-    var old=document.getElementById('_grcDeleteDecisionOv');if(old)old.remove();var requestMode=canSubmitRegisterRequest(map.type)&&!isGrcAdmin(),label=genericRecordLabel(current)||_grcRecordIdentity(current),ov=document.createElement('div');ov.id='_grcDeleteDecisionOv';ov.className='grc-risk-overlay inner';ov.innerHTML='<div class="grc-risk-dialog" style="width:min(560px,94vw)"><header><div><h2>'+(requestMode?(isAr()?'طلب حذف سجل':'Delete Record Request'):(isAr()?'حذف السجل':'Delete Record'))+'</h2><p>'+esc(label)+'</p></div><button type="button" onclick="document.getElementById(\'_grcDeleteDecisionOv\').remove()">×</button></header><main><div class="grc-risk-inline-decision '+(requestMode?'warn':'bad')+'" style="display:block"><div class="grc-risk-inline-title">'+(requestMode?(isAr()?'إرسال طلب الحذف للاعتماد':'Send deletion request for approval'):(isAr()?'تأكيد الحذف النهائي':'Confirm permanent deletion'))+'</div><div class="grc-risk-inline-copy">'+(requestMode?(isAr()?'اكتب سبب الحذف ثم أرسل الطلب.':'Enter the deletion reason, then submit the request.'):(isAr()?'سيتم حذف هذا السجل نهائيًا.':'This record will be deleted permanently.'))+'</div>'+(requestMode?'<label class="grc-risk-inline-label">'+(isAr()?'سبب الحذف *':'Deletion reason *')+'</label><textarea id="_grcDeleteReason" class="grc-risk-inline-textarea" rows="3"></textarea>':'')+'<div id="_grcDeleteDecisionErr" class="grc-risk-inline-error"></div><div class="grc-risk-inline-buttons"><button id="_grcDeleteDecisionGo" type="button" class="grc-risk-inline-confirm '+(requestMode?'warn':'bad')+'">'+(requestMode?(isAr()?'إرسال طلب الحذف':'Submit Delete Request'):(isAr()?'حذف نهائي':'Delete Permanently'))+'</button><button type="button" class="grc-risk-inline-cancel" onclick="document.getElementById(\'_grcDeleteDecisionOv\').remove()">'+(isAr()?'إلغاء':'Cancel')+'</button></div></div></main></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});var go=document.getElementById('_grcDeleteDecisionGo');go.onclick=async function(){var errEl=document.getElementById('_grcDeleteDecisionErr'),reason=requestMode?String((document.getElementById('_grcDeleteReason')||{}).value||'').trim():'';if(requestMode&&!reason){var ta=document.getElementById('_grcDeleteReason');if(ta)ta.classList.add('is-invalid');if(errEl)errEl.textContent=isAr()?'سبب الحذف مطلوب قبل الإرسال.':'Deletion reason is required before submitting.';return;}try{go.disabled=true;if(requestMode){if(typeof window._grcRiskRequestSubmit!=='function')throw new Error(isAr()?'خدمة طلبات السجلات غير جاهزة.':'Register approval service is not ready.');await window._grcRiskRequestSubmit('delete',{recordType:map.type,currentRecord:current,targetRiskId:current.id||current.code,targetRecordId:current.id||current.code,department:currentGrcDept(),deleteReason:reason});_grcInlineMessage(block,isAr()?'تم إرسال طلب الحذف للاعتماد.':'Deletion request sent for approval.','good');if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();}else{_grcAuditRegisterChange('GRC_REGISTER_DELETE',map.type,current,null);grcMarkPendingLocalDelete(map.collection,current);state[map.collection].splice(resolved.index,1);saveState(true,map.collection);}_grcCloseDeleteDecision();renderAtSamePosition(grcViewportPosition());}catch(err){go.disabled=false;if(errEl)errEl.textContent=String(err&&err.message||err);}};var ta=document.getElementById('_grcDeleteReason');if(ta)setTimeout(function(){ta.focus();},30);
+    var old=document.getElementById('_grcDeleteDecisionOv');if(old)old.remove();var requestMode=canSubmitRegisterRequest(map.type)&&!isGrcAdmin(),label=genericRecordLabel(current)||_grcRecordIdentity(current),ov=document.createElement('div');ov.id='_grcDeleteDecisionOv';ov.className='grc-risk-overlay inner';ov.innerHTML='<div class="grc-risk-dialog" style="width:min(560px,94vw)"><header><div><h2>'+(requestMode?(isAr()?'طلب حذف سجل':'Delete Record Request'):(isAr()?'حذف السجل':'Delete Record'))+'</h2><p>'+esc(label)+'</p></div><button type="button" onclick="document.getElementById(\'_grcDeleteDecisionOv\').remove()">×</button></header><main><div class="grc-risk-inline-decision '+(requestMode?'warn':'bad')+'" style="display:block"><div class="grc-risk-inline-title">'+(requestMode?(isAr()?'إرسال طلب الحذف للاعتماد':'Send deletion request for approval'):(isAr()?'تأكيد الحذف النهائي':'Confirm permanent deletion'))+'</div><div class="grc-risk-inline-copy">'+(requestMode?(isAr()?'اكتب سبب الحذف ثم أرسل الطلب.':'Enter the deletion reason, then submit the request.'):(isAr()?'سيتم حذف هذا السجل نهائيًا.':'This record will be deleted permanently.'))+'</div>'+(requestMode?'<label class="grc-risk-inline-label">'+(isAr()?'سبب الحذف *':'Deletion reason *')+'</label><textarea id="_grcDeleteReason" class="grc-risk-inline-textarea" rows="3"></textarea>':'')+'<div id="_grcDeleteDecisionErr" class="grc-risk-inline-error"></div><div class="grc-risk-inline-buttons"><button id="_grcDeleteDecisionGo" type="button" class="grc-risk-inline-confirm '+(requestMode?'warn':'bad')+'">'+(requestMode?(isAr()?'إرسال طلب الحذف':'Submit Delete Request'):(isAr()?'حذف نهائي':'Delete Permanently'))+'</button><button type="button" class="grc-risk-inline-cancel" onclick="document.getElementById(\'_grcDeleteDecisionOv\').remove()">'+(isAr()?'إلغاء':'Cancel')+'</button></div></div></main></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});var go=document.getElementById('_grcDeleteDecisionGo');go.onclick=async function(){var errEl=document.getElementById('_grcDeleteDecisionErr'),reason=requestMode?String((document.getElementById('_grcDeleteReason')||{}).value||'').trim():'';if(requestMode&&!reason){var ta=document.getElementById('_grcDeleteReason');if(ta)ta.classList.add('is-invalid');if(errEl)errEl.textContent=isAr()?'سبب الحذف مطلوب قبل الإرسال.':'Deletion reason is required before submitting.';return;}try{go.disabled=true;if(requestMode){if(typeof window._grcRiskRequestSubmit!=='function')throw new Error(isAr()?'خدمة طلبات السجلات غير جاهزة.':'Register approval service is not ready.');await window._grcRiskRequestSubmit('delete',{recordType:map.type,currentRecord:current,targetRiskId:current.id||current.code,targetRecordId:current.id||current.code,department:currentGrcDept(),deleteReason:reason});_grcInlineMessage(block,isAr()?'تم إرسال طلب الحذف للاعتماد.':'Deletion request sent for approval.','good');if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();}else{await grcAdminDeleteRecordExact(map.collection,current);_grcAuditRegisterChange('GRC_REGISTER_DELETE',map.type,current,null);state[map.collection].splice(resolved.index,1);grcSaveVerifiedLocalState(grcViewportPosition());}_grcCloseDeleteDecision();renderAtSamePosition(grcViewportPosition());}catch(err){go.disabled=false;if(errEl)errEl.textContent=String(err&&err.message||err);}};var ta=document.getElementById('_grcDeleteReason');if(ta)setTimeout(function(){ta.focus();},30);
   }
   function _grcCloseDeleteDecision(){var x=document.getElementById('_grcDeleteDecisionOv');if(x)x.remove();}
   function _grcBeginInlineDelete(block,map){
@@ -4605,7 +4665,24 @@
   }
   function genericRecordLabel(r){return [recordName(r),r.code,r.id].filter(Boolean).join(' · ');}
   window._grcOpenRegisterCrud=function(collection,type,action,scope){if(!isGrcAdmin())return;grcHoldRegisterViewport();var records=(state[collection]||[]).slice();if(scope)records=records.filter(function(r){return String(r.scope||'')===String(scope);});if(!records.length){alert(L('noRecords'));return;}var old=document.getElementById('_grcRegisterCrudModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcRegisterCrudModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(action==='delete'?(isAr()?'حذف سجل':'Delete Record'):(isAr()?'تعديل سجل':'Edit Record'))+'</div><div class="grc-modal-sub">'+(isAr()?'اختر السجل المطلوب':'Select the record')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcRegisterCrudModal\').remove()">×</button></div><div class="grc-modal-body"><label class="grc-field"><span>'+(isAr()?'السجل':'Record')+'</span><select id="_grcCrudRecordSelect">'+records.map(function(r){return'<option value="'+esc(r.id)+'">'+esc(genericRecordLabel(r))+'</option>';}).join('')+'</select></label><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcRegisterCrudModal\').remove()">'+L('cancel')+'</button><button type="button" class="'+(action==='delete'?'grc-btn danger':'grc-primary-btn')+'" onclick="window._grcConfirmRegisterCrud(\''+collection+'\',\''+type+'\',\''+action+'\')">'+(action==='delete'?L('delete'):(isAr()?'فتح للتعديل':'Open Edit'))+'</button></div></div></div>';document.body.appendChild(ov);};
-  window._grcConfirmRegisterCrud=function(collection,type,action){var sel=document.getElementById('_grcCrudRecordSelect'),id=sel&&sel.value;if(!id)return;if(action==='delete'){if(window.confirm(L('confirmDelete'))){var deleted=(state[collection]||[]).find(function(r){return String(r.id)===String(id);});_grcAuditRegisterChange('GRC_REGISTER_DELETE',type,deleted,null);grcMarkPendingLocalDelete(collection,deleted);state[collection]=(state[collection]||[]).filter(function(r){return String(r.id)!==String(id);});document.getElementById('_grcRegisterCrudModal').remove();saveState(true,collection);}return;}var record=(state[collection]||[]).find(function(r){return String(r.id)===String(id);});document.getElementById('_grcRegisterCrudModal').remove();window._grcOpenEditRecord(collection,type,record);};
+  window._grcConfirmRegisterCrud=async function(collection,type,action){
+    var sel=document.getElementById('_grcCrudRecordSelect'),id=sel&&sel.value;if(!id)return;
+    if(action==='delete'){
+      if(!window.confirm(L('confirmDelete')))return;
+      var deleted=(state[collection]||[]).find(function(r){return String(r.id)===String(id);});if(!deleted)return;
+      try{
+        await grcAdminDeleteRecordExact(collection,deleted);
+        _grcAuditRegisterChange('GRC_REGISTER_DELETE',type,deleted,null);
+        state[collection]=(state[collection]||[]).filter(function(r){return r!==deleted;});
+        var modal=document.getElementById('_grcRegisterCrudModal');if(modal)modal.remove();
+        grcSaveVerifiedLocalState(grcViewportPosition());
+      }catch(err){window.alert&&window.alert(String(err&&err.message||err));}
+      return;
+    }
+    var record=(state[collection]||[]).find(function(r){return String(r.id)===String(id);});
+    var modal=document.getElementById('_grcRegisterCrudModal');if(modal)modal.remove();
+    window._grcOpenEditRecord(collection,type,record);
+  };
   window._grcOpenEditRecord=function(collection,type,record){if(!record)return;grcHoldRegisterViewport();var spec=formSpec(type,record.department),old=document.getElementById('_grcFormModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcFormModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(isAr()?'تعديل السجل':'Edit Record')+'</div><div class="grc-modal-sub">'+esc(genericRecordLabel(record))+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcFormModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcEditForm"><div class="grc-form-grid">'+spec.fields+'</div><div id="_grcFormErr"></div><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcFormModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-primary-btn">'+L('save')+'</button></div></form></div>';document.body.appendChild(ov);var form=document.getElementById('_grcEditForm');
     var grid=form.querySelector('.grc-form-grid');
     Object.keys(record).forEach(function(k){
@@ -4619,7 +4696,7 @@
       else if(/description|gap|cap|evidence|requirement|finding|remarks/i.test(k))inputType='textarea';
       grid.insertAdjacentHTML('beforeend',field(k,label,options?'select':inputType,options,false,inputType==='textarea'));
     });
-    Object.keys(record).forEach(function(k){var el=form.elements[k];if(el)el.value=record[k]==null?'':record[k];});prepareConditionalFields(form,record);if(type==='initiative')window._grcPrepareInitiativeForm(form,record);form.addEventListener('submit',function(e){e.preventDefault();var ok=true;Array.prototype.forEach.call(form.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);if(miss)ok=false;});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(form),updated=Object.assign({},record,{updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){if(!/^(leader|member\d)(Name|Gender|Department)$/.test(k))updated[k]=v;});if(type==='initiative')updated.team=initiativeTeamFromForm(form);updated=resolveConditionalFields(updated);if(updated.likelihood!==undefined)updated.likelihood=Number(updated.likelihood);if(updated.impact!==undefined)updated.impact=Number(updated.impact);if(updated.progress!==undefined)updated.progress=Number(updated.progress||0);updated=normalizeRecordBeforeSave(type,updated);_grcAuditRegisterChange('GRC_REGISTER_UPDATE',type,record,updated);state[collection]=(state[collection]||[]).map(function(r){return String(r.id)===String(record.id)?updated:r;});ov.remove();saveState(true,collection);});};
+    Object.keys(record).forEach(function(k){var el=form.elements[k];if(el)el.value=record[k]==null?'':record[k];});prepareConditionalFields(form,record);if(type==='initiative')window._grcPrepareInitiativeForm(form,record);form.addEventListener('submit',async function(e){e.preventDefault();var ok=true;Array.prototype.forEach.call(form.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);if(miss)ok=false;});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(form),updated=Object.assign({},record,{updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){if(!/^(leader|member\d)(Name|Gender|Department)$/.test(k))updated[k]=v;});if(type==='initiative')updated.team=initiativeTeamFromForm(form);updated=resolveConditionalFields(updated);if(updated.likelihood!==undefined)updated.likelihood=Number(updated.likelihood);if(updated.impact!==undefined)updated.impact=Number(updated.impact);if(updated.progress!==undefined)updated.progress=Number(updated.progress||0);updated=normalizeRecordBeforeSave(type,updated);var submitBtn=form.querySelector('button[type=submit]');if(submitBtn)submitBtn.disabled=true;try{var verified=await grcAdminPersistRecordExact(collection,updated,record);_grcAuditRegisterChange('GRC_REGISTER_UPDATE',type,record,verified);state[collection]=(state[collection]||[]).map(function(r){return r===record?verified:r;});ov.remove();grcSaveVerifiedLocalState(grcViewportPosition());}catch(err){document.getElementById('_grcFormErr').textContent=String(err&&err.message||err);if(submitBtn)submitBtn.disabled=false;}});};
 
   window._grcOpenHeatCell=function(dept,likelihood,impact){
     var records=filterDept(state.risks,dept).filter(function(r){return Number(r.likelihood)===Number(likelihood)&&Number(r.impact)===Number(impact);}),old=document.getElementById('_grcDetailModal');if(old)old.remove();
@@ -4640,7 +4717,7 @@
     if(requestMode&&openedForm&&openedForm.elements.department){openedForm.elements.department.value=type==='risk'?currentRiskRecordDept():currentGrcDept();openedForm.elements.department.disabled=true;}
     if(type==='form'&&scopeOverride&&openedForm&&openedForm.elements.scope)openedForm.elements.scope.value=scopeOverride;
     if(type==='initiative'&&openedForm)window._grcPrepareInitiativeForm(openedForm,null);
-    prepareConditionalFields(document.getElementById('_grcForm'),null);document.getElementById('_grcForm').addEventListener('submit',function(e){e.preventDefault();var ok=true,first=null;Array.prototype.forEach.call(e.target.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);var wrap=el.closest('.grc-field,.grc-report-upload-field');if(wrap)wrap.classList.toggle('required-missing',miss);if(miss){ok=false;if(!first)first=el;}});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(e.target),obj={createdAt:new Date().toISOString(),createdBy:currentName()};fd.forEach(function(v,k){if(!/^(leader|member\d)(Name|Gender|Department)$/.test(k))obj[k]=v;});if(requestMode)obj.department=type==='risk'?currentRiskRecordDept():currentGrcDept();obj.id=requestMode?nextRegisterIdForCurrentUser(type):nextRecordCode(spec,obj);if(!obj.code)obj.code=obj.id;if(type==='initiative')obj.team=initiativeTeamFromForm(e.target);obj=resolveConditionalFields(obj);if(obj.likelihood!==undefined)obj.likelihood=Number(obj.likelihood);if(obj.impact!==undefined)obj.impact=Number(obj.impact);if(obj.progress!==undefined)obj.progress=Number(obj.progress||0);obj=normalizeRecordBeforeSave(type,obj);if(requestMode){obj.department=type==='risk'?currentRiskRecordDept():currentGrcDept();if(typeof window._grcRiskRequestSubmit!=='function'){document.getElementById('_grcFormErr').textContent=isAr()?'خدمة طلبات السجلات غير جاهزة.':'Register approval service is not ready.';return;}var submitBtn=e.target.querySelector('button[type=submit]');if(submitBtn)submitBtn.disabled=true;window._grcRiskRequestSubmit('add',{recordType:type,proposedRecord:obj,department:currentGrcDept()}).then(function(){ov.remove();window.toast&&window.toast(isAr()?'تم إرسال طلب الإضافة للاعتماد.':'Add record request sent for approval.');if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();}).catch(function(err){document.getElementById('_grcFormErr').textContent=String(err&&err.message||err);if(submitBtn)submitBtn.disabled=false;});return;}_grcAuditRegisterChange('GRC_REGISTER_ADD',type,null,obj);state[spec.collection].push(obj);ov.remove();saveState(true,spec.collection);});
+    prepareConditionalFields(document.getElementById('_grcForm'),null);document.getElementById('_grcForm').addEventListener('submit',async function(e){e.preventDefault();var ok=true,first=null;Array.prototype.forEach.call(e.target.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);var wrap=el.closest('.grc-field,.grc-report-upload-field');if(wrap)wrap.classList.toggle('required-missing',miss);if(miss){ok=false;if(!first)first=el;}});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(e.target),obj={createdAt:new Date().toISOString(),createdBy:currentName()};fd.forEach(function(v,k){if(!/^(leader|member\d)(Name|Gender|Department)$/.test(k))obj[k]=v;});if(requestMode)obj.department=type==='risk'?currentRiskRecordDept():currentGrcDept();obj.id=requestMode?nextRegisterIdForCurrentUser(type):nextRecordCode(spec,obj);if(!obj.code)obj.code=obj.id;if(type==='initiative')obj.team=initiativeTeamFromForm(e.target);obj=resolveConditionalFields(obj);if(obj.likelihood!==undefined)obj.likelihood=Number(obj.likelihood);if(obj.impact!==undefined)obj.impact=Number(obj.impact);if(obj.progress!==undefined)obj.progress=Number(obj.progress||0);obj=normalizeRecordBeforeSave(type,obj);if(requestMode){obj.department=type==='risk'?currentRiskRecordDept():currentGrcDept();if(typeof window._grcRiskRequestSubmit!=='function'){document.getElementById('_grcFormErr').textContent=isAr()?'خدمة طلبات السجلات غير جاهزة.':'Register approval service is not ready.';return;}var submitBtn=e.target.querySelector('button[type=submit]');if(submitBtn)submitBtn.disabled=true;window._grcRiskRequestSubmit('add',{recordType:type,proposedRecord:obj,department:currentGrcDept()}).then(function(){ov.remove();window.toast&&window.toast(isAr()?'تم إرسال طلب الإضافة للاعتماد.':'Add record request sent for approval.');if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();}).catch(function(err){document.getElementById('_grcFormErr').textContent=String(err&&err.message||err);if(submitBtn)submitBtn.disabled=false;});return;}var adminSubmitBtn=e.target.querySelector('button[type=submit]');if(adminSubmitBtn)adminSubmitBtn.disabled=true;try{var verifiedAdminRecord=await grcAdminPersistRecordExact(spec.collection,obj,null);_grcAuditRegisterChange('GRC_REGISTER_ADD',type,null,verifiedAdminRecord);state[spec.collection].push(verifiedAdminRecord);ov.remove();grcSaveVerifiedLocalState(grcViewportPosition());}catch(adminSaveErr){document.getElementById('_grcFormErr').textContent=String(adminSaveErr&&adminSaveErr.message||adminSaveErr);if(adminSubmitBtn)adminSubmitBtn.disabled=false;}});
   };
 
   window._grcOpenRiskRequestResubmit=function(request){
@@ -4651,7 +4728,7 @@
     f.addEventListener('submit',function(e){e.preventDefault();var fd=new FormData(f),updated=Object.assign({},record,{department:request.department||currentRiskRecordDept(),updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){updated[k]=v;});if(recordType==='risk'){updated.likelihood=Number(updated.likelihood||0);updated.impact=Number(updated.impact||0);}updated=normalizeRecordBeforeSave(recordType,updated);var btn=f.querySelector('button[type=submit]');if(btn)btn.disabled=true;window._grcRiskRequestResubmit(request.id,updated,'Updated and resubmitted').then(function(){ov.remove();window.toast&&window.toast(isAr()?'تمت إعادة إرسال الطلب.':'Request resubmitted.');if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();}).catch(function(err){document.getElementById('_grcFormErr').textContent=String(err&&err.message||err);if(btn)btn.disabled=false;});});
   };
 
-  window._grcDelete=function(collection,id){if(!isGrcAdmin())return;grcHoldRegisterViewport();if(!window.confirm(L('confirmDelete')))return;var deleted=(state[collection]||[]).find(function(r){return String(r.id)===String(id);});_grcAuditRegisterChange('GRC_REGISTER_DELETE',collection,deleted,null);grcMarkPendingLocalDelete(collection,deleted);state[collection]=(state[collection]||[]).filter(function(r){return String(r.id)!==String(id);});saveState(true,collection);};
+  window._grcDelete=async function(collection,id){if(!isGrcAdmin())return;grcHoldRegisterViewport();if(!window.confirm(L('confirmDelete')))return;var deleted=(state[collection]||[]).find(function(r){return String(r.id)===String(id);});if(!deleted)return;try{await grcAdminDeleteRecordExact(collection,deleted);_grcAuditRegisterChange('GRC_REGISTER_DELETE',collection,deleted,null);state[collection]=(state[collection]||[]).filter(function(r){return r!==deleted;});grcSaveVerifiedLocalState(grcViewportPosition());}catch(err){window.alert&&window.alert(String(err&&err.message||err));}};
   window._grcSwitch=function(id){if(!canEnterGrc()){window._showGrcComingSoon();return;}if(!modules.some(function(x){return x.id===id;}))id='executive';activeTab=id;if(id==='reports')reportNav={group:null,type:null,year:null,quarter:null};if(id==='compliance'){complianceNavAuthority=null;complianceNavDocument=null;}try{window.__qumcActivePortal='grc';if(typeof window.addAudit==='function')window.addAudit('GRC_NAV','Opened GRC page: '+id);}catch(_){}render();var m=app&&app.querySelector('.grc-main');if(m)m.scrollTop=0;};
   window._grcToggleLang=function(){if(typeof window.lang!=='undefined')window.lang=window.lang==='en'?'ar':'en';else window.lang=isAr()?'en':'ar';document.documentElement.lang=isAr()?'ar':'en';document.documentElement.dir=isAr()?'rtl':'ltr';var b=document.getElementById('langBtn');if(b)b.textContent=isAr()?'EN':'عربي';render();};
   window._grcRefreshLanguage=function(){render();};
