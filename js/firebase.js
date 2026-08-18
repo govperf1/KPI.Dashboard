@@ -974,8 +974,8 @@ window._selectPortal=async portal=>{
     }
     async function _advAssertRulesVersion(){
       if(window.__advRulesV43Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v44-grc-manager-inbox-20260818'));window.__advRulesV43Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v44 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      try{await _getServerDoc(doc(db,'system_rule_versions','v45-grc-direct-approval-20260818'));window.__advRulesV43Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v45 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     async function _advAssertProfileScope(profile){
       profile=profile||{};
@@ -1232,11 +1232,10 @@ window._selectPortal=async portal=>{
          Managers query this collection directly by departmentKey, so submission
          no longer depends on a secondary inbox document or requester access to it. */
       try{
-        /* v203 single-source create: only the authoritative request document is
-           written. Department Manager discovers it by departmentKey directly. */
+        /* v204: setDoc acknowledgement is the source of truth for submission.
+           Do not perform a second read that can turn a successful write into a
+           false permission-denied message. */
         await setDoc(primaryRef,base,{merge:false});
-        const verified=await _grcServerVerifyDoc(primaryRef,'Review & Development request');
-        if(String(verified.data().departmentKey||'')!==departmentKey||String(verified.data().workflowStage||'')!==base.workflowStage)throw new Error('Review & Development request verification failed.');
       }catch(saveError){
         const codeText=String(saveError&&saveError.code||saveError&&saveError.message||saveError||'save-failed');
         if(codeText.toLowerCase().includes('permission')){
@@ -1516,8 +1515,8 @@ window._selectPortal=async portal=>{
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
       if(window.__grcRulesV43Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v44-grc-manager-inbox-20260818'));window.__grcRulesV43Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v44 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      try{await _getServerDoc(doc(db,'system_rule_versions','v45-grc-direct-approval-20260818'));window.__grcRulesV43Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v45 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
     // Compatibility aliases point to the same current probe so old callers cannot
@@ -1676,11 +1675,9 @@ window._selectPortal=async portal=>{
       }
       const requestData={requestCode,recordType,operation,department,departmentKey:department,departmentRaw:departmentRaw,targetRiskId:String(payload.targetRiskId||payload.targetRecordId||current&&current.id||current&&current.code||proposed&&proposed.id||''),targetRecordId:String(payload.targetRecordId||payload.targetRiskId||current&&current.id||current&&current.code||proposed&&proposed.id||''),currentRecord:current,proposedRecord:proposed,changedFields:_grcRiskChangedFields(current,proposed),deleteReason:String(payload.deleteReason||''),requesterNote:String(payload.note||''),status:'pending_manager',submittedByName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]),submittedByEmail:freshProfile.email,submittedByUid:freshProfile.uid,submittedByRole:freshProfile.role,managerName:'',managerEmail:'',managerNote:'',superAdminName:'',superAdminEmail:'',superAdminNote:'',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:nowIso,updatedAtIso:nowIso,history:[{status:'pending_manager',by:freshProfile.email,role:freshProfile.role,at:nowIso,note:String(payload.note||'')}]};
       try{
-        /* v203 single-source create: Risk/Incident approval requests live only
-           in grc_risk_requests. The manager queries this collection directly. */
+        /* v204: the write acknowledgement is sufficient. The Department Manager
+           reads this authoritative request directly by departmentKey. */
         await setDoc(requestRef,requestData,{merge:false});
-        const verified=await _grcServerVerifyDoc(requestRef,'GRC register approval request');
-        if(String(verified.data().departmentKey||'')!==department||String(verified.data().status||'')!=='pending_manager')throw new Error('GRC register request verification failed.');
       }
       catch(saveError){
         const codeText=String(saveError&&saveError.code||saveError&&saveError.message||saveError||'save-failed');
