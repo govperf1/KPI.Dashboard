@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v43 — Direct Department Approval Queries + Admin Register Reads
+// FIRESTORE SECURITY RULES v44 — Canonical Manager Inbox + Clean Performance Entry
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -605,9 +605,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // a unique v42 path prevents an older ruleset from being mistaken for this build.
+    // a unique v44 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v43-grc-direct-approval-queries-20260818';
+      allow get: if approved() && versionId == 'v44-grc-manager-inbox-20260818';
       allow list, create, update, delete: if false;
     }
 
@@ -653,25 +653,6 @@ service cloud.firestore {
     }
 
     // ── Review & Development Center ──────────────────────────────────
-    function validAdvisoryCreateRoute() {
-      let u = userData();
-      let r = profileRoleFrom(u);
-      let d = r == 'governance_performance_manager' ? '' : profileDepartmentKeyFrom(u);
-      let noDept = !meaningfulDepartmentValue(profileDepartmentValueFrom(u));
-      let direct = r in ['department_manager','governance_performance_manager','admin','super_admin'] ||
-        (d == '' && noDept);
-      return signedIn() && u.approved == true &&
-        request.resource.data.userEmail is string &&
-        request.resource.data.userEmail.lower().trim() == authEmail() &&
-        request.resource.data.departmentKey is string &&
-        request.resource.data.departmentKey == d &&
-        request.resource.data.workflowStage is string &&
-        (
-          (direct && request.resource.data.workflowStage == 'pending_super_admin') ||
-          (!direct && d != '' && request.resource.data.workflowStage == 'pending_department_manager')
-        );
-    }
-
     function advisoryManagerDepartmentMatch(data) {
       let u = userData();
       let r = profileRoleFrom(u);
@@ -757,7 +738,35 @@ service cloud.firestore {
       // Submission is tied only to authenticated identity + authoritative
       // Firestore department/route. requesterUid remains audit metadata but is
       // not a permission dependency, avoiding false denials from stale sessions.
-      allow create: if validAdvisoryCreateRoute();
+      // v44: keep requester routing explicit in the match itself. Every
+      // approved requester may create their own request. Department-scoped
+      // non-manager roles MUST enter the Department Manager stage; managers,
+      // admin roles, and truly unassigned users go directly to Super Admin.
+      allow create: if signedIn() && userData().approved == true &&
+        request.resource.data.userEmail is string && ownEmail(request.resource.data.userEmail) &&
+        request.resource.data.requesterUid is string && request.resource.data.requesterUid == request.auth.uid &&
+        request.resource.data.departmentKey is string && request.resource.data.workflowStage is string &&
+        (
+          (
+            profileRoleFrom(userData()) in ['department_manager','governance_performance_manager','admin','super_admin'] &&
+            request.resource.data.workflowStage == 'pending_super_admin' &&
+            request.resource.data.departmentKey ==
+              (profileRoleFrom(userData()) == 'governance_performance_manager' ? '' : profileDepartmentKeyFrom(userData()))
+          ) ||
+          (
+            !(profileRoleFrom(userData()) in ['department_manager','governance_performance_manager','admin','super_admin']) &&
+            profileDepartmentKeyFrom(userData()) != '' &&
+            request.resource.data.departmentKey == profileDepartmentKeyFrom(userData()) &&
+            request.resource.data.workflowStage == 'pending_department_manager'
+          ) ||
+          (
+            !(profileRoleFrom(userData()) in ['department_manager','governance_performance_manager','admin','super_admin']) &&
+            profileDepartmentKeyFrom(userData()) == '' &&
+            !meaningfulDepartmentValue(profileDepartmentValueFrom(userData())) &&
+            request.resource.data.departmentKey == '' &&
+            request.resource.data.workflowStage == 'pending_super_admin'
+          )
+        );
 
       // Keep read paths separate. Firestore evaluates collection queries against
       // their potential result set, so each browser query gets one simple rule
