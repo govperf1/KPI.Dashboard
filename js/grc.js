@@ -15,10 +15,10 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260818-v197-project-code-manager-authority');
+  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260818-v198-manager-inbox-dept-record-identity');
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260818-v197-project-code-manager-authority');
+  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260818-v198-manager-inbox-dept-record-identity');
   var GRC_CACHE_OWNER_KEY='qumc_grc_workspace_preview_v1_owner';
   var GRC_CACHE_BUILD_KEY='qumc_grc_workspace_preview_build';
   var STATE_VERSION=13;
@@ -1053,6 +1053,19 @@
     return'division';
   }
   function grcRecordVisibility(collectionKey,record){return grcRecordDepartment(collectionKey,record)==='division'?'shared':'department';}
+  /* v198: Policy/Plan/Form document identity is department-scoped. The previous
+     generic id used only code/id, so the same business code in two departments
+     could share one Firestore document and one department silently replaced the
+     other. Keep the source document id separately for safe migration/cleanup. */
+  var GRC_DEPARTMENT_IDENTITY_COLLECTIONS={policies:true,plans:true,forms:true};
+  function grcGenericBusinessKey(collectionKey,record,index){
+    record=record||{};
+    var dept=grcRecordDepartment(collectionKey,record)||'division';
+    var code=governanceCodeKey(record.code||'');
+    var identity=code||String(record.id||record.requirementId||record.standard||record.nameEn||record.nameAr||record.name||record.title||('row_'+index)).trim().toLowerCase().replace(/\s+/g,' ');
+    var scope=collectionKey==='forms'?String(record.scope||record.formScope||'internal').trim().toLowerCase():'';
+    return [dept,identity,scope].join('|');
+  }
   function grcCloudDocId(collectionKey,record,index){
     record=record||{};
     /* Risk and Incident registers must have exactly one canonical Firestore
@@ -1062,6 +1075,11 @@
     if(collectionKey==='risks'||collectionKey==='incidents'){
       var businessIdentity=String(record.id||record.code||record.riskId||'').trim();
       if(businessIdentity)return grcSafeDocPart(businessIdentity)+'_'+grcHash(collectionKey+'|'+businessIdentity);
+    }
+    if(GRC_DEPARTMENT_IDENTITY_COLLECTIONS[collectionKey]){
+      var businessKey=grcGenericBusinessKey(collectionKey,record,index);
+      var label=String(record.code||record.id||record.name||record.title||('row_'+index));
+      return grcSafeDocPart(label)+'_'+grcHash(collectionKey+'|'+businessKey);
     }
     var existing=String(record._cloudId||record.cloudId||'').trim();if(existing)return grcSafeDocPart(existing);
     var identity=String(record.id||record.code||record.requirementId||record.standard||record.nameEn||record.nameAr||record.name||record.title||record.riskIdentified||('row_'+index));
@@ -1313,6 +1331,7 @@
 
     function identity(r){
       if(collectionKey==='risks'||collectionKey==='incidents')return grcRegisterBusinessKey(r);
+      if(GRC_DEPARTMENT_IDENTITY_COLLECTIONS[collectionKey])return grcGenericBusinessKey(collectionKey,r,0);
       var code=governanceCodeKey(r&&r.code);if(code)return code;
       return String(r&&r.id||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
     }
@@ -1393,13 +1412,31 @@
       return;
     }
 
-    var map={},tombstones={};rawRows.forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');r._cloudId=id;r.cloudId=id;if(r&&r.deleted===true){tombstones[id]=1;if(rk)tombstones[rk]=1;return;}map[id]=r;});
-    var rows=Object.keys(map).map(function(id){return map[id];});
+    var map={},order=[],sourceMap={};
+    function preferGeneric(current,candidate){
+      if(!current)return candidate;
+      var a=grcRecordFreshness(current),b=grcRecordFreshness(candidate);
+      if(a!==b)return b>a?candidate:current;
+      var ad=current&&current.deleted===true,bd=candidate&&candidate.deleted===true;
+      if(ad!==bd)return bd?candidate:current;
+      return candidate;
+    }
+    rawRows.forEach(function(r,i){
+      var sourceId=String(r&&r._sourceCloudId||r&&r._cloudId||r&&r.cloudId||'').trim();
+      var id=grcCloudDocId(collectionKey,r,i);
+      r._sourceCloudId=sourceId||id;r._cloudId=id;r.cloudId=id;
+      if(!Object.prototype.hasOwnProperty.call(map,id))order.push(id);
+      map[id]=preferGeneric(map[id],r);
+      sourceMap[id]=sourceMap[id]||[];
+      if(sourceId&&sourceMap[id].indexOf(sourceId)<0)sourceMap[id].push(sourceId);
+    });
+    var rows=[];grcCloudMirror[collectionKey]={};grcCloudDuplicates[collectionKey]=sourceMap;
+    order.forEach(function(id){var winner=map[id];if(!winner)return;grcCloudMirror[collectionKey][id]=grcComparable(winner);if(winner.deleted===true)return;delete winner.deleted;delete winner.deletedAt;rows.push(winner);});
     rows=grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows);
-    /* Do not merge local seed catalogs into Super Admin only. Firestore is the
-       render authority for every role; the v193 repair publishes any genuinely
-       missing approved seed rows to Firestore and respects tombstones. */
-    state[collectionKey]=rows;grcCloudMirror[collectionKey]={};rows.forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i);if(map[id])grcCloudMirror[collectionKey][id]=grcComparable(r);});
+    /* Firestore is the render authority. Department-scoped governance rows are
+       keyed by department+business identity, so Super Admin and scoped users
+       now resolve the same canonical records. */
+    state[collectionKey]=rows;
     grcCloudEverHydrated[collectionKey]=true;
   }
   window._grcApplyPublishedRegisterRecord=function(recordType,operation,record){
@@ -1446,7 +1483,7 @@
     if(grcAllInitialScopesReady()&&grcAllInitialScopesHealthy()){
       grcCloudReady=true;
       if(grcPendingCloudSave){grcPendingCloudSave=false;queueSharedStateSave(true);}
-      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV195().catch(function(err){console.error('[GRC Canonical Catalog v195]',err);});},0);
+      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminGovernanceIdentityV198().catch(function(err){console.error('[GRC Governance Identity v198]',err);});},0);
       /* All initial collection snapshots arrive in a burst. Render once after
          the burst, not once per collection. Later live updates are debounced. */
       grcScheduleRemoteRender(position,wasReady?90:20);
@@ -1730,7 +1767,7 @@
           if(scopes.indexOf('divisionKey')>=0)grcListen(b,key,'divisionKey',b.fs.query(col,b.fs.where('departmentKey','==','division')));
         }
       });
-      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV195().catch(function(err){console.error('[GRC Canonical Catalog v195]',err);});},350);
+      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminGovernanceIdentityV198().catch(function(err){console.error('[GRC Governance Identity v198]',err);});},350);
     }).catch(function(err){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError='GRC sync initialization: '+String(err&&err.message||err);grcSyncLastErrorAt=new Date().toISOString();console.error('[GRC Secure Sync] init failed',err);renderAtSamePosition(grcViewportPosition());});
   }
   async function grcPrimeAdminMirrorsFromServer(b,preserveLocalState,pendingOverride){
@@ -1849,6 +1886,44 @@
   window._grcEnsureCanonicalCatalogV188=ensureSuperAdminCanonicalCatalogV195;
   window._grcEnsureCanonicalCatalogV187=ensureSuperAdminCanonicalCatalogV195;
 
+
+  var grcGovernanceIdentityV198Promise=null;
+  async function ensureSuperAdminGovernanceIdentityV198(){
+    if(!isGrcSuperAdmin())return false;
+    if(grcGovernanceIdentityV198Promise)return grcGovernanceIdentityV198Promise;
+    grcGovernanceIdentityV198Promise=ensureReportBackend().then(async function(b){
+      if(!b.auth.currentUser)return false;
+      var markerRef=b.fs.doc(b.db,'grc_meta','governance_identity_v198'),markerSnap=await b.fs.getDoc(markerRef);
+      if(markerSnap.exists()&&markerSnap.data()&&markerSnap.data().status==='completed')return false;
+      await b.fs.setDoc(markerRef,{status:'running',build:GRC_CLIENT_BUILD,startedAt:b.fs.serverTimestamp(),startedBy:String(window._fbUser||'')},{merge:true});
+      var keys=['policies','plans','forms'],writes=[],deletes=[],stats={};
+      for(var ki=0;ki<keys.length;ki++){
+        var key=keys[ki],snap=await b.fs.getDocs(b.fs.collection(b.db,GRC_COLLECTION_MAP[key])),groups={};
+        snap.forEach(function(d){
+          var row=grcSerializable(d.data()||{});row._sourceCloudId=d.id;row._cloudId=d.id;row.cloudId=d.id;
+          var dept=grcRecordDepartment(key,row);row.department=dept;row.departmentKey=dept;row.visibility=dept==='division'?'shared':'department';row.recordType=key;row.schemaVersion=GRC_SCHEMA_VERSION;
+          var canonicalId=grcCloudDocId(key,row,0);groups[canonicalId]=groups[canonicalId]||[];groups[canonicalId].push(row);
+        });
+        var migrated=0,removed=0;
+        Object.keys(groups).forEach(function(canonicalId){
+          var list=groups[canonicalId],winner=null;
+          list.forEach(function(x){if(!winner)winner=x;else{var a=grcRecordFreshness(winner),c=grcRecordFreshness(x);if(c>a||(c===a&&x.deleted===true&&winner.deleted!==true))winner=x;}});
+          if(!winner)return;
+          var prepared=grcPrepareCloudRecord(key,winner,0,b);prepared._cloudId=canonicalId;prepared.cloudId=canonicalId;prepared.canonicalIdentityVersion=198;prepared.cloudUpdatedAt=b.fs.serverTimestamp();prepared.updatedByEmail=String(window._fbUser||'').toLowerCase();
+          writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],canonicalId),data:prepared});migrated++;
+          list.forEach(function(x){var sourceId=String(x._sourceCloudId||'');if(sourceId&&sourceId!==canonicalId){deletes.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],sourceId)});removed++;}});
+        });
+        stats[key]={canonical:migrated,legacyDeletes:removed};
+      }
+      if(writes.length)await grcCommitWrites(b,writes);
+      if(deletes.length){var seen={};deletes=deletes.filter(function(w){if(seen[w.ref.path])return false;seen[w.ref.path]=1;return true;});await grcCommitWrites(b,deletes);}
+      await b.fs.setDoc(markerRef,{status:'completed',build:GRC_CLIENT_BUILD,stats:stats,writes:writes.length,deletes:deletes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+      return true;
+    }).then(function(changed){if(changed&&typeof window._grcRestartSecureSync==='function')setTimeout(function(){window._grcRestartSecureSync(true);},80);return changed;}).catch(async function(err){try{var b=await ensureReportBackend();await b.fs.setDoc(b.fs.doc(b.db,'grc_meta','governance_identity_v198'),{status:'failed',build:GRC_CLIENT_BUILD,error:String(err&&err.message||err).slice(0,500),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}throw err;}).finally(function(){grcGovernanceIdentityV198Promise=null;});
+    return grcGovernanceIdentityV198Promise;
+  }
+  window._grcEnsureGovernanceIdentityV198=ensureSuperAdminGovernanceIdentityV198;
+
   async function flushSecureState(sourceSnapshot,onlyKeys){
     if(grcApplyingRemote||!isGrcAdmin())return false;
     var b=await ensureReportBackend();if(!b.auth.currentUser)throw new Error('not-authenticated');
@@ -1877,7 +1952,9 @@
           writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],canonicalId),data:prepared});
         }
         current[canonicalId]=grcComparable(prepared);
-        if(isRegister){
+        if(isRegister||GRC_DEPARTMENT_IDENTITY_COLLECTIONS[key]){
+          var sourceRecordId=String(record&&record._sourceCloudId||'').trim();
+          if(sourceRecordId&&sourceRecordId!==canonicalId)writes.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],sourceRecordId)});
           (grcCloudDuplicates[key]&&grcCloudDuplicates[key][canonicalId]||[]).forEach(function(sourceId){if(sourceId&&sourceId!==canonicalId)writes.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],sourceId)});});
         }
       });
@@ -2182,7 +2259,7 @@
   }
   function updateGrcFooterClock(){var el=document.getElementById('grcClockEl');if(!el)return;try{el.textContent=new Date().toLocaleTimeString(isAr()?'ar-SA':'en-GB',{hour:'2-digit',minute:'2-digit'});}catch(_e){var d=new Date(),h=String(d.getHours()).padStart(2,'0'),m=String(d.getMinutes()).padStart(2,'0');el.textContent=h+':'+m;}}
   if(!window._grcFooterClockTimer){window._grcFooterClockTimer=setInterval(updateGrcFooterClock,1000);}
-  function render(){if(window._fbUser)enforceLocalGrcScope();var _repairBefore=governanceCodeRepairSnapshot(state);state=repairGovernanceCodeState(state);try{if(_repairBefore!==governanceCodeRepairSnapshot(state)){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));queueSharedStateSave(true);}}catch(_e2){}applyAutomaticExpiry();if(!app||!app.classList.contains('grc-visible'))return;app.setAttribute('dir',isAr()?'rtl':'ltr');try{app.innerHTML=shellHtml();}catch(err){try{console.error('[GRC Render]',err);}catch(_e){}app.innerHTML='<main class="grc-main"><section class="grc-page is-active"><div class="grc-section"><div class="grc-section-title">GRC</div><div class="grc-section-sub">'+esc(String(err&&err.message||err))+'</div></div></section></main>';return;}updateGrcFooterClock();setTimeout(enhanceRegisterFilters,0);setTimeout(enhanceAllRegisterCrud,0);setTimeout(function(){if(typeof window._grcRiskRefreshUi==='function')window._grcRiskRefreshUi();if(typeof window._grcRiskBindHeader==='function')window._grcRiskBindHeader();if(typeof window._grcChatEnsure==='function')window._grcChatEnsure();},0);startSharedStateSync();try{if(typeof startAssessmentCloudSync==='function')startAssessmentCloudSync();}catch(_assessmentSync){}if(activeTab==='reports'||activeTab==='compliance'||activeTab==='manuals')setTimeout(mountReportViewer,0);if(activeTab==='advisory'&&typeof window._grcAdvisoryMount==='function')setTimeout(window._grcAdvisoryMount,0);}
+  function render(){if(window._fbUser)enforceLocalGrcScope();var _repairBefore=governanceCodeRepairSnapshot(state);state=repairGovernanceCodeState(state);try{if(_repairBefore!==governanceCodeRepairSnapshot(state)){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}}catch(_e2){}applyAutomaticExpiry();if(!app||!app.classList.contains('grc-visible'))return;app.setAttribute('dir',isAr()?'rtl':'ltr');try{app.innerHTML=shellHtml();}catch(err){try{console.error('[GRC Render]',err);}catch(_e){}app.innerHTML='<main class="grc-main"><section class="grc-page is-active"><div class="grc-section"><div class="grc-section-title">GRC</div><div class="grc-section-sub">'+esc(String(err&&err.message||err))+'</div></div></section></main>';return;}updateGrcFooterClock();setTimeout(enhanceRegisterFilters,0);setTimeout(enhanceAllRegisterCrud,0);setTimeout(function(){if(typeof window._grcRiskRefreshUi==='function')window._grcRiskRefreshUi();if(typeof window._grcRiskBindHeader==='function')window._grcRiskBindHeader();if(typeof window._grcChatEnsure==='function')window._grcChatEnsure();},0);startSharedStateSync();try{if(typeof startAssessmentCloudSync==='function')startAssessmentCloudSync();}catch(_assessmentSync){}if(activeTab==='reports'||activeTab==='compliance'||activeTab==='manuals')setTimeout(mountReportViewer,0);if(activeTab==='advisory'&&typeof window._grcAdvisoryMount==='function')setTimeout(window._grcAdvisoryMount,0);}
 
   function hero(eye,title,desc,actions){return'<div class="grc-hero"><div class="grc-hero-row"><div><div class="grc-eyebrow">'+eye+'</div><h1>'+title+'</h1><p>'+desc+'</p></div><div class="grc-hero-actions">'+(actions||'')+'</div></div></div>';}
   function sectionHead(title,sub,badgeText){return'<div class="grc-section-head"><div><div class="grc-section-title">'+title+'</div><div class="grc-section-sub">'+(sub||'')+'</div></div>'+(badgeText?'<span class="grc-section-badge">'+badgeText+'</span>':'')+'</div>';}

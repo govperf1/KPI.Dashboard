@@ -4,7 +4,7 @@
    Review & Development Center requests.
    ===================================================================== */
 (function(){
-  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V197__)return;window.__QUMC_GRC_RISK_WORKFLOW_V197__=true;
+  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V198__)return;window.__QUMC_GRC_RISK_WORKFLOW_V198__=true;
   var cache=[],unsub=null,startedFor='',reviewApprovalRows=[],approvalNoticeKey='',approvalNoticeEntry=0,approvalNoticeTimer=null,feedbackNormalRows=[],feedbackReviewRows=[],feedbackNormalUnsub=null,feedbackReviewUnsub=null,feedbackStartedFor='',feedbackTimer=null,managerPullBusy=false,managerPullAt=0;
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function role(){var raw=window._fbRole||window.currentUserRole||'viewer';return typeof window._normalizePortalRole==='function'?window._normalizePortalRole(raw):String(raw).trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
@@ -187,6 +187,7 @@
     var risk=typeof window._grcRiskRequestsGetForManager==='function'?window._grcRiskRequestsGetForManager():Promise.resolve([]);
     var review=typeof window._advisoryGetManagerQueue==='function'?window._advisoryGetManagerQueue():Promise.resolve([]);
     return Promise.all([risk,review]).then(function(rows){
+      window.__grcManagerApprovalError='';
       cache=(Array.isArray(rows[0])?rows[0]:[]).filter(managerDepartmentRequest);
       reviewApprovalRows=(Array.isArray(rows[1])?rows[1]:[]).filter(reviewManagerRequest);
       window.__grcRiskRequestCache=cache;
@@ -195,8 +196,17 @@
       if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
       if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();
       scheduleApprovalNotice(false);
-    }).catch(function(err){console.warn('[GRC Manager Approval Pull]',err&&err.code||err);}).finally(function(){managerPullBusy=false;});
+    }).catch(function(err){window.__grcManagerApprovalError=String(err&&err.message||err&&err.code||err||'Unable to load department approvals.');console.warn('[GRC Manager Approval Pull]',window.__grcManagerApprovalError);}).finally(function(){managerPullBusy=false;});
   }
+  window._grcRiskInjectManagerQueue=function(riskRows,reviewRows){
+    if(!isManager())return;
+    cache=(Array.isArray(riskRows)?riskRows:[]).filter(managerDepartmentRequest);
+    reviewApprovalRows=(Array.isArray(reviewRows)?reviewRows:[]).filter(reviewManagerRequest);
+    window.__grcRiskRequestCache=cache;
+    refreshBadge();
+    if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
+    if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();
+  };
   function stop(){if(unsub)try{unsub();}catch(_){}unsub=null;startedFor='';cache=[];window.__grcRiskRequestCache=[];var panel=document.getElementById('_grcRiskNotifPanel');if(panel)panel.remove();closeApprovalNotice();stopFeedbackWatch();refreshBadge();}
   function start(){
     if(!document.body.classList.contains('grc-mode')){if(unsub||startedFor||feedbackStartedFor)stop();return;}

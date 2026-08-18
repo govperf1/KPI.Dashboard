@@ -47,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260818-v197-project-code-manager-authority');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260818-v198-manager-inbox-dept-record-identity');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -1182,12 +1182,15 @@ window._selectPortal=async portal=>{
          valid request invisible to its Department Manager. Resolve the manager
          from the same authoritative users/{email} document before every read. */
       const fresh=await _advFreshProfile();
-      if(fresh.role!=='department_manager')throw new Error('Access denied.');
-      const dept=fresh.departmentKey;window.__grcManagerDepartmentKey=dept;const own=await window._advisoryGetMine();if(!dept)return own;
+      if(fresh.role!=='department_manager')throw new Error('manager-profile-role-mismatch:'+fresh.role);
+      const dept=fresh.departmentKey;window.__grcManagerDepartmentKey=dept;if(!dept)throw new Error('manager-profile-department-missing');
+      /* The approval queue is the required read. A problem loading the manager's
+         own request history must never make valid department approvals disappear. */
       const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)));
       const departmentRows=snap.docs
         .map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'))
         .filter(r=>stageOfManagerRow(r)==='pending_department_manager'&&String(r&&r.userEmail||'').toLowerCase().trim()!==fresh.email);
+      let own=[];try{own=await window._advisoryGetMine();}catch(ownErr){console.warn('[Review Development] manager own-request history unavailable',ownErr&&ownErr.code||ownErr);}
       return _advMergeRows(departmentRows,own,false);
     };
     function stageOfManagerRow(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
@@ -1662,10 +1665,15 @@ window._selectPortal=async portal=>{
     };
 
     window._grcRiskRequestManagerAction=async function(requestId,action,note){
-      if(!_grcRiskIsManager())throw new Error('Department Manager approval is required.');const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(_grcCanonicalDepartment(r.department)!==_grcRiskDept())throw new Error('This request belongs to another department.');if(!['pending_manager','returned_manager'].includes(String(r.status||'')))throw new Error('This request is not awaiting your approval.');
-      const status=action==='approve'?'pending_super_admin':action==='return'?'returned_requester':action==='reject'?'rejected_manager':'';if(!status)throw new Error('Invalid action.');if(action!=='approve'&&!String(note||'').trim())throw new Error('A reason is required.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status,by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'')});
-      await updateDoc(ref,{status,managerName:String(window._fbName||''),managerEmail:_grcRiskEmail(),managerNote:String(note||''),managerActionAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history});
-      try{await window._recordAuditDirect('GRC_MANAGER_APPROVAL_'+String(action||'action').toUpperCase(),'Department Manager '+String(action||'action')+' · '+String(r.requestCode||requestId),{status:r.status},{status:status,note:String(note||'')},{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
+      /* Resolve the same authoritative profile used to build the manager inbox.
+         The previous action path compared the request with session _fbDept, so a
+         manager could see a freshly fetched request and still be blocked when
+         clicking Approve. */
+      const fresh=await _advFreshProfile();if(fresh.role!=='department_manager')throw new Error('Department Manager approval is required.');if(!fresh.departmentKey)throw new Error('manager-profile-department-missing');window.__grcManagerDepartmentKey=fresh.departmentKey;
+      const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(_grcCanonicalDepartment(r.departmentKey||r.department||r.departmentRaw)!==fresh.departmentKey)throw new Error('This request belongs to another department.');if(!['pending_manager','returned_manager'].includes(String(r.status||'')))throw new Error('This request is not awaiting your approval.');
+      const status=action==='approve'?'pending_super_admin':action==='return'?'returned_requester':action==='reject'?'rejected_manager':'';if(!status)throw new Error('Invalid action.');if(action!=='approve'&&!String(note||'').trim())throw new Error('A reason is required.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status,by:fresh.email,role:fresh.role,at:now,note:String(note||'')});
+      await updateDoc(ref,{status,managerName:String(window._fbName||fresh.email),managerEmail:fresh.email,managerNote:String(note||''),managerActionAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history});
+      try{await window._recordAuditDirect('GRC_MANAGER_APPROVAL_'+String(action||'action').toUpperCase(),'Department Manager '+String(action||'action')+' · '+String(r.requestCode||requestId),{status:r.status},{status:status,note:String(note||'')},{portal:'grc',dept:fresh.departmentKey,recordType:r.recordType||'risk'});}catch(_){}
       return true;
     };
     window._grcRiskRequestSuperAction=async function(requestId,action,note){
@@ -1700,9 +1708,9 @@ window._selectPortal=async portal=>{
     };
     window._grcRiskRequestsGetForManager=async function(){
       const fresh=await _advFreshProfile();
-      if(fresh.role!=='department_manager')return[];
+      if(fresh.role!=='department_manager')throw new Error('manager-profile-role-mismatch:'+fresh.role);
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),key=fresh.departmentKey;window.__grcManagerDepartmentKey=key;
-      if(!key)return[];
+      if(!key)throw new Error('manager-profile-department-missing');
       const rows=await _grcRiskRead(query(col,where('departmentKey','==',key)));
       return rows.filter(function(r){return ['pending_manager','returned_manager'].includes(String(r&&r.status||'').toLowerCase())&&String(r&&r.submittedByEmail||'').toLowerCase().trim()!==fresh.email;});
     };
