@@ -15,10 +15,10 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260817-v194-grc-department-normalization');
+  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260818-v195-grc-profile-single-read');
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260817-v194-grc-department-normalization');
+  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260818-v195-grc-profile-single-read');
   var GRC_CACHE_OWNER_KEY='qumc_grc_workspace_preview_v1_owner';
   var GRC_CACHE_BUILD_KEY='qumc_grc_workspace_preview_build';
   var STATE_VERSION=13;
@@ -966,7 +966,7 @@
   // Governance and Risk remain department-scoped. Shared operational modules are visible to every approved GRC user.
   var GRC_GLOBAL_READ_COLLECTIONS={manuals:true,codes:true,compliance:true,audits:true,actions:true,documents:true,initiatives:true};
   var grcStateUnsubs=[],grcStateSaveTimer=null,grcApplyingRemote=false,grcSyncStarted=false,grcCloudReady=false;
-  var grcCloudParts={},grcCloudMirror={},grcCloudDuplicates={},grcCloudEverHydrated={},grcInitialScopes={},grcCollectionScopeReady={},grcCollectionScopeFailed={},grcMigrationPromise=null,grcPendingCloudSave=false,grcCanonicalCatalogV187Promise=null,grcCanonicalCatalogV193Promise=null,grcRemoteRenderTimer=null,grcRemoteRenderPosition=null,grcCachePersistTimer=null;
+  var grcCloudParts={},grcCloudMirror={},grcCloudDuplicates={},grcCloudEverHydrated={},grcInitialScopes={},grcCollectionScopeReady={},grcCollectionScopeFailed={},grcMigrationPromise=null,grcPendingCloudSave=false,grcCanonicalCatalogV187Promise=null,grcCanonicalCatalogV195Promise=null,grcRemoteRenderTimer=null,grcRemoteRenderPosition=null,grcCachePersistTimer=null;
   var grcRiskStatusOverrides={},grcRiskStatusUnsub=null,grcSyncScopeKey='',grcPendingLocalDeletes={risks:{},incidents:{}},grcSyncLastError='',grcSyncLastErrorAt='';
   function grcPendingDeleteKey(collectionKey,record){if(collectionKey!=='risks'&&collectionKey!=='incidents')return'';return grcRegisterBusinessKey(record||{});}
   function grcMarkPendingLocalDelete(collectionKey,record){var key=grcPendingDeleteKey(collectionKey,record);if(!key)return;grcPendingLocalDeletes[collectionKey]=grcPendingLocalDeletes[collectionKey]||{};grcPendingLocalDeletes[collectionKey][key]=Date.now();}
@@ -1365,12 +1365,14 @@
         rows.push(winner);
       });
       rows=grcDeduplicateRegisterRows(collectionKey,rows);
-      /* Firestore remains authoritative for every existing business ID. The
-         baseline fallback only fills IDs that never reached the scoped
-         collection, and raw tombstones prevent deleted rows from returning. */
+      /* Firestore is the only live Risk/Incident source after hydration.
+         Baseline rows are used only by the Super Admin canonical repair. */
       if(collectionKey==='risks')rows=rows.map(normalizeRiskClassification);
       if(collectionKey==='incidents')rows=grcDeduplicateProjectIncidentContent(normalizeProjectIncidentIds(rows));
-      rows=grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows);
+      /* v195 single source: once Firestore answers, Risk/Incident rows come only
+         from Firestore (plus Firestore status overrides). Bundled seed rows are
+         used by the Super Admin canonical repair, never painted into a scoped
+         user's live register. */
       if(collectionKey==='risks')rows=grcDeduplicateRegisterRows(collectionKey,rows.map(normalizeRiskClassification));
       if(collectionKey==='risks')rows=applyRiskStatusOverrides(rows);
       if(collectionKey==='incidents')rows=grcDeduplicateProjectIncidentContent(normalizeProjectIncidentIds(grcDeduplicateRegisterRows(collectionKey,rows)));
@@ -1421,7 +1423,7 @@
     if(grcAllInitialScopesReady()&&grcAllInitialScopesHealthy()){
       grcCloudReady=true;
       if(grcPendingCloudSave){grcPendingCloudSave=false;queueSharedStateSave(true);}
-      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV193().catch(function(err){console.error('[GRC Canonical Catalog v193]',err);});},0);
+      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV195().catch(function(err){console.error('[GRC Canonical Catalog v195]',err);});},0);
       /* All initial collection snapshots arrive in a burst. Render once after
          the burst, not once per collection. Later live updates are debounced. */
       grcScheduleRemoteRender(position,wasReady?90:20);
@@ -1657,8 +1659,8 @@
     if(grcSyncStarted&&grcSyncScopeKey!==wanted)stopSharedStateSync();
     ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;
       var actual=grcSyncIdentityKey();if(actual!==wanted){stopSharedStateSync();setTimeout(startSharedStateSync,0);return;}
-      if(typeof window._qumcAssertFirestoreRulesV39==='function'||typeof window._qumcAssertFirestoreRulesV38==='function'||typeof window._qumcAssertFirestoreRulesV36==='function'||typeof window._qumcAssertFirestoreRulesV35==='function'||typeof window._qumcAssertFirestoreRulesV34==='function'||typeof window._qumcAssertFirestoreRulesV33==='function'){
-        try{await (window._qumcAssertFirestoreRulesV39||window._qumcAssertFirestoreRulesV38||window._qumcAssertFirestoreRulesV36||window._qumcAssertFirestoreRulesV35||window._qumcAssertFirestoreRulesV34||window._qumcAssertFirestoreRulesV33)();}
+      if(typeof window._qumcAssertFirestoreRulesV40==='function'||typeof window._qumcAssertFirestoreRulesV39==='function'||typeof window._qumcAssertFirestoreRulesV38==='function'||typeof window._qumcAssertFirestoreRulesV36==='function'||typeof window._qumcAssertFirestoreRulesV35==='function'||typeof window._qumcAssertFirestoreRulesV34==='function'||typeof window._qumcAssertFirestoreRulesV33==='function'){
+        try{await (window._qumcAssertFirestoreRulesV40||window._qumcAssertFirestoreRulesV39||window._qumcAssertFirestoreRulesV38||window._qumcAssertFirestoreRulesV36||window._qumcAssertFirestoreRulesV35||window._qumcAssertFirestoreRulesV34||window._qumcAssertFirestoreRulesV33)();}
         catch(ruleErr){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError=String(ruleErr&&ruleErr.message||ruleErr).replace(/^rules-version-mismatch:/,'');grcSyncLastErrorAt=new Date().toISOString();renderAtSamePosition(grcViewportPosition());return;}
       }
       grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
@@ -1693,24 +1695,19 @@
         if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){
           grcConfigureCollectionScopes(key,['all']);grcListen(b,key,'all',col);
         }else{
-          /* Read the canonical departmentKey AND legacy department field.
-             Each listener uses one direct equality so Firestore can prove the
-             query against Rules. The v193 Super Admin repair rewrites old rows
-             into one canonical departmentKey; these fallbacks keep them visible
-             during the migration instead of leaving a stale device cache. */
-          var scopes=['departmentKey','departmentCanonical'];
-          var canonicalRaw=canonicalGrcDepartment(rawDept);
-          if(rawDept&&canonicalRaw===dept&&rawDept!==dept)scopes.push('departmentRaw');
-          if(key!=='risks'&&key!=='incidents')scopes.push('divisionKey','divisionLegacy');
+          /* v195 canonical single-source sync. Every scoped register uses one
+             provable departmentKey query. Legacy department labels are repaired
+             once by Super Admin into the canonical Firestore documents; they are
+             no longer parallel live sources that can fail independently and hold
+             the whole page on stale cache/seed data. */
+          var scopes=['departmentKey'];
+          if(key!=='risks'&&key!=='incidents')scopes.push('divisionKey');
           grcConfigureCollectionScopes(key,scopes);
           grcListen(b,key,'departmentKey',b.fs.query(col,b.fs.where('departmentKey','==',dept)));
-          grcListen(b,key,'departmentCanonical',b.fs.query(col,b.fs.where('department','==',dept)));
-          if(scopes.indexOf('departmentRaw')>=0)grcListen(b,key,'departmentRaw',b.fs.query(col,b.fs.where('department','==',rawDept)));
           if(scopes.indexOf('divisionKey')>=0)grcListen(b,key,'divisionKey',b.fs.query(col,b.fs.where('departmentKey','==','division')));
-          if(scopes.indexOf('divisionLegacy')>=0)grcListen(b,key,'divisionLegacy',b.fs.query(col,b.fs.where('department','==','division')));
         }
       });
-      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV193().catch(function(err){console.error('[GRC Canonical Catalog v193]',err);});},350);
+      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV195().catch(function(err){console.error('[GRC Canonical Catalog v195]',err);});},350);
     }).catch(function(err){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError='GRC sync initialization: '+String(err&&err.message||err);grcSyncLastErrorAt=new Date().toISOString();console.error('[GRC Secure Sync] init failed',err);renderAtSamePosition(grcViewportPosition());});
   }
   async function grcPrimeAdminMirrorsFromServer(b,preserveLocalState){
@@ -1768,12 +1765,12 @@
   window._grcEnsureCanonicalCatalogV187=ensureSuperAdminCanonicalCatalogV187;
 
 
-  async function ensureSuperAdminCanonicalCatalogV193(){
+  async function ensureSuperAdminCanonicalCatalogV195(){
     if(!isGrcSuperAdmin())return false;
-    if(grcCanonicalCatalogV193Promise)return grcCanonicalCatalogV193Promise;
-    grcCanonicalCatalogV193Promise=ensureReportBackend().then(async function(b){
+    if(grcCanonicalCatalogV195Promise)return grcCanonicalCatalogV195Promise;
+    grcCanonicalCatalogV195Promise=ensureReportBackend().then(async function(b){
       if(!b.auth.currentUser)return false;
-      var markerRef=b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v193'),marker=await b.fs.getDoc(markerRef);
+      var markerRef=b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v195'),marker=await b.fs.getDoc(markerRef);
       if(marker.exists()&&marker.data()&&marker.data().status==='completed')return false;
       await b.fs.setDoc(markerRef,{status:'running',build:GRC_CLIENT_BUILD,startedAt:b.fs.serverTimestamp(),startedBy:String(window._fbUser||'')},{merge:true});
       /* Rebuild the canonical server catalog from the current Firestore state.
@@ -1792,8 +1789,8 @@
         rows.forEach(function(record,index){
           var sourceId=String(record&&record._sourceCloudId||'').trim();
           var prepared=grcPrepareCloudRecord(key,record,index,b),id=prepared._cloudId;
-          prepared.canonicalCatalogVersion=193;
-          prepared.canonicalCatalogSource='server_single_source_repair_v193';
+          prepared.canonicalCatalogVersion=195;
+          prepared.canonicalCatalogSource='server_single_source_repair_v195';
           writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],id),data:prepared});
           if((key==='risks'||key==='incidents')&&sourceId&&sourceId!==id)obsolete.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],sourceId)});
         });
@@ -1812,21 +1809,22 @@
       await grcCommitWrites(b,writes);
       if(obsolete.length)await grcCommitWrites(b,obsolete);
       await b.fs.setDoc(markerRef,{status:'completed',build:GRC_CLIENT_BUILD,counts:counts,writes:writes.length,deletes:obsolete.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
-      try{window._recordAuditDirect&&window._recordAuditDirect('GRC_CANONICAL_CATALOG_V193','Published one canonical Firestore GRC catalog for all roles and departments',null,{counts:counts,writes:writes.length,deletes:obsolete.length},{portal:'grc'});}catch(_audit){}
+      try{window._recordAuditDirect&&window._recordAuditDirect('GRC_CANONICAL_CATALOG_V195','Published one canonical Firestore GRC catalog for all roles and departments',null,{counts:counts,writes:writes.length,deletes:obsolete.length},{portal:'grc'});}catch(_audit){}
       return true;
     }).then(function(changed){
       if(changed&&typeof window._grcRestartSecureSync==='function')setTimeout(function(){window._grcRestartSecureSync(true);},100);
       return changed;
     }).catch(async function(err){
-      try{var b=await ensureReportBackend();await b.fs.setDoc(b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v193'),{status:'failed',build:GRC_CLIENT_BUILD,error:String(err&&err.message||err).slice(0,500),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}
+      try{var b=await ensureReportBackend();await b.fs.setDoc(b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v195'),{status:'failed',build:GRC_CLIENT_BUILD,error:String(err&&err.message||err).slice(0,500),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}
       throw err;
-    }).finally(function(){grcCanonicalCatalogV193Promise=null;});
-    return grcCanonicalCatalogV193Promise;
+    }).finally(function(){grcCanonicalCatalogV195Promise=null;});
+    return grcCanonicalCatalogV195Promise;
   }
-  window._grcEnsureCanonicalCatalogV193=ensureSuperAdminCanonicalCatalogV193;
-  window._grcEnsureCanonicalCatalogV190=ensureSuperAdminCanonicalCatalogV193;
-  window._grcEnsureCanonicalCatalogV188=ensureSuperAdminCanonicalCatalogV193;
-  window._grcEnsureCanonicalCatalogV187=ensureSuperAdminCanonicalCatalogV193;
+  window._grcEnsureCanonicalCatalogV195=ensureSuperAdminCanonicalCatalogV195;
+  window._grcEnsureCanonicalCatalogV193=ensureSuperAdminCanonicalCatalogV195;
+  window._grcEnsureCanonicalCatalogV190=ensureSuperAdminCanonicalCatalogV195;
+  window._grcEnsureCanonicalCatalogV188=ensureSuperAdminCanonicalCatalogV195;
+  window._grcEnsureCanonicalCatalogV187=ensureSuperAdminCanonicalCatalogV195;
 
   async function flushSecureState(){
     if(grcApplyingRemote||!isGrcAdmin())return false;
