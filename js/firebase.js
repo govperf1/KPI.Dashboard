@@ -47,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260818-v195-grc-profile-single-read');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260818-v196-manager-queue-admin-save');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -969,9 +969,9 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV40Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v40-grc-profile-single-read-20260818'));window.__advRulesV40Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v40 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__advRulesV41Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v41-grc-manager-queue-admin-save-20260818'));window.__advRulesV41Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v41 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     async function _advAssertProfileScope(profile){
       profile=profile||{};
@@ -1179,10 +1179,17 @@ window._selectPortal=async portal=>{
     window._advisoryGetManagerQueue=async function(){
       if(!_advIsDepartmentManager())throw new Error('Access denied.');
       const dept=_advDepartmentKey(),own=await window._advisoryGetMine();if(!dept)return own;
-      const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept),where('workflowStage','==','pending_department_manager')));
-      const departmentRows=snap.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));
+      /* One canonical department query only. Firestore Rules authorize the
+         department scope; workflow status is filtered in memory so the manager
+         inbox cannot disappear because one extra query predicate/index/rule
+         branch fails. */
+      const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)));
+      const departmentRows=snap.docs
+        .map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'))
+        .filter(r=>stageOfManagerRow(r)==='pending_department_manager');
       return _advMergeRows(departmentRows,own,false);
     };
+    function stageOfManagerRow(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
     window._advisorySubscribe=function(callback){
       if(typeof callback!=='function'||!_advEmail()||!db)return function(){};
@@ -1206,7 +1213,8 @@ window._selectPortal=async portal=>{
              and one exact own-request query. This prevents cross-department reads
              and avoids a broad department listener that Firestore can reject. */
           if(_advIsDepartmentManager()){
-            primary=primary.concat((sources.own&&sources.own.rows)||[]);
+            primary=primary.filter(function(r){return stageOf(r)==='pending_department_manager';})
+              .concat((sources.own&&sources.own.rows)||[]);
           }
           const merged=_advMergeRows(primary,fallback,false);
           const dashboardRows=merged.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
@@ -1229,7 +1237,7 @@ window._selectPortal=async portal=>{
       };
       if(_advIsDepartmentManager()){
         if(dept){
-          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept),where('workflowStage','==','pending_department_manager')),'advisory_requests');
+          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)),'advisory_requests');
           listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
         }else{
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
@@ -1408,11 +1416,11 @@ window._selectPortal=async portal=>{
     function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();return ['super_admin','admin','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].includes(r)||p.includes('access_grc')||p.includes('view_grc_department')||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('*');}
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
-      if(window.__grcRulesV40Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v40-grc-profile-single-read-20260818'));window.__grcRulesV40Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v40 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__grcRulesV41Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v41-grc-manager-queue-admin-save-20260818'));window.__grcRulesV41Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v41 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
-    window._qumcAssertFirestoreRulesV40=_grcRiskAssertRulesVersion;
+    window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
     // Compatibility aliases point to the same current probe so old callers cannot
     // silently accept a stale deployed ruleset.
     window._qumcAssertFirestoreRulesV39=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV38=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV36=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV35=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV34=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV33=_grcRiskAssertRulesVersion;
@@ -1691,15 +1699,13 @@ window._selectPortal=async portal=>{
     };
     window._grcRiskRequestsGetForManager=async function(){
       if(!_grcRiskIsManager())return[];
-      const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[],raw=_grcRiskRawDept(),key=_grcRiskDept();
-      /* Department Manager approval inbox is intentionally strict: it is
-         department-scoped only. Personal/owner fallbacks must never widen the
-         manager approval queue. If no department is assigned, there is no
-         approval inbox until a department is configured. */
-      if(!raw&&!key)return[];
-      if(raw)qrefs.push(query(col,where('departmentRaw','==',raw)));
-      if(key){qrefs.push(query(col,where('departmentKey','==',key)));qrefs.push(query(col,where('department','==',key)));}
-      return _grcRiskReadMany(qrefs);
+      const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),key=_grcRiskDept();
+      /* Manager approvals use one canonical departmentKey query. Historical
+         aliases are repaired at write/migration time instead of creating
+         several listeners that can disagree or fail independently. */
+      if(!key)return[];
+      const rows=await _grcRiskRead(query(col,where('departmentKey','==',key)));
+      return rows.filter(function(r){return ['pending_manager','returned_manager'].includes(String(r&&r.status||'').toLowerCase());});
     };
     window._grcRiskRequestsGetAll=async function(){if(!_grcRiskIsAdmin())throw new Error('Access denied.');return _grcRiskRead(collection(db,GRC_RISK_REQUESTS_COLLECTION));};
     window._grcRiskRequestsSubscribe=function(callback){
@@ -1709,14 +1715,9 @@ window._selectPortal=async portal=>{
       else{
         const raw=_grcRiskRawDept(),key=_grcRiskDept();
         if(_grcRiskIsManager()){
-          /* SECURITY / WORKFLOW RULE: Department Managers receive only the
-             Risk & Incident approval activity for their assigned department.
-             Do not add submittedByUid/submittedByEmail fallback queries here;
-             a manager's personal requests belong in My Requests, not in the
-             approval inbox or approval notifications. */
-          if(!raw&&!key){callback([]);return function(){};}
-          if(raw)qrefs.push(query(col,where('departmentRaw','==',raw)));
-          if(key){qrefs.push(query(col,where('departmentKey','==',key)));qrefs.push(query(col,where('department','==',key)));}
+          /* One canonical listener for the Department Manager inbox. */
+          if(!key){callback([]);return function(){};}
+          qrefs.push(query(col,where('departmentKey','==',key)));
         }else{
           /* Other GRC roles keep department activity plus own-request fallback
              for compatibility with older workflow documents. */
@@ -1727,7 +1728,11 @@ window._selectPortal=async portal=>{
         }
       }
       const sources={},unsubs=[],failed={};let successCount=0;
-      function emit(){callback(_grcRiskMergeRows(Object.keys(sources).map(k=>sources[k])));}
+      function emit(){
+        let rows=_grcRiskMergeRows(Object.keys(sources).map(k=>sources[k]));
+        if(_grcRiskIsManager())rows=rows.filter(function(r){return ['pending_manager','returned_manager'].includes(String(r&&r.status||'').toLowerCase());});
+        callback(rows);
+      }
       qrefs.forEach((qref,i)=>{unsubs.push(onSnapshot(qref,{includeMetadataChanges:true},snap=>{
         const rows=[];snap.forEach(d=>{if(d.metadata&&d.metadata.hasPendingWrites)return;const row=_grcRiskRequestData(d);if(row)rows.push(row);});sources[i]=rows;delete failed[i];successCount++;emit();
       },err=>{failed[i]=err;console.warn('[GRC Risk Requests] listener '+i+' failed',err&&err.code||err);if(Object.keys(failed).length===qrefs.length&&successCount===0)callback([],err);}));});
