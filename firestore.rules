@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v42 — Canonical Manager Inbox + Firestore-Authoritative GRC
+// FIRESTORE SECURITY RULES v43 — Direct Department Approval Queries + Admin Register Reads
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -448,6 +448,10 @@ service cloud.firestore {
 
     // ── Department-scoped GRC register collections ───────────────────
     match /grc_policies/{recordId} {
+      // Full-register roles use an unconditional read branch. Scoped users use
+      // the departmentKey-proved branch below. This prevents the Admin/Super
+      // Admin full collection query from being rejected as a resource filter.
+      allow get, list: if admin() || role() == 'governance_performance_manager';
       allow get: if canGetDepartmentGrcRecord(resource.data);
       allow list: if canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
@@ -455,6 +459,10 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_plans/{recordId} {
+      // Full-register roles use an unconditional read branch. Scoped users use
+      // the departmentKey-proved branch below. This prevents the Admin/Super
+      // Admin full collection query from being rejected as a resource filter.
+      allow get, list: if admin() || role() == 'governance_performance_manager';
       allow get: if canGetDepartmentGrcRecord(resource.data);
       allow list: if canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
@@ -462,6 +470,10 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_forms/{recordId} {
+      // Full-register roles use an unconditional read branch. Scoped users use
+      // the departmentKey-proved branch below. This prevents the Admin/Super
+      // Admin full collection query from being rejected as a resource filter.
+      allow get, list: if admin() || role() == 'governance_performance_manager';
       allow get: if canGetDepartmentGrcRecord(resource.data);
       allow list: if canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
@@ -595,7 +607,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // a unique v42 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v42-grc-canonical-manager-inbox-20260818';
+      allow get: if approved() && versionId == 'v43-grc-direct-approval-queries-20260818';
       allow list, create, update, delete: if false;
     }
 
@@ -670,14 +682,6 @@ service cloud.firestore {
 
     function advisoryManagerCanRead(data) {
       return advisoryManagerDepartmentMatch(data);
-    }
-
-    function advisoryManagerCanList(data) {
-      let u = userData();
-      let r = profileRoleFrom(u);
-      let d = profileDepartmentKeyFrom(u);
-      return signedIn() && u.approved == true && r == 'department_manager' &&
-        d != '' && ('departmentKey' in data) && data.departmentKey == d;
     }
 
     function validAdvisoryOwnerChange() {
@@ -764,11 +768,18 @@ service cloud.firestore {
         (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
       );
       allow get: if advisoryManagerCanRead(resource.data);
+      // Department Manager reads are sourced directly from advisory_requests.
+      // The client queries exactly where departmentKey == the manager's
+      // canonical department, so this branch is query-provable and needs no
+      // secondary inbox collection.
+      allow get: if departmentManager() && ('departmentKey' in resource.data) &&
+        resource.data.departmentKey == userDepartmentKey();
 
       allow list: if admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']);
       allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
-      allow list: if advisoryManagerCanList(resource.data);
+      allow list: if departmentManager() && ('departmentKey' in resource.data) &&
+        resource.data.departmentKey == userDepartmentKey();
 
       allow update: if
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
@@ -912,7 +923,12 @@ service cloud.firestore {
       allow get: if canReadRiskIncidentWorkflow() && (
         admin() || riskRequestOwner(resource.data) || riskRequestDepartment(resource.data)
       );
-      // Query-safe list branches match the client's exact scoped queries.
+      allow get: if departmentManager() && ('departmentKey' in resource.data) &&
+        resource.data.departmentKey == userDepartmentKey();
+      // Department Manager approval queues are direct departmentKey queries on
+      // this authoritative collection. No secondary inbox document is required.
+      allow list: if departmentManager() && ('departmentKey' in resource.data) &&
+        resource.data.departmentKey == userDepartmentKey();
       allow list: if
         admin() ||
         (canReadRiskIncidentWorkflow() && (
