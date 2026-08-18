@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v40 — Single-Read GRC Profile + Canonical Register Sync
+// FIRESTORE SECURITY RULES v41 — Manager Queue + Targeted Admin Save
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -203,10 +203,6 @@ service cloud.firestore {
 
     function role() {
       return profileRoleFrom(userData());
-    }
-
-    function profileDepartmentValue() {
-      return profileDepartmentValueFrom(userData());
     }
 
     function userDepartmentKey() {
@@ -597,9 +593,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // a unique v40 path prevents an older ruleset from being mistaken for this build.
+    // a unique v41 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v40-grc-profile-single-read-20260818';
+      allow get: if approved() && versionId == 'v41-grc-manager-queue-admin-save-20260818';
       allow list, create, update, delete: if false;
     }
 
@@ -645,9 +641,15 @@ service cloud.firestore {
     }
 
     function advisoryManagerCanRead(data) {
-      return advisoryManagerDepartmentMatch(data) &&
-        ('workflowStage' in data) &&
-        data.workflowStage == 'pending_department_manager';
+      return advisoryManagerDepartmentMatch(data);
+    }
+
+    function advisoryManagerCanList(data) {
+      let u = userData();
+      let r = profileRoleFrom(u);
+      let d = profileDepartmentKeyFrom(u);
+      return signedIn() && u.approved == true && r == 'department_manager' &&
+        d != '' && ('departmentKey' in data) && data.departmentKey == d;
     }
 
     function validAdvisoryOwnerChange() {
@@ -738,9 +740,7 @@ service cloud.firestore {
       allow list: if admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']);
       allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
-      allow list: if departmentManager() &&
-        ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey() &&
-        ('workflowStage' in resource.data) && resource.data.workflowStage == 'pending_department_manager';
+      allow list: if advisoryManagerCanList(resource.data);
 
       allow update: if
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
@@ -830,6 +830,15 @@ service cloud.firestore {
       );
     }
 
+    function riskRequestDepartmentList(data) {
+      let u = userData();
+      let r = profileRoleFrom(u);
+      let d = profileDepartmentKeyFrom(u);
+      return signedIn() && u.approved == true &&
+        r in ['department_manager','risk_owner','grc_owner','platform_owner'] &&
+        d != '' && ('departmentKey' in data) && data.departmentKey == d;
+    }
+
     function validRiskStatusOverride(data) {
       return data.recordId is string &&
         data.department is string &&
@@ -876,14 +885,13 @@ service cloud.firestore {
         admin() || riskRequestOwner(resource.data) || riskRequestDepartment(resource.data)
       );
       // Query-safe list branches match the client's exact scoped queries.
-      allow list: if canReadRiskIncidentWorkflow() && (
+      allow list: if
         admin() ||
-        (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid) ||
-        (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail()) ||
-        (('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey()) ||
-        (('department' in resource.data) && resource.data.department == userDepartmentKey()) ||
-        (('departmentRaw' in resource.data) && resource.data.departmentRaw == profileDepartmentValue())
-      );
+        (canReadRiskIncidentWorkflow() && (
+          (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid) ||
+          (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail()) ||
+          riskRequestDepartmentList(resource.data)
+        ));
 
       allow update: if
         (
