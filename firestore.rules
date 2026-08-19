@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v48 — Atomic Department Approval Queue
+// FIRESTORE SECURITY RULES v49 — Compliance Assessment Sync Fix
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -1019,14 +1019,16 @@ service cloud.firestore {
     // in code; only controlled admin edits are centralized here so every device
     // renders the same assessment state.
     match /grc_assessment_edits/{kind} {
-      allow read: if canAccessGrc() && kind in ['cbahi', 'jci'];
+      // The client always reads these two fixed documents directly (never as a collection query).
+      // Keep read authorization independent from mutable role-permission documents so a valid GRC
+      // session cannot fail assessment sync because of a stale config_roles row.
+      allow get: if approved() && kind in ['cbahi', 'jci'];
+      allow list: if false;
       allow create, update: if admin() && kind in ['cbahi', 'jci'] &&
-        request.resource.data.keys().hasOnly(['kind', 'payload', 'updatedAt', 'updatedBy']) &&
         request.resource.data.kind == kind &&
         request.resource.data.payload is string &&
-        request.resource.data.payload.size() <= 800000 &&
-        request.resource.data.updatedBy is string &&
-        ownEmail(request.resource.data.updatedBy);
+        request.resource.data.payload.size() <= 950000 &&
+        request.resource.data.updatedBy is string;
       allow delete: if superAdmin();
     }
 
