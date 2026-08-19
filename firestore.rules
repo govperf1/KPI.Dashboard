@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v49 — Compliance Assessment Sync Fix
+// FIRESTORE SECURITY RULES v50 — Explicit Department Manager Inbox
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -607,7 +607,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // a unique v46 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v48-grc-atomic-manager-queue-20260819';
+      allow get: if approved() && versionId == 'v50-grc-explicit-manager-inbox-20260819';
       allow list, create, update, delete: if false;
     }
 
@@ -624,41 +624,58 @@ service cloud.firestore {
       allow list, create, update, delete: if false;
     }
 
-    // Canonical Department Manager inbox. New GRC Review & Development and
-    // Risk/Incident requests are indexed here atomically with the source
-    // request. The path itself is department-scoped, so the manager query does
-    // not depend on Firestore treating a resource-data rule as a filter.
-    match /grc_department_approval_queues/{departmentKey}/items/{itemId} {
-      // The department is encoded in the document path. Manager reads therefore
-      // require no resource-data predicate and cannot leak another department.
-      allow get, list: if signedIn() && userData().approved == true && (
-        profileRoleFrom(userData()) in ['admin','super_admin'] ||
-        (profileRoleFrom(userData()) == 'department_manager' &&
-          profileDepartmentKeyFrom(userData()) == departmentKey)
-      );
-
-      // Requesters create only an index pointer in their own department. The
-      // actual request remains authoritative in advisory_requests/grc_risk_requests.
-      allow create, update: if signedIn() && userData().approved == true &&
-        request.resource.data.departmentKey is string &&
+    // Explicit Department Manager assignment. A department is mapped once to
+    // a manager email, and the manager reads the inbox stored under that email.
+    // This avoids re-resolving dept/department/deptKey on every approval read.
+    match /grc_department_managers/{departmentKey} {
+      allow get: if approved();
+      allow list: if admin();
+      allow create, update: if superAdmin() || (
+        departmentManager() && userDepartmentKey() == departmentKey &&
         request.resource.data.departmentKey == departmentKey &&
-        request.resource.data.requestId is string &&
-        request.resource.data.requesterEmail is string &&
-        request.resource.data.sourceCollection in ['advisory_requests','grc_risk_requests'] &&
-        (
-          profileRoleFrom(userData()) in ['admin','super_admin'] ||
-          (ownEmail(request.resource.data.requesterEmail) &&
-            profileDepartmentKeyFrom(userData()) == departmentKey)
-        );
-
-      allow delete: if signedIn() && userData().approved == true && (
-        profileRoleFrom(userData()) in ['admin','super_admin'] ||
-        (profileRoleFrom(userData()) == 'department_manager' &&
-          profileDepartmentKeyFrom(userData()) == departmentKey) ||
-        (resource.data.requesterEmail is string &&
-          ownEmail(resource.data.requesterEmail) &&
-          profileDepartmentKeyFrom(userData()) == departmentKey)
+        request.resource.data.managerEmail is string &&
+        ownEmail(request.resource.data.managerEmail)
       );
+      allow delete: if superAdmin();
+    }
+
+    match /grc_manager_approval_inboxes/{managerEmail}/{queueKind}/{requestId} {
+      allow get, list: if approved() && (
+        admin() || authEmail() == managerEmail
+      );
+
+      // Requesters can index a request only into the manager email registered
+      // for their own department. Super Admin owns migration/backfill writes.
+      allow create, update: if superAdmin() || (
+        approved() && queueKind in ['review','risk'] &&
+        request.resource.data.requestId is string &&
+        request.resource.data.requestId == requestId &&
+        request.resource.data.sourceCollection is string &&
+        ((queueKind == 'review' && request.resource.data.sourceCollection == 'advisory_requests') ||
+         (queueKind == 'risk' && request.resource.data.sourceCollection == 'grc_risk_requests')) &&
+        request.resource.data.managerEmail is string &&
+        request.resource.data.managerEmail == managerEmail &&
+        request.resource.data.departmentKey is string &&
+        request.resource.data.requesterEmail is string &&
+        ownEmail(request.resource.data.requesterEmail) &&
+        userDepartmentKey() == request.resource.data.departmentKey &&
+        exists(/databases/$(database)/documents/grc_department_managers/$(request.resource.data.departmentKey)) &&
+        get(/databases/$(database)/documents/grc_department_managers/$(request.resource.data.departmentKey)).data.managerEmail == managerEmail
+      );
+
+      allow delete: if superAdmin() || (
+        approved() && authEmail() == managerEmail
+      ) || (
+        approved() && resource.data.requesterEmail is string && ownEmail(resource.data.requesterEmail)
+      );
+    }
+
+    function assignedReviewManager(requestId) {
+      return approved() && exists(/databases/$(database)/documents/grc_manager_approval_inboxes/$(authEmail())/review/$(requestId));
+    }
+
+    function assignedRiskManager(requestId) {
+      return approved() && exists(/databases/$(database)/documents/grc_manager_approval_inboxes/$(authEmail())/risk/$(requestId));
     }
 
     // ── Review & Development Center ──────────────────────────────────
@@ -719,8 +736,8 @@ service cloud.firestore {
         );
     }
 
-    function validAdvisoryManagerChange() {
-      return advisoryManagerDepartmentMatch(resource.data) &&
+    function validAdvisoryManagerChange(requestId) {
+      return assignedReviewManager(requestId) &&
         resource.data.workflowStage == 'pending_department_manager' &&
         !ownEmail(resource.data.userEmail) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -751,9 +768,11 @@ service cloud.firestore {
     }
 
     function advisoryManagerForRequest(requestId) {
-      return exists(/databases/$(database)/documents/advisory_requests/$(requestId)) &&
-        departmentManager() &&
-        get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.departmentKey == userDepartmentKey();
+      return exists(/databases/$(database)/documents/advisory_requests/$(requestId)) && (
+        assignedReviewManager(requestId) ||
+        (('managerEmail' in get(/databases/$(database)/documents/advisory_requests/$(requestId)).data) &&
+          ownEmail(get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.managerEmail))
+      );
     }
 
     function validAdvisoryCreate(data) {
@@ -785,6 +804,7 @@ service cloud.firestore {
         (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
       );
       allow get: if advisoryManagerCanRead(resource.data);
+      allow get: if assignedReviewManager(requestId);
       // Department Manager reads are sourced directly from advisory_requests.
       // The client queries exactly where departmentKey == the manager's
       // canonical department, so this branch is query-provable and needs no
@@ -802,7 +822,7 @@ service cloud.firestore {
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
         (approved() && ownEmail(resource.data.userEmail) &&
           validAdvisoryOwnerChange() && advisoryOwnerRoutePreserved()) ||
-        (approved() && validAdvisoryManagerChange());
+        (approved() && validAdvisoryManagerChange(requestId));
       allow delete: if superAdmin();
     }
 
@@ -939,6 +959,7 @@ service cloud.firestore {
       allow get: if canReadRiskIncidentWorkflow() && (
         admin() || riskRequestOwner(resource.data) || riskRequestDepartment(resource.data)
       );
+      allow get: if assignedRiskManager(requestId);
       allow get: if departmentManager() && ('departmentKey' in resource.data) &&
         resource.data.departmentKey == userDepartmentKey();
       // Department Manager approval queues are direct departmentKey queries on
@@ -959,7 +980,7 @@ service cloud.firestore {
           riskRequesterChange() && validRequesterRiskTransition()
         ) ||
         (
-          departmentManager() && riskRequestDepartment(resource.data) &&
+          assignedRiskManager(requestId) &&
           !riskRequestOwner(resource.data) &&
           riskManagerChange() && validManagerRiskTransition()
         ) || superAdmin();
