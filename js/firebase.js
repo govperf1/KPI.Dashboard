@@ -1164,50 +1164,59 @@ window._selectPortal=async portal=>{
       const fresh=await _advFreshProfile();
       if(fresh.role!=='department_manager')throw new Error('manager-profile-role-mismatch:'+fresh.role);
       if(!fresh.departmentKey)throw new Error('manager-profile-department-missing');
+      /* v207: prove that the deployed Rules resolve this account to the same
+         role/department before touching the approval inbox. These probes use
+         the exact same profile helpers as the queue read rule. */
+      await _advAssertProfileScope(fresh);
       window.__grcManagerDepartmentKey=fresh.departmentKey;
       const now=Date.now();
       if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<1200)return _grcManagerQueueCache;
       if(!force&&_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         const result={profile:fresh,review:[],risk:[],errors:[]};
-        /* v206: The source request documents ARE the Department Manager inbox.
-           Do not depend on grc_department_approval_queues. Both reads use one
-           query that is exactly aligned with the v46 Firestore list rules:
-           departmentKey == the authenticated manager's canonical department. */
+        let queueSnap;
         try{
-          const reviewSnap=await getDocsFromServer(query(
-            collection(db,ADV_REQUESTS_COLLECTION),
-            where('departmentKey','==',fresh.departmentKey)
-          ));
-          reviewSnap.forEach(function(d){
-            const row=d.data()||{};
-            if(String(row.workflowStage||'')!=='pending_department_manager')return;
-            if(String(row.userEmail||'').toLowerCase().trim()===fresh.email)return;
-            result.review.push(_advNormalizeRow(d.id,row,'advisory_requests'));
-          });
+          /* Path-scoped queue: Firestore does not need to prove a resource-data
+             filter for a collection-wide query. The manager can only list the
+             department path that matches the authenticated Firestore profile. */
+          queueSnap=await getDocsFromServer(_grcManagerQueueItemsCollection(fresh.departmentKey));
         }catch(err){
-          result.errors.push('review approvals: '+String(err&&err.message||err&&err.code||err));
+          result.errors.push('department queue: '+String(err&&err.message||err&&err.code||err));
+          _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;
         }
-        try{
-          const riskSnap=await getDocsFromServer(query(
-            collection(db,GRC_RISK_REQUESTS_COLLECTION),
-            where('departmentKey','==',fresh.departmentKey)
-          ));
-          riskSnap.forEach(function(d){
-            const row=d.data()||{},status=String(row.status||'').toLowerCase();
-            if(!['pending_manager','returned_manager'].includes(status))return;
+        const items=[];queueSnap.forEach(function(d){items.push(Object.assign({id:d.id},d.data()||{}));});
+        await Promise.all(items.map(async function(item){
+          const source=String(item.sourceCollection||''),requestId=String(item.requestId||'');
+          if(!requestId||!['advisory_requests','grc_risk_requests'].includes(source))return;
+          try{
+            const snap=await getDocFromServer(doc(db,source,requestId));
+            if(!snap.exists())return;
+            const row=snap.data()||{};
+            if(String(row.departmentKey||'')!==fresh.departmentKey)return;
+            if(source===ADV_REQUESTS_COLLECTION){
+              if(String(row.workflowStage||'')!=='pending_department_manager'){
+                try{await _grcDeleteManagerQueueItem(fresh.departmentKey,'review',requestId);}catch(_){}
+                return;
+              }
+              if(String(row.userEmail||'').toLowerCase().trim()===fresh.email)return;
+              result.review.push(_advNormalizeRow(snap.id,row,'advisory_requests'));
+              return;
+            }
+            const status=String(row.status||'').toLowerCase();
+            if(!['pending_manager','returned_manager'].includes(status)){
+              try{await _grcDeleteManagerQueueItem(fresh.departmentKey,String(row.recordType||item.requestKind||'risk'),requestId);}catch(_){}
+              return;
+            }
             if(String(row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;
-            const data=_grcRiskRequestData(d);
+            const data=_grcRiskRequestData({id:snap.id,exists:function(){return true;},data:function(){return row;}});
             if(data)result.risk.push(data);
-          });
-        }catch(err){
-          result.errors.push('risk approvals: '+String(err&&err.message||err&&err.code||err));
-        }
+          }catch(err){
+            result.errors.push('approval item '+String(item.requestCode||requestId||item.id)+': '+String(err&&err.message||err&&err.code||err));
+          }
+        }));
         result.risk=_grcRiskSort(result.risk);
         result.review.sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
-        _grcManagerQueueCache=result;
-        _grcManagerQueueCacheAt=Date.now();
-        return result;
+        _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;
       })();
       try{return await _grcManagerQueueCachePromise;}finally{_grcManagerQueueCachePromise=null;}
     };
