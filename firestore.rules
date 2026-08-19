@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v52 — Direct Department Manager Authorization
+// FIRESTORE SECURITY RULES v54 — Email-Scoped Department Manager Inbox
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -596,9 +596,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // a unique v51 path prevents an older ruleset from being mistaken for this build.
+    // a unique v54 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v52-grc-manager-direct-20260819';
+      allow get: if approved() && versionId == 'v54-grc-manager-email-inbox-20260819';
       allow list, create, update, delete: if false;
     }
 
@@ -615,25 +615,72 @@ service cloud.firestore {
       allow list, create, update, delete: if false;
     }
 
-    // Department Manager authorization comes directly from the authenticated
-    // users/{email} profile. There is no secondary manager profile/inbox state
-    // that can drift from the account used to sign in.
-    function managerApprovalDepartment() {
-      let u = userData();
-      return signedIn() && u.approved == true &&
-        profileRoleFrom(u) == 'department_manager' ?
-          profileDepartmentKeyFrom(u) : '';
+    // ── Department Manager routing ────────────────────────────────────
+    // A department is mapped to one manager email only for submission routing.
+    // The manager APPROVAL LIST itself is stored under the authenticated manager
+    // email, so listing approvals never depends on dept/department/deptKey.
+    function managerDirectoryPath(departmentKey) {
+      return /databases/$(database)/documents/grc_manager_directory_v2/$(departmentKey);
     }
 
-    function managerCanApproveDepartment(value) {
-      let d = managerApprovalDepartment();
-      return d != '' && value is string && value == d;
+    match /grc_manager_directory_v2/{departmentKey} {
+      allow get: if approved();
+      allow list: if superAdmin();
+      allow create, update: if superAdmin() || (
+        approved() &&
+        profileRoleFrom(userData()) == 'department_manager' &&
+        profileDepartmentKeyFrom(userData()) == departmentKey &&
+        request.resource.data.departmentKey == departmentKey &&
+        request.resource.data.managerEmail is string &&
+        request.resource.data.managerEmail.lower().trim() == authEmail()
+      );
+      allow delete: if superAdmin();
+    }
+
+    match /grc_manager_approval_inbox_v2/{managerEmail}/{queueKind}/{requestId} {
+      // The inbox path itself is the authorization boundary. A manager lists
+      // only the document path named with their authenticated email. No request
+      // collection query and no department comparison is needed here.
+      allow get, list: if approved() &&
+        queueKind in ['review','risk'] &&
+        managerEmail.lower().trim() == authEmail();
+
+      // Requester can route only their own request to the manager registered for
+      // their canonical Firestore department. Super Admin owns repair/backfill.
+      allow create, update: if superAdmin() || (
+        approved() &&
+        queueKind in ['review','risk'] &&
+        request.resource.data.requestId == requestId &&
+        request.resource.data.queueKind == queueKind &&
+        request.resource.data.departmentKey is string &&
+        request.resource.data.requesterEmail is string &&
+        request.resource.data.requesterEmail.lower().trim() == authEmail() &&
+        profileDepartmentKeyFrom(userData()) == request.resource.data.departmentKey &&
+        exists(managerDirectoryPath(request.resource.data.departmentKey)) &&
+        get(managerDirectoryPath(request.resource.data.departmentKey)).data.managerEmail is string &&
+        managerEmail.lower().trim() ==
+          get(managerDirectoryPath(request.resource.data.departmentKey)).data.managerEmail.lower().trim() &&
+        request.resource.data.managerEmail is string &&
+        request.resource.data.managerEmail.lower().trim() == managerEmail.lower().trim()
+      );
+
+      allow delete: if superAdmin() ||
+        (approved() && managerEmail.lower().trim() == authEmail()) ||
+        (approved() && resource.data.requesterEmail is string &&
+          resource.data.requesterEmail.lower().trim() == authEmail());
+    }
+
+    function assignedReviewManager(requestId) {
+      return approved() &&
+        exists(/databases/$(database)/documents/grc_manager_approval_inbox_v2/$(authEmail())/review/$(requestId));
+    }
+
+    function assignedRiskManager(requestId) {
+      return approved() &&
+        exists(/databases/$(database)/documents/grc_manager_approval_inbox_v2/$(authEmail())/risk/$(requestId));
     }
 
     // ── Review & Development Center ──────────────────────────────────
-    function advisoryManagerDepartmentMatch(data) {
-      return ('departmentKey' in data) && managerCanApproveDepartment(data.departmentKey);
-    }
 
     function validAdvisoryOwnerChange() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -681,8 +728,7 @@ service cloud.firestore {
     }
 
     function validAdvisoryManagerChange() {
-      return advisoryManagerDepartmentMatch(resource.data) &&
-        resource.data.workflowStage == 'pending_department_manager' &&
+      return resource.data.workflowStage == 'pending_department_manager' &&
         !ownEmail(resource.data.userEmail) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status','workflowStage','closureReason',
@@ -713,19 +759,15 @@ service cloud.firestore {
 
     function advisoryManagerForRequest(requestId) {
       return exists(/databases/$(database)/documents/advisory_requests/$(requestId)) &&
-        managerCanApproveDepartment(
-          get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.departmentKey
-        );
+        assignedReviewManager(requestId);
     }
 
     function validAdvisoryCreate(data) {
-      // Creation is intentionally kept simple and deterministic. The authenticated
-      // user may only create their own request and may only use an initial workflow
-      // state. Department routing is indexed separately in the manager queue, while
-      // final Super Admin processing still verifies manager approval when required.
-      return approved() &&
+      let u = userData();
+      let d = profileDepartmentKeyFrom(u);
+      return signedIn() && u.approved == true &&
         data.userEmail is string && ownEmail(data.userEmail) &&
-        data.departmentKey is string &&
+        data.departmentKey is string && data.departmentKey == d &&
         data.workflowStage is string &&
         data.workflowStage in ['pending_department_manager','pending_super_admin'] &&
         data.status == 'open' &&
@@ -746,23 +788,23 @@ service cloud.firestore {
         (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) ||
         (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
       );
-      // Department Manager reads are deliberately written as the same two
-      // predicates used by the browser query. Firestore can prove this branch
-      // from where(departmentKey == managerDept) + where(workflowStage == pending).
-      allow get: if managerCanApproveDepartment(resource.data.departmentKey) &&
+      // Department Manager opens a single request only when that request is
+      // present in the manager's assigned department queue.
+      allow get: if assignedReviewManager(requestId) &&
         resource.data.workflowStage == 'pending_department_manager';
 
       allow list: if admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']);
       allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
-      allow list: if managerCanApproveDepartment(resource.data.departmentKey) &&
-        resource.data.workflowStage == 'pending_department_manager';
+      // Managers do not list the authoritative request collection. They list
+      // the path-scoped approval queue above and open one request by ID.
 
       allow update: if
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
         (approved() && ownEmail(resource.data.userEmail) &&
           validAdvisoryOwnerChange() && advisoryOwnerRoutePreserved()) ||
-        (approved() && validAdvisoryManagerChange());
+        (approved() && assignedReviewManager(requestId) &&
+          validAdvisoryManagerChange());
       allow delete: if superAdmin();
     }
 
@@ -819,11 +861,12 @@ service cloud.firestore {
     function validRiskRequestCreate(data) {
       let u = userData();
       let r = profileRoleFrom(u);
+      let d = profileDepartmentKeyFrom(u);
       return signedIn() && u.approved == true &&
-        r in ['risk_owner','grc_owner','platform_owner'] &&
+        r in ['risk_owner','grc_owner','platform_owner'] && d != '' &&
         data.submittedByEmail is string && ownEmail(data.submittedByEmail) &&
-        data.department is string &&
-        data.departmentKey is string &&
+        data.department is string && data.department == d &&
+        data.departmentKey is string && data.departmentKey == d &&
         data.recordType in ['risk','incident'] &&
         data.operation in ['add','update','delete'] &&
         data.status == 'pending_manager';
@@ -850,7 +893,7 @@ service cloud.firestore {
       let r = profileRoleFrom(u);
       let d = profileDepartmentKeyFrom(u);
       return signedIn() && u.approved == true &&
-        r in ['department_manager','risk_owner','grc_owner','platform_owner'] &&
+        r in ['risk_owner','grc_owner','platform_owner'] &&
         d != '' && ('departmentKey' in data) && data.departmentKey == d;
     }
 
@@ -899,13 +942,9 @@ service cloud.firestore {
       allow get: if canReadRiskIncidentWorkflow() && (
         admin() || riskRequestOwner(resource.data) || riskRequestDepartment(resource.data)
       );
-      allow get: if managerCanApproveDepartment(resource.data.departmentKey) &&
+      allow get: if assignedRiskManager(requestId) &&
         resource.data.status in ['pending_manager','returned_manager'];
-      // Keep each list branch identical to the exact query issued by the client.
-      allow list: if managerCanApproveDepartment(resource.data.departmentKey) &&
-        resource.data.status == 'pending_manager';
-      allow list: if managerCanApproveDepartment(resource.data.departmentKey) &&
-        resource.data.status == 'returned_manager';
+      // Managers list the path-scoped approval queue, never this collection directly.
       allow list: if
         admin() ||
         (canReadRiskIncidentWorkflow() && (
@@ -920,7 +959,7 @@ service cloud.firestore {
           riskRequesterChange() && validRequesterRiskTransition()
         ) ||
         (
-          managerCanApproveDepartment(resource.data.departmentKey) &&
+          assignedRiskManager(requestId) &&
           !riskRequestOwner(resource.data) &&
           riskManagerChange() && validManagerRiskTransition()
         ) || superAdmin();
