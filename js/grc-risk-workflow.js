@@ -4,7 +4,7 @@
    Review & Development Center requests.
    ===================================================================== */
 (function(){
-  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V200__)return;window.__QUMC_GRC_RISK_WORKFLOW_V200__=true;
+  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V198__)return;window.__QUMC_GRC_RISK_WORKFLOW_V198__=true;
   var cache=[],unsub=null,startedFor='',reviewApprovalRows=[],approvalNoticeKey='',approvalNoticeEntry=0,approvalNoticeTimer=null,feedbackNormalRows=[],feedbackReviewRows=[],feedbackNormalUnsub=null,feedbackReviewUnsub=null,feedbackStartedFor='',feedbackTimer=null,managerPullBusy=false,managerPullAt=0;
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function role(){var raw=window._fbRole||window.currentUserRole||'viewer';return typeof window._normalizePortalRole==='function'?window._normalizePortalRole(raw):String(raw).trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
@@ -22,11 +22,11 @@
   window._grcCanAccessRiskIncidentWorkflow=canAccessRiskIncidentWorkflow;
   function currentDepartmentKey(){if(isManager()&&window.__grcManagerDepartmentKey)return String(window.__grcManagerDepartmentKey);var raw=Object.prototype.hasOwnProperty.call(window,'_fbDept')?window._fbDept:window.currentUserDept;if(typeof window._grcCanonicalDepartment==='function')return String(window._grcCanonicalDepartment(raw)||'');return String(raw==null?'':raw).trim().toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');}
   function requestDepartmentKey(r){r=r||{};var raw=r.departmentKey||r.department||r.departmentRaw||r.proposedRecord&&r.proposedRecord.department||r.currentRecord&&r.currentRecord.department||'';if(typeof window._grcCanonicalDepartment==='function')return String(window._grcCanonicalDepartment(raw)||'');return String(raw==null?'':raw).trim().toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');}
-  function managerDepartmentRequest(r){if(!isManager())return true;var mine=currentDepartmentKey();return !!mine&&requestDepartmentKey(r)===mine;}
+  function managerDepartmentRequest(r){if(!isManager())return true;return !!(r&&r._managerAssigned===true);}
   function ownRequest(r){return String(r&&r.submittedByEmail||'').toLowerCase().trim()===email();}
   function reviewStage(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
   function reviewDepartmentKey(r){var raw=r&&r.departmentKey||'';if(typeof window._grcCanonicalDepartment==='function')return String(window._grcCanonicalDepartment(raw)||'');return String(raw||'').trim().toLowerCase();}
-  function reviewManagerRequest(r){return isManager()&&String(r&&r.platform||'grc').toLowerCase()==='grc'&&reviewStage(r)==='pending_department_manager'&&String(r&&r.userEmail||'').toLowerCase().trim()!==email()&&!!currentDepartmentKey()&&reviewDepartmentKey(r)===currentDepartmentKey();}
+  function reviewManagerRequest(r){return isManager()&&r&&r._managerAssigned===true&&String(r&&r.platform||'grc').toLowerCase()==='grc'&&reviewStage(r)==='pending_department_manager'&&String(r&&r.userEmail||'').toLowerCase().trim()!==email();}
   function reviewRequestTime(r){var v=r&&r.updatedAt||r&&r.createdAt||r&&r.updatedAtIso||r&&r.createdAtIso||'';try{return v&&v.toDate?v.toDate().getTime():new Date(v||0).getTime()||0;}catch(_){return 0;}}
   function reviewRelatedText(r){var out=(Array.isArray(r&&r.relatedItems)?r.relatedItems:[]).map(function(x){return x&&x.code?String(x.code)+(x.name?' — '+String(x.name):''):String(x&&x.name||x&&x.label||'');}).filter(Boolean);if(r&&r.relatedNewText)out.push('New: '+String(r.relatedNewText));return out.join('; ')||'—';}
   function reviewTypeText(r){var t=String(r&&r.requestType||'');return t==='new'?'New Item Request':'Existing Item Review & Update';}
@@ -184,11 +184,12 @@
     if(!isManager())return Promise.resolve();
     var now=Date.now();if(managerPullBusy||(!force&&now-managerPullAt<5000))return Promise.resolve();
     managerPullBusy=true;managerPullAt=now;
-    if(typeof window._grcGetDepartmentApprovalQueue!=='function'){managerPullBusy=false;window.__grcManagerApprovalError='Department approval service is unavailable.';return Promise.resolve();}
-    return window._grcGetDepartmentApprovalQueue(true).then(function(bundle){
-      window.__grcManagerApprovalError=Array.isArray(bundle&&bundle.errors)&&bundle.errors.length?bundle.errors.join(' · '):'';
-      cache=Array.isArray(bundle&&bundle.risk)?bundle.risk:[];
-      reviewApprovalRows=Array.isArray(bundle&&bundle.review)?bundle.review:[];
+    var risk=typeof window._grcRiskRequestsGetForManager==='function'?window._grcRiskRequestsGetForManager():Promise.resolve([]);
+    var review=typeof window._advisoryGetManagerQueue==='function'?window._advisoryGetManagerQueue():Promise.resolve([]);
+    return Promise.all([risk,review]).then(function(rows){
+      window.__grcManagerApprovalError='';
+      cache=(Array.isArray(rows[0])?rows[0]:[]).filter(managerDepartmentRequest);
+      reviewApprovalRows=(Array.isArray(rows[1])?rows[1]:[]).filter(reviewManagerRequest);
       window.__grcRiskRequestCache=cache;
       try{document.dispatchEvent(new CustomEvent('grc:riskRequestsUpdated',{detail:{rows:cache}}));}catch(_e){}
       refreshBadge();
