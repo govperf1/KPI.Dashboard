@@ -47,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260818-v200-canonical-manager-inbox-firestore-authority');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260819-v205-manager-queue-root-fix');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -973,9 +973,9 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV43Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v45-grc-direct-approval-20260818'));window.__advRulesV43Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v45 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__advRulesV46Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v46-grc-manager-queue-20260819'));window.__advRulesV46Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v46 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     async function _advAssertProfileScope(profile){
       profile=profile||{};
@@ -1134,6 +1134,17 @@ window._selectPortal=async portal=>{
       try{await deleteDoc(_grcManagerQueueItemRef(departmentKey,kind,requestId));return true;}
       catch(e){if(String(e&&e.code||'')==='not-found')return true;throw e;}
     }
+    async function _grcUpsertManagerQueueItem(departmentKey,kind,requestId,data){
+      if(!departmentKey||!requestId)return false;
+      const ref=_grcManagerQueueItemRef(departmentKey,kind,requestId),payload=_grcManagerQueueItem(Object.assign({},data||{},
+        {requestId:String(requestId),departmentKey:String(departmentKey),requestKind:String(kind||'review')}));
+      let lastErr=null;
+      for(let attempt=0;attempt<3;attempt++){
+        try{await setDoc(ref,payload,{merge:true});return true;}
+        catch(err){lastErr=err;if(attempt<2)await new Promise(r=>setTimeout(r,180*(attempt+1)));}
+      }
+      if(lastErr)throw lastErr;return false;
+    }
     async function _grcServerVerifyDoc(ref,label){
       const snap=await getDocFromServer(ref);
       if(!snap.exists())throw new Error((label||'Firestore document')+' was not persisted on the server.');
@@ -1159,42 +1170,55 @@ window._selectPortal=async portal=>{
       if(!force&&_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         const result={profile:fresh,review:[],risk:[],errors:[]};
-        const reviewQuery=query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey));
-        const riskQuery=query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey));
-        const settled=await Promise.allSettled([
-          getDocsFromServer(reviewQuery),
-          getDocsFromServer(riskQuery)
-        ]);
-        if(settled[0].status==='fulfilled'){
-          settled[0].value.forEach(function(d){
-            const row=d.data()||{};
-            if(String(row.workflowStage||'')!=='pending_department_manager')return;
-            if(String(row.userEmail||'').toLowerCase().trim()===fresh.email)return;
-            result.review.push(_advNormalizeRow(d.id,row,'advisory_requests'));
-          });
-        }else result.errors.push('review approvals: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason&&settled[0].reason.code||settled[0].reason));
-        if(settled[1].status==='fulfilled'){
-          settled[1].value.forEach(function(d){
-            const row=d.data()||{},status=String(row.status||'').toLowerCase();
-            if(!['pending_manager','returned_manager'].includes(status))return;
-            if(String(row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;
-            const data=_grcRiskRequestData({id:d.id,exists:function(){return true;},data:function(){return row;}});
-            if(data)result.risk.push(data);
-          });
-        }else result.errors.push('risk approvals: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason&&settled[1].reason.code||settled[1].reason));
+        let queueSnap;
+        try{queueSnap=await getDocsFromServer(_grcManagerQueueItemsCollection(fresh.departmentKey));}
+        catch(err){result.errors.push('department queue: '+String(err&&err.message||err&&err.code||err));_grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;}
+        const items=[];queueSnap.forEach(d=>items.push(Object.assign({id:d.id},d.data()||{})));
+        await Promise.all(items.map(async function(item){
+          try{
+            const source=String(item.sourceCollection||''),requestId=String(item.requestId||'');
+            if(!requestId||!['advisory_requests','grc_risk_requests'].includes(source))return;
+            const snap=await getDocFromServer(doc(db,source,requestId));
+            if(!snap.exists()){try{await deleteDoc(_grcManagerQueueItemRef(fresh.departmentKey,item.requestKind||'review',requestId));}catch(_){}return;}
+            const row=snap.data()||{};
+            if(String(row.departmentKey||'')!==fresh.departmentKey)return;
+            if(source==='advisory_requests'){
+              if(String(row.workflowStage||'')!=='pending_department_manager'){
+                try{await deleteDoc(_grcManagerQueueItemRef(fresh.departmentKey,'review',requestId));}catch(_){}return;
+              }
+              if(String(row.userEmail||'').toLowerCase().trim()===fresh.email)return;
+              result.review.push(_advNormalizeRow(snap.id,row,'advisory_requests'));
+            }else{
+              const status=String(row.status||'').toLowerCase();
+              if(!['pending_manager','returned_manager'].includes(status)){
+                try{await deleteDoc(_grcManagerQueueItemRef(fresh.departmentKey,String(row.recordType||item.requestKind||'risk'),requestId));}catch(_){}return;
+              }
+              if(String(row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;
+              const data=_grcRiskRequestData({id:snap.id,exists:function(){return true;},data:function(){return row;}});if(data)result.risk.push(data);
+            }
+          }catch(err){result.errors.push('approval item '+String(item.requestCode||item.requestId||item.id)+': '+String(err&&err.message||err&&err.code||err));}
+        }));
         result.risk=_grcRiskSort(result.risk);
-        _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();
-        return result;
+        result.review.sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
+        _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;
       })();
-      try{return await _grcManagerQueueCachePromise;}
-      finally{_grcManagerQueueCachePromise=null;}
+      try{return await _grcManagerQueueCachePromise;}finally{_grcManagerQueueCachePromise=null;}
     };
 
-    /* Compatibility hook retained for old callers. No repair is required in
-       v203 because there is no derived approval inbox to build or backfill. */
-    window._grcRepairDepartmentApprovalInboxV200=async function(){
-      _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
-      return 0;
+    /* Backfill manager queue pointers for pending requests created before v205.
+       Super Admin owns this repair; source request documents stay authoritative. */
+    window._grcRepairDepartmentApprovalInboxV200=async function(force){
+      if(!_advIsSuperAdmin()||!db)return 0;
+      const guard='__grcManagerQueueBackfillV205';if(!force&&window[guard])return 0;window[guard]=true;
+      let count=0;
+      try{
+        const [advSnap,riskSnap]=await Promise.all([getDocs(collection(db,ADV_REQUESTS_COLLECTION)),getDocs(collection(db,GRC_RISK_REQUESTS_COLLECTION))]);
+        for(const d of advSnap.docs){const r=d.data()||{},dept=String(r.departmentKey||'');if(!dept||String(r.workflowStage||'')!=='pending_department_manager')continue;
+          try{await setDoc(_grcManagerQueueItemRef(dept,'review',d.id),_grcManagerQueueItem({requestId:d.id,sourceCollection:ADV_REQUESTS_COLLECTION,requestKind:'review',requestCode:r.code||d.id,departmentKey:dept,requesterEmail:r.userEmail||'',requesterUid:r.requesterUid||'',requesterName:r.userName||'',workflowStage:r.workflowStage,status:r.status,createdAt:r.createdAt||serverTimestamp(),createdAtIso:r.createdAtIso||_advIso()}),{merge:true});count++;}catch(e){console.warn('[GRC Manager Queue Backfill] review',d.id,e&&e.code||e);}}
+        for(const d of riskSnap.docs){const r=d.data()||{},dept=String(r.departmentKey||''),status=String(r.status||'').toLowerCase();if(!dept||!['pending_manager','returned_manager'].includes(status))continue;const kind=String(r.recordType||'risk').toLowerCase()==='incident'?'incident':'risk';
+          try{await setDoc(_grcManagerQueueItemRef(dept,kind,d.id),_grcManagerQueueItem({requestId:d.id,sourceCollection:GRC_RISK_REQUESTS_COLLECTION,requestKind:kind,recordType:kind,operation:r.operation||'',requestCode:r.requestCode||d.id,departmentKey:dept,requesterEmail:r.submittedByEmail||'',requesterUid:r.submittedByUid||'',requesterName:r.submittedByName||'',workflowStage:'pending_department_manager',status:r.status,createdAt:r.createdAt||serverTimestamp(),createdAtIso:r.createdAtIso||_advIso()}),{merge:true});count++;}catch(e){console.warn('[GRC Manager Queue Backfill] risk',d.id,e&&e.code||e);}}
+      }finally{_grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;}
+      return count;
     };
 
     window._advisorySubmit=async function(payload,file){
@@ -1236,6 +1260,10 @@ window._selectPortal=async portal=>{
            Do not perform a second read that can turn a successful write into a
            false permission-denied message. */
         await setDoc(primaryRef,base,{merge:false});
+        if(requiresManagerApproval){
+          try{await _grcUpsertManagerQueueItem(departmentKey,'review',requestId,{sourceCollection:ADV_REQUESTS_COLLECTION,requestKind:'review',requestCode:code,departmentKey:departmentKey,requesterEmail:freshProfile.email,requesterUid:freshProfile.uid,requesterName:base.userName,workflowStage:base.workflowStage,status:base.status,createdAt:base.createdAt,createdAtIso:base.createdAtIso});}
+          catch(queueErr){warning='The request was submitted, but Department Manager indexing is retrying.';console.warn('[Review Development] manager queue index failed',queueErr&&queueErr.code||queueErr);}
+        }
       }catch(saveError){
         const codeText=String(saveError&&saveError.code||saveError&&saveError.message||saveError||'save-failed');
         if(codeText.toLowerCase().includes('permission')){
@@ -1385,6 +1413,7 @@ window._selectPortal=async portal=>{
         if(action==='reject')updates.closedAt=serverTimestamp();
         tx.update(requestRef,updates);
       });
+      try{await _grcDeleteManagerQueueItem(dept,'review',requestId);}catch(queueErr){console.warn('[Review Development] manager queue cleanup failed',queueErr&&queueErr.code||queueErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':'Rejected ')+String(current.code||requestId),{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:action==='approve'?'approved':'rejected',comment:managerComment},{portal:String(current.platform||'grc')});}catch(_){}
       return true;
@@ -1514,9 +1543,9 @@ window._selectPortal=async portal=>{
     function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();return ['super_admin','admin','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].includes(r)||p.includes('access_grc')||p.includes('view_grc_department')||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('*');}
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
-      if(window.__grcRulesV43Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v45-grc-direct-approval-20260818'));window.__grcRulesV43Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v45 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__grcRulesV46Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v46-grc-manager-queue-20260819'));window.__grcRulesV46Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v46 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
     // Compatibility aliases point to the same current probe so old callers cannot
@@ -1678,6 +1707,8 @@ window._selectPortal=async portal=>{
         /* v204: the write acknowledgement is sufficient. The Department Manager
            reads this authoritative request directly by departmentKey. */
         await setDoc(requestRef,requestData,{merge:false});
+        try{await _grcUpsertManagerQueueItem(department,recordType,requestRef.id,{sourceCollection:GRC_RISK_REQUESTS_COLLECTION,requestKind:recordType,recordType:recordType,operation:operation,requestCode:requestCode,departmentKey:department,requesterEmail:freshProfile.email,requesterUid:freshProfile.uid,requesterName:requestData.submittedByName,workflowStage:'pending_department_manager',status:'pending_manager',createdAt:requestData.createdAt,createdAtIso:requestData.createdAtIso});}
+        catch(queueErr){console.warn('[GRC Risk Workflow] manager queue index failed',queueErr&&queueErr.code||queueErr);}
       }
       catch(saveError){
         const codeText=String(saveError&&saveError.code||saveError&&saveError.message||saveError||'save-failed');
@@ -1691,6 +1722,7 @@ window._selectPortal=async portal=>{
       if(!_grcRiskCanSubmit('risk')&&!_grcRiskCanSubmit('incident'))throw new Error('Access denied.');const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(!_grcRiskOwnsRequest(r))throw new Error('Access denied.');if(String(r.status||'')!=='returned_requester')throw new Error('Only a request returned for update can be edited and resubmitted.');
       const proposed=_grcRiskJson(proposedRecord||r.proposedRecord),now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status:'pending_manager',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'Resubmitted')});
       await updateDoc(ref,{proposedRecord:proposed,changedFields:_grcRiskChangedFields(r.currentRecord,proposed),status:'pending_manager',requesterNote:String(note||r.requesterNote||''),managerNote:'',superAdminNote:'',updatedAt:serverTimestamp(),updatedAtIso:now,history});
+      try{await _grcUpsertManagerQueueItem(String(r.departmentKey||r.department||''),String(r.recordType||'risk'),requestId,{sourceCollection:GRC_RISK_REQUESTS_COLLECTION,requestKind:String(r.recordType||'risk'),recordType:String(r.recordType||'risk'),operation:String(r.operation||''),requestCode:String(r.requestCode||requestId),departmentKey:String(r.departmentKey||r.department||''),requesterEmail:String(r.submittedByEmail||_grcRiskEmail()),requesterUid:String(r.submittedByUid||''),requesterName:String(r.submittedByName||''),workflowStage:'pending_department_manager',status:'pending_manager',createdAt:r.createdAt||serverTimestamp(),createdAtIso:r.createdAtIso||now});}catch(queueErr){console.warn('[GRC Risk Workflow] resubmit queue index failed',queueErr&&queueErr.code||queueErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('GRC_REGISTER_REQUEST_RESUBMIT','Resubmitted '+String(r.recordType||'risk')+' request '+String(r.requestCode||requestId),r.proposedRecord,proposed,{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
       return true;
@@ -1771,6 +1803,7 @@ window._selectPortal=async portal=>{
       const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(_grcCanonicalDepartment(r.departmentKey||r.department||r.departmentRaw)!==fresh.departmentKey)throw new Error('This request belongs to another department.');if(!['pending_manager','returned_manager'].includes(String(r.status||'')))throw new Error('This request is not awaiting your approval.');
       const status=action==='approve'?'pending_super_admin':action==='return'?'returned_requester':action==='reject'?'rejected_manager':'';if(!status)throw new Error('Invalid action.');if(action!=='approve'&&!String(note||'').trim())throw new Error('A reason is required.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status,by:fresh.email,role:fresh.role,at:now,note:String(note||'')});
       await updateDoc(ref,{status,managerName:String(window._fbName||fresh.email),managerEmail:fresh.email,managerNote:String(note||''),managerActionAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history});
+      try{await _grcDeleteManagerQueueItem(fresh.departmentKey,String(r.recordType||'risk'),requestId);}catch(queueErr){console.warn('[GRC Risk Workflow] manager queue cleanup failed',queueErr&&queueErr.code||queueErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('GRC_MANAGER_APPROVAL_'+String(action||'action').toUpperCase(),'Department Manager '+String(action||'action')+' · '+String(r.requestCode||requestId),{status:r.status},{status:status,note:String(note||'')},{portal:'grc',dept:fresh.departmentKey,recordType:r.recordType||'risk'});}catch(_){}
       return true;
@@ -1794,6 +1827,7 @@ window._selectPortal=async portal=>{
       }
       const snap=await getDoc(requestRef);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(String(r.status||'')!=='pending_super_admin')throw new Error('This request is not awaiting final approval.');const status=action==='return'?'returned_manager':action==='reject'?'rejected_super_admin':'';if(!status)throw new Error('Invalid action.');if(!String(note||'').trim())throw new Error('A reason is required.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status,by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'')});
       await updateDoc(requestRef,{status,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:String(note||''),updatedAt:serverTimestamp(),updatedAtIso:now,history});
+      if(status==='returned_manager'){try{await _grcUpsertManagerQueueItem(String(r.departmentKey||r.department||''),String(r.recordType||'risk'),requestId,{sourceCollection:GRC_RISK_REQUESTS_COLLECTION,requestKind:String(r.recordType||'risk'),recordType:String(r.recordType||'risk'),operation:String(r.operation||''),requestCode:String(r.requestCode||requestId),departmentKey:String(r.departmentKey||r.department||''),requesterEmail:String(r.submittedByEmail||''),requesterUid:String(r.submittedByUid||''),requesterName:String(r.submittedByName||''),workflowStage:'pending_department_manager',status:'returned_manager',createdAt:r.createdAt||serverTimestamp(),createdAtIso:r.createdAtIso||now});}catch(queueErr){console.warn('[GRC Risk Workflow] return-to-manager queue index failed',queueErr&&queueErr.code||queueErr);}}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('GRC_SUPER_ADMIN_APPROVAL_'+String(action||'action').toUpperCase(),'Super Admin '+String(action||'action')+' · '+String(r.requestCode||requestId),{status:r.status},{status:status,note:String(note||'')},{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
       return true;
