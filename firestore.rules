@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v46 — Stable Department Approval Queue
+// FIRESTORE SECURITY RULES v48 — Atomic Department Approval Queue
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -607,7 +607,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // a unique v46 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v46-grc-manager-queue-20260819';
+      allow get: if approved() && versionId == 'v48-grc-atomic-manager-queue-20260819';
       allow list, create, update, delete: if false;
     }
 
@@ -629,32 +629,26 @@ service cloud.firestore {
     // request. The path itself is department-scoped, so the manager query does
     // not depend on Firestore treating a resource-data rule as a filter.
     match /grc_department_approval_queues/{departmentKey}/items/{itemId} {
-      // Department-scoped approval queue. Managers list only their own
-      // department. Requesters may index only their own request in their own
-      // department; Super Admin/Admin may backfill any department.
+      // The department is encoded in the document path. Manager reads therefore
+      // require no resource-data predicate and cannot leak another department.
       allow get, list: if signedIn() && userData().approved == true && (
         profileRoleFrom(userData()) in ['admin','super_admin'] ||
         (profileRoleFrom(userData()) == 'department_manager' &&
           profileDepartmentKeyFrom(userData()) == departmentKey)
       );
 
+      // Requesters create only an index pointer in their own department. The
+      // actual request remains authoritative in advisory_requests/grc_risk_requests.
       allow create, update: if signedIn() && userData().approved == true &&
         request.resource.data.departmentKey is string &&
         request.resource.data.departmentKey == departmentKey &&
-        request.resource.data.requesterEmail is string &&
         request.resource.data.requestId is string &&
+        request.resource.data.requesterEmail is string &&
         request.resource.data.sourceCollection in ['advisory_requests','grc_risk_requests'] &&
-        request.resource.data.requestKind in ['review','risk','incident'] &&
         (
           profileRoleFrom(userData()) in ['admin','super_admin'] ||
-          (profileRoleFrom(userData()) == 'department_manager' &&
-            profileDepartmentKeyFrom(userData()) == departmentKey) ||
           (ownEmail(request.resource.data.requesterEmail) &&
-            profileDepartmentKeyFrom(userData()) == departmentKey &&
-            (
-              request.resource.data.requestKind == 'review' ||
-              profileRoleFrom(userData()) in ['risk_owner','grc_owner','platform_owner']
-            ))
+            profileDepartmentKeyFrom(userData()) == departmentKey)
         );
 
       allow delete: if signedIn() && userData().approved == true && (
