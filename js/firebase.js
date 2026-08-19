@@ -977,7 +977,7 @@ window._selectPortal=async portal=>{
     }
     async function _advAssertRulesVersion(){
       if(window.__advRulesV51Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v51-grc-manager-profile-direct-20260819'));window.__advRulesV51Verified=true;return true;}
+      try{await _getServerDoc(doc(db,'system_rule_versions','v52-grc-manager-direct-20260819'));window.__advRulesV51Verified=true;return true;}
       catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v51 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     async function _advAssertProfileScope(profile){
@@ -1101,36 +1101,22 @@ window._selectPortal=async portal=>{
     }
 
 
-    /* v212: stable Department Manager authorization profile.
-       Submission writes only the authoritative request document. A Department
-       Manager registers a small server-side profile under their own authenticated
-       email, then reads pending requests directly from the two source collections.
-       This removes every secondary approval inbox/directory sync dependency. */
-    const GRC_MANAGER_PROFILE_ROOT='grc_manager_profiles';
-
-    function _grcManagerProfileRef(email){
-      return doc(db,GRC_MANAGER_PROFILE_ROOT,String(email||'').toLowerCase().trim());
-    }
-    async function _grcEnsureManagerProfile(profile){
+    /* v213: Department Manager authorization uses the authenticated users/{email}
+       profile directly. No secondary manager-profile write/read is required before
+       the approval queries, eliminating the permission layer that could fail even
+       when the manager account itself was valid. */
+    async function _grcResolveManagerProfile(profile){
       profile=profile||await _advFreshProfile();
-      if(profile.role!=='department_manager')throw new Error('manager-profile-role-mismatch:'+profile.role);
-      if(!profile.email)throw new Error('manager-profile-email-missing');
-      if(!profile.departmentKey)throw new Error('manager-profile-department-missing');
-      const ref=_grcManagerProfileRef(profile.email);
-      await setDoc(ref,{managerEmail:profile.email,departmentKey:profile.departmentKey,active:true,updatedAt:serverTimestamp(),updatedAtIso:_advIso()},{merge:true});
-      const verify=await getDocFromServer(ref);
-      if(!verify.exists())throw new Error('manager-profile-registration-failed');
-      const data=verify.data()||{};
-      if(String(data.managerEmail||'').toLowerCase().trim()!==profile.email||String(data.departmentKey||'')!==profile.departmentKey||data.active!==true){
-        throw new Error('manager-profile-registration-mismatch');
-      }
+      if(profile.role!=='department_manager')throw new Error('manager-role-mismatch:'+profile.role);
+      if(!profile.email)throw new Error('manager-email-missing');
+      if(!profile.departmentKey)throw new Error('manager-department-missing');
       window.__grcManagerDepartmentKey=profile.departmentKey;
       return profile;
     }
 
     let _grcManagerQueueCache=null,_grcManagerQueueCacheAt=0,_grcManagerQueueCachePromise=null;
     window._grcGetDepartmentApprovalQueue=async function(force){
-      const fresh=await _grcEnsureManagerProfile(await _advFreshProfile());
+      const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
       const dept=fresh.departmentKey,now=Date.now();
       if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<1200)return _grcManagerQueueCache;
       if(!force&&_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
@@ -1167,24 +1153,9 @@ window._selectPortal=async portal=>{
       try{return await _grcManagerQueueCachePromise;}finally{_grcManagerQueueCachePromise=null;}
     };
 
-    /* Super Admin may pre-create manager profiles, but pending requests themselves
-       never need migration because the manager reads the source collections. */
-    window._grcRepairDepartmentApprovalInboxV200=async function(force){
-      if(!_advIsSuperAdmin()||!db)return 0;
-      const guard='__grcManagerProfilesBackfillV212';if(!force&&window[guard])return 0;window[guard]=true;
-      let count=0;
-      try{
-        const usersSnap=await getDocs(collection(db,'users'));
-        for(const d of usersSnap.docs){
-          const u=d.data()||{};if(u.approved!==true)continue;
-          if(_advNormalizeRoleValue(u.role||'viewer')!=='department_manager')continue;
-          const dept=_advCanonicalDepartment(_advProfileDepartmentValue(u)),email=String(u.email||d.id||'').toLowerCase().trim();
-          if(!dept||!email)continue;
-          await setDoc(_grcManagerProfileRef(email),{managerEmail:email,departmentKey:dept,active:true,updatedAt:serverTimestamp(),updatedAtIso:_advIso()},{merge:true});count++;
-        }
-      }catch(e){console.warn('[GRC Manager Profiles Backfill]',e&&e.code||e);}
-      return count;
-    };
+    /* v213: no manager-profile backfill is required. Kept as a compatibility
+       no-op because older entry code may still call this hook. */
+    window._grcRepairDepartmentApprovalInboxV200=async function(){return 0;};
 
     window._advisorySubmit=async function(payload,file){
       if(!_advEmail()||!db)throw new Error('Not authenticated.');
@@ -1350,7 +1321,7 @@ window._selectPortal=async portal=>{
       // the values Security Rules evaluate and avoids stale-device permission
       // failures after a profile change.
       await _advAssertRulesVersion();
-      const freshProfile=await _grcEnsureManagerProfile(await _advFreshProfile());
+      const freshProfile=await _grcResolveManagerProfile(await _advFreshProfile());
       const dept=freshProfile.departmentKey,managerEmail=freshProfile.email,managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim();
       const loc=await _advLocateRequest(requestId),current=Object.assign(loc.record,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
       if(String(current.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request. Your request must be reviewed by Super Admin.');
@@ -1500,7 +1471,7 @@ window._selectPortal=async portal=>{
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
       if(window.__grcRulesV51Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v51-grc-manager-profile-direct-20260819'));window.__grcRulesV51Verified=true;return true;}
+      try{await _getServerDoc(doc(db,'system_rule_versions','v52-grc-manager-direct-20260819'));window.__grcRulesV51Verified=true;return true;}
       catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v51 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
@@ -1752,7 +1723,7 @@ window._selectPortal=async portal=>{
          The previous action path compared the request with session _fbDept, so a
          manager could see a freshly fetched request and still be blocked when
          clicking Approve. */
-      const fresh=await _grcEnsureManagerProfile(await _advFreshProfile());
+      const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
       const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(!['pending_manager','returned_manager'].includes(String(r.status||'')))throw new Error('This request is not awaiting your approval.');
       const status=action==='approve'?'pending_super_admin':action==='return'?'returned_requester':action==='reject'?'rejected_manager':'';if(!status)throw new Error('Invalid action.');if(action!=='approve'&&!String(note||'').trim())throw new Error('A reason is required.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status,by:fresh.email,role:fresh.role,at:now,note:String(note||'')});
       await updateDoc(ref,{status,managerName:String(window._fbName||fresh.email),managerEmail:fresh.email,managerNote:String(note||''),managerActionAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history});
