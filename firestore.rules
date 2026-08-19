@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v54 — Email-Scoped Department Manager Inbox
+// FIRESTORE SECURITY RULES v55 — Department-Scoped Approval Workflow
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -596,9 +596,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // a unique v54 path prevents an older ruleset from being mistaken for this build.
+    // a unique v55 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v54-grc-manager-email-inbox-20260819';
+      allow get: if approved() && versionId == 'v55-grc-department-approval-workflow-20260819';
       allow list, create, update, delete: if false;
     }
 
@@ -615,69 +615,50 @@ service cloud.firestore {
       allow list, create, update, delete: if false;
     }
 
-    // ── Department Manager routing ────────────────────────────────────
-    // A department is mapped to one manager email only for submission routing.
-    // The manager APPROVAL LIST itself is stored under the authenticated manager
-    // email, so listing approvals never depends on dept/department/deptKey.
-    function managerDirectoryPath(departmentKey) {
-      return /databases/$(database)/documents/grc_manager_directory_v2/$(departmentKey);
-    }
-
-    match /grc_manager_directory_v2/{departmentKey} {
-      allow get: if approved();
-      allow list: if superAdmin();
-      allow create, update: if superAdmin() || (
-        approved() &&
+    // ── Department Manager approvals ───────────────────────────────
+    // Department-scoped queue: the department itself is the routing boundary.
+    // No stored manager email or directory is involved, so a stale/old manager
+    // assignment cannot hide a pending request from the current manager.
+    match /grc_department_approval_inbox_v3/{departmentKey}/{queueKind}/{requestId} {
+      allow get, list: if signedIn() && userData().approved == true &&
         profileRoleFrom(userData()) == 'department_manager' &&
         profileDepartmentKeyFrom(userData()) == departmentKey &&
-        request.resource.data.departmentKey == departmentKey &&
-        request.resource.data.managerEmail is string &&
-        request.resource.data.managerEmail.lower().trim() == authEmail()
-      );
-      allow delete: if superAdmin();
-    }
+        queueKind in ['review','risk'];
 
-    match /grc_manager_approval_inbox_v2/{managerEmail}/{queueKind}/{requestId} {
-      // The inbox path itself is the authorization boundary. A manager lists
-      // only the document path named with their authenticated email. No request
-      // collection query and no department comparison is needed here.
-      allow get, list: if approved() &&
-        queueKind in ['review','risk'] &&
-        managerEmail.lower().trim() == authEmail();
-
-      // Requester can route only their own request to the manager registered for
-      // their canonical Firestore department. Super Admin owns repair/backfill.
       allow create, update: if superAdmin() || (
-        approved() &&
+        signedIn() && userData().approved == true &&
         queueKind in ['review','risk'] &&
+        profileDepartmentKeyFrom(userData()) == departmentKey &&
         request.resource.data.requestId == requestId &&
         request.resource.data.queueKind == queueKind &&
-        request.resource.data.departmentKey is string &&
+        request.resource.data.departmentKey == departmentKey &&
         request.resource.data.requesterEmail is string &&
-        request.resource.data.requesterEmail.lower().trim() == authEmail() &&
-        profileDepartmentKeyFrom(userData()) == request.resource.data.departmentKey &&
-        exists(managerDirectoryPath(request.resource.data.departmentKey)) &&
-        get(managerDirectoryPath(request.resource.data.departmentKey)).data.managerEmail is string &&
-        managerEmail.lower().trim() ==
-          get(managerDirectoryPath(request.resource.data.departmentKey)).data.managerEmail.lower().trim() &&
-        request.resource.data.managerEmail is string &&
-        request.resource.data.managerEmail.lower().trim() == managerEmail.lower().trim()
+        request.resource.data.requesterEmail.lower().trim() == authEmail()
       );
 
-      allow delete: if superAdmin() ||
-        (approved() && managerEmail.lower().trim() == authEmail()) ||
-        (approved() && resource.data.requesterEmail is string &&
-          resource.data.requesterEmail.lower().trim() == authEmail());
+      allow delete: if superAdmin() || (
+        signedIn() && userData().approved == true &&
+        profileRoleFrom(userData()) == 'department_manager' &&
+        profileDepartmentKeyFrom(userData()) == departmentKey
+      ) || (
+        signedIn() && userData().approved == true &&
+        resource.data.requesterEmail is string &&
+        resource.data.requesterEmail.lower().trim() == authEmail()
+      );
     }
 
     function assignedReviewManager(requestId) {
-      return approved() &&
-        exists(/databases/$(database)/documents/grc_manager_approval_inbox_v2/$(authEmail())/review/$(requestId));
+      let d = profileDepartmentKeyFrom(userData());
+      return signedIn() && userData().approved == true &&
+        profileRoleFrom(userData()) == 'department_manager' && d != '' &&
+        exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/$(d)/review/$(requestId));
     }
 
     function assignedRiskManager(requestId) {
-      return approved() &&
-        exists(/databases/$(database)/documents/grc_manager_approval_inbox_v2/$(authEmail())/risk/$(requestId));
+      let d = profileDepartmentKeyFrom(userData());
+      return signedIn() && userData().approved == true &&
+        profileRoleFrom(userData()) == 'department_manager' && d != '' &&
+        exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/$(d)/risk/$(requestId));
     }
 
     // ── Review & Development Center ──────────────────────────────────
@@ -908,14 +889,14 @@ service cloud.firestore {
     function riskRequesterChange() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'proposedRecord','changedFields','requesterNote','managerNote',
-        'superAdminNote','status','updatedAt','updatedAtIso','history'
+        'superAdminNote','returnFields','returnNote','returnSource','status','updatedAt','updatedAtIso','history'
       ]);
     }
 
     function riskManagerChange() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'status','managerName','managerEmail','managerNote',
-        'managerActionAt','updatedAt','updatedAtIso','history'
+        'managerActionAt','returnFields','returnNote','returnSource','updatedAt','updatedAtIso','history'
       ]);
     }
 
