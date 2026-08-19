@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v45 — Direct Approval Workflow
+// FIRESTORE SECURITY RULES v46 — Stable Department Approval Queue
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -605,9 +605,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // a unique v45 path prevents an older ruleset from being mistaken for this build.
+    // a unique v46 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v45-grc-direct-approval-20260818';
+      allow get: if approved() && versionId == 'v46-grc-manager-queue-20260819';
       allow list, create, update, delete: if false;
     }
 
@@ -629,26 +629,41 @@ service cloud.firestore {
     // request. The path itself is department-scoped, so the manager query does
     // not depend on Firestore treating a resource-data rule as a filter.
     match /grc_department_approval_queues/{departmentKey}/items/{itemId} {
+      // Department-scoped approval queue. Managers list only their own
+      // department. Requesters may index only their own request in their own
+      // department; Super Admin/Admin may backfill any department.
       allow get, list: if signedIn() && userData().approved == true && (
         profileRoleFrom(userData()) in ['admin','super_admin'] ||
         (profileRoleFrom(userData()) == 'department_manager' &&
           profileDepartmentKeyFrom(userData()) == departmentKey)
       );
+
       allow create, update: if signedIn() && userData().approved == true &&
         request.resource.data.departmentKey is string &&
         request.resource.data.departmentKey == departmentKey &&
         request.resource.data.requesterEmail is string &&
+        request.resource.data.requestId is string &&
+        request.resource.data.sourceCollection in ['advisory_requests','grc_risk_requests'] &&
         request.resource.data.requestKind in ['review','risk','incident'] &&
         (
           profileRoleFrom(userData()) in ['admin','super_admin'] ||
-          (profileRoleFrom(userData()) == 'department_manager' && profileDepartmentKeyFrom(userData()) == departmentKey) ||
-          (ownEmail(request.resource.data.requesterEmail) && profileDepartmentKeyFrom(userData()) == departmentKey &&
-            (request.resource.data.requestKind == 'review' || profileRoleFrom(userData()) in ['risk_owner','grc_owner','platform_owner']))
+          (profileRoleFrom(userData()) == 'department_manager' &&
+            profileDepartmentKeyFrom(userData()) == departmentKey) ||
+          (ownEmail(request.resource.data.requesterEmail) &&
+            profileDepartmentKeyFrom(userData()) == departmentKey &&
+            (
+              request.resource.data.requestKind == 'review' ||
+              profileRoleFrom(userData()) in ['risk_owner','grc_owner','platform_owner']
+            ))
         );
+
       allow delete: if signedIn() && userData().approved == true && (
         profileRoleFrom(userData()) in ['admin','super_admin'] ||
-        (profileRoleFrom(userData()) == 'department_manager' && profileDepartmentKeyFrom(userData()) == departmentKey) ||
-        (resource.data.requesterEmail is string && ownEmail(resource.data.requesterEmail) && profileDepartmentKeyFrom(userData()) == departmentKey)
+        (profileRoleFrom(userData()) == 'department_manager' &&
+          profileDepartmentKeyFrom(userData()) == departmentKey) ||
+        (resource.data.requesterEmail is string &&
+          ownEmail(resource.data.requesterEmail) &&
+          profileDepartmentKeyFrom(userData()) == departmentKey)
       );
     }
 
@@ -693,8 +708,21 @@ service cloud.firestore {
       ]);
     }
 
+    function advisoryRequesterNeedsManager(data) {
+      return data.userEmail is string &&
+        exists(/databases/$(database)/documents/users/$(data.userEmail.lower().trim())) &&
+        get(/databases/$(database)/documents/users/$(data.userEmail.lower().trim())).data.approved == true &&
+        profileDepartmentKeyFrom(get(/databases/$(database)/documents/users/$(data.userEmail.lower().trim())).data) != '' &&
+        !(profileRoleFrom(get(/databases/$(database)/documents/users/$(data.userEmail.lower().trim())).data) in
+          ['department_manager','governance_performance_manager','admin','super_admin']);
+    }
+
     function advisoryAdminCanProcess() {
-      return !(resource.data.workflowStage in ['pending_department_manager','rejected_manager']);
+      return !(resource.data.workflowStage in ['pending_department_manager','rejected_manager']) &&
+        (
+          !advisoryRequesterNeedsManager(resource.data) ||
+          (resource.data.managerDecision == 'approved' && resource.data.workflowStage == 'pending_super_admin')
+        );
     }
 
     function validAdvisoryManagerChange() {
@@ -735,20 +763,18 @@ service cloud.firestore {
     }
 
     function validAdvisoryCreate(data) {
-      let u = userData();
-      let r = profileRoleFrom(u);
-      let raw = profileDepartmentValueFrom(u);
-      let d = r == 'governance_performance_manager' ? '' : profileDepartmentKeyFrom(u);
-      let direct = r in ['department_manager','governance_performance_manager','admin','super_admin'] ||
-        (d == '' && !meaningfulDepartmentValue(raw));
-      return signedIn() && u.approved == true &&
-        data.userEmail is string && data.userEmail.lower().trim() == authEmail() &&
-        data.departmentKey is string && data.departmentKey == d &&
+      // Creation is intentionally kept simple and deterministic. The authenticated
+      // user may only create their own request and may only use an initial workflow
+      // state. Department routing is indexed separately in the manager queue, while
+      // final Super Admin processing still verifies manager approval when required.
+      return approved() &&
+        data.userEmail is string && ownEmail(data.userEmail) &&
+        data.departmentKey is string &&
         data.workflowStage is string &&
-        (
-          (direct && data.workflowStage == 'pending_super_admin') ||
-          (!direct && d != '' && data.workflowStage == 'pending_department_manager')
-        );
+        data.workflowStage in ['pending_department_manager','pending_super_admin'] &&
+        data.status == 'open' &&
+        data.managerDecision is string &&
+        data.managerDecision in ['pending','not_required'];
     }
 
     match /advisory_requests/{requestId} {
@@ -839,12 +865,11 @@ service cloud.firestore {
     function validRiskRequestCreate(data) {
       let u = userData();
       let r = profileRoleFrom(u);
-      let d = profileDepartmentKeyFrom(u);
       return signedIn() && u.approved == true &&
-        r in ['risk_owner','grc_owner','platform_owner'] && d != '' &&
-        data.submittedByEmail is string && data.submittedByEmail.lower().trim() == authEmail() &&
-        data.department is string && data.department == d &&
-        data.departmentKey is string && data.departmentKey == d &&
+        r in ['risk_owner','grc_owner','platform_owner'] &&
+        data.submittedByEmail is string && ownEmail(data.submittedByEmail) &&
+        data.department is string &&
+        data.departmentKey is string &&
         data.recordType in ['risk','incident'] &&
         data.operation in ['add','update','delete'] &&
         data.status == 'pending_manager';
