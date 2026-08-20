@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v57 — Manager Return Workflow + Stable Approval Panels
+// FIRESTORE SECURITY RULES v58 — Reliable Super Admin Publish + Returned Request Resubmit
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -478,25 +478,29 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_risks/{recordId} {
-      // Platform-wide Risk readers get an unconditional collection read branch;
-      // scoped operational roles use the department-safe branch below. Keeping
-      // these paths separate makes full-collection queries provably safe.
-      allow get, list: if admin() || role() == 'governance_performance_manager';
+      // Super Admin is the final workflow publisher. Keep this branch first and
+      // independent from legacy-row shape validation so an older register row
+      // cannot block Approve & Publish. Normal Admin writes still require the
+      // canonical v2 record shape.
+      allow get, list: if superAdmin() || admin() || role() == 'governance_performance_manager';
       allow get: if canGetDepartmentGrcRecord(resource.data);
       allow list: if canListDepartmentGrcRecord(resource.data);
-      allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
-      allow update: if
+      allow create: if superAdmin() ||
+        (canWriteGrcRecord() && validGrcRecord(request.resource.data));
+      allow update: if superAdmin() ||
         (canWriteGrcRecord() && validGrcRecord(request.resource.data)) ||
         directRiskStatusChange();
-      allow delete: if canWriteGrcRecord();
+      allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_incidents/{recordId} {
-      allow get, list: if admin() || role() == 'governance_performance_manager';
+      allow get, list: if superAdmin() || admin() || role() == 'governance_performance_manager';
       allow get: if canGetDepartmentGrcRecord(resource.data);
       allow list: if canListDepartmentGrcRecord(resource.data);
-      allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
-      allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
-      allow delete: if canWriteGrcRecord();
+      allow create: if superAdmin() ||
+        (canWriteGrcRecord() && validGrcRecord(request.resource.data));
+      allow update: if superAdmin() ||
+        (canWriteGrcRecord() && validGrcRecord(request.resource.data));
+      allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_codes/{recordId} {
       allow read: if canAccessGrc();
@@ -596,9 +600,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // a unique v57 path prevents an older ruleset from being mistaken for this build.
+    // a unique v58 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v57-grc-manager-return-workflow-20260820';
+      allow get: if approved() && versionId == 'v58-grc-publish-resubmit-20260820';
       allow list, create, update, delete: if false;
     }
 
@@ -957,7 +961,11 @@ service cloud.firestore {
           riskRequestDepartmentList(resource.data)
         ));
 
+      // Evaluate Super Admin first. During testing the same authenticated
+      // account may have originally submitted the request under another role.
+      // The current server-side Super Admin role must remain authoritative.
       allow update: if
+        superAdmin() ||
         (
           approved() && riskRequestOwner(resource.data) &&
           riskRequesterChange() && validRequesterRiskTransition()
@@ -965,7 +973,7 @@ service cloud.firestore {
         (
           assignedRiskManager(requestId) &&
           riskManagerChange() && validManagerRiskTransition()
-        ) || superAdmin();
+        );
 
       allow delete: if superAdmin();
     }
