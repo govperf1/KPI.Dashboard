@@ -778,19 +778,19 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
      ═══════════════════════════════════════════════════════ -->
 
 <!-- Firebase module (ES import syntax — must be type=module) -->
-<script type="module" src="js/firebase.js?v=20260820-v223-split-manager-queues-fast-decisions"></script>
+<script type="module" src="js/firebase.js?v=20260820-v224-performance-stability"></script>
 
 <!-- Application modules (loaded in dependency order) -->
 <script src="js/kpi.js?v=20260817-v189-viewer-risk-advisory"></script>
 <script src="js/translations.js?v=20260817-v189-viewer-risk-advisory"></script>
 <script src="js/dashboard.js?v=20260817-v189-viewer-risk-advisory"></script>
-<script src="js/reports.js?v=20260817-v189-viewer-risk-advisory"></script>
-<script src="js/admin.js?v=20260817-v189-viewer-risk-advisory"></script>
-<script src="js/notifications.js?v=20260817-v189-viewer-risk-advisory"></script>
+<script src="js/reports.js?v=20260820-v224-performance-stability"></script>
+<script src="js/admin.js?v=20260820-v224-performance-stability"></script>
+<script src="js/notifications.js?v=20260820-v224-performance-stability"></script>
 <script src="js/auth.js?v=20260817-v189-viewer-risk-advisory"></script>
-<script src="js/grc.js?v=20260820-v222-registers-visible-all-users"></script>
-<script src="js/grc-risk-workflow.js?v=20260820-v223-split-manager-queues-fast-decisions"></script>
-<script src="js/grc-chat.js?v=20260817-v189-viewer-risk-advisory"></script>
+<script src="js/grc.js?v=20260820-v224-performance-stability"></script>
+<script src="js/grc-risk-workflow.js?v=20260820-v224-performance-stability"></script>
+<script src="js/grc-chat.js?v=20260820-v224-performance-stability"></script>
 <script src="js/grc-export.js?v=20260817-v189-viewer-risk-advisory"></script>
 <script src="js/advisory.js?v=20260820-v223-split-manager-queues-fast-decisions"></script>
 
@@ -860,6 +860,12 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
     }
     return false;
   }
+  var __chromeSyncQueued=false;
+  function requestPortalChromeSync(){
+    if(__chromeSyncQueued)return;__chromeSyncQueued=true;
+    var raf=window.requestAnimationFrame||function(cb){return setTimeout(cb,16);};
+    raf(function(){__chromeSyncQueued=false;syncPortalChrome();});
+  }
   function syncPortalChrome(){
     var portalVisible=isPortalVisible();
     var authVisible=isAuthVisible();
@@ -889,13 +895,13 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
     var ov=document.getElementById('_portalOverlay');
     if(ov && !ov.__qumcPortalObserver){
       ov.__qumcPortalObserver=true;
-      try{new MutationObserver(syncPortalChrome).observe(ov,{attributes:true,attributeFilter:['style','class']});}catch(e){}
+      try{new MutationObserver(requestPortalChromeSync).observe(ov,{attributes:true,attributeFilter:['style','class']});}catch(e){}
     }
     try{
       document.querySelectorAll('.overlay,#_authOverlay,#_forgotOverlay,#gapOv,#adminOv,#pciModal,#exportModal,#_kpoStatusOv,#rptOv').forEach(function(el){
         if(el && !el.__qumcChromeObserver){
           el.__qumcChromeObserver=true;
-          new MutationObserver(syncPortalChrome).observe(el,{attributes:true,attributeFilter:['style','class']});
+          new MutationObserver(requestPortalChromeSync).observe(el,{attributes:true,attributeFilter:['style','class']});
         }
       });
     }catch(e){}
@@ -904,9 +910,8 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
         var old=window[fn];
         var wrapped=function(){
           var r=old.apply(this,arguments);
-          setTimeout(syncPortalChrome,0);
-          setTimeout(syncPortalChrome,120);
-          setTimeout(syncPortalChrome,500);
+          requestPortalChromeSync();
+          setTimeout(requestPortalChromeSync,220);
           return r;
         };
         wrapped.__qumcWrapped=true;
@@ -916,7 +921,10 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
   window.addEventListener('load',boot);
-  setInterval(boot,900);
+  /* v224: event-driven first, slow safety check only. The old 900ms DOM scan
+     ran continuously on every page and contributed to UI jank. */
+  setInterval(function(){if(!document.hidden)boot();},8000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)boot();});
 })();
 </script>
 
@@ -950,7 +958,9 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
   }
   function boot(){patchNode(document.body);}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
-  new MutationObserver(function(list){list.forEach(function(m){m.addedNodes.forEach(patchNode);if(m.type==='characterData')patchNode(m.target);});}).observe(document.documentElement,{subtree:true,childList:true,characterData:true});
+  var __textPatchQueued=false,__textPatchNodes=[];
+  function queueTextPatch(node){if(!node)return;__textPatchNodes.push(node);if(__textPatchQueued)return;__textPatchQueued=true;var run=function(){__textPatchQueued=false;var nodes=__textPatchNodes.splice(0,80),seen=[];nodes.forEach(function(n){if(seen.indexOf(n)>=0)return;seen.push(n);patchNode(n);});if(__textPatchNodes.length)queueTextPatch(__textPatchNodes.shift());};if(window.requestIdleCallback)requestIdleCallback(run,{timeout:180});else setTimeout(run,32);}
+  new MutationObserver(function(list){list.forEach(function(m){m.addedNodes.forEach(queueTextPatch);if(m.type==='characterData')queueTextPatch(m.target);});}).observe(document.documentElement,{subtree:true,childList:true,characterData:true});
 })();
 </script>
 </body>
