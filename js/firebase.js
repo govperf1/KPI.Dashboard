@@ -978,9 +978,9 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV56Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v56-grc-department-manager-role-switch-20260820'));window.__advRulesV56Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v56 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__advRulesV57Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v57-grc-manager-return-workflow-20260820'));window.__advRulesV57Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v57 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     async function _advAssertProfileScope(profile){
       profile=profile||{};
@@ -1106,7 +1106,7 @@ window._selectPortal=async portal=>{
     }
 
 
-    /* v216 — Department-scoped approval inbox.
+    /* v217 — Department-scoped approval inbox + manager return workflow.
        Approval routing is keyed ONLY by the canonical department. There is no
        manager-email directory and no manager-specific inbox, so stale manager
        assignments can never hide a valid pending request from the department's
@@ -1371,28 +1371,30 @@ window._selectPortal=async portal=>{
       const loc=await _advLocateRequest(requestId),current=Object.assign(loc.record,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
       if(current._storage!=='advisory_requests')throw new Error('Legacy requests cannot use the Department Manager approval workflow.');
       if(String(current.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
-      if(!['approve','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
-      if(action==='reject'&&!managerComment)throw new Error('A rejection reason is required.');
+      action=String(action||'');
+      if(!['approve','return','reject'].includes(action))throw new Error('Unsupported action.');
+      if(['return','reject'].includes(action)&&!managerComment)throw new Error(action==='return'?'A return note is required.':'A rejection reason is required.');
       const requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso(),queueRef=_grcManagerQueueItemRef(String(current.departmentKey||''),'review',requestId);
-      let finalStage='',finalStatus='',closureReason='';
+      let finalStage='',finalStatus='',closureReason='',managerDecision='';
       await runTransaction(db,async tx=>{
         const snap=await tx.get(requestRef);if(!snap.exists())throw new Error('Request not found.');const live=snap.data()||{};
         if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
-        if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
-        else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
-        const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:action==='approve'?'approved':'rejected',managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
+        if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';managerDecision='approved';}
+        else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='returned_by_department_manager';managerDecision='returned';}
+        else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';managerDecision='rejected';}
+        const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:managerDecision,managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
         if(action==='reject')updates.closedAt=serverTimestamp();
         tx.update(requestRef,updates);
         tx.delete(queueRef);
       });
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
-      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':'Rejected ')+String(current.code||requestId),{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:action==='approve'?'approved':'rejected',comment:managerComment},{portal:String(current.platform||'grc')});}catch(_){}
+      try{var auditVerb=action==='approve'?'Approved and forwarded ':action==='return'?'Returned for requester update ':'Rejected ';await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',auditVerb+String(current.code||requestId),{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:managerDecision,comment:managerComment},{portal:String(current.platform||'grc')});}catch(_){}
       return true;
     };
 
     window._advisoryAdminAction=async function(requestId,action,data,file){
       if(!_advIsSuperAdmin())throw new Error('Super Admin approval is required.');
-      data=data||{};const current=await _advAuthorizedRequest(requestId,true,false),requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso();const approvalStage=String(current.workflowStage||'');if(approvalStage==='pending_department_manager'||approvalStage==='rejected_manager')throw new Error('This request has not been approved by the Department Manager.');
+      data=data||{};const current=await _advAuthorizedRequest(requestId,true,false),requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso();const approvalStage=String(current.workflowStage||'');if(['pending_department_manager','returned_requester','rejected_manager'].includes(approvalStage))throw new Error('This request has not been approved by the Department Manager.');
       const updates={updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:_advEmail()},publicUpdates={updatedAt:serverTimestamp()},messageAttachments=[];
       if(file&&current._storage==='advisory_requests'){try{const meta=await _advUploadFile(requestId,file,_advEmail());messageAttachments.push(meta);updates.attachments=arrayUnion(meta);updates.attachmentCount=Number(current.attachmentCount||0)+1;publicUpdates.attachmentCount=updates.attachmentCount;}catch(e){throw new Error('The response attachment could not be uploaded: '+String(e&&e.message||e));}}
       const firstResponseActions=['respond','request_info'];
@@ -1418,9 +1420,17 @@ window._selectPortal=async portal=>{
       if(action==='clarify'){
         var stage=String(current.workflowStage||current.status||'');if(stage!=='awaiting_requester_information')throw new Error('This request is not waiting for clarification.');const text=String(data.text||'').trim();if(!text)throw new Error('Clarification is required.');updates.status='in_progress';updates.workflowStage='clarification_received';publicUpdates.status='in_progress';publicUpdates.workflowStage='clarification_received';updates.messages=arrayUnion({id:'msg_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),senderRole:_advRole(),senderName:String(window._fbName||'Requester'),senderEmail:_advEmail(),text,attachments:messageAttachments,createdAt:_advIso()});
       }else if(action==='complete'){var currentStage=String(current.workflowStage||current.status||'');if(currentStage!=='responded')throw new Error('The request must have an admin response first.');updates.status='in_progress';updates.workflowStage='requester_confirmed';updates.completedAt=serverTimestamp();publicUpdates.status='in_progress';publicUpdates.workflowStage='requester_confirmed';publicUpdates.completedAt=serverTimestamp();}
+      else if(action==='resubmit'){
+        var returnedStage=String(current.workflowStage||current.status||'');if(returnedStage!=='returned_requester')throw new Error('Only a request returned by the Department Manager can be edited and resubmitted.');
+        const title=String(data.title||'').trim(),details=String(data.details||'').trim(),priority=String(data.priority||current.priority||'Medium').trim(),relatedNewText=String(data.relatedNewText==null?current.relatedNewText:data.relatedNewText).trim();
+        if(!title)throw new Error('Request Title is required.');if(!details)throw new Error('Request Details are required.');if(String(current.requestType||'')==='new'&&!relatedNewText)throw new Error('Proposed item name is required.');
+        updates.title=title;updates.details=details;updates.priority=priority||'Medium';updates.relatedNewText=relatedNewText;updates.status='open';updates.workflowStage='pending_department_manager';updates.closureReason='';updates.managerDecision='pending';
+      }
       else if(action==='cancel'){if(_advStatusKey(current.status)==='closed')throw new Error('This request can no longer be cancelled.');updates.status='closed';updates.workflowStage='closed';updates.closureReason='cancelled_by_requester';updates.closedAt=serverTimestamp();publicUpdates.status='closed';publicUpdates.workflowStage='closed';publicUpdates.closureReason='cancelled_by_requester';publicUpdates.closedAt=serverTimestamp();}
       else throw new Error('Unsupported action.');
-      if(action==='cancel'&&String(current.workflowStage||'')==='pending_department_manager'&&current.departmentKey){
+      if(action==='resubmit'){
+        const dept=String(current.departmentKey||'');if(!dept)throw new Error('Department is missing from this request.');const snapshot=_grcReviewQueueSnapshot(Object.assign({},current,updates,{updatedAtIso:updates.updatedAtIso}),requestId),batch=writeBatch(db);batch.update(requestRef,updates);batch.set(_grcManagerQueueItemRef(dept,'review',requestId),_grcQueueItem('review',requestId,dept,String(current.userEmail||_advEmail()),snapshot),{merge:false});await batch.commit();_grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
+      }else if(action==='cancel'&&String(current.workflowStage||'')==='pending_department_manager'&&current.departmentKey){
         const batch=writeBatch(db);batch.update(requestRef,updates);batch.delete(_grcManagerQueueItemRef(String(current.departmentKey),'review',requestId));await batch.commit();
       }else{
         await updateDoc(requestRef,updates);
@@ -1518,9 +1528,9 @@ window._selectPortal=async portal=>{
     function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();return ['super_admin','admin','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].includes(r)||p.includes('access_grc')||p.includes('view_grc_department')||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('*');}
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
-      if(window.__grcRulesV56Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v56-grc-department-manager-role-switch-20260820'));window.__grcRulesV56Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v56 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__grcRulesV57Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v57-grc-manager-return-workflow-20260820'));window.__grcRulesV57Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v57 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
     // Compatibility aliases point to the same current probe so old callers cannot
@@ -1790,7 +1800,7 @@ window._selectPortal=async portal=>{
       else if(action==='reject')status='rejected_manager';
       else throw new Error('Invalid action for the current workflow stage.');
       if(['return','reject','resend'].includes(action)&&!note)throw new Error('A note is required.');
-      if(action==='return'&&!fields.length)throw new Error('Select at least one field that the GRC Owner must update.');
+      if(action==='return'&&String(r.operation||'').toLowerCase()!=='delete'&&!fields.length)throw new Error('Select at least one field that the GRC Owner must update.');
       const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];
       history.push({status,by:fresh.email,role:fresh.role,at:now,note:note,fields:fields});
       const updates={status,managerName:String(window._fbName||fresh.email),managerEmail:fresh.email,managerNote:note,managerActionAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history};

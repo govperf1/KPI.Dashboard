@@ -4,7 +4,7 @@
    Review & Development Center requests.
    ===================================================================== */
 (function(){
-  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V216__)return;window.__QUMC_GRC_RISK_WORKFLOW_V216__=true;
+  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V217__)return;window.__QUMC_GRC_RISK_WORKFLOW_V217__=true;
   var cache=[],unsub=null,startedFor='',reviewApprovalRows=[],approvalNoticeKey='',approvalNoticeEntry=0,approvalNoticeTimer=null,feedbackNormalRows=[],feedbackReviewRows=[],feedbackNormalUnsub=null,feedbackReviewUnsub=null,feedbackStartedFor='',feedbackTimer=null,managerPullBusy=false,managerPullAt=0;
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function role(){var raw=window._fbRole||window.currentUserRole||'viewer';return typeof window._normalizePortalRole==='function'?window._normalizePortalRole(raw):String(raw).trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
@@ -36,9 +36,18 @@
   function recordLabel(r){return recordType(r)==='incident'?'Incident':'Risk';}
   function operationLabel(s,r){var label=recordLabel(r);return({add:'Add '+label,update:'Update '+label,delete:'Delete '+label})[s]||s||'—';}
   function fieldLabel(k){var m={riskIdentified:'Risk Identified',riskCategory:'Risk Category',likelihood:'Likelihood',impact:'Impact',controlType:'Current Risk Control Type',actionStatus:'Action Status',date:'Incident Date',category:'Category',contributingFactors:'Contributing Factors',investigationRequired:'Investigation Required',department:'Department',responsibleDept:'Responsible Department',responsibleDepartment:'Responsible Department',status:'Status',id:'ID'};return m[k]||String(k||'').replace(/([A-Z])/g,' $1').replace(/^./,function(x){return x.toUpperCase();});}
-  function returnableFields(r){var keys=recordType(r)==='incident'?['date','category','contributingFactors','investigationRequired','status']:['riskIdentified','riskCategory','likelihood','impact','controlType','actionStatus'];return keys.slice();}
+  function returnableFields(r){
+    var keys=recordType(r)==='incident'?['date','category','contributingFactors','investigationRequired','status']:['riskIdentified','riskCategory','likelihood','impact','controlType','actionStatus'],op=String(r&&r.operation||'').toLowerCase();
+    if(op==='update'){
+      var changed=changedKeys(r);return keys.filter(function(k){return changed.indexOf(k)>=0;});
+    }
+    if(op==='add'){
+      var proposed=r&&r.proposedRecord||{};return keys.filter(function(k){if(!Object.prototype.hasOwnProperty.call(proposed,k))return false;var v=proposed[k];return !(v==null||v===''||(Array.isArray(v)&&!v.length));});
+    }
+    return keys.slice();
+  }
   function requestedFieldsHtml(r){var f=Array.isArray(r&&r.returnFields)?r.returnFields:[],note=String(r&&r.returnNote||'').trim();if(!f.length&&!note)return'';return '<section class="grc-risk-return-request"><div class="grc-risk-block-title">'+esc(isAr()?'المطلوب تعديله':'Requested Corrections')+'</div>'+(f.length?'<div class="grc-risk-return-fields">'+f.map(function(k){return '<span>'+esc(fieldLabel(k))+'</span>';}).join('')+'</div>':'')+(note?'<div class="grc-risk-note"><b>'+esc(isAr()?'الملاحظة':'Note')+'</b>'+esc(note)+'</div>':'')+'</section>';}
-  function returnFieldSelectorHtml(r,required){var selected=Array.isArray(r&&r.returnFields)?r.returnFields:[],fields=returnableFields(r);return '<div class="grc-risk-return-select"><div class="grc-risk-inline-label">'+esc(isAr()?'حدد الحقول المطلوب تعديلها'+(required?' *':''):'Select fields to be updated'+(required?' *':''))+'</div><div class="grc-risk-return-checks">'+fields.map(function(k){return '<label><input type="checkbox" data-grc-return-field value="'+esc(k)+'" '+(selected.indexOf(k)>=0?'checked':'')+'> <span>'+esc(fieldLabel(k))+'</span></label>';}).join('')+'</div></div>';}
+  function returnFieldSelectorHtml(r,required){var selected=Array.isArray(r&&r.returnFields)?r.returnFields:[],fields=returnableFields(r);if(!fields.length)return'';return '<div class="grc-risk-return-select"><div class="grc-risk-inline-label">'+esc(isAr()?'حدد الحقول المطلوب تعديلها'+(required?' *':''):'Select fields to be updated'+(required?' *':''))+'</div><div class="grc-risk-return-checks">'+fields.map(function(k){return '<label><input type="checkbox" data-grc-return-field value="'+esc(k)+'" '+(selected.indexOf(k)>=0?'checked':'')+'> <span>'+esc(fieldLabel(k))+'</span></label>';}).join('')+'</div></div>';}
   function ensureReturnWorkflowStyles(){if(document.getElementById('_grcReturnWorkflowStyles'))return;var st=document.createElement('style');st.id='_grcReturnWorkflowStyles';st.textContent='.grc-risk-return-select{margin:10px 0;padding:10px;border:1px solid #d9e5ea;border-radius:10px;background:#fff}.grc-risk-return-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 10px;margin-top:8px}.grc-risk-return-checks label{display:flex;gap:7px;align-items:center;padding:7px 8px;border:1px solid #e1e9ed;border-radius:8px;background:#f8fbfc;font-size:10px;font-weight:800;color:#35566a}.grc-risk-return-checks input{width:15px;height:15px}.grc-risk-return-request{margin:12px 0;padding:11px;border:1px solid #efcc84;border-radius:11px;background:#fff9ea}.grc-risk-return-fields{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.grc-risk-return-fields span{padding:5px 8px;border-radius:999px;background:#fff0c8;color:#7a5200;font-size:9px;font-weight:900}@media(max-width:640px){.grc-risk-return-checks{grid-template-columns:1fr}}';document.head.appendChild(st);}
   function historyStatusLabel(s){var m={pending_manager:'Submitted for Department Manager Approval',pending_super_admin:'Approved by Department Manager',returned_requester:'Returned for Update',returned_manager:'Returned to Department Manager',rejected_manager:'Rejected by Department Manager',rejected_super_admin:'Rejected by Super Admin',published:'Approved & Published',cancelled:'Cancelled'};return m[String(s||'')]||statusLabel(s);}
   function historyRoleLabel(r){var m={risk_owner:'GRC Owner',grc_owner:'GRC Owner',platform_owner:'Performance & GRC Owner',department_manager:'Department Manager',dept_manager:'Department Manager',super_admin:'Super Admin',admin:'Admin'};return m[String(r||'').toLowerCase()]||String(r||'').replace(/_/g,' ');}
@@ -112,7 +121,7 @@
     return isAr()?'تظهر هنا طلباتك التي ما زالت تحت الاعتماد أو تحتاج منك تعديلًا.':'These requests are still in approval or require an update from you.';
   }
   function reviewApprovalNoticeCard(r){
-    return `<article class="grc-apn-card"><div class="grc-apn-card-head"><div><strong>${esc(r.code||r.id)}</strong><small>${esc(isAr()?'مراجعة وتطوير':'Review & Development')} · ${esc(reviewTypeText(r))}</small></div><span class="grc-apn-status">${esc(isAr()?'بانتظار موافقة مدير القسم':'Pending Department Manager Approval')}</span></div><div class="grc-apn-meta"><span>${esc(isAr()?'نوع العنصر':'Item Type')}</span><b>${esc(r.category||r.relatedType||'—')}</b><span>${esc(isAr()?'السجل المرتبط':'Related Record')}</span><b>${esc(reviewRelatedText(r))}</b><span>${esc(isAr()?'مقدم الطلب':'Submitted by')}</span><b>${esc(r.userName||r.userEmail||'—')}</b></div><div class="grc-apn-actions"><button class="grc-apn-btn primary" onclick="window._grcReviewApprovalOpenRequest('${esc(r.id)}')">${esc(isAr()?'مراجعة واعتماد':'Review & Approve')}</button></div></article>`;
+    return `<article class="grc-apn-card"><div class="grc-apn-card-head"><div><strong>${esc(r.code||r.id)}</strong><small>${esc(isAr()?'مراجعة وتطوير':'Review & Development')} · ${esc(reviewTypeText(r))}</small></div><span class="grc-apn-status">${esc(isAr()?'بانتظار موافقة مدير القسم':'Pending Department Manager Approval')}</span></div><div class="grc-apn-meta"><span>${esc(isAr()?'نوع العنصر':'Item Type')}</span><b>${esc(r.category||r.relatedType||'—')}</b><span>${esc(isAr()?'السجل المرتبط':'Related Record')}</span><b>${esc(reviewRelatedText(r))}</b><span>${esc(isAr()?'مقدم الطلب':'Submitted by')}</span><b>${esc(r.userName||r.userEmail||'—')}</b></div><div class="grc-apn-actions"><button class="grc-apn-btn primary" onclick="window._grcReviewApprovalOpenRequest('${esc(r.id)}')">${esc(isAr()?'مراجعة واتخاذ قرار':'Review & Decide')}</button></div></article>`;
   }
   function approvalNoticeCard(item){
     if(item&&item.kind==='review')return reviewApprovalNoticeCard(item.row||{});
@@ -184,6 +193,7 @@
     refreshFeedbackData();
   }
   document.addEventListener('grc:feedbackRefresh',function(){refreshFeedbackData();});
+  function profileHasActiveDecision(){var ov=document.getElementById('_grcRiskProfileOv');return !!(ov&&ov.querySelector('.grc-risk-inline-decision:not([hidden])'));}
   function refreshManagerApprovalQueues(force){
     if(!isManager())return Promise.resolve();
     var now=Date.now();if(managerPullBusy||(!force&&now-managerPullAt<5000))return Promise.resolve();
@@ -197,7 +207,7 @@
       window.__grcRiskRequestCache=cache;
       try{document.dispatchEvent(new CustomEvent('grc:riskRequestsUpdated',{detail:{rows:cache}}));}catch(_e){}
       refreshBadge();
-      if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
+      if(document.getElementById('_grcRiskProfileOv')&&!profileHasActiveDecision())renderProfileBody();
       if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();
       scheduleApprovalNotice(false);
     }).catch(function(err){window.__grcManagerApprovalError=String(err&&err.message||err&&err.code||err||'Unable to load department approvals.');console.warn('[GRC Manager Approval Pull]',window.__grcManagerApprovalError);}).finally(function(){managerPullBusy=false;});
@@ -208,7 +218,7 @@
     reviewApprovalRows=(Array.isArray(reviewRows)?reviewRows:[]).filter(reviewManagerRequest);
     window.__grcRiskRequestCache=cache;
     refreshBadge();
-    if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
+    if(document.getElementById('_grcRiskProfileOv')&&!profileHasActiveDecision())renderProfileBody();
     if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();
   };
   function stop(){if(unsub)try{unsub();}catch(_){}unsub=null;startedFor='';cache=[];window.__grcRiskRequestCache=[];var panel=document.getElementById('_grcRiskNotifPanel');if(panel)panel.remove();closeApprovalNotice();stopFeedbackWatch();refreshBadge();}
@@ -257,7 +267,7 @@
   function filteredRisk(tab){var base=isManager()?cache.filter(managerDepartmentRequest):cache;return base.filter(function(r){if(tab==='all')return true;if(tab==='action')return actionable(r);if(tab==='published')return r.status==='published';if(tab==='returned')return /^returned|^rejected/.test(r.status);return r.status===tab;});}
   function filteredReview(tab){if(!isManager()||['all','action'].indexOf(tab)<0)return[];return reviewApprovalRows.filter(reviewManagerRequest);}
   function reviewProfileCard(r){
-    return `<article class="grc-risk-request-card"><div class="grc-risk-card-head"><div><strong>${esc(r.code||r.id)}</strong><small>${esc(isAr()?'مراجعة وتطوير':'Review & Development')} · ${esc(reviewTypeText(r))}</small></div><span class="grc-risk-status warn">${esc(isAr()?'بانتظار موافقة مدير القسم':'Pending Department Manager Approval')}</span></div><div class="grc-risk-card-grid"><span>${esc(isAr()?'نوع العنصر':'Item Type')}</span><b>${esc(r.category||r.relatedType||'—')}</b><span>${esc(isAr()?'السجل المرتبط':'Related Record')}</span><b>${esc(reviewRelatedText(r))}</b><span>${esc(isAr()?'مقدم الطلب':'Submitted by')}</span><b>${esc(r.userName||r.userEmail||'—')}</b><span>${esc(isAr()?'تاريخ الإرسال':'Submitted')}</span><b>${esc(reviewDateText(r))}</b><span>${esc(isAr()?'الأولوية':'Priority')}</span><b>${esc(r.priority||'—')}</b></div><button class="grc-risk-details-btn" onclick="window._grcReviewApprovalOpenRequest('${esc(r.id)}')">${esc(isAr()?'مراجعة واعتماد':'Review & Approve')}</button></article>`;
+    return `<article class="grc-risk-request-card"><div class="grc-risk-card-head"><div><strong>${esc(r.code||r.id)}</strong><small>${esc(isAr()?'مراجعة وتطوير':'Review & Development')} · ${esc(reviewTypeText(r))}</small></div><span class="grc-risk-status warn">${esc(isAr()?'بانتظار موافقة مدير القسم':'Pending Department Manager Approval')}</span></div><div class="grc-risk-card-grid"><span>${esc(isAr()?'نوع العنصر':'Item Type')}</span><b>${esc(r.category||r.relatedType||'—')}</b><span>${esc(isAr()?'السجل المرتبط':'Related Record')}</span><b>${esc(reviewRelatedText(r))}</b><span>${esc(isAr()?'مقدم الطلب':'Submitted by')}</span><b>${esc(r.userName||r.userEmail||'—')}</b><span>${esc(isAr()?'تاريخ الإرسال':'Submitted')}</span><b>${esc(reviewDateText(r))}</b><span>${esc(isAr()?'الأولوية':'Priority')}</span><b>${esc(r.priority||'—')}</b></div><button class="grc-risk-details-btn" onclick="window._grcReviewApprovalOpenRequest('${esc(r.id)}')">${esc(isAr()?'مراجعة واتخاذ قرار':'Review & Decide')}</button></article>`;
   }
   function renderProfileBody(){
     var body=document.getElementById('_grcRiskProfileBody');if(!body)return;
@@ -350,7 +360,7 @@
     document.body.appendChild(ov);
   };
   function decisionCopy(r,action){
-    if(action==='manager_return')return {tone:'warn',title:isAr()?'إعادة إلى مسؤول GRC':'Return to GRC Owner',text:isAr()?'حدد الحقول المطلوب تعديلها واكتب ملاحظة واضحة. سيعود نفس الطلب إلى مسؤول GRC.':'Select the fields that must be corrected and add a clear note. The same request will return to the GRC Owner.',label:isAr()?'ملاحظة الإعادة *':'Return note *',confirm:isAr()?'إعادة لمسؤول GRC':'Return to GRC Owner',needNote:true,showFields:true,fieldsRequired:true};
+    if(action==='manager_return'){var returnFields=returnableFields(r),needsFields=String(r&&r.operation||'').toLowerCase()!=='delete'&&returnFields.length>0;return {tone:'warn',title:isAr()?'إعادة إلى مسؤول GRC':'Return to GRC Owner',text:isAr()?(needsFields?'حدد فقط الحقول الموجودة ضمن هذا الطلب والتي تحتاج تعديلًا، ثم اكتب ملاحظة واضحة.':'اكتب ملاحظة واضحة توضح المطلوب تعديله. سيعود نفس الطلب إلى مسؤول GRC.'):(needsFields?'Select only the fields included in this request that need correction, then add a clear note.':'Add a clear note describing what must be corrected. The same request will return to the GRC Owner.'),label:isAr()?'ملاحظة الإعادة *':'Return note *',confirm:isAr()?'إعادة لمسؤول GRC':'Return to GRC Owner',needNote:true,showFields:needsFields,fieldsRequired:needsFields};}
     if(action==='super_return')return {tone:'warn',title:isAr()?'إعادة إلى مدير القسم':'Return to Department Manager',text:isAr()?'اكتب ملاحظة لمدير القسم. ويمكنك تحديد الحقول التي تحتاج مراجعة.':'A note to the Department Manager is required. You may also identify the fields that need review.',label:isAr()?'ملاحظة مدير القسم *':'Note to Department Manager *',confirm:isAr()?'إعادة لمدير القسم':'Return to Department Manager',needNote:true,showFields:true,fieldsRequired:false};
     if(action==='manager_resend')return {tone:'good',title:isAr()?'إعادة الإرسال للسوبر أدمن':'Resend to Super Admin',text:isAr()?'اكتب ملاحظة توضح سبب إعادة الإرسال للسوبر أدمن.':'Add a note before resending the same request to Super Admin.',label:isAr()?'ملاحظة إعادة الإرسال *':'Resubmission note *',confirm:isAr()?'إعادة الإرسال':'Resend to Super Admin',needNote:true};
     if(/reject/.test(action))return {tone:'bad',title:isAr()?'رفض الطلب':'Reject Request',text:isAr()?'سبب الرفض إلزامي.':'A rejection reason is required.',label:isAr()?'سبب الرفض *':'Rejection reason *',confirm:isAr()?'تأكيد الرفض':'Confirm Reject',needNote:true};
@@ -373,7 +383,7 @@
     var panel=btn&&btn.closest&&btn.closest('.grc-risk-inline-decision');if(!panel)return;
     var errEl=panel.querySelector('.grc-risk-inline-error'),ta=panel.querySelector('textarea'),note=ta?String(ta.value||'').trim():'',fields=Array.prototype.map.call(panel.querySelectorAll('[data-grc-return-field]:checked'),function(x){return x.value;});
     if((/return|reject/.test(action)||action==='manager_resend')&&!note){if(ta)ta.classList.add('is-invalid');if(errEl)errEl.textContent=isAr()?'الملاحظة مطلوبة قبل تنفيذ هذا الإجراء.':'A note is required before this action can be submitted.';return;}
-    if(action==='manager_return'&&!fields.length){if(errEl)errEl.textContent=isAr()?'حدد حقلًا واحدًا على الأقل يحتاج تعديل.':'Select at least one field that needs correction.';return;}
+    if(action==='manager_return'&&decisionCopy(r,action).fieldsRequired&&!fields.length){if(errEl)errEl.textContent=isAr()?'حدد حقلًا واحدًا على الأقل من الحقول الموجودة في هذا الطلب.':'Select at least one field included in this request.';return;}
     if(ta)ta.classList.remove('is-invalid');if(errEl)errEl.textContent='';
     Array.prototype.forEach.call(panel.querySelectorAll('button,textarea,input'),function(el){el.disabled=true;});panel.classList.add('is-busy');
     try{
