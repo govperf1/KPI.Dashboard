@@ -4645,8 +4645,11 @@
 
   window._grcOpenRiskRequestResubmit=function(request){
     grcHoldRegisterViewport();
-    if(!request||!canSubmitRegisterRequest(request.recordType||'risk'))return;
-    var recordType=request.recordType==='incident'?'incident':'risk',record=Object.assign({},request.proposedRecord||request.currentRecord||{}),spec=formSpec(recordType,request.department||currentGrcDept()),requested=Array.isArray(request.returnFields)?request.returnFields.filter(Boolean):[],old=document.getElementById('_grcFormModal');if(old)old.remove();
+    if(!request)return;
+    var rawType=String(request.recordType||'risk').trim().toLowerCase(),recordType=(rawType==='incident'||rawType==='incidents')?'incident':'risk';
+    var ownerRole=['risk_owner','grc_owner','platform_owner'].indexOf(normalizedRole())>=0;
+    if(!ownerRole&&!canSubmitRegisterRequest(recordType)){if(window.toast)window.toast(isAr()?'لا تملك صلاحية تعديل وإعادة إرسال هذا الطلب.':'You do not have permission to edit and resubmit this request.');return;}
+    var record=Object.assign({},request.proposedRecord||request.currentRecord||{}),spec=formSpec(recordType,request.department||currentGrcDept()),requested=Array.isArray(request.returnFields)?request.returnFields.filter(Boolean):[],old=document.getElementById('_grcFormModal');if(old)old.remove();
     var requestedLabels=requested.map(function(k){return ((I18N[lang]&&I18N[lang][k])||String(k).replace(/([A-Z])/g,' $1').replace(/^./,function(x){return x.toUpperCase();}));});
     var returnNote=String(request.returnNote||request.managerNote||request.superAdminNote||'').trim();
     var guidance=(requested.length||returnNote)?'<div style="margin:0 0 14px;padding:12px;border:1px solid #f0c36a;background:#fff9e9;border-radius:10px;font-size:10px;color:#6b4b0b"><strong style="display:block;margin-bottom:6px">'+(isAr()?'المطلوب تعديله في نفس الطلب':'Requested corrections in this same request')+'</strong>'+(requested.length?'<div style="margin-bottom:5px">'+(isAr()?'الحقول المفتوحة للتعديل: ':'Editable fields: ')+esc(requestedLabels.join(' · '))+'</div>':'')+(returnNote?'<div><b>'+(isAr()?'الملاحظة: ':'Note: ')+'</b>'+esc(returnNote)+'</div>':'')+'</div>':'';
