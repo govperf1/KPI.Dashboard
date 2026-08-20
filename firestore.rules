@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v55 — Department-Scoped Approval Workflow
+// FIRESTORE SECURITY RULES v56 — Department Manager Role-Switch Approval Fix
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -596,9 +596,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // a unique v55 path prevents an older ruleset from being mistaken for this build.
+    // a unique v56 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v55-grc-department-approval-workflow-20260819';
+      allow get: if approved() && versionId == 'v56-grc-department-manager-role-switch-20260820';
       allow list, create, update, delete: if false;
     }
 
@@ -710,7 +710,6 @@ service cloud.firestore {
 
     function validAdvisoryManagerChange() {
       return resource.data.workflowStage == 'pending_department_manager' &&
-        !ownEmail(resource.data.userEmail) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status','workflowStage','closureReason',
           'managerDecision','managerComment','managerName','managerEmail',
@@ -941,7 +940,6 @@ service cloud.firestore {
         ) ||
         (
           assignedRiskManager(requestId) &&
-          !riskRequestOwner(resource.data) &&
           riskManagerChange() && validManagerRiskTransition()
         ) || superAdmin();
 
