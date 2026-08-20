@@ -43,7 +43,7 @@ function aiSyncVisibility(){
   if(!show && win){win.style.display='none';win.classList.remove('open');}
 }
 window.aiSyncVisibility=aiSyncVisibility;
-setInterval(aiSyncVisibility,700);
+setInterval(aiSyncVisibility,5000);
 document.addEventListener('DOMContentLoaded',function(){setTimeout(aiSyncVisibility,80);setTimeout(aiSyncVisibility,600);});
 
 function aiToggle(){
@@ -845,7 +845,7 @@ function updateExecTrend(yr){
       if(document.getElementById('userProfileDrop') && !document.getElementById('_profileReqBtns')){
         _injectReqButtons();
       }
-    }, 2000);
+    }, 10000);
   });
 
   /* ── Submit Request form ── */

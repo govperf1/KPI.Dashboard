@@ -4,7 +4,7 @@
    Review & Development Center requests.
    ===================================================================== */
 (function(){
-  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V223__)return;window.__QUMC_GRC_RISK_WORKFLOW_V223__=true;
+  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V224__)return;window.__QUMC_GRC_RISK_WORKFLOW_V224__=true;
   var cache=[],unsub=null,startedFor='',reviewApprovalRows=[],approvalNoticeKey='',approvalNoticeEntry=0,approvalNoticeTimer=null,feedbackNormalRows=[],feedbackReviewRows=[],feedbackNormalUnsub=null,feedbackReviewUnsub=null,feedbackStartedFor='',feedbackTimer=null,managerPullBusy=false,managerPullAt=0,approvalNoticeGroup='register',managerProfileGroup='register';
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function role(){var raw=window._fbRole||window.currentUserRole||'viewer';return typeof window._normalizePortalRole==='function'?window._normalizePortalRole(raw):String(raw).trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
@@ -563,5 +563,12 @@
   };
 
   document.addEventListener('click',function(e){var p=document.getElementById('_grcRiskNotifPanel'),b=document.getElementById('grcRiskNotifBtn');if(p&&(!b||!b.contains(e.target))&&!p.contains(e.target))p.remove();var m=document.getElementById('_grcUserProfileMenu'),u=document.querySelector('.grc-profile-trigger');if(m&&(!u||!u.contains(e.target))&&!m.contains(e.target))m.remove();},true);
-  setInterval(start,1000);setInterval(refreshBadge,3000);document.addEventListener('DOMContentLoaded',start);
+  /* v224 performance: live Firestore callbacks already refresh queues/badges.
+     Keep only a slow health check plus short startup retries so late-loaded
+     Firebase APIs still bind without continuous 1-second polling. */
+  function workflowHealthCheck(){try{start();refreshBadge();}catch(_e){}}
+  document.addEventListener('DOMContentLoaded',workflowHealthCheck);
+  setTimeout(workflowHealthCheck,0);setTimeout(workflowHealthCheck,700);setTimeout(workflowHealthCheck,1800);
+  setInterval(function(){if(!document.hidden)workflowHealthCheck();},8000);
+  window.addEventListener('focus',workflowHealthCheck);
 })();

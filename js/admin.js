@@ -3373,7 +3373,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
     btn.onclick=function(e){e.preventDefault();e.stopPropagation();window._showGapApprovals();};
     var reqs=$('_profileReqBtns'); if(reqs)reqs.appendChild(btn); else drop.appendChild(btn);
   }
-  window.addEventListener('load',function(){setTimeout(injectApprovalButton,1200);setInterval(injectApprovalButton,2500);});
+  window.addEventListener('load',function(){setTimeout(injectApprovalButton,1200);setInterval(injectApprovalButton,12000);});
 })();
 
 
@@ -3462,7 +3462,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   };
   window._showGapApprovalDetails=function(id){window._showGapApprovals(id);};
   function patchProfileButton(){var btn=$('profileGapApprovalsBtn'); if(btn)btn.innerHTML='✅ '+(isAr()?'موافقات تحليل الفجوات':'Gap Approvals Status');}
-  setTimeout(patchProfileButton,400);setInterval(patchProfileButton,2500);
+  setTimeout(patchProfileButton,400);setInterval(patchProfileButton,12000);
 })();
 
 /* ==========================================================
@@ -3584,7 +3584,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
     return (typeof _prevSave==='function')?_prevSave.apply(this,arguments):undefined;
   };
   function patchProfileButton(){var btn=$('profileGapApprovalsBtn');if(!btn)return;btn.innerHTML='✅ '+(isOwner()?(isAr()?'حالة تحليل الفجوات':'Your Gap Analysis Status'):(isAr()?'موافقات تحليل الفجوات':'Gap Approvals Status'));}
-  setTimeout(patchProfileButton,300);setInterval(patchProfileButton,600);
+  setTimeout(patchProfileButton,300);setInterval(patchProfileButton,8000);
 })();
 
 /* ==========================================================
@@ -3990,7 +3990,7 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   /* Remove inline status/view banner completely; popup is enough and avoids duplicate messages. */
   function removeBanner(){var old=$('qumcApprovalStatusBanner'); if(old)old.remove();}
   window.renderDashboardBanner=removeBanner;
-  setInterval(removeBanner,900);
+  setInterval(removeBanner,8000);
 })();
 
 
@@ -4050,9 +4050,9 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
     }catch(_e){}
   }
   setTimeout(fixProfileGapButton,250);
-  setInterval(fixProfileGapButton,450);
+  setInterval(fixProfileGapButton,8000);
   setTimeout(managerApprovalPopupWatch,1200);
-  setInterval(managerApprovalPopupWatch,2200);
+  setInterval(managerApprovalPopupWatch,8000);
 })();
 
 /* =====================================================================

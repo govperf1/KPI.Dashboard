@@ -3199,7 +3199,10 @@ async function importSnapshot(){
     wrapped.__qumcV71Wrapped=true;
     window.print=wrapped;
   }
-  var tries=0;setInterval(function(){tries++;if(document.getElementById('qumcPrintReportPage'))tune();if(tries>200)tries=0;},120);
+  /* v224 performance: no permanent 120ms polling. Tune only when the print
+     report is inserted, and the existing beforeprint/window.print hooks cover
+     later layout changes. */
+  try{new MutationObserver(function(ms){for(var i=0;i<ms.length;i++){for(var j=0;j<ms[i].addedNodes.length;j++){var n=ms[i].addedNodes[j];if(n&&n.nodeType===1&&(n.id==='qumcPrintReportPage'||(n.querySelector&&n.querySelector('#qumcPrintReportPage')))){setTimeout(tune,30);setTimeout(tune,180);return;}}}}).observe(document.body||document.documentElement,{childList:true,subtree:true});}catch(_e){}
 })();
 
 
@@ -3362,11 +3365,7 @@ async function importSnapshot(){
     window.print=wrapped;
   }
   var tries=0;
-  var t=setInterval(function(){
-    tries++;
-    if(document.getElementById('qumcPrintReportPage')) markSafeBoxes();
-    if(tries>240) clearInterval(t);
-  },100);
+  var t=setInterval(function(){tries++;if(document.getElementById('qumcPrintReportPage')){markSafeBoxes();clearInterval(t);}else if(tries>8)clearInterval(t);},750);
   setTimeout(inject,600);
 })();
 
@@ -3508,10 +3507,6 @@ async function importSnapshot(){
     window.print=wrapped;
   }
   var tries=0;
-  var t=setInterval(function(){
-    tries++;
-    if(document.getElementById('qumcPrintReportPage')) tune();
-    if(tries>260) clearInterval(t);
-  },100);
+  var t=setInterval(function(){tries++;if(document.getElementById('qumcPrintReportPage')){tune();clearInterval(t);}else if(tries>8)clearInterval(t);},750);
   setTimeout(inject,600);
 })();

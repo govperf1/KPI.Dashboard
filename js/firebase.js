@@ -47,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260820-v223-split-manager-queues-fast-decisions');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260820-v224-performance-stability');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -1170,44 +1170,48 @@ window._selectPortal=async portal=>{
       try{return await _grcManagerQueueCachePromise;}finally{_grcManagerQueueCachePromise=null;}
     };
 
-    window._grcSubscribeDepartmentApprovalQueue=function(callback){
-      if(typeof callback!=='function'||!db)return function(){};
-      let stopped=false,unsubs=[],profile=null,state={review:null,risk:null},errors={};
-      const emit=function(){
-        if(stopped||!profile||state.review===null||state.risk===null)return;
-        const result={profile:profile,review:state.review.slice(),risk:state.risk.slice(),errors:Object.keys(errors).map(function(k){return k+': '+errors[k];})};
-        _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();
-        try{callback(result,null);}catch(e){console.warn('[GRC Department Approval Live Callback]',e);}
-      };
+    /* v224 — one shared live manager queue per signed-in profile. Both the
+       global GRC workflow and Review & Development UI subscribe to this source;
+       older builds opened a second pair of Firestore listeners for the same two
+       subcollections, doubling reads and repeated DOM renders. */
+    let _grcManagerQueueLiveHub=null;
+    function _grcManagerQueueLiveKey(){return[_advEmail(),_advRole(),_advDepartmentKey()].join('|');}
+    function _grcStopManagerQueueLiveHub(hub){
+      hub=hub||_grcManagerQueueLiveHub;if(!hub)return;
+      if(hub.stopTimer){clearTimeout(hub.stopTimer);hub.stopTimer=null;}
+      (hub.unsubs||[]).forEach(function(u){try{u();}catch(_){}});hub.unsubs=[];hub.stopped=true;
+      if(_grcManagerQueueLiveHub===hub)_grcManagerQueueLiveHub=null;
+    }
+    function _grcManagerQueueHubEmit(hub){
+      if(!hub||hub.stopped||!hub.profile||hub.state.review===null||hub.state.risk===null)return;
+      const result={profile:hub.profile,review:hub.state.review.slice(),risk:hub.state.risk.slice(),errors:Object.keys(hub.errors).map(function(k){return k+': '+hub.errors[k];})};
+      hub.last=result;_grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();
+      hub.callbacks.forEach(function(cb){try{cb(result,null);}catch(e){console.warn('[GRC Department Approval Live Callback]',e);}});
+    }
+    function _grcStartManagerQueueLiveHub(hub){
+      if(!hub||hub.starting||hub.started||hub.stopped)return;hub.starting=true;
       const listen=function(kind){
         try{
-          const u=onSnapshot(_grcManagerQueueCollection(profile.departmentKey,kind),{includeMetadataChanges:false},function(snap){
-            if(stopped)return;
-            const rows=[];
-            snap.forEach(function(d){
-              const item=d.data()||{},qs=item.snapshot||{};
-              if(kind==='review'){
-                if(String(qs.workflowStage||item.workflowStage||'')!=='pending_department_manager')return;
-                const out=_advNormalizeRow(String(item.requestId||d.id),qs,'advisory_requests');out._managerAssigned=true;rows.push(out);
-              }else{
-                const status=String(qs.status||item.status||'').toLowerCase();if(!['pending_manager','returned_manager'].includes(status))return;
-                const data=_grcRiskRequestData({id:String(item.requestId||d.id),exists:function(){return true;},data:function(){return qs;}});
-                if(data){data._managerAssigned=true;rows.push(data);}
-              }
-            });
+          const u=onSnapshot(_grcManagerQueueCollection(hub.profile.departmentKey,kind),{includeMetadataChanges:false},function(snap){
+            if(hub.stopped)return;const rows=[];
+            snap.forEach(function(d){const item=d.data()||{},qs=item.snapshot||{};if(kind==='review'){if(String(qs.workflowStage||item.workflowStage||'')!=='pending_department_manager')return;const out=_advNormalizeRow(String(item.requestId||d.id),qs,'advisory_requests');out._managerAssigned=true;rows.push(out);}else{const status=String(qs.status||item.status||'').toLowerCase();if(!['pending_manager','returned_manager'].includes(status))return;const data=_grcRiskRequestData({id:String(item.requestId||d.id),exists:function(){return true;},data:function(){return qs;}});if(data){data._managerAssigned=true;rows.push(data);}}});
             if(kind==='review')rows.sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));else _grcRiskSort(rows);
-            state[kind]=rows;delete errors[kind];emit();
-          },function(err){
-            if(stopped)return;errors[kind]=String(err&&err.message||err&&err.code||err||'listener-failed');state[kind]=state[kind]||[];emit();
-          });
-          unsubs.push(u);
-        }catch(err){errors[kind]=String(err&&err.message||err||'listener-failed');state[kind]=[];emit();}
+            hub.state[kind]=rows;delete hub.errors[kind];_grcManagerQueueHubEmit(hub);
+          },function(err){if(hub.stopped)return;hub.errors[kind]=String(err&&err.message||err&&err.code||err||'listener-failed');hub.state[kind]=hub.state[kind]||[];_grcManagerQueueHubEmit(hub);});
+          hub.unsubs.push(u);
+        }catch(err){hub.errors[kind]=String(err&&err.message||err||'listener-failed');hub.state[kind]=[];_grcManagerQueueHubEmit(hub);}
       };
-      (async function(){
-        try{profile=await _grcResolveManagerProfile(await _advFreshProfile());if(stopped)return;listen('review');listen('risk');}
-        catch(err){if(!stopped)try{callback(null,err);}catch(_){}}
-      })();
-      return function(){stopped=true;unsubs.forEach(function(u){try{u();}catch(_){}});unsubs=[];};
+      (async function(){try{hub.profile=await _grcResolveManagerProfile(await _advFreshProfile());if(hub.stopped)return;hub.started=true;hub.starting=false;listen('review');listen('risk');}catch(err){hub.starting=false;hub.error=err;hub.callbacks.forEach(function(cb){try{cb(null,err);}catch(_){}});}})();
+    }
+    window._grcSubscribeDepartmentApprovalQueue=function(callback){
+      if(typeof callback!=='function'||!db)return function(){};
+      const key=_grcManagerQueueLiveKey();let hub=_grcManagerQueueLiveHub;
+      if(!hub||hub.key!==key||hub.stopped){if(hub)_grcStopManagerQueueLiveHub(hub);hub={key:key,callbacks:new Set(),unsubs:[],profile:null,state:{review:null,risk:null},errors:{},last:null,started:false,starting:false,stopped:false,stopTimer:null};_grcManagerQueueLiveHub=hub;}
+      if(hub.stopTimer){clearTimeout(hub.stopTimer);hub.stopTimer=null;}
+      hub.callbacks.add(callback);
+      if(hub.last){Promise.resolve().then(function(){if(!hub.stopped&&hub.callbacks.has(callback))try{callback(hub.last,null);}catch(_){}});}else if(hub.error){Promise.resolve().then(function(){if(!hub.stopped&&hub.callbacks.has(callback))try{callback(null,hub.error);}catch(_){}});}
+      _grcStartManagerQueueLiveHub(hub);
+      return function(){if(!hub||hub.stopped)return;hub.callbacks.delete(callback);if(!hub.callbacks.size&&!hub.stopTimer)hub.stopTimer=setTimeout(function(){if(!hub.callbacks.size)_grcStopManagerQueueLiveHub(hub);},1800);};
     };
 
     window._grcRepairDepartmentApprovalInboxV200=async function(force){
@@ -1998,7 +2002,7 @@ window._selectPortal=async portal=>{
         if(_grcRiskIsManager())rows=rows.filter(function(r){return ['pending_manager','returned_manager'].includes(String(r&&r.status||'').toLowerCase());});
         callback(rows);
       }
-      qrefs.forEach((qref,i)=>{unsubs.push(onSnapshot(qref,{includeMetadataChanges:true},snap=>{
+      qrefs.forEach((qref,i)=>{unsubs.push(onSnapshot(qref,{includeMetadataChanges:false},snap=>{
         const rows=[];snap.forEach(d=>{if(d.metadata&&d.metadata.hasPendingWrites)return;const row=_grcRiskRequestData(d);if(row)rows.push(row);});sources[i]=rows;delete failed[i];successCount++;emit();
       },err=>{failed[i]=err;console.warn('[GRC Risk Requests] listener '+i+' failed',err&&err.code||err);if(Object.keys(failed).length===qrefs.length&&successCount===0)callback([],err);}));});
       _grcRiskRequestUnsub=function(){unsubs.forEach(u=>{try{u();}catch(_){}});};return _grcRiskRequestUnsub;
