@@ -1,6 +1,6 @@
 /* ======================================================================
    QUMC Review & Development Center — Performance + GRC
-   Build: 2026-08-17 v190 GRC root sync
+   Build: 2026-08-20 v216 Department Manager role-switch approval fix
    Request types:
    1) Existing Item Review & Update
    2) New Item Request
@@ -83,7 +83,7 @@
   }
   function workflowStage(r){var x=String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();return x==='submitted'?'pending_super_admin':x;}
   function workflowLabel(r){var x=workflowStage(r),m={pending_department_manager:'Pending Department Manager Approval',pending_super_admin:'Pending Super Admin Review',rejected_manager:'Rejected by Department Manager',responded:'Super Admin Response Sent',awaiting_requester_information:'Awaiting Requester Information',clarification_received:'Clarification Received',requester_confirmed:'Requester Confirmed',closed:'Closed'};return m[x]||String(x||'Open').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});}
-  function isManagerApprovalRecord(r){return isDepartmentManager()&&r&&r._managerAssigned===true&&workflowStage(r)==='pending_department_manager'&&String(r&&r.userEmail||'').toLowerCase().trim()!==userEmail();}
+  function isManagerApprovalRecord(r){return isDepartmentManager()&&r&&r._managerAssigned===true&&workflowStage(r)==='pending_department_manager';}
   function isManagerOwnRequest(r){return isDepartmentManager()&&String(r&&r.userEmail||'').toLowerCase().trim()===userEmail();}
   function isOwnRequest(r){return String(r&&r.userEmail||'').toLowerCase().trim()===userEmail();}
   function departmentName(k){return(DEPARTMENTS[k]&&DEPARTMENTS[k].name)||String(k||'—');}
