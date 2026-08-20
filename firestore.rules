@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v58 — Reliable Super Admin Publish + Returned Request Resubmit
+// FIRESTORE SECURITY RULES v59 — Department Risk/Incident Reads + Direct Approval Actions + Returned Request Editor
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -252,6 +252,31 @@ service cloud.firestore {
       return canListDepartmentGrcRecord(data);
     }
 
+    function canListRiskIncidentRecord(data) {
+      let u = userData();
+      let r = profileRoleFrom(u);
+      let d = profileDepartmentKeyFrom(u);
+      let raw = profileDepartmentValueFrom(u);
+      let access = signedIn() && u.approved == true && r in [
+        'super_admin','admin','department_manager','risk_owner','grc_owner',
+        'platform_owner','governance_performance_manager'
+      ];
+      let all = r in ['super_admin','admin','governance_performance_manager'] ||
+        (d == '' && !meaningfulDepartmentValue(raw));
+      return access && (
+        all ||
+        (d != '' && ('departmentKey' in data) && data.departmentKey == d) ||
+        (d != '' && ('department' in data) && canonicalDepartment(data.department) == d) ||
+        (('departmentKey' in data) && data.departmentKey == 'division') ||
+        (('department' in data) && canonicalDepartment(data.department) == 'division') ||
+        (('visibility' in data) && data.visibility == 'shared')
+      );
+    }
+
+    function canGetRiskIncidentRecord(data) {
+      return canListRiskIncidentRecord(data);
+    }
+
     function canWriteGrcRecord() {
       return admin();
     }
@@ -483,8 +508,8 @@ service cloud.firestore {
       // cannot block Approve & Publish. Normal Admin writes still require the
       // canonical v2 record shape.
       allow get, list: if superAdmin() || admin() || role() == 'governance_performance_manager';
-      allow get: if canGetDepartmentGrcRecord(resource.data);
-      allow list: if canListDepartmentGrcRecord(resource.data);
+      allow get: if canGetRiskIncidentRecord(resource.data);
+      allow list: if canListRiskIncidentRecord(resource.data);
       allow create: if superAdmin() ||
         (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() ||
@@ -494,8 +519,8 @@ service cloud.firestore {
     }
     match /grc_incidents/{recordId} {
       allow get, list: if superAdmin() || admin() || role() == 'governance_performance_manager';
-      allow get: if canGetDepartmentGrcRecord(resource.data);
-      allow list: if canListDepartmentGrcRecord(resource.data);
+      allow get: if canGetRiskIncidentRecord(resource.data);
+      allow list: if canListRiskIncidentRecord(resource.data);
       allow create: if superAdmin() ||
         (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() ||
@@ -600,9 +625,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // a unique v58 path prevents an older ruleset from being mistaken for this build.
+    // a unique v59 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v58-grc-publish-resubmit-20260820';
+      allow get: if approved() && versionId == 'v59-grc-register-approval-resubmit-20260820';
       allow list, create, update, delete: if false;
     }
 
