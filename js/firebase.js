@@ -47,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260819-v214-manager-email-inbox-final');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260820-v223-split-manager-queues-fast-decisions');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -978,9 +978,9 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV59Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v59-grc-register-approval-resubmit-20260820'));window.__advRulesV59Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v59 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__advRulesV60Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v60-grc-registers-visible-all-users-20260820'));window.__advRulesV60Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v60 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     async function _advAssertProfileScope(profile){
       profile=profile||{};
@@ -1408,35 +1408,83 @@ window._selectPortal=async portal=>{
     };
 
     window._advisoryManagerAction=async function(requestId,action,comment){
-      // Re-read the manager profile from the Firestore server immediately before
-      // the decision. This keeps the client department/role exactly aligned with
-      // the values Security Rules evaluate and avoids stale-device permission
-      // failures after a profile change.
-      await _advAssertRulesVersion();
-      const freshProfile=await _grcResolveManagerProfile(await _advFreshProfile());
-      const dept=freshProfile.departmentKey,managerEmail=freshProfile.email,managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim();
-      const loc=await _advLocateRequest(requestId),current=Object.assign(loc.record,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
-      if(current._storage!=='advisory_requests')throw new Error('Legacy requests cannot use the Department Manager approval workflow.');
-      if(String(current.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
+      /* v223 — keep Department Manager decisions lightweight.
+         The old path re-read the Rules marker, user profile and request, then used
+         a transaction that updated the request and deleted the queue entry. On a
+         busy Spark project those extra server reads/transaction checks could end
+         in resource-exhausted / "Quota exceeded" before the decision was saved.
+
+         The live department queue has already been authenticated and resolved from
+         the server before these buttons are shown. Security Rules still verify the
+         current manager role, department and queue membership on the authoritative
+         request update. Save the request first (one required write), then remove the
+         queue document asynchronously so cleanup never delays or reverses a valid
+         manager decision. */
       action=String(action||'');
       if(!['approve','return','reject'].includes(action))throw new Error('Unsupported action.');
+      const managerComment=String(comment||'').trim();
       if(['return','reject'].includes(action)&&!managerComment)throw new Error(action==='return'?'A return note is required.':'A rejection reason is required.');
-      const requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso(),queueRef=_grcManagerQueueItemRef(String(current.departmentKey||''),'review',requestId);
+      if(!auth.currentUser||!auth.currentUser.email)throw new Error('Not authenticated.');
+
+      const managerEmail=String(auth.currentUser.email||'').toLowerCase().trim();
+      const managerName=String(window._fbName||window.currentUserName||managerEmail);
+      const rawDept=(window.__grcManagerDepartmentKey||window._fbDept||window.currentUserDept||'');
+      const dept=_advCanonicalDepartment(rawDept);
+      if(!dept)throw new Error('manager-department-missing');
+
+      const requestRef=doc(db,ADV_REQUESTS_COLLECTION,String(requestId||''));
+      const queueRef=_grcManagerQueueItemRef(dept,'review',requestId);
+      const nowIso=_advIso();
       let finalStage='',finalStatus='',closureReason='',managerDecision='';
-      await runTransaction(db,async tx=>{
-        const snap=await tx.get(requestRef);if(!snap.exists())throw new Error('Request not found.');const live=snap.data()||{};
-        if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
-        if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';managerDecision='approved';}
-        else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='returned_by_department_manager';managerDecision='returned';}
-        else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';managerDecision='rejected';}
-        const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:managerDecision,managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
-        if(action==='reject')updates.closedAt=serverTimestamp();
-        tx.update(requestRef,updates);
-        tx.delete(queueRef);
-      });
+      if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';managerDecision='approved';}
+      else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='returned_by_department_manager';managerDecision='returned';}
+      else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';managerDecision='rejected';}
+
+      const updates={
+        status:finalStatus,workflowStage:finalStage,closureReason:closureReason,
+        managerDecision:managerDecision,managerComment:managerComment,
+        managerName:managerName,managerEmail:managerEmail,
+        managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,
+        updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail
+      };
+      if(action==='reject')updates.closedAt=serverTimestamp();
+
+      /* The Rules check assignedReviewManager(requestId), which requires the queue
+         document to still exist. Therefore update the authoritative request first. */
+      await updateDoc(requestRef,updates);
+
+      const cachedBefore=_grcManagerQueueCache&&Array.isArray(_grcManagerQueueCache.review)?
+        _grcManagerQueueCache.review.find(function(x){return String(x&&x.id)===String(requestId);})||{}:{};
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
-      try{var auditVerb=action==='approve'?'Approved and forwarded ':action==='return'?'Returned for requester update ':'Rejected ',auditDecision=window._recordAuditDirect&&window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',auditVerb+String(current.code||requestId),{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:managerDecision,comment:managerComment},{portal:String(current.platform||'grc')});if(auditDecision&&typeof auditDecision.catch==='function')auditDecision.catch(function(){});}catch(_){}
-      return true;
+
+      /* Queue cleanup is best-effort and intentionally not awaited. The live UI
+         removes the item immediately after the authoritative request write succeeds. */
+      const cleanup=function(delay){
+        setTimeout(function(){
+          deleteDoc(queueRef).catch(function(err){
+            if(delay<5000){
+              cleanup(delay===0?1200:5000);
+            }else{
+              console.warn('[Review Development manager queue cleanup]',err&&err.code||err&&err.message||err);
+            }
+          });
+        },delay);
+      };
+      cleanup(0);
+
+      try{
+        var cached=cachedBefore,
+            auditVerb=action==='approve'?'Approved and forwarded ':action==='return'?'Returned for requester update ':'Rejected ',
+            auditDecision=window._recordAuditDirect&&window._recordAuditDirect(
+              'REVIEW_DEVELOPMENT_MANAGER_APPROVAL',
+              auditVerb+String(cached.code||requestId),
+              {workflowStage:'pending_department_manager'},
+              {workflowStage:finalStage,managerDecision:managerDecision,comment:managerComment},
+              {portal:String(cached.platform||'grc')}
+            );
+        if(auditDecision&&typeof auditDecision.catch==='function')auditDecision.catch(function(){});
+      }catch(_){}
+      return {ok:true,workflowStage:finalStage,status:finalStatus,managerDecision:managerDecision};
     };
 
     window._advisoryAdminAction=async function(requestId,action,data,file){
@@ -1575,9 +1623,9 @@ window._selectPortal=async portal=>{
     function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();if(['viewer','user'].includes(r))return false;return ['super_admin','admin','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager'].includes(r)||p.includes('view_grc_department')||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('*');}
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
-      if(window.__grcRulesV59Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v59-grc-register-approval-resubmit-20260820'));window.__grcRulesV59Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v59 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__grcRulesV60Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v60-grc-registers-visible-all-users-20260820'));window.__grcRulesV60Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v60 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
     // Compatibility aliases point to the same current probe so old callers cannot
