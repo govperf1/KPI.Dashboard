@@ -4,7 +4,7 @@
    Review & Development Center requests.
    ===================================================================== */
 (function(){
-  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V218__)return;window.__QUMC_GRC_RISK_WORKFLOW_V218__=true;
+  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V220__)return;window.__QUMC_GRC_RISK_WORKFLOW_V220__=true;
   var cache=[],unsub=null,startedFor='',reviewApprovalRows=[],approvalNoticeKey='',approvalNoticeEntry=0,approvalNoticeTimer=null,feedbackNormalRows=[],feedbackReviewRows=[],feedbackNormalUnsub=null,feedbackReviewUnsub=null,feedbackStartedFor='',feedbackTimer=null,managerPullBusy=false,managerPullAt=0;
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function role(){var raw=window._fbRole||window.currentUserRole||'viewer';return typeof window._normalizePortalRole==='function'?window._normalizePortalRole(raw):String(raw).trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
@@ -121,7 +121,7 @@
     return isAr()?'تظهر هنا طلباتك التي ما زالت تحت الاعتماد أو تحتاج منك تعديلًا.':'These requests are still in approval or require an update from you.';
   }
   function reviewApprovalNoticeCard(r){
-    return `<article class="grc-apn-card"><div class="grc-apn-card-head"><div><strong>${esc(r.code||r.id)}</strong><small>${esc(isAr()?'مراجعة وتطوير':'Review & Development')} · ${esc(reviewTypeText(r))}</small></div><span class="grc-apn-status">${esc(isAr()?'بانتظار موافقة مدير القسم':'Pending Department Manager Approval')}</span></div><div class="grc-apn-meta"><span>${esc(isAr()?'نوع العنصر':'Item Type')}</span><b>${esc(r.category||r.relatedType||'—')}</b><span>${esc(isAr()?'السجل المرتبط':'Related Record')}</span><b>${esc(reviewRelatedText(r))}</b><span>${esc(isAr()?'مقدم الطلب':'Submitted by')}</span><b>${esc(r.userName||r.userEmail||'—')}</b></div><div class="grc-apn-actions"><button class="grc-apn-btn primary" onclick="window._grcReviewApprovalOpenRequest('${esc(r.id)}')">${esc(isAr()?'مراجعة واتخاذ قرار':'Review & Decide')}</button></div></article>`;
+    return `<article class="grc-apn-card" data-grc-review-approval="${esc(r.id)}"><div class="grc-apn-card-head"><div><strong>${esc(r.code||r.id)}</strong><small>${esc(isAr()?'مراجعة وتطوير':'Review & Development')} · ${esc(reviewTypeText(r))}</small></div><span class="grc-apn-status">${esc(isAr()?'بانتظار موافقة مدير القسم':'Pending Department Manager Approval')}</span></div><div class="grc-apn-meta"><span>${esc(isAr()?'نوع العنصر':'Item Type')}</span><b>${esc(r.category||r.relatedType||'—')}</b><span>${esc(isAr()?'السجل المرتبط':'Related Record')}</span><b>${esc(reviewRelatedText(r))}</b><span>${esc(isAr()?'مقدم الطلب':'Submitted by')}</span><b>${esc(r.userName||r.userEmail||'—')}</b></div><div class="grc-apn-actions"><button class="grc-apn-btn secondary" type="button" onclick="window._grcReviewApprovalOpenRequest('${esc(r.id)}')">${esc(isAr()?'عرض التفاصيل':'View details')}</button></div><div class="grc-risk-request-actions grc-apn-actions"><button class="grc-risk-action good" type="button" onclick="window._grcReviewApprovalDecision('${esc(r.id)}','approve',this)">${esc(isAr()?'اعتماد للسوبر أدمن':'Approve to Super Admin')}</button><button class="grc-risk-action warn" type="button" onclick="window._grcReviewApprovalDecision('${esc(r.id)}','return',this)">${esc(isAr()?'إعادة لمالك GRC':'Return to GRC Owner')}</button><button class="grc-risk-action bad" type="button" onclick="window._grcReviewApprovalDecision('${esc(r.id)}','reject',this)">${esc(isAr()?'رفض':'Reject')}</button></div><div class="grc-risk-inline-decision" hidden></div></article>`;
   }
   function approvalNoticeCard(item){
     if(item&&item.kind==='review')return reviewApprovalNoticeCard(item.row||{});
@@ -439,11 +439,48 @@
       setTimeout(function(){var d=document.getElementById('_grcRiskDetailsOv');if(d)d.remove();if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();},650);
     }catch(err){panel.classList.remove('is-busy');Array.prototype.forEach.call(panel.querySelectorAll('button,textarea,input'),function(el){el.disabled=false;});if(errEl)errEl.textContent=String(err&&err.message||err||'Unable to complete the action.');}
   };
+  function resubmitFieldOptions(name,current){
+    var map={
+      riskCategory:['Operational','Clinical / Patient Safety','Strategic','Financial','Human Capital','Legal / Regulatory','Technological','Hazard / Environmental'],
+      likelihood:['1','2','3','4','5'],impact:['1','2','3','4','5'],
+      controlType:['preventive','detective','corrective','directive','noControl'],actionStatus:['open','closed'],
+      category:['Electrical Failure','Medical Gas System Failure','HVAC Failure','Plumbing / Water Leakage','Fire or Explosion','Elevators Failure','Safety Hazard','Near Miss','Other'],
+      contributingFactors:['Inadequate training','Equipment aging','Unsafe work conditions','Human error','Inadequate preventive maintenance (PPM)','Operational failure','Other'],
+      investigationRequired:['yes','no'],status:['open','closed']
+    },out=(map[name]||[]).slice(),cur=String(current==null?'':current);if(cur&&out.indexOf(cur)<0)out.unshift(cur);return out;
+  }
+  function resubmitFieldControl(name,value){
+    var label=fieldLabel(name),v=value==null?'':String(value),opts=resubmitFieldOptions(name,v),type=name==='date'?'date':'text';
+    if(name==='riskIdentified')return '<label class="grc-field full"><span>'+esc(label)+' *</span><textarea name="'+esc(name)+'" rows="4" required>'+esc(v)+'</textarea></label>';
+    if(opts.length)return '<label class="grc-field"><span>'+esc(label)+' *</span><select name="'+esc(name)+'" required>'+opts.map(function(x){return '<option value="'+esc(x)+'" '+(String(x)===v?'selected':'')+'>'+esc(x)+'</option>';}).join('')+'</select></label>';
+    return '<label class="grc-field"><span>'+esc(label)+' *</span><input name="'+esc(name)+'" type="'+type+'" value="'+esc(v)+'" required></label>';
+  }
+  function openReturnedRequestEditor(r){
+    var type=recordType(r),record=Object.assign({},r&&r.proposedRecord||r&&r.currentRecord||{}),requested=Array.isArray(r&&r.returnFields)?r.returnFields.filter(Boolean):[];
+    if(!requested.length)requested=returnableFields(r);requested=requested.filter(function(k){return k!=='department';});
+    if(!requested.length){if(window.toast)window.toast(isAr()?'لا توجد حقول محددة للتعديل في هذا الطلب.':'No requested fields are available for editing in this request.');return;}
+    var old=document.getElementById('_grcReturnedEditOv');if(old)old.remove();
+    var ov=document.createElement('div');ov.id='_grcReturnedEditOv';ov.className='grc-risk-overlay inner';
+    var note=String(r.returnNote||r.managerNote||'').trim(),fields=requested.map(function(k){return resubmitFieldControl(k,record[k]);}).join('');
+    ov.innerHTML='<div class="grc-risk-dialog"><header><div><h2>'+esc(isAr()?'تعديل الحقول المطلوبة':'Edit Requested Fields')+'</h2><p>'+esc(r.requestCode||r.id)+' · '+esc(isAr()?'سيتم إعادة إرسال نفس الطلب لمدير القسم':'The same request will be resubmitted to the Department Manager')+'</p></div><button type="button" onclick="document.getElementById(\'_grcReturnedEditOv\').remove()">×</button></header><main><section class="grc-risk-return-request"><div class="grc-risk-block-title">'+esc(isAr()?'الحقول المطلوب تعديلها':'Fields requested for correction')+'</div><div class="grc-risk-return-fields">'+requested.map(function(k){return '<span>'+esc(fieldLabel(k))+'</span>';}).join('')+'</div>'+(note?'<div class="grc-risk-note"><b>'+esc(isAr()?'ملاحظة مدير القسم':'Department Manager note')+'</b>'+esc(note)+'</div>':'')+'</section><form id="_grcReturnedEditForm" novalidate><div class="grc-form-grid">'+fields+'</div><div class="grc-risk-inline-error" id="_grcReturnedEditErr" aria-live="polite"></div><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcReturnedEditOv\').remove()">'+esc(isAr()?'إلغاء':'Cancel')+'</button><button type="submit" class="grc-primary-btn">'+esc(isAr()?'تعديل وإعادة الإرسال':'Save & Resubmit')+'</button></div></form></main></div>';
+    document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
+    var form=ov.querySelector('#_grcReturnedEditForm');if(!form)return;
+    form.addEventListener('submit',async function(e){
+      e.preventDefault();var err=ov.querySelector('#_grcReturnedEditErr'),btn=form.querySelector('button[type=submit]');if(err)err.textContent='';
+      var updated=Object.assign({},record),invalid=null;requested.forEach(function(k){var el=form.elements[k];if(!el)return;var val=String(el.value==null?'':el.value).trim();if(!val&&!invalid)invalid=el;if(k==='likelihood'||k==='impact')updated[k]=Number(val||0);else updated[k]=val;});
+      if(invalid){invalid.focus();if(err)err.textContent=isAr()?'أكمل جميع الحقول المطلوبة قبل إعادة الإرسال.':'Complete all requested fields before resubmitting.';return;}
+      if(typeof window._grcRiskRequestResubmit!=='function'){if(err)err.textContent=isAr()?'خدمة إعادة الإرسال غير جاهزة.':'Resubmission service is not ready.';return;}
+      if(btn){btn.disabled=true;btn.textContent=isAr()?'جارٍ الإرسال...':'Resubmitting...';}
+      try{
+        await window._grcRiskRequestResubmit(r.id,updated,isAr()?'تم تعديل الحقول المطلوبة وإعادة الإرسال.':'Requested fields updated and resubmitted.');
+        var idx=cache.findIndex(function(x){return String(x.id)===String(r.id);});if(idx>=0)cache[idx]=Object.assign({},cache[idx],{proposedRecord:updated,status:'pending_manager',returnFields:[],returnNote:'',returnSource:'',updatedAtIso:new Date().toISOString()});
+        ov.remove();if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();refreshBadge();scheduleApprovalNotice(false);if(window.toast)window.toast(isAr()?'تم تعديل الحقول المطلوبة وإعادة إرسال نفس الطلب لمدير القسم.':'Requested fields were updated and the same request was resubmitted to the Department Manager.');
+      }catch(ex){if(err)err.textContent=String(ex&&ex.message||ex||'Unable to resubmit request.');if(btn){btn.disabled=false;btn.textContent=isAr()?'تعديل وإعادة الإرسال':'Save & Resubmit';}}
+    });
+  }
   window._grcRiskEditResubmit=function(id){
     var r=cache.find(function(x){return String(x.id)===String(id);});if(!r)return;
-    if(typeof window._grcOpenRiskRequestResubmit!=='function'){if(window.toast)window.toast(isAr()?'تعذر فتح نموذج التعديل. حدّث الصفحة ثم حاول مرة أخرى.':'The edit form is not ready. Refresh the page and try again.');return;}
-    var d=document.getElementById('_grcRiskDetailsOv');if(d)d.remove();var p=document.getElementById('_grcRiskProfileOv');if(p)p.remove();
-    setTimeout(function(){window._grcOpenRiskRequestResubmit(r);},0);
+    try{openReturnedRequestEditor(r);}catch(ex){console.error('[GRC Returned Request Editor]',ex);if(window.toast)window.toast((isAr()?'تعذر فتح نموذج التعديل: ':'Unable to open the edit form: ')+String(ex&&ex.message||ex));}
   };
   function renderNotificationPanel(panel){if(!panel)return;var rows=notificationRows(),body=panel.querySelector('.grc-risk-notif-list');if(!body)return;body.innerHTML=rows.length?rows.map(function(r){var unread=notificationUnread(r),toneName=notificationTone(r),worked=notificationHandledByMe(r),tag=!unread?'<em>'+(worked?(isAr()?'تم الإجراء':'Actioned'):(isAr()?'مقروء':'Read'))+'</em>':'';return'<button type="button" class="grc-risk-notif-row '+toneName+' '+(unread?'is-unread':'is-read')+'" data-grc-notif-id="'+esc(r.id)+'"><i class="grc-risk-notif-dot"></i><span class="grc-risk-notif-copy"><strong>'+esc(r.requestCode||r.id)+tag+'</strong><small>'+esc(operationLabel(r.operation,r))+' · '+esc(statusLabel(r.status))+'</small></span></button>';}).join(''):'<p>'+esc(isAr()?'لا توجد إشعارات حالياً.':'No GRC notifications yet.')+'</p>';Array.prototype.forEach.call(body.querySelectorAll('[data-grc-notif-id]'),function(row){row.onclick=function(e){e.preventDefault();e.stopPropagation();var id=row.getAttribute('data-grc-notif-id'),r=cache.find(function(x){return String(x.id)===String(id);});markNotificationRead(r);panel.remove();window._grcRiskOpenProfile&&window._grcRiskOpenProfile(id);};});var mark=panel.querySelector('[data-grc-mark-all]');if(mark)mark.onclick=function(e){e.preventDefault();e.stopPropagation();markAllNotificationsRead();renderNotificationPanel(panel);};}
   window._grcRiskOpenNotifications=function(ev){if(ev){ev.preventDefault();ev.stopPropagation();}start();var old=document.getElementById('_grcRiskNotifPanel');if(old){old.remove();return;}var btn=document.getElementById('grcRiskNotifBtn'),rect=btn&&btn.getBoundingClientRect(),panel=document.createElement('div');panel.id='_grcRiskNotifPanel';panel.className='grc-risk-notif-panel';panel.style.top=((rect&&rect.bottom||70)+8)+'px';panel.style.right=Math.max(12,window.innerWidth-(rect&&rect.right||window.innerWidth-20))+'px';panel.innerHTML='<header><b>'+esc(isAr()?'إشعارات سجل المخاطر والحوادث':'Risk & Incident Register Notifications')+'</b><div class="grc-risk-notif-head-actions"><button type="button" data-grc-mark-all class="grc-risk-notif-mark">'+esc(isAr()?'تحديد الكل كمقروء':'Mark all read')+'</button><button type="button" class="grc-risk-notif-close" onclick="document.getElementById(\'_grcRiskNotifPanel\').remove()">×</button></div></header><div class="grc-risk-notif-list"></div>';document.body.appendChild(panel);renderNotificationPanel(panel);};

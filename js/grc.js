@@ -2015,7 +2015,7 @@
   function isGrcAdmin(){var r=normalizedRole();return r==='super_admin'||r==='admin';}
   function isGrcAnalyticsManager(){return normalizedRole()==='governance_performance_manager'||(Array.isArray(window._fbPerms)&&window._fbPerms.indexOf('view_request_analytics')>=0);}
   function canOpenGrcAdminCenter(){return isGrcAdmin()||isGrcAnalyticsManager();}
-  function canAccessRiskIncidentRegisters(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return ['super_admin','admin','department_manager','dept_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].indexOf(r)>=0||p.indexOf('access_grc')>=0||p.indexOf('view_grc_department')>=0||p.indexOf('edit_risk_management')>=0||p.indexOf('edit_incident_register')>=0||p.indexOf('*')>=0;}
+  function canAccessRiskIncidentRegisters(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];if(r==='viewer'||r==='user')return false;return ['super_admin','admin','department_manager','dept_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager'].indexOf(r)>=0||p.indexOf('view_grc_department')>=0||p.indexOf('edit_risk_management')>=0||p.indexOf('edit_incident_register')>=0||p.indexOf('*')>=0;}
   window._grcCanAccessRiskIncidentRegisters=canAccessRiskIncidentRegisters;
   function isGrcSuperAdmin(){return normalizedRole()==='super_admin';}
   function canonicalGrcDepartment(value){
