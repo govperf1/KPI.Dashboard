@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v56 — Department Manager Role-Switch Approval Fix
+// FIRESTORE SECURITY RULES v57 — Manager Return Workflow + Stable Approval Panels
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -596,9 +596,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // a unique v56 path prevents an older ruleset from being mistaken for this build.
+    // a unique v57 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v56-grc-department-manager-role-switch-20260820';
+      allow get: if approved() && versionId == 'v57-grc-manager-return-workflow-20260820';
       allow list, create, update, delete: if false;
     }
 
@@ -664,11 +664,21 @@ service cloud.firestore {
     // ── Review & Development Center ──────────────────────────────────
 
     function validAdvisoryOwnerChange() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let returnedEdit = changed.hasAny(['title','details','priority','relatedNewText','managerDecision']);
+      return changed.hasOnly([
         'status','messages','attachments','attachmentCount',
         'completedAt','closedAt','rating','ratingComment','ratingAt',
-        'workflowStage','closureReason','updatedAt','updatedAtIso','updatedBy'
-      ]);
+        'workflowStage','closureReason','updatedAt','updatedAtIso','updatedBy',
+        'title','details','priority','relatedNewText','managerDecision'
+      ]) &&
+      // Request content is editable only after the Department Manager has
+      // explicitly returned it. This prevents a requester from changing the
+      // request while it is already waiting for approval or Super Admin action.
+      (!returnedEdit || resource.data.workflowStage == 'returned_requester') &&
+      // managerDecision belongs to the manager except for the one reset needed
+      // when the requester resubmits a returned request.
+      (!changed.hasAny(['managerDecision']) || request.resource.data.managerDecision == 'pending');
     }
 
     function advisoryOwnerRoutePreserved() {
@@ -677,9 +687,18 @@ service cloud.firestore {
           request.resource.data.workflowStage in ['pending_department_manager','closed']) ||
         (resource.data.workflowStage == 'pending_super_admin' &&
           request.resource.data.workflowStage in ['pending_super_admin','closed']) ||
+        (resource.data.workflowStage == 'returned_requester' &&
+          (
+            request.resource.data.workflowStage == 'returned_requester' ||
+            (request.resource.data.workflowStage == 'pending_department_manager' &&
+              request.resource.data.status == 'open' &&
+              request.resource.data.closureReason == '' &&
+              request.resource.data.managerDecision == 'pending') ||
+            request.resource.data.workflowStage == 'closed'
+          )) ||
         (resource.data.workflowStage == 'rejected_manager' &&
           request.resource.data.workflowStage == 'rejected_manager') ||
-        !(resource.data.workflowStage in ['pending_department_manager','pending_super_admin','rejected_manager']);
+        !(resource.data.workflowStage in ['pending_department_manager','pending_super_admin','returned_requester','rejected_manager']);
     }
 
     function validAdvisoryAdminChange() {
@@ -701,7 +720,7 @@ service cloud.firestore {
     }
 
     function advisoryAdminCanProcess() {
-      return !(resource.data.workflowStage in ['pending_department_manager','rejected_manager']) &&
+      return !(resource.data.workflowStage in ['pending_department_manager','returned_requester','rejected_manager']) &&
         (
           !advisoryRequesterNeedsManager(resource.data) ||
           (resource.data.managerDecision == 'approved' && resource.data.workflowStage == 'pending_super_admin')
@@ -724,6 +743,11 @@ service cloud.firestore {
             request.resource.data.managerDecision == 'approved' &&
             request.resource.data.status == 'open' &&
             request.resource.data.closureReason == '') ||
+          (request.resource.data.workflowStage == 'returned_requester' &&
+            request.resource.data.managerDecision == 'returned' &&
+            request.resource.data.status == 'open' &&
+            request.resource.data.closureReason == 'returned_by_department_manager' &&
+            request.resource.data.managerComment.size() > 0) ||
           (request.resource.data.workflowStage == 'rejected_manager' &&
             request.resource.data.managerDecision == 'rejected' &&
             request.resource.data.status == 'closed' &&
