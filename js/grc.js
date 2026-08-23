@@ -984,7 +984,7 @@
   // Governance and Risk remain department-scoped. Shared operational modules are visible to every approved GRC user.
   var GRC_GLOBAL_READ_COLLECTIONS={manuals:true,codes:true,compliance:true,audits:true,actions:true,documents:true,initiatives:true};
   var grcStateUnsubs=[],grcStateSaveTimer=null,grcApplyingRemote=false,grcSyncStarted=false,grcCloudReady=false,grcPendingAdminSaveSnapshot=null,grcPendingAdminSaveKeys={},grcAdminSaveInFlightKeys={};
-  var grcCloudParts={},grcCloudMirror={},grcCloudDuplicates={},grcCloudEverHydrated={},grcInitialScopes={},grcCollectionScopeReady={},grcCollectionScopeFailed={},grcMigrationPromise=null,grcPendingCloudSave=false,grcCanonicalCatalogV187Promise=null,grcCanonicalCatalogV195Promise=null,grcRemoteRenderTimer=null,grcRemoteRenderPosition=null,grcCachePersistTimer=null;
+  var grcCloudParts={},grcCloudMirror={},grcCloudDuplicates={},grcCloudEverHydrated={},grcInitialScopes={},grcCollectionScopeReady={},grcCollectionScopeFailed={},grcMigrationPromise=null,grcPendingCloudSave=false,grcCanonicalCatalogV187Promise=null,grcCanonicalCatalogV195Promise=null,grcRemoteRenderTimer=null,grcRemoteRenderPosition=null,grcCachePersistTimer=null,grcSyncStartingPromise=null,grcSyncStartToken=0;
   var grcRiskStatusOverrides={},grcRiskStatusUnsub=null,grcSyncScopeKey='',grcPendingLocalDeletes={risks:{},incidents:{}},grcSyncLastError='',grcSyncLastErrorAt='';
   function grcPendingDeleteKey(collectionKey,record){if(collectionKey!=='risks'&&collectionKey!=='incidents')return'';return grcRegisterBusinessKey(record||{});}
   function grcMarkPendingLocalDelete(collectionKey,record){var key=grcPendingDeleteKey(collectionKey,record);if(!key)return;grcPendingLocalDeletes[collectionKey]=grcPendingLocalDeletes[collectionKey]||{};grcPendingLocalDeletes[collectionKey][key]=Date.now();}
@@ -1009,6 +1009,8 @@
     grcStateUnsubs.splice(0).forEach(function(u){try{u&&u();}catch(_){}});
     if(grcRiskStatusUnsub){try{grcRiskStatusUnsub();}catch(_){}grcRiskStatusUnsub=null;}
     try{if(typeof stopAssessmentCloudSync==='function')stopAssessmentCloudSync();}catch(_assessmentStop){}
+    grcSyncStartToken++;
+    grcSyncStartingPromise=null;
     grcSyncStarted=false;grcCloudReady=false;grcCloudParts={};grcCloudMirror={};grcCloudDuplicates={};grcCloudEverHydrated={};grcInitialScopes={};grcCollectionScopeReady={};grcCollectionScopeFailed={};grcPendingCloudSave=false;grcPendingLocalDeletes={risks:{},incidents:{}};grcSyncScopeKey='';
   }
   /* Firestore quota guard: GRC listeners exist only while the GRC portal is active. */
@@ -1711,6 +1713,12 @@
     grcRiskStatusUnsub=b.fs.onSnapshot(qref,function(snap){var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});grcRiskStatusOverrides=next;if(grcCloudParts.risks){grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();grcScheduleLocalCachePersist(140);grcApplyingRemote=false;grcScheduleRemoteRender(grcViewportPosition(),650);}},function(err){console.warn('[GRC Risk Status] sync failed',err);});
   }
   function startSharedStateSync(){
+    /* v226: render() can run many times while the first Firestore bootstrap is
+       still pending. Previously every render started another ensureReportBackend
+       chain; those chains could each attach listeners and call render again,
+       producing a render/listener feedback loop that freezes the GRC UI. Keep
+       exactly one bootstrap in flight. */
+    if(grcSyncStartingPromise)return grcSyncStartingPromise;
     var grcActive=window.__qumcActivePortal==='grc'||!!(document.body&&document.body.classList.contains('grc-mode'));
     if(!grcActive)return;
     var profileEmail=String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();
@@ -1723,8 +1731,10 @@
     if(!canAllNow&&!deptNow)return;
     if(grcSyncStarted&&grcSyncScopeKey===wanted)return;
     if(grcSyncStarted&&grcSyncScopeKey!==wanted)stopSharedStateSync();
-    ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;
-      var actual=grcSyncIdentityKey();if(actual!==wanted){stopSharedStateSync();setTimeout(startSharedStateSync,0);return;}
+    var token=++grcSyncStartToken;
+    grcSyncStartingPromise=ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;
+      if(token!==grcSyncStartToken)return;
+      var actual=grcSyncIdentityKey();if(actual!==wanted){return;}
       if(typeof window._qumcAssertFirestoreRulesV41==='function'||typeof window._qumcAssertFirestoreRulesV39==='function'||typeof window._qumcAssertFirestoreRulesV38==='function'||typeof window._qumcAssertFirestoreRulesV36==='function'||typeof window._qumcAssertFirestoreRulesV35==='function'||typeof window._qumcAssertFirestoreRulesV34==='function'||typeof window._qumcAssertFirestoreRulesV33==='function'){
         try{await (window._qumcAssertFirestoreRulesV41||window._qumcAssertFirestoreRulesV39||window._qumcAssertFirestoreRulesV38||window._qumcAssertFirestoreRulesV36||window._qumcAssertFirestoreRulesV35||window._qumcAssertFirestoreRulesV34||window._qumcAssertFirestoreRulesV33)();}
         catch(ruleErr){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError=String(ruleErr&&ruleErr.message||ruleErr).replace(/^rules-version-mismatch:/,'');grcSyncLastErrorAt=new Date().toISOString();renderAtSamePosition(grcViewportPosition());return;}
@@ -1774,7 +1784,16 @@
         }
       });
       if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminGovernanceIdentityV198().catch(function(err){console.error('[GRC Governance Identity v198]',err);});},350);
-    }).catch(function(err){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError='GRC sync initialization: '+String(err&&err.message||err);grcSyncLastErrorAt=new Date().toISOString();console.error('[GRC Secure Sync] init failed',err);renderAtSamePosition(grcViewportPosition());});
+    }).catch(function(err){
+      grcSyncStarted=false;grcCloudReady=false;
+      grcSyncLastError='GRC sync initialization: '+String(err&&err.message||err);
+      grcSyncLastErrorAt=new Date().toISOString();
+      console.error('[GRC Secure Sync] init failed',err);
+      /* Never render recursively from the sync bootstrap error path. A failed
+         listener/rules check must not turn into an endless render -> sync ->
+         render loop. The next explicit navigation/profile change can retry. */
+    }).finally(function(){if(grcSyncStartingPromise)grcSyncStartingPromise=null;});
+    return grcSyncStartingPromise;
   }
   async function grcPrimeAdminMirrorsFromServer(b,preserveLocalState,pendingOverride){
     if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return false;
