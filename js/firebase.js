@@ -47,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260823-v225-grc-department-scope-approval');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260823-v240-superadmin-live-server-sync');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -1639,7 +1639,7 @@ window._selectPortal=async portal=>{
     function _grcRiskIsManager(){return _grcRiskRole()==='department_manager';}
     function _grcRiskIsSuper(){return _grcRiskRole()==='super_admin';}
     function _grcRiskIsAdmin(){return _grcRiskRole()==='admin'||_grcRiskIsSuper();}
-    function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();if(['viewer','user'].includes(r))return false;return ['super_admin','admin','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager'].includes(r)||p.includes('view_grc_department')||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('*');}
+    function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();return ['super_admin','admin','executive','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].includes(r)||p.includes('view_grc_department')||p.includes('view_grc_all_departments')||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('access_grc')||p.includes('*');}
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
       if(window.__grcRulesV60Verified===true)return true;
@@ -1947,7 +1947,10 @@ window._selectPortal=async portal=>{
           const history=Array.isArray(request.history)?request.history.slice():[];history.push({action:'super_approve',status:'published',by:freshProfile.email,role:freshProfile.role,at:now,note:String(note||'')});tx.set(requestRef,{status:'published',recordType,superAdminName:String(window._fbName||freshProfile.email),superAdminEmail:freshProfile.email,superAdminNote:String(note||''),finalRecord:published,publishedRiskId:recordType==='risk'?String(published&&published.id||''):'',publishedRecordId:String(published&&published.id||''),publishedCloudId:String(published&& (published._cloudId||published.cloudId)||''),approvedAt:serverTimestamp(),publishedAt:serverTimestamp(),publishedAtIso:now,updatedAt:serverTimestamp(),updatedAtIso:now,history},{merge:true});
         });}catch(publishError){
           const denied=String(publishError&&publishError.code||publishError&&publishError.message||publishError||'').toLowerCase().includes('permission');
-          if(denied)throw new Error('permission-denied: Super Admin publish was rejected by Firestore. Confirm Rules v58 are deployed, then sign out/in and retry.');
+          if(denied){
+            var detail=String(publishError&&publishError.message||publishError||'').replace(/^FirebaseError:\s*/,'').trim();
+            throw new Error('permission-denied: Super Admin publish was rejected by Firestore.'+(detail?' '+detail:''));
+          }
           throw publishError;
         }
         try{await _grcRegisterRemoveLegacyDuplicates(recordType,published,published&& (published._cloudId||published.cloudId));}catch(cleanupErr){console.warn('[GRC Register Publish] legacy duplicate cleanup skipped',cleanupErr);}

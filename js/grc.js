@@ -15,10 +15,10 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260818-v198-manager-inbox-dept-record-identity');
+  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260823-v240-superadmin-live-server-sync');
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260818-v198-manager-inbox-dept-record-identity');
+  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260823-v240-superadmin-live-server-sync');
   var GRC_CACHE_OWNER_KEY='qumc_grc_workspace_preview_v1_owner';
   var GRC_CACHE_BUILD_KEY='qumc_grc_workspace_preview_build';
   var STATE_VERSION=13;
@@ -1420,19 +1420,34 @@
       return;
     }
 
-    var map={},order=[],sourceMap={};
+    var map={},order=[],sourceMap={},identityToId={};
     function preferGeneric(current,candidate){
       if(!current)return candidate;
       var a=grcRecordFreshness(current),b=grcRecordFreshness(candidate);
       if(a!==b)return b>a?candidate:current;
       var ad=current&&current.deleted===true,bd=candidate&&candidate.deleted===true;
       if(ad!==bd)return bd?candidate:current;
+      var ac=current&&current.canonicalDocument===true?1:0,bc=candidate&&candidate.canonicalDocument===true?1:0;
+      if(ac!==bc)return bc>ac?candidate:current;
       return candidate;
     }
     rawRows.forEach(function(r,i){
       var sourceId=String(r&&r._sourceCloudId||r&&r._cloudId||r&&r.cloudId||'').trim();
       var id=grcCloudDocId(collectionKey,r,i);
       r._sourceCloudId=sourceId||id;r._cloudId=id;r.cloudId=id;
+      /* Policies/Plans/Forms can exist once under an old arbitrary Firestore id
+         and once under the canonical department-aware id. Merge by business key
+         so a later edit cannot be shadowed by the older copy. */
+      var identity=(GRC_DEPARTMENT_IDENTITY_COLLECTIONS[collectionKey])
+        ? grcGenericBusinessKey(collectionKey,r,i) : id;
+      var winnerId=identityToId[identity];
+      if(winnerId&&winnerId!==id){
+        map[winnerId]=preferGeneric(map[winnerId],r);
+        sourceMap[winnerId]=sourceMap[winnerId]||[];
+        if(sourceId&&sourceMap[winnerId].indexOf(sourceId)<0)sourceMap[winnerId].push(sourceId);
+        return;
+      }
+      identityToId[identity]=id;
       if(!Object.prototype.hasOwnProperty.call(map,id))order.push(id);
       map[id]=preferGeneric(map[id],r);
       sourceMap[id]=sourceMap[id]||[];
@@ -1589,6 +1604,62 @@
   }
   window._grcCleanupLegacyProjectIncidentDuplicates=function(){return ensureReportBackend().then(cleanupLegacyProjectIncidentDuplicates);};
   window._grcConsolidateRegisterCollections=function(){return ensureReportBackend().then(consolidateGrcRegisterCollections);};
+  async function reconcileGrcServerCatalogV231(b){
+    if(!isGrcSuperAdmin()||!b||!b.auth||!b.auth.currentUser)return 0;
+    var markerRef=b.fs.doc(b.db,'grc_meta','server_catalog_reconciliation_v231'),marker=await b.fs.getDoc(markerRef);
+    if(marker.exists()&&marker.data()&&marker.data().status==='completed')return 0;
+    await b.fs.setDoc(markerRef,{status:'running',build:GRC_CLIENT_BUILD,startedAt:b.fs.serverTimestamp(),startedBy:String(window._fbUser||'')},{merge:true});
+    var legacySnap=null,legacyState={};
+    try{legacySnap=await b.fs.getDoc(grcSharedStateRef(b));if(legacySnap.exists())legacyState=grcSerializable(legacySnap.data()||{});}catch(_){legacyState={};}
+    var totalWrites=0,totalDeletes=0,stats={};
+    try{
+      var keys=Object.keys(GRC_COLLECTION_MAP);
+      for(var ki=0;ki<keys.length;ki++){
+        var key=keys[ki],snap=await (typeof b.fs.getDocsFromServer==='function'?b.fs.getDocsFromServer(b.fs.collection(b.db,GRC_COLLECTION_MAP[key])):b.fs.getDocs(b.fs.collection(b.db,GRC_COLLECTION_MAP[key])));
+        var groups={};
+        snap.forEach(function(d){
+          var row=grcSerializable(d.data()||{});row._sourceCloudId=d.id;row._cloudId=d.id;row.cloudId=d.id;row.recordType=key;
+          var id=grcCloudDocId(key,row,0);groups[id]=groups[id]||[];groups[id].push(row);
+        });
+        /* Legacy all-in-one state is an additional source, never a replacement
+           for current canonical Firestore documents. */
+        (Array.isArray(legacyState[key])?legacyState[key]:[]).forEach(function(row,index){
+          var copy=grcSerializable(row);copy._legacySource=true;copy.recordType=key;var id=grcCloudDocId(key,copy,index);groups[id]=groups[id]||[];groups[id].push(copy);
+        });
+        var writes=[],deletes=[],canonicalIds={};
+        Object.keys(groups).forEach(function(id){
+          var list=groups[id]||[],winner=null;
+          list.forEach(function(candidate){
+            if(!winner){winner=candidate;return;}
+            var preferred;
+            if(key==='risks'||key==='incidents')preferred=grcPreferRegisterRecord(winner,candidate);
+            else{
+              var a=grcRecordFreshness(winner),c=grcRecordFreshness(candidate);
+              preferred=c>a?candidate:(c<a?winner:(candidate.canonicalDocument===true&&!winner.canonicalDocument?candidate:winner));
+            }
+            winner=preferred;
+          });
+          if(!winner)return;
+          var prepared=grcPrepareCloudRecord(key,winner,0,b);prepared.canonicalReconciliationVersion=231;prepared.canonicalReconciliationAt=b.fs.serverTimestamp();
+          var canonicalId=grcCloudDocId(key,prepared,0);canonicalIds[canonicalId]=true;
+          var existing=list.find(function(x){return String(x._sourceCloudId||'')===canonicalId;});
+          if(!existing||!grcRecordsEqual(prepared,existing))writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],canonicalId),data:prepared});
+          list.forEach(function(x){var source=String(x._sourceCloudId||'').trim();if(source&&source!==canonicalId&&!x._legacySource)deletes.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],source)});});
+        });
+        if(writes.length)await grcCommitWrites(b,writes);
+        if(deletes.length){var seen={};deletes=deletes.filter(function(w){var path=w.ref.path;if(seen[path])return false;seen[path]=1;return true;});await grcCommitWrites(b,deletes);}
+        totalWrites+=writes.length;totalDeletes+=deletes.length;stats[key]={writes:writes.length,deletes:deletes.length,serverDocuments:snap.size||0};
+      }
+      await b.fs.setDoc(markerRef,{status:'completed',build:GRC_CLIENT_BUILD,stats:stats,writes:totalWrites,deletes:totalDeletes,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+      try{window._recordAuditDirect&&window._recordAuditDirect('GRC_SERVER_CATALOG_RECONCILIATION','Reconciled all saved GRC register data into canonical Firestore documents',null,{stats:stats,writes:totalWrites,deletes:totalDeletes},{portal:'grc'});}catch(_audit){}
+      return totalWrites+totalDeletes;
+    }catch(err){
+      try{await b.fs.setDoc(markerRef,{status:'failed',build:GRC_CLIENT_BUILD,error:String(err&&err.message||err).slice(0,500),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}
+      throw err;
+    }
+  }
+  window._grcReconcileServerCatalogV231=reconcileGrcServerCatalogV231;
+
   async function runGrcCodeHealthMaintenanceV170(b){
     if(!isGrcSuperAdmin()||!b||!b.auth||!b.auth.currentUser)return false;
     var markerRef=b.fs.doc(b.db,'grc_meta','code_health_v170'),marker=await b.fs.getDoc(markerRef);
@@ -1741,6 +1812,7 @@
       }
       grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
       if(isGrcSuperAdmin()){
+        try{await reconcileGrcServerCatalogV231(b);}catch(reconcileErr){console.error('[GRC Server Catalog v231] reconciliation did not complete',reconcileErr);grcSyncLastError='Automatic GRC data reconciliation failed: '+String(reconcileErr&&reconcileErr.message||reconcileErr);grcSyncLastErrorAt=new Date().toISOString();}
         try{await runGrcCodeHealthMaintenanceV170(b);}catch(maintenanceErr){console.error('[GRC Code Health] one-time maintenance did not complete',maintenanceErr);grcSyncLastError='Automatic GRC maintenance failed: '+String(maintenanceErr&&maintenanceErr.message||maintenanceErr);grcSyncLastErrorAt=new Date().toISOString();}
       }
       /* Keep the last cache only when it belongs to this exact profile/build.
@@ -1776,6 +1848,10 @@
              once by Super Admin into the canonical Firestore documents; they are
              no longer parallel live sources that can fail independently and hold
              the whole page on stale cache/seed data. */
+          /* v232 — live listeners stay canonical and lightweight. Legacy
+             Firestore rows are reconciled once by Super Admin before listeners
+             start, so we do not open five listeners per collection and recreate
+             the quota/freeze problem. */
           var scopes=['departmentKey'];
           if(key!=='risks'&&key!=='incidents')scopes.push('divisionKey');
           grcConfigureCollectionScopes(key,scopes);
@@ -2001,10 +2077,18 @@
     });
     var unique=[],seen={};writes.forEach(function(w){var path=String(w.ref&&w.ref.path||''),sig=w.op+'|'+path;if(seen[sig]){if(w.op==='set')unique[seen[sig]-1]=w;return;}seen[sig]=unique.length+1;unique.push(w);});writes=unique;
     if(writes.length)await grcCommitWrites(b,writes);
-    /* If an old server snapshot painted over the optimistic edit while the
-       commit was running, restore only the collections that this save owned.
-       The live server snapshot will then confirm the same canonical data. */
-    keys.forEach(function(key){state[key]=Array.isArray(source[key])?source[key].map(copyRecord):[];});
+    /* v240: direct Admin/Super Admin CRUD is not considered complete until the
+       server confirms the exact collections that were changed. This removes
+       the last optimistic-only path where a new/edited record could look saved
+       in the browser but disappear when the listener/server snapshot arrived. */
+    for(var verifyIndex=0;verifyIndex<keys.length;verifyIndex++){
+      var verifyKey=keys[verifyIndex],verifyCol=b.fs.collection(b.db,GRC_COLLECTION_MAP[verifyKey]);
+      var verifySnap=(typeof b.fs.getDocsFromServer==='function')?await b.fs.getDocsFromServer(verifyCol):await b.fs.getDocs(verifyCol);
+      grcCloudParts[verifyKey]={all:grcDocsFromSnapshot(verifySnap)};
+      grcInitialScopes[verifyKey]=true;
+      grcCollectionScopeFailed[verifyKey]={};
+      grcApplyCloudCollection(verifyKey);
+    }
     state=repairGovernanceCodeState(state);state.risks=(state.risks||[]).map(normalizeRiskClassification);state.initiatives=normalizeInitiativePeople(state.initiatives);enforceLocalGrcScope();
     grcScheduleLocalCachePersist(50);renderAtSamePosition(grcViewportPosition());
     return true;
