@@ -2149,12 +2149,12 @@
   }
   function currentGrcDept(){return canonicalGrcDepartment(rawCurrentGrcDepartment());}
   function canViewAllExecutiveDepartments(){
-    /* Super Admin is the global GRC publisher and must always see the complete
-       register catalog. Other users remain department-scoped unless they have no
-       meaningful department, which preserves the existing all-FMS fallback. */
-    if(isGrcSuperAdmin())return true;
+    // Super Admin is the global GRC role. A department on the Super Admin
+    // profile must never scope the Registers; all other users remain scoped by
+    // their assigned department, while users without a meaningful department
+    // retain the complete-register view.
     var d=currentGrcDept();
-    return !d;
+    return isGrcSuperAdmin() || !d;
   }
   function resolvedExecutiveDept(value){var raw=String(value||executiveDeptFilter||'');if(/^(all\s*fms|allfms|all_departments|all)$/i.test(raw.replace(/[&/_-]+/g,' ')))return canViewAllExecutiveDepartments()?'allFms':(currentGrcDept()||'allFms');var d=canonicalGrcDepartment(raw);if(canViewAllExecutiveDepartments())return d&&d!=='division'?d:'allFms';d=currentGrcDept();return d&&d!=='division'?d:'allFms';}
   function executiveDepartmentFilterHtml(selected){if(!canViewAllExecutiveDepartments())return'';var choices=[['allFms',isAr()?'جميع الأقسام':'All Departments'],['safety',deptName('safety')],['maintenance',deptName('maintenance')],['housekeeping',deptName('housekeeping')],['laundry',deptName('laundry')],['projects',deptName('projects')]];return'<div class="grc-executive-filter"><label><span>'+(isAr()?'تصفية القسم':'Department Filter')+'</span><select onchange="window._grcSetExecutiveDepartment(this.value)">'+choices.map(function(x){return'<option value="'+x[0]+'" '+(selected===x[0]?'selected':'')+'>'+esc(x[1])+'</option>';}).join('')+'</select></label></div>';}

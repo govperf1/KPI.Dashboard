@@ -978,8 +978,8 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV62Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v62-grc-superadmin-global-20260823'));window.__advRulesV62Verified=true;return true;}
+      if(window.__advRulesV61Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v61-grc-superadmin-publish-20260823'));window.__advRulesV61Verified=true;return true;}
       catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v61 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     async function _advAssertProfileScope(profile){
@@ -1508,7 +1508,7 @@ window._selectPortal=async portal=>{
         try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_SUPER_ADMIN_DECISION',String(action)+' on '+String(current.code||requestId),{status:current.status,workflowStage:current.workflowStage},{status:updates.status,workflowStage:updates.workflowStage,closureReason:updates.closureReason,note:note},{portal:String(current.platform||'grc')});}catch(_){ }
         return true;
       }
-      const current=await _advAuthorizedRequest(requestId,true,false),requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso();const approvalStage=String(current.workflowStage||'');if(String(current.status||'').toLowerCase()==='closed'||approvalStage==='closed')throw new Error('This request is closed and no further Super Admin action is allowed.');if(['pending_department_manager','returned_requester','rejected_manager'].includes(approvalStage))throw new Error('This request has not been approved by the Department Manager.');
+      const current=await _advAuthorizedRequest(requestId,true,false),requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso();const approvalStage=String(current.workflowStage||'');if(String(current.status||'').toLowerCase()==='closed'||approvalStage==='closed')throw new Error('This request is already closed and cannot be modified.');if(['pending_department_manager','returned_requester','rejected_manager'].includes(approvalStage))throw new Error('This request has not been approved by the Department Manager.');
       const updates={updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:_advEmail()},publicUpdates={updatedAt:serverTimestamp()},messageAttachments=[];
       if(file&&current._storage==='advisory_requests'){try{const meta=await _advUploadFile(requestId,file,_advEmail());messageAttachments.push(meta);updates.attachments=arrayUnion(meta);updates.attachmentCount=Number(current.attachmentCount||0)+1;publicUpdates.attachmentCount=updates.attachmentCount;}catch(e){throw new Error('The response attachment could not be uploaded: '+String(e&&e.message||e));}}
       const firstResponseActions=['respond','request_info'];
@@ -1642,8 +1642,8 @@ window._selectPortal=async portal=>{
     function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();return ['super_admin','admin','executive','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].includes(r)||p.includes('view_grc_department')||p.includes('view_grc_all_departments')||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('access_grc')||p.includes('*');}
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
-      if(window.__grcRulesV62Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v62-grc-superadmin-global-20260823'));window.__grcRulesV62Verified=true;return true;}
+      if(window.__grcRulesV61Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v61-grc-superadmin-publish-20260823'));window.__grcRulesV61Verified=true;return true;}
       catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v61 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
