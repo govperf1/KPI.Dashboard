@@ -2149,9 +2149,10 @@
   }
   function currentGrcDept(){return canonicalGrcDepartment(rawCurrentGrcDepartment());}
   function canViewAllExecutiveDepartments(){
-    // Data visibility is determined by department only. An explicitly assigned
-    // department always scopes the GRC registers, regardless of role. Users with
-    // no meaningful department see the complete register.
+    /* Super Admin is the global GRC publisher and must always see the complete
+       register catalog. Other users remain department-scoped unless they have no
+       meaningful department, which preserves the existing all-FMS fallback. */
+    if(isGrcSuperAdmin())return true;
     var d=currentGrcDept();
     return !d;
   }
