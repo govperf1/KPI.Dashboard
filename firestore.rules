@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v61 — Department-scoped GRC reads + unified Review & Development approvals
+// FIRESTORE SECURITY RULES v62 — Super Admin global GRC reads + unified Review & Development approvals
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -235,7 +235,7 @@ service cloud.firestore {
       // Department is the ONLY data-scope boundary. If no department is assigned,
       // the user sees the complete GRC register. If a department is assigned,
       // the user sees that department plus division/shared records.
-      let all = d == '' && !meaningfulDepartmentValue(raw);
+      let all = superAdmin() || (d == '' && !meaningfulDepartmentValue(raw));
       return access && (
         all ||
         (d != '' && ('departmentKey' in data) && data.departmentKey == d) ||
@@ -596,7 +596,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // A unique v61 path proves the Super Admin publish/read fixes are actually deployed.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v61-grc-superadmin-publish-20260823';
+      allow get: if approved() && versionId == 'v62-grc-superadmin-global-20260823';
       allow list, create, update, delete: if false;
     }
 
@@ -647,16 +647,18 @@ service cloud.firestore {
 
     function assignedReviewManager(requestId) {
       let d = profileDepartmentKeyFrom(userData());
+      let r = get(/databases/$(database)/documents/advisory_requests/$(requestId)).data;
       return signedIn() && userData().approved == true &&
         profileRoleFrom(userData()) == 'department_manager' && d != '' &&
-        exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/$(d)/review/$(requestId));
+        r.departmentKey == d && r.workflowStage == 'pending_department_manager';
     }
 
     function assignedRiskManager(requestId) {
       let d = profileDepartmentKeyFrom(userData());
+      let r = get(/databases/$(database)/documents/grc_risk_requests/$(requestId)).data;
       return signedIn() && userData().approved == true &&
         profileRoleFrom(userData()) == 'department_manager' && d != '' &&
-        exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/$(d)/risk/$(requestId));
+        canonicalDepartment(r.departmentKey) == d && r.status in ['pending_manager','returned_manager'];
     }
 
     // ── Review & Development Center ──────────────────────────────────
@@ -736,7 +738,8 @@ service cloud.firestore {
     }
 
     function advisoryAdminCanProcess() {
-      return !(resource.data.workflowStage in ['pending_department_manager','returned_requester','rejected_manager']) &&
+      return !(resource.data.workflowStage in ['pending_department_manager','returned_requester','rejected_manager','closed']) &&
+        resource.data.status != 'closed' &&
         (
           !advisoryRequesterNeedsManager(resource.data) ||
           (resource.data.managerDecision == 'approved' && resource.data.workflowStage == 'pending_super_admin')
