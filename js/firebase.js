@@ -47,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260823-v242-firestore-v62-authoritative-data-fix');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260823-v243-firestore-v63-authoritative-workflow-fix');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -977,15 +977,15 @@ window._selectPortal=async portal=>{
       if(role!=='governance_performance_manager'&&meaningful&&!parsedKey)throw new Error('profile-department-unrecognized:'+String(raw));
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
-    window._qumcAssertFirestoreRulesV62=async function(){
-      if(window.__advRulesV62Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v62-grc-superadmin-global-20260823'));window.__advRulesV62Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v62 are not active.');throw e;}
+    window._qumcAssertFirestoreRulesV63=async function(){
+      if(window.__advRulesV63Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v63-grc-superadmin-global-20260823'));window.__advRulesV63Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v63 are not active.');throw e;}
     };
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV62Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v62-grc-superadmin-global-20260823'));window.__advRulesV62Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v62 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__advRulesV63Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v63-grc-superadmin-global-20260823'));window.__advRulesV63Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v63 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     async function _advAssertProfileScope(profile){
       profile=profile||{};
@@ -1417,18 +1417,12 @@ window._selectPortal=async portal=>{
     };
 
     window._advisoryManagerAction=async function(requestId,action,comment){
-      /* v223 — keep Department Manager decisions lightweight.
-         The old path re-read the Rules marker, user profile and request, then used
-         a transaction that updated the request and deleted the queue entry. On a
-         busy Spark project those extra server reads/transaction checks could end
-         in resource-exhausted / "Quota exceeded" before the decision was saved.
-
-         The live department queue has already been authenticated and resolved from
-         the server before these buttons are shown. Security Rules still verify the
-         current manager role, department and queue membership on the authoritative
-         request update. Save the request first (one required write), then remove the
-         queue document asynchronously so cleanup never delays or reverses a valid
-         manager decision. */
+      /* v243.1 — authoritative Department Manager decision.
+         Resolve the manager identity from the server-side users/{email} profile
+         at click time. Do not trust the browser queue projection for department
+         scope. This also fixes older requests whose departmentKey was saved as a
+         display label (for example `Project Management`). The authoritative
+         advisory_requests document is updated first; queue cleanup is secondary. */
       action=String(action||'');
       if(!['approve','return','reject'].includes(action))throw new Error('Unsupported action.');
       const managerComment=String(comment||'').trim();
@@ -1437,11 +1431,19 @@ window._selectPortal=async portal=>{
 
       const managerEmail=String(auth.currentUser.email||'').toLowerCase().trim();
       const managerName=String(window._fbName||window.currentUserName||managerEmail);
-      const rawDept=(window.__grcManagerDepartmentKey||window._fbDept||window.currentUserDept||'');
-      const dept=_advCanonicalDepartment(rawDept);
+      const profile=await _advFreshProfile();
+      await _advAssertProfileScope(profile);
+      if(profile.role!=='department_manager')throw new Error('Department Manager approval is required.');
+      const dept=_advCanonicalDepartment(profile.departmentKey);
       if(!dept)throw new Error('manager-department-missing');
 
       const requestRef=doc(db,ADV_REQUESTS_COLLECTION,String(requestId||''));
+      const liveSnap=await getDoc(requestRef);
+      if(!liveSnap.exists())throw new Error('Request not found.');
+      const live=liveSnap.data()||{};
+      const liveDept=_advCanonicalDepartment(live.departmentKey||live.department);
+      if(liveDept!==dept)throw new Error('This request is outside your assigned department.');
+      if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
       const queueRef=_grcManagerQueueItemRef(dept,'review',requestId);
       const nowIso=_advIso();
       let finalStage='',finalStatus='',closureReason='',managerDecision='';
@@ -1458,8 +1460,9 @@ window._selectPortal=async portal=>{
       };
       if(action==='reject')updates.closedAt=serverTimestamp();
 
-      /* The Rules check assignedReviewManager(requestId), which requires the queue
-         document to still exist. Therefore update the authoritative request first. */
+      /* Update the authoritative request first. Security Rules resolve the
+         manager from the live request department and authenticated profile; the
+         queue document is only a UI projection and is not required for approval. */
       await updateDoc(requestRef,updates);
 
       const cachedBefore=_grcManagerQueueCache&&Array.isArray(_grcManagerQueueCache.review)?
@@ -1647,9 +1650,9 @@ window._selectPortal=async portal=>{
     function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();return ['super_admin','admin','executive','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].includes(r)||p.includes('view_grc_department')||p.includes('view_grc_all_departments')||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('access_grc')||p.includes('*');}
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
-      if(window.__grcRulesV62Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v62-grc-superadmin-global-20260823'));window.__grcRulesV62Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v62 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__grcRulesV63Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v63-grc-superadmin-global-20260823'));window.__grcRulesV63Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v63 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
     // Compatibility aliases point to the same current probe so old callers cannot
