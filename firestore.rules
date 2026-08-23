@@ -594,7 +594,7 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // A unique v62 path proves the Super Admin publish/read fixes are actually deployed.
+    // A unique v61 path proves the Super Admin publish/read fixes are actually deployed.
     match /system_rule_versions/{versionId} {
       allow get: if approved() && versionId == 'v62-grc-superadmin-global-20260823';
       allow list, create, update, delete: if false;
@@ -738,8 +738,11 @@ service cloud.firestore {
     }
 
     function advisoryAdminCanProcess() {
-      return !(resource.data.workflowStage in ['pending_department_manager','returned_requester','rejected_manager','closed']) &&
-        resource.data.status != 'closed' &&
+      // A requester can close/cancel a request. Once status or workflowStage is
+      // closed, Super Admin has no further action on that request.
+      return resource.data.status != 'closed' &&
+        resource.data.workflowStage != 'closed' &&
+        !(resource.data.workflowStage in ['pending_department_manager','returned_requester','rejected_manager']) &&
         (
           !advisoryRequesterNeedsManager(resource.data) ||
           (resource.data.managerDecision == 'approved' && resource.data.workflowStage == 'pending_super_admin')
