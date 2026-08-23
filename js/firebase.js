@@ -977,6 +977,11 @@ window._selectPortal=async portal=>{
       if(role!=='governance_performance_manager'&&meaningful&&!parsedKey)throw new Error('profile-department-unrecognized:'+String(raw));
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
+    window._qumcAssertFirestoreRulesV62=async function(){
+      if(window.__advRulesV62Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v62-grc-superadmin-global-20260823'));window.__advRulesV62Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v62 are not active.');throw e;}
+    };
     async function _advAssertRulesVersion(){
       if(window.__advRulesV62Verified===true)return true;
       try{await _getServerDoc(doc(db,'system_rule_versions','v62-grc-superadmin-global-20260823'));window.__advRulesV62Verified=true;return true;}

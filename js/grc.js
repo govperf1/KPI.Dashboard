@@ -772,8 +772,10 @@
     if(x.indexOf('maintenance')>=0)return'maintenance';if(x.indexOf('safety')>=0)return'safety';if(x.indexOf('house')>=0)return'housekeeping';if(x.indexOf('project')>=0)return'projects';if(x.indexOf('governance')>=0)return'division';return'';
   }
   function loadState(){
-    try{return migrateState(JSON.parse(localStorage.getItem(STORAGE_KEY)||'null'));}
-    catch(_){return applyRiskRegisterSeed(defaultState());}
+    /* GRC registers are server-authoritative. Legacy localStorage/seed state is
+       intentionally not loaded as register data because it can be stale or from
+       another approved dataset. The live Firestore bootstrap hydrates state. */
+    return defaultState();
   }
   var INITIATIVE_SEED=[{"id":"INIT-001","nameAr":"مركز بلاغات إدارة المرافق (FMS Division)","nameEn":"Facility Management Reporting Center (FMS Division)","department":"allFms","status":"proposed","team":[],"code":"INIT-001","executionStatus":"","progress":0},{"id":"INIT-002","nameAr":"مبادرة اكتمال الكادر التشغيلي","nameEn":"Operational Workforce Completion Initiative","department":"housekeeping","status":"proposed","team":[],"code":"INIT-002","executionStatus":"","progress":0},{"id":"INIT-003","nameAr":"مبادرة تعزيز جودة النظافة عبر رمز الاستجابة السريعة","nameEn":"Housekeeping Quality Enhancement via QR Code","department":"housekeeping","status":"proposed","team":[],"code":"INIT-003","executionStatus":"","progress":0},{"id":"INIT-004","nameAr":"مبادرة يوم الجودة الإداري الشهري","nameEn":"Monthly Administrative Quality Day Initiative","department":"housekeeping","status":"proposed","team":[],"code":"INIT-004","executionStatus":"","progress":0},{"id":"INIT-005","nameAr":"مبادرة تطوير التقارير الربعية لتجربة المريض","nameEn":"Patient Experience Quarterly Reports Development Initiative","department":"housekeeping","status":"proposed","team":[],"code":"INIT-005","executionStatus":"","progress":0},{"id":"INIT-006","nameAr":"مبادرة تصميم خريطة توجيه للمراجعين داخل المدينة الطبية","nameEn":"Medical City Wayfinding Map Initiative","department":"projects","status":"selected","team":[{"name":"م. مشاري الصعب","roleAr":"قائد الفريق","roleEn":"Team Leader","gender":"male","department":"safety"},{"name":"م. إبراهيم الصقيهي","roleAr":"عضو الفريق","roleEn":"Team Member","gender":"male","department":"projects"}],"code":"INIT-006","executionStatus":"in_progress","progress":0},{"id":"INIT-007","nameAr":"مبادرة تصميم حزام حمل لاسطوانات الغازات الطبية","nameEn":"Medical Gas Cylinder Carrying Belt Initiative","department":"maintenance","status":"selected","team":[{"name":"م. عبدالله الزوين","roleAr":"قائد الفريق","roleEn":"Team Leader","gender":"male","department":"maintenance"}],"code":"INIT-007","executionStatus":"in_progress","progress":0},{"id":"INIT-008","nameAr":"مبادرة إنشاء محطة غسيل عيون متنقلة","nameEn":"Mobile Eyewash Station Initiative","department":"housekeeping","status":"selected","team":[{"name":"م. عبدالله الزوين","roleAr":"قائد الفريق","roleEn":"Team Leader","gender":"male","department":"maintenance"},{"name":"م. عبدالوهاب الشتوي","roleAr":"عضو الفريق","roleEn":"Team Member","gender":"male","department":"maintenance"}],"code":"INIT-008","executionStatus":"in_progress","progress":0},{"id":"INIT-009","nameAr":"مبادرة تهوية الغرف المغلقة","nameEn":"Closed Rooms Ventilation Initiative","department":"maintenance","status":"proposed","team":[],"code":"INIT-009","executionStatus":"","progress":0},{"id":"INIT-010","nameAr":"مبادرة قياس مستوى الضجيج داخل منشآت المدينة الطبية","nameEn":"Medical City Noise Level Monitoring Initiative","department":"safety","status":"selected","team":[{"name":"أ. رغد المشيقح","roleAr":"قائد الفريق","roleEn":"Team Leader","gender":"female","department":"division"},{"name":"أ. لطيفة الحربي","roleAr":"عضو الفريق","roleEn":"Team Member","gender":"female","department":"housekeeping"}],"code":"INIT-010","executionStatus":"in_progress","progress":0}];
   /* Historical Emergency Coding System records imported from the approved admin export.
@@ -893,8 +895,11 @@
     var savedOwner='',savedBuild='';
     try{savedOwner=String(localStorage.getItem(GRC_CACHE_OWNER_KEY)||'');savedBuild=String(localStorage.getItem(GRC_CACHE_BUILD_KEY)||'');}catch(_){}
     if(savedOwner===owner&&savedBuild===GRC_CLIENT_BUILD)return false;
-    state=applyRiskRegisterSeed(repairGovernanceCodeState(defaultState()));
-    state=repairGovernanceCodeState(state);
+    /* Firestore is the only source of truth for GRC registers. Do not repopulate
+       the browser with bundled baseline/seed records while server hydration is
+       pending; that was the reason users could see old register rows that were
+       not actually in Firestore. */
+    state=repairGovernanceCodeState(defaultState());
     try{
       localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
       localStorage.setItem(GRC_CACHE_OWNER_KEY,owner);
@@ -1455,10 +1460,9 @@
     });
     var rows=[];grcCloudMirror[collectionKey]={};grcCloudDuplicates[collectionKey]=sourceMap;
     order.forEach(function(id){var winner=map[id];if(!winner)return;grcCloudMirror[collectionKey][id]=grcComparable(winner);if(winner.deleted===true)return;delete winner.deleted;delete winner.deletedAt;rows.push(winner);});
-    rows=grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows);
-    /* Firestore is the render authority. Department-scoped governance rows are
-       keyed by department+business identity, so Super Admin and scoped users
-       now resolve the same canonical records. */
+    /* Firestore is the render authority. Do not merge bundled baseline rows into
+       a live snapshot. Missing rows mean they are missing from Firestore; showing
+       them from JavaScript made the register differ from the actual database. */
     state[collectionKey]=rows;
     grcCloudEverHydrated[collectionKey]=true;
   }
@@ -1806,14 +1810,24 @@
     grcSyncStartingPromise=ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;
       if(token!==grcSyncStartToken)return;
       var actual=grcSyncIdentityKey();if(actual!==wanted){return;}
-      if(typeof window._qumcAssertFirestoreRulesV41==='function'||typeof window._qumcAssertFirestoreRulesV39==='function'||typeof window._qumcAssertFirestoreRulesV38==='function'||typeof window._qumcAssertFirestoreRulesV36==='function'||typeof window._qumcAssertFirestoreRulesV35==='function'||typeof window._qumcAssertFirestoreRulesV34==='function'||typeof window._qumcAssertFirestoreRulesV33==='function'){
-        try{await (window._qumcAssertFirestoreRulesV41||window._qumcAssertFirestoreRulesV39||window._qumcAssertFirestoreRulesV38||window._qumcAssertFirestoreRulesV36||window._qumcAssertFirestoreRulesV35||window._qumcAssertFirestoreRulesV34||window._qumcAssertFirestoreRulesV33)();}
+      if(typeof window._qumcAssertFirestoreRulesV62==='function'){
+        try{await window._qumcAssertFirestoreRulesV62();}
         catch(ruleErr){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError=String(ruleErr&&ruleErr.message||ruleErr).replace(/^rules-version-mismatch:/,'');grcSyncLastErrorAt=new Date().toISOString();renderAtSamePosition(grcViewportPosition());return;}
       }
       grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
+      /* CRITICAL: never rebuild or reconcile Firestore from bundled JavaScript
+         seeds during login. Super Admin must first read the authoritative server
+         collections exactly as they exist in Firestore. Any migration/repair that
+         writes seed data is explicit-only, never part of portal startup. */
       if(isGrcSuperAdmin()){
-        try{await reconcileGrcServerCatalogV231(b);}catch(reconcileErr){console.error('[GRC Server Catalog v231] reconciliation did not complete',reconcileErr);grcSyncLastError='Automatic GRC data reconciliation failed: '+String(reconcileErr&&reconcileErr.message||reconcileErr);grcSyncLastErrorAt=new Date().toISOString();}
-        try{await runGrcCodeHealthMaintenanceV170(b);}catch(maintenanceErr){console.error('[GRC Code Health] one-time maintenance did not complete',maintenanceErr);grcSyncLastError='Automatic GRC maintenance failed: '+String(maintenanceErr&&maintenanceErr.message||maintenanceErr);grcSyncLastErrorAt=new Date().toISOString();}
+        try{await grcPrimeAdminMirrorsFromServer(b,false);}
+        catch(serverHydrateErr){
+          grcSyncStarted=false;grcCloudReady=false;
+          grcSyncLastError='Authoritative Firestore hydration failed: '+String(serverHydrateErr&&serverHydrateErr.message||serverHydrateErr);
+          grcSyncLastErrorAt=new Date().toISOString();
+          renderAtSamePosition(grcViewportPosition());
+          return;
+        }
       }
       /* Keep the last cache only when it belongs to this exact profile/build.
          Firestore replaces it as soon as server-confirmed snapshots arrive. A
@@ -1942,7 +1956,7 @@
       Object.keys(GRC_COLLECTION_MAP).forEach(function(key){
         var rows=Array.isArray(state[key])?state[key].slice():[],rawRows=[];
         Object.keys(grcCloudParts[key]||{}).forEach(function(scope){(grcCloudParts[key][scope]||[]).forEach(function(r){rawRows.push(copyRecord(r));});});
-        rows=grcMergeMissingApprovedBaseline(key,rows,rawRows,true);
+        /* Do not inject bundled baseline rows into the canonical catalog. */
         var tombstones={};rawRows.forEach(function(r,i){if(!r||r.deleted!==true)return;var id=grcCloudDocId(key,r,i),rk=String(r.id||r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,''),sourceId=String(r._sourceCloudId||'').trim();tombstones[id]=1;if(rk)tombstones[rk]=1;if(sourceId)protectedTombstoneSources[(GRC_COLLECTION_MAP[key]||key)+'/'+sourceId]=1;});
         if(key==='initiatives')rows=mergeInitiativeSeed(rows,tombstones);
         if(key==='codes')rows=mergeEmergencyCodeSeed(rows,tombstones);
@@ -2035,6 +2049,13 @@
     var source=sourceSnapshot&&typeof sourceSnapshot==='object'?grcSerializable(sourceSnapshot):grcSerializable(state);
     var keys=Array.isArray(onlyKeys)&&onlyKeys.length?onlyKeys.filter(function(k){return !!GRC_COLLECTION_MAP[k];}):Object.keys(GRC_COLLECTION_MAP);
     if(!keys.length)return true;
+    /* Never write a collection that has not been confirmed from Firestore. This
+       prevents an old browser snapshot/seed from becoming the new database. */
+    for(var hydrationIndex=0;hydrationIndex<keys.length;hydrationIndex++){
+      if(!grcCloudEverHydrated[keys[hydrationIndex]]){
+        throw new Error('GRC save blocked: Firestore has not hydrated '+keys[hydrationIndex]+' yet.');
+      }
+    }
     /* If another listener made the global ready flag false, rebuild mirrors
        from the server but restore the captured pending state afterwards. */
     if(!grcCloudReady)await grcPrimeAdminMirrorsFromServer(b,true,source);
