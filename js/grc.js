@@ -982,7 +982,7 @@
     audits:'grc_audits',actions:'grc_actions',documents:'grc_documents',initiatives:'grc_initiatives'
   };
   // Governance and Risk remain department-scoped. Shared operational modules are visible to every approved GRC user.
-  var GRC_GLOBAL_READ_COLLECTIONS={manuals:true,codes:true,compliance:true,audits:true,actions:true,documents:true,initiatives:true};
+  var GRC_GLOBAL_READ_COLLECTIONS={};
   var grcStateUnsubs=[],grcStateSaveTimer=null,grcApplyingRemote=false,grcSyncStarted=false,grcCloudReady=false,grcPendingAdminSaveSnapshot=null,grcPendingAdminSaveKeys={},grcAdminSaveInFlightKeys={};
   var grcCloudParts={},grcCloudMirror={},grcCloudDuplicates={},grcCloudEverHydrated={},grcInitialScopes={},grcCollectionScopeReady={},grcCollectionScopeFailed={},grcMigrationPromise=null,grcPendingCloudSave=false,grcCanonicalCatalogV187Promise=null,grcCanonicalCatalogV195Promise=null,grcRemoteRenderTimer=null,grcRemoteRenderPosition=null,grcCachePersistTimer=null,grcSyncStartingPromise=null,grcSyncStartToken=0;
   var grcRiskStatusOverrides={},grcRiskStatusUnsub=null,grcSyncScopeKey='',grcPendingLocalDeletes={risks:{},incidents:{}},grcSyncLastError='',grcSyncLastErrorAt='';
@@ -2064,7 +2064,13 @@
     return'';
   }
   function currentGrcDept(){return canonicalGrcDepartment(rawCurrentGrcDepartment());}
-  function canViewAllExecutiveDepartments(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[],d=currentGrcDept(),assigned=['safety','maintenance','housekeeping','laundry','projects'].indexOf(d)>=0;if(r==='super_admin'||r==='admin'||r==='governance_performance_manager'||p.indexOf('*')>=0||p.indexOf('view_grc_all_departments')>=0)return true;if(!d)return canEnterGrc();if(assigned)return false;return r==='executive';}
+  function canViewAllExecutiveDepartments(){
+    // Data visibility is determined by department only. An explicitly assigned
+    // department always scopes the GRC registers, regardless of role. Users with
+    // no meaningful department see the complete register.
+    var d=currentGrcDept();
+    return !d;
+  }
   function resolvedExecutiveDept(value){var raw=String(value||executiveDeptFilter||'');if(/^(all\s*fms|allfms|all_departments|all)$/i.test(raw.replace(/[&/_-]+/g,' ')))return canViewAllExecutiveDepartments()?'allFms':(currentGrcDept()||'allFms');var d=canonicalGrcDepartment(raw);if(canViewAllExecutiveDepartments())return d&&d!=='division'?d:'allFms';d=currentGrcDept();return d&&d!=='division'?d:'allFms';}
   function executiveDepartmentFilterHtml(selected){if(!canViewAllExecutiveDepartments())return'';var choices=[['allFms',isAr()?'جميع الأقسام':'All Departments'],['safety',deptName('safety')],['maintenance',deptName('maintenance')],['housekeeping',deptName('housekeeping')],['laundry',deptName('laundry')],['projects',deptName('projects')]];return'<div class="grc-executive-filter"><label><span>'+(isAr()?'تصفية القسم':'Department Filter')+'</span><select onchange="window._grcSetExecutiveDepartment(this.value)">'+choices.map(function(x){return'<option value="'+x[0]+'" '+(selected===x[0]?'selected':'')+'>'+esc(x[1])+'</option>';}).join('')+'</select></label></div>';}
   window._grcSetExecutiveDepartment=function(value){var raw=String(value||'allFms');executiveDeptFilter=/^(all\s*fms|allfms|all_departments|all)$/i.test(raw.replace(/[&/_-]+/g,' '))?'allFms':canonicalGrcDepartment(raw);renderAtSamePosition(grcViewportPosition());};

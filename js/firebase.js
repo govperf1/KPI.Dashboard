@@ -47,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260820-v224-performance-stability');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260823-v225-grc-department-scope-approval');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -979,7 +979,7 @@ window._selectPortal=async portal=>{
     }
     async function _advAssertRulesVersion(){
       if(window.__advRulesV60Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v60-grc-registers-visible-all-users-20260820'));window.__advRulesV60Verified=true;return true;}
+      try{await _getServerDoc(doc(db,'system_rule_versions','v60-grc-department-scope-approval-20260823'));window.__advRulesV60Verified=true;return true;}
       catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v60 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     async function _advAssertProfileScope(profile){
@@ -1493,7 +1493,22 @@ window._selectPortal=async portal=>{
 
     window._advisoryAdminAction=async function(requestId,action,data,file){
       if(!_advIsSuperAdmin())throw new Error('Super Admin approval is required.');
-      data=data||{};const current=await _advAuthorizedRequest(requestId,true,false),requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso();const approvalStage=String(current.workflowStage||'');if(['pending_department_manager','returned_requester','rejected_manager'].includes(approvalStage))throw new Error('This request has not been approved by the Department Manager.');
+      data=data||{};
+      action=String(action||'');
+      if(['approve','return','reject'].includes(action)){
+        const current=await _advAuthorizedRequest(requestId,true,false),requestRef=current._requestRef;
+        if(String(current.workflowStage||'')!=='pending_super_admin')throw new Error('This request is not pending Super Admin approval.');
+        const note=String(data&&data.text||'').trim();
+        if((action==='return'||action==='reject')&&!note)throw new Error(action==='return'?'A return note is required.':'A rejection reason is required.');
+        const nowIso=_advIso(),updates={updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:_advEmail(),superAdminNote:note};
+        if(action==='approve'){updates.status='closed';updates.workflowStage='closed';updates.closureReason='approved_by_super_admin';updates.closedAt=serverTimestamp();}
+        else if(action==='return'){updates.status='open';updates.workflowStage='returned_requester';updates.closureReason='returned_by_super_admin';}
+        else {updates.status='closed';updates.workflowStage='closed';updates.closureReason='rejected_by_super_admin';updates.closedAt=serverTimestamp();}
+        await updateDoc(requestRef,updates);
+        try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_SUPER_ADMIN_DECISION',String(action)+' on '+String(current.code||requestId),{status:current.status,workflowStage:current.workflowStage},{status:updates.status,workflowStage:updates.workflowStage,closureReason:updates.closureReason,note:note},{portal:String(current.platform||'grc')});}catch(_){ }
+        return true;
+      }
+      const current=await _advAuthorizedRequest(requestId,true,false),requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso();const approvalStage=String(current.workflowStage||'');if(['pending_department_manager','returned_requester','rejected_manager'].includes(approvalStage))throw new Error('This request has not been approved by the Department Manager.');
       const updates={updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:_advEmail()},publicUpdates={updatedAt:serverTimestamp()},messageAttachments=[];
       if(file&&current._storage==='advisory_requests'){try{const meta=await _advUploadFile(requestId,file,_advEmail());messageAttachments.push(meta);updates.attachments=arrayUnion(meta);updates.attachmentCount=Number(current.attachmentCount||0)+1;publicUpdates.attachmentCount=updates.attachmentCount;}catch(e){throw new Error('The response attachment could not be uploaded: '+String(e&&e.message||e));}}
       const firstResponseActions=['respond','request_info'];
@@ -1628,7 +1643,7 @@ window._selectPortal=async portal=>{
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
       if(window.__grcRulesV60Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v60-grc-registers-visible-all-users-20260820'));window.__grcRulesV60Verified=true;return true;}
+      try{await _getServerDoc(doc(db,'system_rule_versions','v60-grc-department-scope-approval-20260823'));window.__grcRulesV60Verified=true;return true;}
       catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v60 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
