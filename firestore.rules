@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v62 — Super Admin global GRC reads + unified Review & Development approvals
+// FIRESTORE SECURITY RULES v63 — Super Admin global GRC reads + unified Review & Development approvals
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -596,7 +596,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // A unique v61 path proves the Super Admin publish/read fixes are actually deployed.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v62-grc-superadmin-global-20260823';
+      allow get: if approved() && versionId == 'v63-grc-superadmin-global-20260823';
       allow list, create, update, delete: if false;
     }
 
@@ -648,9 +648,18 @@ service cloud.firestore {
     function assignedReviewManager(requestId) {
       let d = profileDepartmentKeyFrom(userData());
       let r = get(/databases/$(database)/documents/advisory_requests/$(requestId)).data;
+      // Do not depend on the queue document or on the historical spelling of
+      // departmentKey. The authoritative request + authenticated profile define
+      // the manager scope. Older requests may contain values such as
+      // `Project Management` instead of `projects`.
       return signedIn() && userData().approved == true &&
         profileRoleFrom(userData()) == 'department_manager' && d != '' &&
-        r.departmentKey == d && r.workflowStage == 'pending_department_manager';
+        (canonicalDepartment(r.departmentKey) == d || canonicalDepartment(r.department) == d) &&
+        r.workflowStage == 'pending_department_manager';
+    }
+
+    function advisoryManagerCanProcess(requestId) {
+      return assignedReviewManager(requestId);
     }
 
     function assignedRiskManager(requestId) {
