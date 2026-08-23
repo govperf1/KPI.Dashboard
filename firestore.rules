@@ -650,7 +650,8 @@ service cloud.firestore {
       let r = get(/databases/$(database)/documents/advisory_requests/$(requestId)).data;
       return signedIn() && userData().approved == true &&
         profileRoleFrom(userData()) == 'department_manager' && d != '' &&
-        r.departmentKey == d && r.workflowStage == 'pending_department_manager';
+        r.workflowStage == 'pending_department_manager' &&
+        ('departmentKey' in r) && r.departmentKey == d;
     }
 
     function assignedRiskManager(requestId) {
@@ -658,7 +659,8 @@ service cloud.firestore {
       let r = get(/databases/$(database)/documents/grc_risk_requests/$(requestId)).data;
       return signedIn() && userData().approved == true &&
         profileRoleFrom(userData()) == 'department_manager' && d != '' &&
-        canonicalDepartment(r.departmentKey) == d && r.status in ['pending_manager','returned_manager'];
+        r.status in ['pending_manager','returned_manager'] &&
+        riskRequestDepartment(r);
     }
 
     // ── Review & Development Center ──────────────────────────────────
@@ -702,12 +704,27 @@ service cloud.firestore {
     }
 
     function validAdvisoryAdminChange() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        'status','messages','attachments','attachmentCount',
-        'firstRespondedAt','respondedAt','responseMinutes',
-        'completedAt','closedAt','rating','ratingComment','ratingAt',
-        'workflowStage','closureReason','updatedAt','updatedAtIso','updatedBy'
-      ]);
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return resource.data.workflowStage != 'closed' &&
+        resource.data.status != 'closed' &&
+        changed.hasOnly([
+          'status','messages','attachments','attachmentCount',
+          'firstRespondedAt','respondedAt','responseMinutes',
+          'completedAt','closedAt','rating','ratingComment','ratingAt',
+          'workflowStage','closureReason','updatedAt','updatedAtIso','updatedBy'
+        ]) &&
+        (
+          (request.resource.data.workflowStage == 'closed' &&
+            request.resource.data.status == 'closed' &&
+            request.resource.data.closureReason in ['responded_by_super_admin','rejected_by_super_admin','closed_by_admin','duplicate','out_of_scope','knowledge_guide']) ||
+          (request.resource.data.workflowStage == 'awaiting_requester_information' &&
+            request.resource.data.status == 'in_progress') ||
+          (request.resource.data.workflowStage == 'clarification_received' &&
+            request.resource.data.status == 'in_progress') ||
+          (request.resource.data.workflowStage == 'responded' &&
+            request.resource.data.status in ['in_progress','closed']) ||
+          request.resource.data.workflowStage == resource.data.workflowStage
+        );
     }
 
     function advisoryRequesterNeedsManager(data) {
@@ -738,8 +755,9 @@ service cloud.firestore {
     }
 
     function advisoryAdminCanProcess() {
-      return !(resource.data.workflowStage in ['pending_department_manager','returned_requester','rejected_manager','closed']) &&
+      return resource.data.workflowStage != 'closed' &&
         resource.data.status != 'closed' &&
+        !(resource.data.workflowStage in ['pending_department_manager','returned_requester','rejected_manager']) &&
         (
           !advisoryRequesterNeedsManager(resource.data) ||
           (resource.data.managerDecision == 'approved' && resource.data.workflowStage == 'pending_super_admin')
