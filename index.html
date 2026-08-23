@@ -923,7 +923,9 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
   window.addEventListener('load',boot);
   /* v224: event-driven first, slow safety check only. The old 900ms DOM scan
      ran continuously on every page and contributed to UI jank. */
-  setInterval(function(){if(!document.hidden)boot();},8000);
+  /* v225: no periodic DOM bootstrap. Mutation/load/visibility events already
+     cover the portal chrome lifecycle; the old 8-second bootstrap added needless
+     DOM queries while users were scrolling large GRC tables. */
   document.addEventListener('visibilitychange',function(){if(!document.hidden)boot();});
 })();
 </script>
