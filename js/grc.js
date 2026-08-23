@@ -945,13 +945,19 @@
     grcApplyViewportPosition(position);
   }
   function grcScheduleRemoteRender(position,delay){
+    /* v225: Firestore can deliver several real changes in a short burst. The
+       old implementation cancelled/restarted the timer on every snapshot,
+       which caused repeated full GRC shell renders. On large registers this
+       made the page look frozen and the filter row visibly blinked. Keep one
+       coalesced render window instead of restarting it for every snapshot. */
     grcRemoteRenderPosition=position||grcRemoteRenderPosition||grcViewportPosition();
-    if(grcRemoteRenderTimer)clearTimeout(grcRemoteRenderTimer);
+    if(grcRemoteRenderTimer)return;
+    var wait=Math.max(450,Number(delay)||650);
     grcRemoteRenderTimer=setTimeout(function(){
       var pos=grcRemoteRenderPosition||grcViewportPosition();
       grcRemoteRenderTimer=null;grcRemoteRenderPosition=null;
       renderAtSamePosition(pos);
-    },Math.max(0,Number(delay)||0));
+    },wait);
   }
   function grcScheduleLocalCachePersist(delay){
     if(grcCachePersistTimer)clearTimeout(grcCachePersistTimer);
@@ -1486,7 +1492,7 @@
       if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminGovernanceIdentityV198().catch(function(err){console.error('[GRC Governance Identity v198]',err);});},0);
       /* All initial collection snapshots arrive in a burst. Render once after
          the burst, not once per collection. Later live updates are debounced. */
-      grcScheduleRemoteRender(position,wasReady?90:20);
+      grcScheduleRemoteRender(position,wasReady?650:120);
     }else grcCloudReady=false;
   }
   function grcHandleCollectionSnapshot(collectionKey,scope,snapshot){
@@ -1702,7 +1708,7 @@
        department receives the same direct Open/Closed status, even if their
        user profile uses a different display label such as Project Management. */
     if(!canViewAllExecutiveDepartments()&&dept)qref=b.fs.query(col,b.fs.where('department','==',dept));
-    grcRiskStatusUnsub=b.fs.onSnapshot(qref,function(snap){var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});grcRiskStatusOverrides=next;if(grcCloudParts.risks){grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();grcScheduleLocalCachePersist(140);grcApplyingRemote=false;grcScheduleRemoteRender(grcViewportPosition(),80);}},function(err){console.warn('[GRC Risk Status] sync failed',err);});
+    grcRiskStatusUnsub=b.fs.onSnapshot(qref,function(snap){var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});grcRiskStatusOverrides=next;if(grcCloudParts.risks){grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();grcScheduleLocalCachePersist(140);grcApplyingRemote=false;grcScheduleRemoteRender(grcViewportPosition(),650);}},function(err){console.warn('[GRC Risk Status] sync failed',err);});
   }
   function startSharedStateSync(){
     var grcActive=window.__qumcActivePortal==='grc'||!!(document.body&&document.body.classList.contains('grc-mode'));
@@ -4886,3 +4892,5 @@
 })();
 
 })();
+
+/* QUMC GRC v225 performance patch: coalesced Firestore renders + no periodic chrome scan. */
