@@ -15,10 +15,10 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260823-v240-superadmin-live-server-sync');
+  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260823-v241-superadmin-publish-review-fix');
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260823-v240-superadmin-live-server-sync');
+  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260823-v241-superadmin-publish-review-fix');
   var GRC_CACHE_OWNER_KEY='qumc_grc_workspace_preview_v1_owner';
   var GRC_CACHE_BUILD_KEY='qumc_grc_workspace_preview_build';
   var STATE_VERSION=13;
