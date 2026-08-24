@@ -1711,10 +1711,25 @@
              once by Super Admin into the canonical Firestore documents; they are
              no longer parallel live sources that can fail independently and hold
              the whole page on stale cache/seed data. */
+          /* Scoped reads must tolerate the historical department fields already
+             stored in Firestore.  The Super Admin repair job writes canonical
+             departmentKey values, but ordinary users must not depend on that
+             one-time repair to see approved records.  Listen to the canonical
+             key plus the legacy display-label aliases; the security rules still
+             enforce the authenticated user's department boundary. */
+          var deptAliases={
+            safety:['Safety','Safety Department'],
+            maintenance:['Maintenance','Maintenance Department'],
+            housekeeping:['Housekeeping','Housekeeping Department'],
+            laundry:['Laundry','Laundry Department'],
+            projects:['Project Management','Project Management Department','projects','Projects']
+          };
           var scopes=['departmentKey'];
           if(key!=='risks'&&key!=='incidents')scopes.push('divisionKey');
+          (deptAliases[dept]||[]).forEach(function(alias){scopes.push('department:'+alias);});
           grcConfigureCollectionScopes(key,scopes);
           grcListen(b,key,'departmentKey',b.fs.query(col,b.fs.where('departmentKey','==',dept)));
+          (deptAliases[dept]||[]).forEach(function(alias,idx){grcListen(b,key,'department:'+idx,b.fs.query(col,b.fs.where('department','==',alias)));});
           if(scopes.indexOf('divisionKey')>=0)grcListen(b,key,'divisionKey',b.fs.query(col,b.fs.where('departmentKey','==','division')));
         }
       });
