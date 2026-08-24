@@ -1370,7 +1370,6 @@
          collection, and raw tombstones prevent deleted rows from returning. */
       if(collectionKey==='risks')rows=rows.map(normalizeRiskClassification);
       if(collectionKey==='incidents')rows=grcDeduplicateProjectIncidentContent(normalizeProjectIncidentIds(rows));
-      rows=grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows);
       if(collectionKey==='risks')rows=grcDeduplicateRegisterRows(collectionKey,rows.map(normalizeRiskClassification));
       if(collectionKey==='risks')rows=applyRiskStatusOverrides(rows);
       if(collectionKey==='incidents')rows=grcDeduplicateProjectIncidentContent(normalizeProjectIncidentIds(grcDeduplicateRegisterRows(collectionKey,rows)));
@@ -1381,7 +1380,6 @@
 
     var map={},tombstones={};rawRows.forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');r._cloudId=id;r.cloudId=id;if(r&&r.deleted===true){tombstones[id]=1;if(rk)tombstones[rk]=1;return;}map[id]=r;});
     var rows=Object.keys(map).map(function(id){return map[id];});
-    rows=grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows);
     /* Do not merge local seed catalogs into Super Admin only. Firestore is the
        render authority for every role; the v193 repair publishes any genuinely
        missing approved seed rows to Firestore and respects tombstones. */
@@ -1421,7 +1419,7 @@
     if(grcAllInitialScopesReady()&&grcAllInitialScopesHealthy()){
       grcCloudReady=true;
       if(grcPendingCloudSave){grcPendingCloudSave=false;queueSharedStateSave(true);}
-      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV193().catch(function(err){console.error('[GRC Canonical Catalog v193]',err);});},0);
+      /* Firestore is authoritative: do not publish local/seed catalog rows during read hydration. */
       /* All initial collection snapshots arrive in a burst. Render once after
          the burst, not once per collection. Later live updates are debounced. */
       grcScheduleRemoteRender(position,wasReady?90:20);
@@ -1642,42 +1640,6 @@
     if(!canViewAllExecutiveDepartments()&&dept)qref=b.fs.query(col,b.fs.where('department','==',dept));
     grcRiskStatusUnsub=b.fs.onSnapshot(qref,function(snap){var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});grcRiskStatusOverrides=next;if(grcCloudParts.risks){grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();grcScheduleLocalCachePersist(140);grcApplyingRemote=false;grcScheduleRemoteRender(grcViewportPosition(),80);}},function(err){console.warn('[GRC Risk Status] sync failed',err);});
   }
-  async function grcSuperAdminServerHydrate(b){
-    /* Super Admin gets an isolated authoritative bootstrap. It does not depend on
-       the scoped-user listener readiness barrier: one denied/failed collection
-       must never make the whole Super Admin register page blank. This path only
-       runs for Super Admin and leaves all other role scoping untouched. */
-    if(!isGrcSuperAdmin())return false;
-    var loaded=0,failed=[];
-    for(var i=0;i<Object.keys(GRC_COLLECTION_MAP).length;i++){
-      var key=Object.keys(GRC_COLLECTION_MAP)[i],col=b.fs.collection(b.db,GRC_COLLECTION_MAP[key]);
-      try{
-        var snap=(typeof b.fs.getDocsFromServer==='function')?await b.fs.getDocsFromServer(col):await b.fs.getDocs(col);
-        grcCloudParts[key]=grcCloudParts[key]||{};
-        grcCloudParts[key].all=grcDocsFromSnapshot(snap);
-        grcConfigureCollectionScopes(key,['all']);
-        grcMarkCollectionScopeReady(key,'all');
-        grcApplyingRemote=true;
-        grcApplyCloudCollection(key);
-        grcApplyingRemote=false;
-        loaded++;
-      }catch(err){
-        grcApplyingRemote=false;
-        failed.push(key);
-        grcCollectionScopeFailed[key]=grcCollectionScopeFailed[key]||{};
-        grcCollectionScopeFailed[key].all=true;
-        console.error('[GRC Super Admin] Firestore bootstrap failed for '+key,err);
-      }
-    }
-    grcCloudReady=loaded>0;
-    if(failed.length)grcSyncLastError='Super Admin Firestore read failed: '+failed.join(', ');
-    else {grcSyncLastError='';grcSyncLastErrorAt='';}
-    state=repairGovernanceCodeState(state);
-    enforceLocalGrcScope();
-    try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){ }
-    renderAtSamePosition(grcViewportPosition());
-    return loaded>0;
-  }
   function startSharedStateSync(){
     var grcActive=window.__qumcActivePortal==='grc'||!!(document.body&&document.body.classList.contains('grc-mode'));
     if(!grcActive)return;
@@ -1698,7 +1660,6 @@
         catch(ruleErr){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError=String(ruleErr&&ruleErr.message||ruleErr).replace(/^rules-version-mismatch:/,'');grcSyncLastErrorAt=new Date().toISOString();renderAtSamePosition(grcViewportPosition());return;}
       }
       grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
-      if(isGrcSuperAdmin()){ try{ await grcSuperAdminServerHydrate(b); }catch(saHydrateErr){ console.error('[GRC Super Admin] authoritative bootstrap failed',saHydrateErr); } }
       if(isGrcSuperAdmin()){
         try{await runGrcCodeHealthMaintenanceV170(b);}catch(maintenanceErr){console.error('[GRC Code Health] one-time maintenance did not complete',maintenanceErr);grcSyncLastError='Automatic GRC maintenance failed: '+String(maintenanceErr&&maintenanceErr.message||maintenanceErr);grcSyncLastErrorAt=new Date().toISOString();}
       }
@@ -1747,7 +1708,7 @@
           if(scopes.indexOf('divisionLegacy')>=0)grcListen(b,key,'divisionLegacy',b.fs.query(col,b.fs.where('department','==','division')));
         }
       });
-      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV193().catch(function(err){console.error('[GRC Canonical Catalog v193]',err);});},350);
+      /* Firestore is authoritative: no seed/catalog repair is triggered on read. */
     }).catch(function(err){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError='GRC sync initialization: '+String(err&&err.message||err);grcSyncLastErrorAt=new Date().toISOString();console.error('[GRC Secure Sync] init failed',err);renderAtSamePosition(grcViewportPosition());});
   }
   async function grcPrimeAdminMirrorsFromServer(b,preserveLocalState){
