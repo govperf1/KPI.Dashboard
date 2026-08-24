@@ -831,8 +831,13 @@ service cloud.firestore {
       allow list: if admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']);
       allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
-      // Managers do not list the authoritative request collection. They list
-      // the path-scoped approval queue above and open one request by ID.
+      // Department Managers also have a direct authoritative fallback query.
+      // The queue is only a routing projection; it must never be the single
+      // point of failure for approvals when an older request predates the
+      // queue document. The department boundary remains enforced server-side.
+      allow list: if approved() && profileRoleFrom(userData()) == 'department_manager' &&
+        ('departmentKey' in resource.data) &&
+        resource.data.departmentKey == profileDepartmentKeyFrom(userData());
 
       allow update: if
         (superAdmin() && validAdvisorySuperAdminDecision()) ||
@@ -986,7 +991,10 @@ service cloud.firestore {
         (canReadRiskIncidentWorkflow() && (
           (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid) ||
           (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail()) ||
-          riskRequestDepartmentList(resource.data)
+          riskRequestDepartmentList(resource.data) ||
+          (profileRoleFrom(userData()) == 'department_manager' &&
+            ('departmentKey' in resource.data) &&
+            resource.data.departmentKey == profileDepartmentKeyFrom(userData()))
         ));
 
       // Evaluate Super Admin first. During testing the same authenticated
