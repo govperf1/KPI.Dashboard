@@ -627,9 +627,13 @@ service cloud.firestore {
     // No stored manager email or directory is involved, so a stale/old manager
     // assignment cannot hide a pending request from the current manager.
     match /grc_department_approval_inbox_v3/{departmentKey}/{queueKind}/{requestId} {
-      allow get, list: if signedIn() && userData().approved == true &&
+      // The department is encoded in the document path. Authorize the manager
+      // against that path value directly so Firestore can prove the collection
+      // query without evaluating the request body. This is the only inbox a
+      // Department Manager can read.
+      allow get, list: if approved() &&
         profileRoleFrom(userData()) == 'department_manager' &&
-        profileDepartmentKeyFrom(userData()) == departmentKey &&
+        departmentKey == profileDepartmentKeyFrom(userData()) &&
         queueKind in ['review','risk'];
 
       allow create, update: if superAdmin() || (
