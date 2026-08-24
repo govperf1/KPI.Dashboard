@@ -4,8 +4,8 @@
    Review & Development Center requests.
    ===================================================================== */
 (function(){
-  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V215__)return;window.__QUMC_GRC_RISK_WORKFLOW_V215__=true;
-  var cache=[],unsub=null,startedFor='',reviewApprovalRows=[],approvalNoticeKey='',approvalNoticeEntry=0,approvalNoticeTimer=null,feedbackNormalRows=[],feedbackReviewRows=[],feedbackNormalUnsub=null,feedbackReviewUnsub=null,feedbackStartedFor='',feedbackTimer=null,managerPullBusy=false,managerPullAt=0;
+  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V216__)return;window.__QUMC_GRC_RISK_WORKFLOW_V216__=true;
+  var cache=[],unsub=null,startedFor='',reviewApprovalRows=[],approvalNoticeKey='',approvalNoticeEntry=0,approvalNoticeTimer=null,feedbackNormalRows=[],feedbackReviewRows=[],feedbackNormalUnsub=null,feedbackReviewUnsub=null,feedbackStartedFor='',feedbackTimer=null,managerPullBusy=false,managerPullAt=0,managerPollTimer=null;
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function role(){var raw=window._fbRole||window.currentUserRole||'viewer';return typeof window._normalizePortalRole==='function'?window._normalizePortalRole(raw):String(raw).trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
   function email(){return String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();}
@@ -211,7 +211,7 @@
     if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
     if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();
   };
-  function stop(){if(unsub)try{unsub();}catch(_){}unsub=null;startedFor='';cache=[];window.__grcRiskRequestCache=[];var panel=document.getElementById('_grcRiskNotifPanel');if(panel)panel.remove();closeApprovalNotice();stopFeedbackWatch();refreshBadge();}
+  function stop(){if(unsub)try{unsub();}catch(_){}unsub=null;if(managerPollTimer){clearInterval(managerPollTimer);managerPollTimer=null;}startedFor='';cache=[];managerPullBusy=false;managerPullAt=0;window.__grcRiskRequestCache=[];var panel=document.getElementById('_grcRiskNotifPanel');if(panel)panel.remove();closeApprovalNotice();stopFeedbackWatch();refreshBadge();}
   function start(){
     if(!document.body.classList.contains('grc-mode')){if(unsub||startedFor||feedbackStartedFor)stop();return;}
     var key=email()+'|'+role()+'|'+String(window._fbDept||window.currentUserDept||'');
@@ -220,8 +220,14 @@
     /* Department Manager approval queues use fresh Firestore profile reads.
        Do not let a stale session-scoped live listener hide valid approvals. */
     if(isManager()){
-      if(unsub)try{unsub();}catch(_){}unsub=null;startedFor=key;
-      refreshManagerApprovalQueues(false);
+      if(unsub)try{unsub();}catch(_){}unsub=null;
+      if(managerPollTimer)clearInterval(managerPollTimer);
+      startedFor=key;
+      refreshManagerApprovalQueues(true);
+      managerPollTimer=setInterval(function(){
+        if(document.body.classList.contains('grc-mode')&&isManager())refreshManagerApprovalQueues(true);
+        else if(managerPollTimer){clearInterval(managerPollTimer);managerPollTimer=null;}
+      },4000);
       return;
     }
     if(typeof window._grcRiskRequestsSubscribe!=='function'){cache=[];window.__grcRiskRequestCache=[];refreshBadge();return;}
