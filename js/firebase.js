@@ -1153,23 +1153,26 @@ window._selectPortal=async portal=>{
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         const result={profile:fresh,review:[],risk:[],errors:[]};
+        // Department Manager reads come from the path-scoped approval inbox.
+        // Do NOT make four independent collection reads here: older direct
+        // collection rules/records can legitimately reject those reads and a
+        // single denied compatibility query used to blank the whole manager
+        // queue even when the authoritative inbox was available.
         const settled=await Promise.allSettled([
           getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review')),
-          getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk')),
-          getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey))),
-          getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)))
+          getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'))
         ]);
         if(settled[0].status==='rejected')result.errors.push('Review queue: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason));
         if(settled[1].status==='rejected')result.errors.push('Risk queue: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
-        if(settled[2].status==='rejected')result.errors.push('Review requests: '+String(settled[2].reason&&settled[2].reason.message||settled[2].reason));
-        if(settled[3].status==='rejected')result.errors.push('Risk requests: '+String(settled[3].reason&&settled[3].reason.message||settled[3].reason));
         const reviewMap={},riskMap={};
         function addReview(id,row){const key=String(id||row&&row.id||'');if(!key)return;const normalized=_advNormalizeRow(key,row||{},'advisory_requests');if(String(normalized.workflowStage||'')!=='pending_department_manager')return;if(String(normalized.userEmail||'').toLowerCase().trim()===fresh.email)return;normalized._managerAssigned=true;reviewMap[key]=normalized;}
         function addRisk(id,row){const key=String(id||row&&row.id||'');if(!key)return;const status=String(row&&row.status||'').toLowerCase();if(String(row&&row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;if(!['pending_manager','returned_manager'].includes(status))return;const data=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});if(data){data._managerAssigned=true;riskMap[key]=data;}}
         if(settled[0].status==='fulfilled')settled[0].value.forEach(function(d){const item=d.data()||{},snap=item.snapshot||{};addReview(String(item.requestId||d.id),snap);});
         if(settled[1].status==='fulfilled')settled[1].value.forEach(function(d){const item=d.data()||{},snap=item.snapshot||{};addRisk(String(item.requestId||d.id),snap);});
-        if(settled[2].status==='fulfilled')settled[2].value.forEach(function(d){addReview(d.id,d.data()||{});});
-        if(settled[3].status==='fulfilled')settled[3].value.forEach(function(d){addRisk(d.id,d.data()||{});});
+        // Queue snapshots are authoritative for the manager landing page.
+        // The underlying request is fetched only after the manager opens it,
+        // where the request-level ownership rule is evaluated.
+
         result.review=Object.keys(reviewMap).map(function(k){return reviewMap[k];});
         result.risk=Object.keys(riskMap).map(function(k){return riskMap[k];});
         result.risk=_grcRiskSort(result.risk);result.review.sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
