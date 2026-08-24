@@ -447,27 +447,31 @@ service cloud.firestore {
     // ── Department-scoped GRC register collections ───────────────────
     match /grc_policies/{recordId} {
       // Every role follows the same department data boundary.
-      allow get, list: if canGetDepartmentGrcRecord(resource.data);
+      allow get: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
+      allow list: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_plans/{recordId} {
       // Every role follows the same department data boundary.
-      allow get, list: if canGetDepartmentGrcRecord(resource.data);
+      allow get: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
+      allow list: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_forms/{recordId} {
       // Every role follows the same department data boundary.
-      allow get, list: if canGetDepartmentGrcRecord(resource.data);
+      allow get: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
+      allow list: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_manuals/{recordId} {
-      allow get, list: if canGetDepartmentGrcRecord(resource.data);
+      allow get: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
+      allow list: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
@@ -478,7 +482,7 @@ service cloud.firestore {
       // cannot block Approve & Publish. Normal Admin writes still require the
       // canonical v2 record shape.
       allow get: if superAdmin() || canGetRiskIncidentRecord(resource.data);
-      allow list: if canGetRiskIncidentRecord(resource.data);
+      allow list: if superAdmin() || canGetRiskIncidentRecord(resource.data);
       allow create: if superAdmin() ||
         (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() ||
@@ -488,7 +492,7 @@ service cloud.firestore {
     }
     match /grc_incidents/{recordId} {
       allow get: if superAdmin() || canGetRiskIncidentRecord(resource.data);
-      allow list: if canGetRiskIncidentRecord(resource.data);
+      allow list: if superAdmin() || canGetRiskIncidentRecord(resource.data);
       allow create: if superAdmin() ||
         (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() ||
@@ -496,37 +500,43 @@ service cloud.firestore {
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_codes/{recordId} {
-      allow get, list: if canGetDepartmentGrcRecord(resource.data);
+      allow get: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
+      allow list: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_compliance/{recordId} {
-      allow get, list: if canGetDepartmentGrcRecord(resource.data);
+      allow get: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
+      allow list: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_audits/{recordId} {
-      allow get, list: if canGetDepartmentGrcRecord(resource.data);
+      allow get: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
+      allow list: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_actions/{recordId} {
-      allow get, list: if canGetDepartmentGrcRecord(resource.data);
+      allow get: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
+      allow list: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_documents/{recordId} {
-      allow get, list: if canGetDepartmentGrcRecord(resource.data);
+      allow get: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
+      allow list: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_initiatives/{recordId} {
-      allow get, list: if canGetDepartmentGrcRecord(resource.data);
+      allow get: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
+      allow list: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
@@ -953,7 +963,7 @@ service cloud.firestore {
     function riskRequesterChange() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'proposedRecord','changedFields','requesterNote','managerNote',
-        'superAdminNote','returnFields','returnNote','returnSource','status','updatedAt','updatedAtIso','history'
+        'superAdminNote','assignedManagerEmail','returnFields','returnNote','returnSource','status','updatedAt','updatedAtIso','history'
       ]);
     }
 
