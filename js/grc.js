@@ -1730,21 +1730,19 @@
         if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){
           grcConfigureCollectionScopes(key,['all']);grcListen(b,key,'all',col);
         }else{
-          /* Read the canonical departmentKey AND legacy department field.
-             Each listener uses one direct equality so Firestore can prove the
-             query against Rules. The v193 Super Admin repair rewrites old rows
-             into one canonical departmentKey; these fallbacks keep them visible
-             during the migration instead of leaving a stale device cache. */
-          var scopes=['departmentKey','departmentCanonical'];
-          var canonicalRaw=canonicalGrcDepartment(rawDept);
-          if(rawDept&&canonicalRaw===dept&&rawDept!==dept)scopes.push('departmentRaw');
-          if(key!=='risks'&&key!=='incidents')scopes.push('divisionKey','divisionLegacy');
+          /* Canonical departmentKey is the required bootstrap path. Legacy
+             department-label queries are optional compatibility reads: if one
+             is denied, the canonical snapshot still hydrates the register. */
+          var scopes=['departmentKey'];
+          var exactDepartments=[];
+          if(rawDept)exactDepartments.push(rawDept);
+          if(dept&&exactDepartments.indexOf(dept)<0)exactDepartments.push(dept);
           grcConfigureCollectionScopes(key,scopes);
           grcListen(b,key,'departmentKey',b.fs.query(col,b.fs.where('departmentKey','==',dept)));
-          grcListen(b,key,'departmentCanonical',b.fs.query(col,b.fs.where('department','==',dept)));
-          if(scopes.indexOf('departmentRaw')>=0)grcListen(b,key,'departmentRaw',b.fs.query(col,b.fs.where('department','==',rawDept)));
-          if(scopes.indexOf('divisionKey')>=0)grcListen(b,key,'divisionKey',b.fs.query(col,b.fs.where('departmentKey','==','division')));
-          if(scopes.indexOf('divisionLegacy')>=0)grcListen(b,key,'divisionLegacy',b.fs.query(col,b.fs.where('department','==','division')));
+          exactDepartments.forEach(function(value,idx){
+            if(!value)return;
+            grcListen(b,key,'departmentExact'+idx,b.fs.query(col,b.fs.where('department','==',value)));
+          });
         }
       });
       if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminCanonicalCatalogV193().catch(function(err){console.error('[GRC Canonical Catalog v193]',err);});},350);
