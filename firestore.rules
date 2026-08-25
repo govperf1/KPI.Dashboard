@@ -233,6 +233,7 @@ service cloud.firestore {
         superAdmin() ||
         (d == '' && !meaningfulDepartmentValue(profileDepartmentValueFrom(userData()))) ||
         data.departmentKey == d ||
+        data.department == profileDepartmentValueFrom(userData()) ||
         data.departmentKey == 'division' ||
         data.visibility == 'shared'
       );
