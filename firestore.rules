@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v65 — Super Admin global GRC reads + unified Review & Development approvals
+// FIRESTORE SECURITY RULES v66 — Super Admin global GRC reads + unified Review & Development approvals
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -229,13 +229,20 @@ service cloud.firestore {
 
     function canListDepartmentGrcRecord(data) {
       let d = profileDepartmentKeyFrom(userData());
+      let raw = profileDepartmentValueFrom(userData());
+      // Query-safe legacy support: scoped clients still read older documents
+      // whose canonical departmentKey was not backfilled yet. Keep the exact
+      // equality branches so Firestore can prove each equality query; the
+      // canonicalDepartment() helper remains for single-document reads.
       return approved() && canAccessGrc() && (
         superAdmin() ||
-        (d == '' && !meaningfulDepartmentValue(profileDepartmentValueFrom(userData()))) ||
+        (d == '' && !meaningfulDepartmentValue(raw)) ||
         data.departmentKey == d ||
-        data.department == profileDepartmentValueFrom(userData()) ||
         data.departmentKey == 'division' ||
-        data.visibility == 'shared'
+        data.visibility == 'shared' ||
+        data.department == d ||
+        data.department == raw ||
+        data.department == 'division'
       );
     }
 
@@ -604,9 +611,10 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // A unique v61 path proves the Super Admin publish/read fixes are actually deployed.
+    // v66 is the current approval-sync deployment marker. The v65 marker remains
+    // accepted for backward compatibility during rollout.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v65-grc-superadmin-global-20260824';
+      allow get: if approved() && versionId in ['v65-grc-superadmin-global-20260824','v66-grc-approval-sync-20260825'];
       allow list, create, update, delete: if false;
     }
 
@@ -628,13 +636,9 @@ service cloud.firestore {
     // No stored manager email or directory is involved, so a stale/old manager
     // assignment cannot hide a pending request from the current manager.
     match /grc_department_approval_inbox_v3/{departmentKey}/{queueKind}/{requestId} {
-      // The department is encoded in the document path. Authorize the manager
-      // against that path value directly so Firestore can prove the collection
-      // query without evaluating the request body. This is the only inbox a
-      // Department Manager can read.
-      allow get, list: if approved() &&
+      allow get, list: if signedIn() && userData().approved == true &&
         profileRoleFrom(userData()) == 'department_manager' &&
-        departmentKey == profileDepartmentKeyFrom(userData()) &&
+        profileDepartmentKeyFrom(userData()) == departmentKey &&
         queueKind in ['review','risk'];
 
       allow create, update: if superAdmin() || (
