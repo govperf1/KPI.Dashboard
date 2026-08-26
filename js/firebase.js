@@ -1153,20 +1153,43 @@ window._selectPortal=async portal=>{
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         const result={profile:fresh,review:[],risk:[],errors:[]};
-        // v36 stable Rules do not use the later department-inbox index.
-        // Read the authoritative request collections directly, scoped to the
-        // manager department. This avoids the inbox permission dependency.
+        const reviewMap={},riskMap={};
+        function addReview(id,row){
+          const key=String(id||row&&row.id||'');if(!key)return;
+          const normalized=_advNormalizeRow(key,row||{},'advisory_requests');
+          if(String(normalized.workflowStage||'')!=='pending_department_manager')return;
+          if(String(normalized.userEmail||'').toLowerCase().trim()===fresh.email)return;
+          normalized._managerAssigned=true;reviewMap[key]=normalized;
+        }
+        function addRisk(id,row){
+          const key=String(id||row&&row.id||'');if(!key)return;
+          const status=String(row&&row.status||'').toLowerCase();
+          if(String(row&&row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;
+          if(!['pending_manager','returned_manager'].includes(status))return;
+          const data=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});
+          if(data){data._managerAssigned=true;riskMap[key]=data;}
+        }
+        // v36.2: read the department-scoped inbox first. The inbox is only a
+        // routing index, so failure/absence must never hide the authoritative
+        // request collection; direct scoped reads remain the compatibility path.
+        const inboxSettled=await Promise.allSettled([
+          getDocsFromServer(collection(db,GRC_MANAGER_QUEUE_ROOT,fresh.departmentKey,'review')),
+          getDocsFromServer(collection(db,GRC_MANAGER_QUEUE_ROOT,fresh.departmentKey,'risk'))
+        ]);
+        if(inboxSettled[0].status==='fulfilled')inboxSettled[0].value.forEach(function(d){const q=d.data()||{},snap=q.snapshot||{};addReview(q.requestId||d.id,snap);});
+        if(inboxSettled[1].status==='fulfilled')inboxSettled[1].value.forEach(function(d){const q=d.data()||{},snap=q.snapshot||{};addRisk(q.requestId||d.id,snap);});
+
+        // Compatibility fallback for requests created before the inbox index was
+        // added, or for an index entry that was not written on an older client.
         const settled=await Promise.allSettled([
           getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey),where('workflowStage','==','pending_department_manager'))),
           getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)))
         ]);
-        if(settled[0].status==='rejected')result.errors.push('Review requests: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason));
-        if(settled[1].status==='rejected')result.errors.push('Risk requests: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
-        const reviewMap={},riskMap={};
-        function addReview(id,row){const key=String(id||row&&row.id||'');if(!key)return;const normalized=_advNormalizeRow(key,row||{},'advisory_requests');if(String(normalized.workflowStage||'')!=='pending_department_manager')return;if(String(normalized.userEmail||'').toLowerCase().trim()===fresh.email)return;normalized._managerAssigned=true;reviewMap[key]=normalized;}
-        function addRisk(id,row){const key=String(id||row&&row.id||'');if(!key)return;const status=String(row&&row.status||'').toLowerCase();if(String(row&&row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;if(!['pending_manager','returned_manager'].includes(status))return;const data=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});if(data){data._managerAssigned=true;riskMap[key]=data;}}
         if(settled[0].status==='fulfilled')settled[0].value.forEach(function(d){addReview(d.id,d.data()||{});});
+        else if(inboxSettled[0].status==='rejected')result.errors.push('Review requests: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason));
         if(settled[1].status==='fulfilled')settled[1].value.forEach(function(d){addRisk(d.id,d.data()||{});});
+        else if(inboxSettled[1].status==='rejected')result.errors.push('Risk requests: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
+
         result.review=Object.keys(reviewMap).map(function(k){return reviewMap[k];});
         result.risk=Object.keys(riskMap).map(function(k){return riskMap[k];});
         result.risk=_grcRiskSort(result.risk);result.review.sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
