@@ -1430,13 +1430,23 @@ window._selectPortal=async portal=>{
       if(['return','reject'].includes(action)&&!managerComment)throw new Error(action==='return'?'A return note is required.':'A rejection reason is required.');
       if(!auth.currentUser||!auth.currentUser.email)throw new Error('Not authenticated.');
 
-      const managerEmail=String(auth.currentUser.email||'').toLowerCase().trim();
+      /* Always resolve the manager from the current Firestore profile at the
+         moment of the decision. The old path trusted the cached department/role
+         values used to render the queue; after a profile/department change that
+         could make a valid manager update fail Firestore permission checks. */
+      const freshProfile=await _grcResolveManagerProfile(await _advFreshProfile());
+      const managerEmail=freshProfile.email;
       const managerName=String(window._fbName||window.currentUserName||managerEmail);
-      const rawDept=(window.__grcManagerDepartmentKey||window._fbDept||window.currentUserDept||'');
-      const dept=_advCanonicalDepartment(rawDept);
+      const dept=freshProfile.departmentKey;
       if(!dept)throw new Error('manager-department-missing');
 
       const requestRef=doc(db,ADV_REQUESTS_COLLECTION,String(requestId||''));
+      const requestSnap=await getDoc(requestRef);
+      if(!requestSnap.exists())throw new Error('Request not found.');
+      const requestData=requestSnap.data()||{};
+      if(String(requestData.workflowStage||'')!=='pending_department_manager')throw new Error('This request is not awaiting your approval.');
+      const requestDept=_advCanonicalDepartment(requestData.departmentKey||requestData.department);
+      if(requestDept!==dept)throw new Error('This request belongs to a different department.');
       const queueRef=_grcManagerQueueItemRef(dept,'review',requestId);
       const nowIso=_advIso();
       let finalStage='',finalStatus='',closureReason='',managerDecision='';
@@ -1940,9 +1950,16 @@ window._selectPortal=async portal=>{
     };
 
     window._grcRiskRequestManagerAction=async function(requestId,action,note,fields){
+      /* Use the same server-side rules deployment/profile resolution as the rest
+         of the GRC approval flow, then perform the authoritative request update
+         separately from queue cleanup. A failed queue cleanup must never roll back
+         an otherwise valid manager decision. */
+      await _grcRiskAssertRulesVersion();
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
       const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data(),currentStatus=String(r.status||'');
       if(!['pending_manager','returned_manager'].includes(currentStatus))throw new Error('This request is not awaiting your approval.');
+      const requestDept=_advCanonicalDepartment(r.departmentKey||r.department||r.departmentRaw);
+      if(requestDept!==fresh.departmentKey)throw new Error('This request belongs to a different department.');
       action=String(action||'');note=String(note||'').trim();fields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
       let status='';
       if(action==='approve'&&currentStatus==='pending_manager')status='pending_super_admin';
@@ -1957,7 +1974,12 @@ window._selectPortal=async portal=>{
       const updates={status,managerName:String(window._fbName||fresh.email),managerEmail:fresh.email,managerNote:note,managerActionAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history};
       if(action==='return'){updates.returnFields=fields;updates.returnNote=note;updates.returnSource='department_manager';}
       else{updates.returnFields=[];updates.returnNote='';updates.returnSource='';}
-      const dept=String(r.departmentKey||r.department||''),batch=writeBatch(db);batch.update(ref,updates);batch.delete(_grcManagerQueueItemRef(dept,'risk',requestId));await batch.commit();
+      const dept=fresh.departmentKey;
+      /* Commit the authoritative request first. Queue deletion is cleanup only
+         and is intentionally best-effort so a queue permission/cache issue cannot
+         make Approve / Return / Reject appear broken to the manager. */
+      await updateDoc(ref,updates);
+      deleteDoc(_grcManagerQueueItemRef(dept,'risk',requestId)).catch(function(err){console.warn('[GRC Risk manager queue cleanup]',err&&err.code||err&&err.message||err);});
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{var auditMgr=window._recordAuditDirect&&window._recordAuditDirect('GRC_MANAGER_APPROVAL_'+action.toUpperCase(),'Department Manager '+action+' · '+String(r.requestCode||requestId),{status:r.status},{status:status,note:note,returnFields:fields},{portal:'grc',dept:fresh.departmentKey,recordType:r.recordType||'risk'});if(auditMgr&&typeof auditMgr.catch==='function')auditMgr.catch(function(){});}catch(_){}
       return true;
