@@ -238,6 +238,7 @@ service cloud.firestore {
         superAdmin() ||
         (d == '' && !meaningfulDepartmentValue(raw)) ||
         data.departmentKey == d ||
+        data.departmentKey == raw ||
         data.departmentKey == 'division' ||
         data.visibility == 'shared' ||
         data.department == d ||
@@ -252,6 +253,9 @@ service cloud.firestore {
         superAdmin() ||
         (d == '' && !meaningfulDepartmentValue(profileDepartmentValueFrom(userData()))) ||
         data.departmentKey == d ||
+        data.departmentKey == profileDepartmentValueFrom(userData()) ||
+        data.department == d ||
+        data.department == profileDepartmentValueFrom(userData()) ||
         canonicalDepartment(data.department) == d ||
         data.departmentKey == 'division' ||
         canonicalDepartment(data.department) == 'division' ||
@@ -478,8 +482,8 @@ service cloud.firestore {
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_manuals/{recordId} {
-      allow get: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
-      allow list: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
+      allow get: if canAccessGrc();
+      allow list: if canAccessGrc();
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
@@ -508,43 +512,43 @@ service cloud.firestore {
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_codes/{recordId} {
-      allow get: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
-      allow list: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
+      allow get: if canAccessGrc();
+      allow list: if canAccessGrc();
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_compliance/{recordId} {
-      allow get: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
-      allow list: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
+      allow get: if canAccessGrc();
+      allow list: if canAccessGrc();
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_audits/{recordId} {
-      allow get: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
-      allow list: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
+      allow get: if canAccessGrc();
+      allow list: if canAccessGrc();
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_actions/{recordId} {
-      allow get: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
-      allow list: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
+      allow get: if canAccessGrc();
+      allow list: if canAccessGrc();
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_documents/{recordId} {
-      allow get: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
-      allow list: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
+      allow get: if canAccessGrc();
+      allow list: if canAccessGrc();
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_initiatives/{recordId} {
-      allow get: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
-      allow list: if superAdmin() || canGetDepartmentGrcRecord(resource.data);
+      allow get: if canAccessGrc();
+      allow list: if canAccessGrc();
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
@@ -685,7 +689,10 @@ service cloud.firestore {
       let r = get(/databases/$(database)/documents/grc_risk_requests/$(requestId)).data;
       return signedIn() && userData().approved == true &&
         profileRoleFrom(userData()) == 'department_manager' && d != '' &&
-        canonicalDepartment(r.departmentKey) == d && r.status in ['pending_manager','returned_manager'];
+        (
+          canonicalDepartment(r.departmentKey) == d ||
+          canonicalDepartment(r.department) == d
+        ) && r.status in ['pending_manager','returned_manager'];
     }
 
     // ── Review & Development Center ──────────────────────────────────
@@ -859,7 +866,12 @@ service cloud.firestore {
       // The client query is constrained by departmentKey, which makes this branch
       // provable by Firestore Rules and avoids a stale queue hiding requests.
       allow list: if approved() && profileRoleFrom(userData()) == 'department_manager' &&
-        resource.data.departmentKey == profileDepartmentKeyFrom(userData());
+        (
+          resource.data.departmentKey == profileDepartmentKeyFrom(userData()) ||
+          resource.data.departmentKey == profileDepartmentValueFrom(userData()) ||
+          resource.data.department == profileDepartmentKeyFrom(userData()) ||
+          resource.data.department == profileDepartmentValueFrom(userData())
+        );
 
       allow update: if
         (superAdmin() && validAdvisorySuperAdminDecision()) ||
@@ -1023,7 +1035,12 @@ service cloud.firestore {
           riskRequestDepartmentList(resource.data)
         ));
       allow list: if approved() && profileRoleFrom(userData()) == 'department_manager' &&
-        resource.data.departmentKey == profileDepartmentKeyFrom(userData());
+        (
+          resource.data.departmentKey == profileDepartmentKeyFrom(userData()) ||
+          resource.data.departmentKey == profileDepartmentValueFrom(userData()) ||
+          resource.data.department == profileDepartmentKeyFrom(userData()) ||
+          resource.data.department == profileDepartmentValueFrom(userData())
+        );
 
       // Evaluate Super Admin first. During testing the same authenticated
       // account may have originally submitted the request under another role.
