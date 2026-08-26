@@ -1382,17 +1382,18 @@ window._selectPortal=async portal=>{
       if(String(current.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request. Your request must be reviewed by Super Admin.');
       if(current._storage!=='advisory_requests')throw new Error('Legacy requests cannot use the Department Manager approval workflow.');
       if(String(current.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
-      if(!['approve','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
-      if(action==='reject'&&!managerComment)throw new Error('A rejection reason is required.');
+      if(!['approve','return','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
+      if(['return','reject'].includes(action)&&!managerComment)throw new Error(action==='return'?'A return note is required.':'A rejection reason is required.');
       const requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso(),queueRef=_grcManagerQueueItemRef(String(current.departmentKey||''),'review',requestId);
-      let finalStage='',finalStatus='',closureReason='';
+      let finalStage='',finalStatus='',closureReason='',managerDecision='';
       await runTransaction(db,async tx=>{
         const snap=await tx.get(requestRef);if(!snap.exists())throw new Error('Request not found.');const live=snap.data()||{};
         if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
         if(String(live.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request.');
-        if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
-        else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
-        const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:action==='approve'?'approved':'rejected',managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
+        if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';managerDecision='approved';}
+        else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='returned_by_department_manager';managerDecision='returned';}
+        else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';managerDecision='rejected';}
+        const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:managerDecision,managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
         if(action==='reject')updates.closedAt=serverTimestamp();
         tx.update(requestRef,updates);
       });
@@ -1407,8 +1408,18 @@ window._selectPortal=async portal=>{
     };
 
     window._advisoryAdminAction=async function(requestId,action,data,file){
-      if(!_advIsSuperAdmin())throw new Error('Super Admin approval is required.');
-      data=data||{};const current=await _advAuthorizedRequest(requestId,true,false),requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso();
+      /* v247: resolve the acting role from the Firestore server before processing.
+         The old path trusted window._fbRole, so a role/profile change could leave
+         the UI showing Super Admin controls while the write was evaluated as the
+         previous role, producing a misleading permission-denied error. */
+      await _advAssertRulesVersion();
+      const freshProfile=await _advFreshProfile();
+      await _advAssertProfileScope(freshProfile);
+      if(freshProfile.role!=='super_admin')throw new Error('Super Admin approval is required.');
+      data=data||{};
+      const located=await _advLocateRequest(requestId);
+      const current=Object.assign(located.record,{_requestRef:located.requestRef,_publicRef:located.publicRef});
+      const requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso();
       if(_advStatusKey(current.status)==='closed'||String(current.workflowStage||'')==='closed')throw new Error('This request is closed and no longer accepts Super Admin actions.');
       const approvalStage=String(current.workflowStage||'');if(approvalStage==='pending_department_manager'||approvalStage==='rejected_manager')throw new Error('This request has not been approved by the Department Manager.');
       const updates={updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:_advEmail()},publicUpdates={updatedAt:serverTimestamp()},messageAttachments=[];
@@ -1716,24 +1727,37 @@ window._selectPortal=async portal=>{
       return{requestId:requestRef.id,requestCode:requestCode};
     };
     window._grcRiskRequestResubmit=async function(requestId,proposedRecord,note){
-      await _grcRiskAssertRulesVersion();
       if(!_grcRiskCanSubmit('risk')&&!_grcRiskCanSubmit('incident'))throw new Error('Access denied.');const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(!_grcRiskOwnsRequest(r))throw new Error('Access denied.');if(String(r.status||'')!=='returned_requester')throw new Error('Only a request returned for update can be edited and resubmitted.');
       const proposed=_grcRiskJson(proposedRecord||r.proposedRecord),now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status:'pending_manager',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'Resubmitted')});
       const dept=String(r.departmentKey||r.department||'');
       const updates={proposedRecord:proposed,changedFields:_grcRiskChangedFields(r.currentRecord,proposed),status:'pending_manager',requesterNote:String(note||r.requesterNote||''),managerNote:'',superAdminNote:'',assignedManagerEmail:'',returnFields:[],returnNote:'',returnSource:'',updatedAt:serverTimestamp(),updatedAtIso:now,history};
-      const snapshot=_grcRiskQueueSnapshot(Object.assign({},r,updates,{updatedAtIso:now}),requestId),batch=writeBatch(db);
-      batch.update(ref,updates);
-      batch.set(_grcManagerQueueItemRef(dept,'risk',requestId),_grcQueueItem('risk',requestId,dept,String(r.submittedByEmail||_grcRiskEmail()),snapshot),{merge:false});
-      await batch.commit();
+      /* v247: the authoritative request is the source of truth. Do NOT make a
+         requester resubmission depend on the optional manager-inbox document.
+         Older requests may contain a legacy department spelling (for example
+         'Project Management'), while the inbox Rules require the canonical key
+         ('projects'). A batch containing the queue write therefore caused the
+         visible 'Missing or insufficient permissions' error and rolled back the
+         otherwise valid request update. Save the request first, then refresh the
+         inbox as a best-effort secondary index. */
+      await updateDoc(ref,updates);
+      try{
+        const canonicalDept=_advCanonicalDepartment(dept)||dept;
+        if(canonicalDept){
+          const snapshot=_grcRiskQueueSnapshot(Object.assign({},r,updates,{departmentKey:canonicalDept,department:canonicalDept,updatedAtIso:now}),requestId);
+          await setDoc(_grcManagerQueueItemRef(canonicalDept,'risk',requestId),_grcQueueItem('risk',requestId,canonicalDept,String(r.submittedByEmail||_grcRiskEmail()),snapshot),{merge:false});
+        }
+      }catch(queueErr){console.warn('[GRC Risk Resubmit] manager inbox indexing skipped after successful request save',queueErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('GRC_REGISTER_REQUEST_RESUBMIT','Resubmitted '+String(r.recordType||'risk')+' request '+String(r.requestCode||requestId),r.proposedRecord,proposed,{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
       return true;
     };
     window._grcRiskRequestCancel=async function(requestId){
       const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(!_grcRiskOwnsRequest(r))throw new Error('Access denied.');if(!['pending_manager','returned_requester'].includes(String(r.status||'')))throw new Error('This request can no longer be cancelled.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status:'cancelled',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:'Cancelled by requester'});
-      const updates={status:'cancelled',updatedAt:serverTimestamp(),updatedAtIso:now,history},dept=String(r.departmentKey||r.department||''),batch=writeBatch(db);
-      batch.update(ref,updates);if(dept)batch.delete(_grcManagerQueueItemRef(dept,'risk',requestId));
-      await batch.commit();
+      const updates={status:'cancelled',updatedAt:serverTimestamp(),updatedAtIso:now,history},dept=String(r.departmentKey||r.department||'');
+      /* v247: cancellation must not be rolled back because an old queue path
+         uses a legacy department alias. The request document is authoritative. */
+      await updateDoc(ref,updates);
+      try{const canonicalDept=_advCanonicalDepartment(dept)||dept;if(canonicalDept)await deleteDoc(_grcManagerQueueItemRef(canonicalDept,'risk',requestId));}catch(queueErr){console.warn('[GRC Risk Cancel] manager inbox cleanup skipped after successful cancellation',queueErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('GRC_REGISTER_REQUEST_CANCEL','Cancelled '+String(r.recordType||'risk')+' request '+String(r.requestCode||requestId),{status:r.status},{status:'cancelled'},{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
       return true;
