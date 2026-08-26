@@ -1157,7 +1157,7 @@ window._selectPortal=async portal=>{
         // Read the authoritative request collections directly, scoped to the
         // manager department. This avoids the inbox permission dependency.
         const settled=await Promise.allSettled([
-          getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey))),
+          getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey),where('workflowStage','==','pending_department_manager'))),
           getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)))
         ]);
         if(settled[0].status==='rejected')result.errors.push('Review requests: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason));
@@ -1342,7 +1342,7 @@ window._selectPortal=async portal=>{
       };
       if(_advIsDepartmentManager()){
         if(dept){
-          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)),'advisory_requests');
+          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept),where('workflowStage','==','pending_department_manager')),'advisory_requests');
           listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
         }else{
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
