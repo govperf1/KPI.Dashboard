@@ -228,39 +228,15 @@ service cloud.firestore {
     }
 
     function canListDepartmentGrcRecord(data) {
-      let d = profileDepartmentKeyFrom(userData());
-      let raw = profileDepartmentValueFrom(userData());
-      // Query-safe legacy support: scoped clients still read older documents
-      // whose canonical departmentKey was not backfilled yet. Keep the exact
-      // equality branches so Firestore can prove each equality query; the
-      // canonicalDepartment() helper remains for single-document reads.
-      return approved() && canAccessGrc() && (
-        superAdmin() ||
-        (d == '' && !meaningfulDepartmentValue(raw)) ||
-        data.departmentKey == d ||
-        data.departmentKey == raw ||
-        data.departmentKey == 'division' ||
-        data.visibility == 'shared' ||
-        data.department == d ||
-        data.department == raw ||
-        data.department == 'division'
-      );
+      // Registers are a consolidated read view for every approved GRC user.
+      // Department is enforced by write/workflow permissions, not by hiding
+      // approved records from the Registers page.
+      return approved() && canAccessGrc();
     }
 
     function canGetDepartmentGrcRecord(data) {
-      let d = profileDepartmentKeyFrom(userData());
-      return approved() && canAccessGrc() && (
-        superAdmin() ||
-        (d == '' && !meaningfulDepartmentValue(profileDepartmentValueFrom(userData()))) ||
-        data.departmentKey == d ||
-        data.departmentKey == profileDepartmentValueFrom(userData()) ||
-        data.department == d ||
-        data.department == profileDepartmentValueFrom(userData()) ||
-        canonicalDepartment(data.department) == d ||
-        data.departmentKey == 'division' ||
-        canonicalDepartment(data.department) == 'division' ||
-        data.visibility == 'shared'
-      );
+      // Keep the same read boundary for direct document reads.
+      return approved() && canAccessGrc();
     }
 
     function canListRiskIncidentRecord(data) {
