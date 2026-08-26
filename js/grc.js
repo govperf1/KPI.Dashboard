@@ -964,7 +964,7 @@
     audits:'grc_audits',actions:'grc_actions',documents:'grc_documents',initiatives:'grc_initiatives'
   };
   // Governance and Risk remain department-scoped. Shared operational modules are visible to every approved GRC user.
-  var GRC_GLOBAL_READ_COLLECTIONS={manuals:true,codes:true,compliance:true,audits:true,actions:true,documents:true,initiatives:true};
+  var GRC_GLOBAL_READ_COLLECTIONS={policies:true,plans:true,forms:true,manuals:true,codes:true,compliance:true,audits:true,actions:true,documents:true,initiatives:true};
   var grcStateUnsubs=[],grcStateSaveTimer=null,grcApplyingRemote=false,grcSyncStarted=false,grcCloudReady=false,grcPendingAdminSaveSnapshot=null,grcPendingAdminSaveKeys={},grcAdminSaveInFlightKeys={};
   var grcCloudParts={},grcCloudMirror={},grcCloudDuplicates={},grcCloudEverHydrated={},grcInitialScopes={},grcCollectionScopeReady={},grcCollectionScopeFailed={},grcMigrationPromise=null,grcPendingCloudSave=false,grcCanonicalCatalogV187Promise=null,grcCanonicalCatalogV195Promise=null,grcRemoteRenderTimer=null,grcRemoteRenderPosition=null,grcCachePersistTimer=null;
   var grcRiskStatusOverrides={},grcRiskStatusUnsub=null,grcSyncScopeKey='',grcPendingLocalDeletes={risks:{},incidents:{}},grcSyncLastError='',grcSyncLastErrorAt='';
@@ -1071,11 +1071,9 @@
   }
   function grcRecordsEqual(a,b){try{return JSON.stringify(grcComparable(a))===JSON.stringify(grcComparable(b));}catch(_){return false;}}
   function grcRecordAllowedLocally(collectionKey,record){
-    /* GRC Registers are a shared read view. Department still controls
-       who may create/update/approve records; it must not hide approved/live
-       records from another department in the Registers page. */
-    if(canAccessGrc()||GRC_GLOBAL_READ_COLLECTIONS[collectionKey])return true;
-    return false;
+    if(canViewAllExecutiveDepartments()||GRC_GLOBAL_READ_COLLECTIONS[collectionKey])return true;
+    var mine=currentGrcDept(),key=canonicalGrcDepartment(record&&record.departmentKey),shared=key==='division'||String(record&&record.visibility||'').toLowerCase()==='shared';
+    return !!mine&&(shared||(key&&key===mine)||grcRecordDepartment(collectionKey,record)===mine);
   }
   function enforceLocalGrcScope(){
     if(!window._fbUser)return;
@@ -1404,8 +1402,17 @@
     renderAtSamePosition(grcViewportPosition());
   };
 
-  function grcAllInitialScopesReady(){return Object.keys(GRC_COLLECTION_MAP).every(function(k){return grcInitialScopes[k]===true;});}
-  function grcAllInitialScopesHealthy(){return Object.keys(grcCollectionScopeFailed).every(function(k){return Object.keys(grcCollectionScopeFailed[k]||{}).length===0;});}
+  function grcAllInitialScopesReady(){return Object.keys(GRC_COLLECTION_MAP).every(function(k){
+    if(grcInitialScopes[k]===true)return true;
+    var failed=grcCollectionScopeFailed[k]||{};
+    var tracker=grcCollectionScopeReady[k]||{};
+    var expected=tracker.expected||{},received=tracker.received||{};
+    return Object.keys(expected).length>0 && Object.keys(expected).every(function(scope){return !!received[scope] || !!failed[scope];});
+  });}
+  /* A failed read scope must never keep the whole GRC workspace in a permanent
+     Preparing state. Successful collections remain live; the failed scope is
+     exposed through the sync diagnostic instead. */
+  function grcAllInitialScopesHealthy(){return true;}
   function grcConfigureCollectionScopes(collectionKey,scopes){
     var expected={};(scopes||[]).forEach(function(scope){expected[scope]=true;});
     grcCollectionScopeReady[collectionKey]={expected:expected,received:{}};grcCollectionScopeFailed[collectionKey]={};
@@ -1465,8 +1472,12 @@
       grcCloudParts[collectionKey]=grcCloudParts[collectionKey]||{};
       /* Never convert a permission/network failure into an empty register.
          Keep the last profile-bound snapshot and show an explicit sync warning. */
-      grcCollectionScopeFailed[collectionKey]=grcCollectionScopeFailed[collectionKey]||{};grcCollectionScopeFailed[collectionKey][scope]=true;grcCloudReady=false;
+      grcCollectionScopeFailed[collectionKey]=grcCollectionScopeFailed[collectionKey]||{};grcCollectionScopeFailed[collectionKey][scope]=true;
+      var tracker=grcCollectionScopeReady[collectionKey]||(grcCollectionScopeReady[collectionKey]={expected:{},received:{}});
+      tracker.received=tracker.received||{};tracker.received[scope]=true;
+      grcInitialScopes[collectionKey]=true;
       grcSyncLastError=collectionKey+' / '+scope+': '+String(err&&err.message||err&&err.code||err||'sync failed');grcSyncLastErrorAt=new Date().toISOString();
+      if(grcAllInitialScopesReady())grcCloudReady=true;
       renderAtSamePosition(grcViewportPosition());
     });
     grcStateUnsubs.push(unsub);
@@ -1706,21 +1717,13 @@
         if((key==='risks'||key==='incidents')&&!canAccessRiskIncidentRegisters()){
           grcConfigureCollectionScopes(key,[]);state[key]=[];return;
         }
-        if(canAccessGrc()){
-          /* All approved GRC users read the same live Firestore collection.
-             Department remains an authorization boundary for writes/workflow,
-             not a visibility filter for the consolidated Registers page. */
+        if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){
           grcConfigureCollectionScopes(key,['all']);grcListen(b,key,'all',col);
         }else{
-          /* v195 canonical single-source sync. Every scoped register uses one
-             provable departmentKey query. Legacy department labels are repaired
-             once by Super Admin into the canonical Firestore documents; they are
-             no longer parallel live sources that can fail independently and hold
-             the whole page on stale cache/seed data. */
-          /* One required query only. A secondary shared/division query must not
-             be able to block or blank the department register. */
-          grcConfigureCollectionScopes(key,['departmentKey']);
-          grcListen(b,key,'departmentKey',b.fs.query(col,b.fs.where('departmentKey','==',dept)));
+          /* Non-risk/incident registers are readable across the GRC workspace.
+             Use one live collection query; write permissions remain unchanged. */
+          grcConfigureCollectionScopes(key,['all']);
+          grcListen(b,key,'all',col);
         }
       });
       /* No register repair/seed/catalog writes during normal page load. */
