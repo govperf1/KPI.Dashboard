@@ -978,9 +978,9 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV60Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v60-grc-department-scope-approval-20260823'));window.__advRulesV60Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v60 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__advRulesV66Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v66-grc-approval-sync-20260825'));window.__advRulesV66Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v66 are not active. Publish the current firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     async function _advAssertProfileScope(profile){
       profile=profile||{};
@@ -1642,9 +1642,9 @@ window._selectPortal=async portal=>{
     function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();if(['viewer','user'].includes(r))return false;return ['super_admin','admin','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager'].includes(r)||p.includes('view_grc_department')||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('*');}
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
-      if(window.__grcRulesV60Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v60-grc-department-scope-approval-20260823'));window.__grcRulesV60Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v60 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__grcRulesV66Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v66-grc-approval-sync-20260825'));window.__grcRulesV66Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v66 are not active. Publish the current firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
     // Compatibility aliases point to the same current probe so old callers cannot
@@ -1824,19 +1824,50 @@ window._selectPortal=async portal=>{
       await _grcRiskAssertRulesVersion();
       const freshProfile=await _advFreshProfile();await _advAssertProfileScope(freshProfile);
       if(!['risk_owner','grc_owner','platform_owner'].includes(freshProfile.role)&&!_grcRiskCanSubmit('risk')&&!_grcRiskCanSubmit('incident'))throw new Error('Access denied.');
-      const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();
+      const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);
+      if(!snap.exists())throw new Error('Request not found.');
+      const r=snap.data();
       const sameOwner=(String(r.submittedByUid||'')&&String(r.submittedByUid||'')===String(freshProfile.uid||''))||String(r.submittedByEmail||'').toLowerCase().trim()===freshProfile.email;
       if(!sameOwner)throw new Error('Access denied. This returned request belongs to another user.');
       if(String(r.status||'')!=='returned_requester')throw new Error('Only a request returned for update can be edited and resubmitted.');
-      const proposed=_grcRiskJson(proposedRecord||r.proposedRecord),now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({action:'requester_resubmit',status:'pending_manager',by:freshProfile.email,role:freshProfile.role,at:now,note:String(note||'Resubmitted')});
-      const dept=String(r.departmentKey||r.department||'');
-      const updates={proposedRecord:proposed,changedFields:_grcRiskChangedFields(r.currentRecord,proposed),status:'pending_manager',requesterNote:String(note||r.requesterNote||''),managerNote:'',superAdminNote:'',assignedManagerEmail:'',returnFields:[],returnNote:'',returnSource:'',updatedAt:serverTimestamp(),updatedAtIso:now,history};
+
+      /* The Department Manager decides exactly which fields may be changed.
+         Never accept a whole replacement object from the browser: retain every
+         non-returned value from the stored proposal and merge only the selected fields. */
+      const stored=_grcRiskJson(r.proposedRecord||r.currentRecord||{})||{},
+            incoming=_grcRiskJson(proposedRecord||{})||{},
+            type=String(r.recordType||'risk').toLowerCase(),
+            allowed=type==='incident'?['date','category','contributingFactors','investigationRequired','status']:['riskIdentified','riskCategory','likelihood','impact','controlType','actionStatus'],
+            requestedFields=(Array.isArray(r.returnFields)&&r.returnFields.length?r.returnFields:(Array.isArray(r.changedFields)?r.changedFields:[])).map(String),
+            editable=requestedFields.filter(function(k){return allowed.indexOf(k)>=0;}),
+            proposed=Object.assign({},stored),
+            now=_grcRiskIso(),
+            history=Array.isArray(r.history)?r.history.slice():[];
+      editable.forEach(function(k){if(Object.prototype.hasOwnProperty.call(incoming,k))proposed[k]=incoming[k];});
+      history.push({status:'pending_manager',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'Resubmitted'),fields:editable});
+
+      const dept=String(r.departmentKey||r.department||''),
+            updates={
+              proposedRecord:proposed,
+              changedFields:_grcRiskChangedFields(r.currentRecord,proposed),
+              status:'pending_manager',
+              requesterNote:String(note||r.requesterNote||''),
+              managerNote:'',
+              superAdminNote:'',
+              assignedManagerEmail:'',
+              returnFields:Array.isArray(r.returnFields)?r.returnFields.slice():editable.slice(),
+              returnNote:String(r.returnNote||''),
+              returnSource:String(r.returnSource||'department_manager'),
+              updatedAt:serverTimestamp(),
+              updatedAtIso:now,
+              history
+            };
       const snapshot=_grcRiskQueueSnapshot(Object.assign({},r,updates,{updatedAtIso:now}),requestId),batch=writeBatch(db);
       batch.update(ref,updates);
       batch.set(_grcManagerQueueItemRef(dept,'risk',requestId),_grcQueueItem('risk',requestId,dept,String(r.submittedByEmail||_grcRiskEmail()),snapshot),{merge:false});
       await batch.commit();
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
-      try{var auditResubmit=window._recordAuditDirect&&window._recordAuditDirect('GRC_REGISTER_REQUEST_RESUBMIT','Resubmitted '+String(r.recordType||'risk')+' request '+String(r.requestCode||requestId),r.proposedRecord,proposed,{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});if(auditResubmit&&typeof auditResubmit.catch==='function')auditResubmit.catch(function(){});}catch(_){}
+      try{var auditResubmit=window._recordAuditDirect&&window._recordAuditDirect('GRC_REGISTER_REQUEST_RESUBMIT','Resubmitted '+String(r.recordType||'risk')+' request '+String(r.requestCode||requestId),r.proposedRecord,proposed,{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});if(auditResubmit&&typeof auditResubmit.catch==='function')auditResubmit.catch(function(){});}catch(_){ }
       return true;
     };
     window._grcRiskRequestCancel=async function(requestId){
