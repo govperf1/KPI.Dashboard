@@ -108,6 +108,13 @@ service cloud.firestore {
       ];
     }
 
+    // The consolidated Register page is read-only for non-admin users.
+    // Keep write/workflow permissions unchanged while allowing every approved
+    // GRC user to see the complete register set.
+    function canReadAllGrcRegisters() {
+      return approved() && canAccessGrc();
+    }
+
     function ownEmail(value) {
       return signedIn() && value is string && value.lower().trim() == authEmail();
     }
@@ -459,31 +466,31 @@ service cloud.firestore {
     // ── Department-scoped GRC register collections ───────────────────
     match /grc_policies/{recordId} {
       // Every role follows the same department data boundary.
-      allow get: if canAccessGrc();
-      allow list: if canAccessGrc();
+      allow get: if superAdmin() || canReadAllGrcRegisters();
+      allow list: if superAdmin() || canReadAllGrcRegisters();
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_plans/{recordId} {
       // Every role follows the same department data boundary.
-      allow get: if canAccessGrc();
-      allow list: if canAccessGrc();
+      allow get: if superAdmin() || canReadAllGrcRegisters();
+      allow list: if superAdmin() || canReadAllGrcRegisters();
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_forms/{recordId} {
       // Every role follows the same department data boundary.
-      allow get: if canAccessGrc();
-      allow list: if canAccessGrc();
+      allow get: if superAdmin() || canReadAllGrcRegisters();
+      allow list: if superAdmin() || canReadAllGrcRegisters();
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_manuals/{recordId} {
-      allow get: if canAccessGrc();
-      allow list: if canAccessGrc();
+      allow get: if canReadAllGrcRegisters();
+      allow list: if canReadAllGrcRegisters();
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
@@ -493,8 +500,8 @@ service cloud.firestore {
       // independent from legacy-row shape validation so an older register row
       // cannot block Approve & Publish. Normal Admin writes still require the
       // canonical v2 record shape.
-      allow get: if superAdmin() || canGetRiskIncidentRecord(resource.data);
-      allow list: if superAdmin() || canGetRiskIncidentRecord(resource.data);
+      allow get: if superAdmin() || canReadAllGrcRegisters();
+      allow list: if superAdmin() || canReadAllGrcRegisters();
       allow create: if superAdmin() ||
         (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() ||
@@ -503,8 +510,8 @@ service cloud.firestore {
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_incidents/{recordId} {
-      allow get: if superAdmin() || canGetRiskIncidentRecord(resource.data);
-      allow list: if superAdmin() || canGetRiskIncidentRecord(resource.data);
+      allow get: if superAdmin() || canReadAllGrcRegisters();
+      allow list: if superAdmin() || canReadAllGrcRegisters();
       allow create: if superAdmin() ||
         (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() ||
@@ -512,43 +519,43 @@ service cloud.firestore {
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_codes/{recordId} {
-      allow get: if canAccessGrc();
-      allow list: if canAccessGrc();
+      allow get: if canReadAllGrcRegisters();
+      allow list: if canReadAllGrcRegisters();
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_compliance/{recordId} {
-      allow get: if canAccessGrc();
-      allow list: if canAccessGrc();
+      allow get: if canReadAllGrcRegisters();
+      allow list: if canReadAllGrcRegisters();
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_audits/{recordId} {
-      allow get: if canAccessGrc();
-      allow list: if canAccessGrc();
+      allow get: if canReadAllGrcRegisters();
+      allow list: if canReadAllGrcRegisters();
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_actions/{recordId} {
-      allow get: if canAccessGrc();
-      allow list: if canAccessGrc();
+      allow get: if canReadAllGrcRegisters();
+      allow list: if canReadAllGrcRegisters();
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_documents/{recordId} {
-      allow get: if canAccessGrc();
-      allow list: if canAccessGrc();
+      allow get: if canReadAllGrcRegisters();
+      allow list: if canReadAllGrcRegisters();
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
     }
     match /grc_initiatives/{recordId} {
-      allow get: if canAccessGrc();
-      allow list: if canAccessGrc();
+      allow get: if canReadAllGrcRegisters();
+      allow list: if canReadAllGrcRegisters();
       allow create: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow update: if superAdmin() || (canWriteGrcRecord() && validGrcRecord(request.resource.data));
       allow delete: if superAdmin() || canWriteGrcRecord();
@@ -618,7 +625,7 @@ service cloud.firestore {
     // v66 is the current approval-sync deployment marker. The v65 marker remains
     // accepted for backward compatibility during rollout.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId in ['v65-grc-superadmin-global-20260824','v66-grc-approval-sync-20260825'];
+      allow get: if approved() && versionId in ['v60-grc-department-scope-approval-20260823','v65-grc-superadmin-global-20260824','v66-grc-approval-sync-20260825'];
       allow list, create, update, delete: if false;
     }
 
@@ -988,6 +995,20 @@ service cloud.firestore {
       ]);
     }
 
+    function riskRequesterProposedRecordAllowed() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return !changed.hasAny(['proposedRecord','changedFields']) ||
+        (resource.data.proposedRecord is map &&
+         request.resource.data.proposedRecord is map &&
+         request.resource.data.returnFields is list &&
+         request.resource.data.returnFields.size() > 0 &&
+         request.resource.data.proposedRecord.diff(resource.data.proposedRecord).affectedKeys()
+           .hasOnly(request.resource.data.returnFields) &&
+         (!('returnFields' in resource.data) || request.resource.data.returnFields == resource.data.returnFields) &&
+         (!('returnNote' in resource.data) || request.resource.data.returnNote == resource.data.returnNote) &&
+         (!('returnSource' in resource.data) || request.resource.data.returnSource == resource.data.returnSource));
+    }
+
     function riskManagerOwnsResource(data) {
       let d = profileDepartmentKeyFrom(userData());
       return approved() && profileRoleFrom(userData()) == 'department_manager' && d != '' &&
@@ -1049,7 +1070,7 @@ service cloud.firestore {
         superAdmin() ||
         (
           approved() && riskRequestOwner(resource.data) &&
-          riskRequesterChange() && validRequesterRiskTransition()
+          riskRequesterChange() && riskRequesterProposedRecordAllowed() && validRequesterRiskTransition()
         ) ||
         (
           riskManagerOwnsResource(resource.data) &&
@@ -1069,7 +1090,8 @@ service cloud.firestore {
         'platform_owner','governance_performance_manager','viewer','user'
       ];
       let all = r in ['super_admin','admin','governance_performance_manager'] ||
-        (d == '' && !meaningfulDepartmentValue(raw));
+        (d == '' && !meaningfulDepartmentValue(raw)) ||
+        canReadAllGrcRegisters();
       return access && (
         all ||
         (d != '' && ('department' in data) && canonicalDepartment(data.department) == d) ||
