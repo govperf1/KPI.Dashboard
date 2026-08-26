@@ -793,7 +793,7 @@ service cloud.firestore {
     function advisoryManagerOwnsResource(data) {
       let d = profileDepartmentKeyFrom(userData());
       return approved() && profileRoleFrom(userData()) == 'department_manager' && d != '' &&
-        (data.departmentKey == d || canonicalDepartment(data.departmentKey) == d || canonicalDepartment(data.department) == d);
+        (canonicalDepartment(data.departmentKey) == d || canonicalDepartment(data.department) == d);
     }
 
     function validAdvisoryManagerChange() {
@@ -1012,7 +1012,7 @@ service cloud.firestore {
     function riskManagerOwnsResource(data) {
       let d = profileDepartmentKeyFrom(userData());
       return approved() && profileRoleFrom(userData()) == 'department_manager' && d != '' &&
-        (data.departmentKey == d || canonicalDepartment(data.departmentKey) == d || canonicalDepartment(data.department) == d);
+        (canonicalDepartment(data.departmentKey) == d || canonicalDepartment(data.department) == d || canonicalDepartment(data.departmentRaw) == d);
     }
 
     function riskManagerChange() {
