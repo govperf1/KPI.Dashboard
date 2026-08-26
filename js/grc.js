@@ -15,10 +15,10 @@
 (function(){
   'use strict';
 
-  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260818-v198-manager-inbox-dept-record-identity');
+  window.__QUMC_GRC_BUILD__=String(window.__QUMC_BUILD__||'20260824-v226-authoritative-workflow-and-live-manager-queue');
 
   var STORAGE_KEY='qumc_grc_workspace_preview_v1';
-  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260818-v198-manager-inbox-dept-record-identity');
+  var GRC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260824-v226-authoritative-workflow-and-live-manager-queue');
   var GRC_CACHE_OWNER_KEY='qumc_grc_workspace_preview_v1_owner';
   var GRC_CACHE_BUILD_KEY='qumc_grc_workspace_preview_build';
   var STATE_VERSION=13;
@@ -465,7 +465,7 @@
 
   var INTERNAL_FORM_SEED=[{"id":"FORM-PM-INT-00001","name":"SITE VISIT CERTIFICATE FORM","code":"QUMC/FMS-PM/INT-FORM 00001","status":"valid","department":"projects","scope":"internal"},{"id":"FORM-PM-INT-00002","name":"EMPLOYEE CUSTODAY FORM","code":"QUMC/FMS-PM/INT-FORM 00002","status":"valid","department":"projects","scope":"internal"},{"id":"FORM-PM-INT-00003","name":"PROJECT MANAGER ACCREDITATION FORM","code":"QUMC/FMS-PM/INT-FORM 00003","status":"valid","department":"projects","scope":"internal"},{"id":"FORM-PM-INT-00004","name":"SUB-CONTRACTOR APPROVAL FORM","code":"QUMC/FMS-PM/INT-FORM 00004","status":"valid","department":"projects","scope":"internal"},{"id":"FORM-PM-INT-00005","name":"REQUEST FOR MATERIAL APPROVAL (RMA)","code":"QUMC/FMS-PM/INT-FORM 00005","status":"valid","department":"projects","scope":"internal"},{"id":"FORM-PM-INT-00006","name":"EMPLOYEE ACCREDITATION FORM","code":"QUMC/FMS-PM/INT-FORM 00006","status":"valid","department":"projects","scope":"internal"},{"id":"FORM-PM-INT-00007","name":"DRAWING APPROVAL REQUEST (DAR)","code":"QUMC/FMS-PM/INT-FORM 00007","status":"valid","department":"projects","scope":"internal"},{"id":"FORM-PM-INT-00008","name":"MATERIAL STOCK RELEASE FORM","code":"QUMC/FMS-PM/INT-FORM 00008","status":"valid","department":"projects","scope":"internal"},{"id":"FORM-PM-INT-00009","name":"GENERAL INSPECTION REQUESR (GIR)","code":"QUMC/FMS-PM/INT-FORM 00009","status":"valid","department":"projects","scope":"internal"},{"id":"FORM-PM-INT-00010","name":"REQUEST TO REVIEW MATERIALS","code":"QUMC/FMS-PM/INT-FORM 00010","status":"valid","department":"projects","scope":"internal"},{"id":"FORM-PM-INT-00011","name":"COMMENCEMENT OF WORK FOR CONTRACTORS FORM","code":"QUMC/FMS-PM/INT-FORM 00011","status":"valid","department":"projects","scope":"internal"},{"id":"FORM-PM-INT-00012","name":"MATERIAL RECEIVED FORM","code":"QUMC/FMS-PM/INT-FORM 00012","status":"valid","department":"projects","scope":"internal"},{"id":"FORM-HK-INT-00001","name":"EMPLOYEE CUSTODAY FORM","code":"QUMC/FMS-HK/INT-FORM 00001","status":"valid","department":"housekeeping","scope":"internal"},{"id":"FORM-HK-INT-00002","name":"PROJECT MANAGER ACCREDITATION FORM","code":"QUMC/FMS-HK/INT-FORM 00002","status":"valid","department":"housekeeping","scope":"internal"},{"id":"FORM-HK-INT-00003","name":"SUB-CONTRACTOR APPROVAL FORM","code":"QUMC/FMS-HK/INT-FORM 00003","status":"valid","department":"housekeeping","scope":"internal"},{"id":"FORM-HK-INT-00004","name":"MATERIAL APPROVAL FORM","code":"QUMC/FMS-HK/INT-FORM 00004","status":"valid","department":"housekeeping","scope":"internal"},{"id":"FORM-HK-INT-00005","name":"EMPLOYEE ACCREDITATION FORM","code":"QUMC/FMS-HK/INT-FORM 00005","status":"valid","department":"housekeeping","scope":"internal"},{"id":"FORM-HK-INT-00006","name":"JOB INTERVIEW FORM","code":"QUMC/FMS-HK/INT-FORM 00006","status":"valid","department":"housekeeping","scope":"internal"},{"id":"FORM-HK-INT-00007","name":"JOB DESCRIPTIONS FORM","code":"QUMC/FMS-HK/INT-FORM 00007","status":"valid","department":"housekeeping","scope":"internal"},{"id":"FORM-HK-INT-00008","name":"LAUNDRY ITEMS RECEIVUNG FORM","code":"QUMC/FMS-HK/INT-FORM 00008","status":"valid","department":"housekeeping","scope":"internal"},{"id":"FORM-HK-INT-00009","name":"LAUNDRY ITEMS HANDOVER FORM","code":"QUMC/FMS-HK/INT-FORM 00009","status":"valid","department":"housekeeping","scope":"internal"},{"id":"FORM-HK-INT-00010","name":"EVALUATING EMPLOYEE'S PERFORMANCE DURING TRIAL PERIOD FORM","code":"QUMC/FMS-HK/INT-FORM 00010","status":"valid","department":"housekeeping","scope":"internal"},{"id":"FORM-HK-INT-00011","name":"ANNUAL PERFORMANCE EVALUATION FORM","code":"QUMC/FMS-HK/INT-FORM 00011","status":"valid","department":"housekeeping","scope":"internal"},{"id":"FORM-HK-INT-00012","name":"MATERIAL STOCK RELEASE FORM","code":"QUMC/FMS-HK/INT-FORM 00012","status":"valid","department":"housekeeping","scope":"internal"},{"id":"FORM-HK-INT-00013","name":"REQUEST CLEANING MATERIALS FROM THE STORE FORM","code":"QUMC/FMS-HK/INT-FORM 00013","status":"valid","department":"housekeeping","scope":"internal"},{"id":"FORM-HK-INT-00014","name":"COMMENCEMENT OF WORK FOR CONTRACTORS FORM","code":"QUMC/FMS-HK/INT-FORM 00014","status":"valid","department":"housekeeping","scope":"internal"},{"id":"FORM-HK-INT-00015","name":"MATERIAL RECEIVED FORM","code":"QUMC/FMS-HK/INT-FORM 00015","status":"valid","department":"housekeeping","scope":"internal"},{"id":"FORM-HK-INT-00016","name":"SUBCONTRACTOR VISIT FORM","code":"QUMC/FMS-HK/INT-FORM 00016","status":"valid","department":"housekeeping","scope":"internal"},{"id":"FORM-MNT-INT-00001","name":"PROJECT MANAGER ACCREDITATION FORM","code":"QUMC/FMS-MNT/INT-FORM 00001","status":"valid","department":"maintenance","scope":"internal"},{"id":"FORM-MNT-INT-00002","name":"SUB-CONTRACTOR APPROVAL FORM","code":"QUMC/FMS-MNT/INT-FORM 00002","status":"valid","department":"maintenance","scope":"internal"},{"id":"FORM-MNT-INT-00003","name":"CONSUMABLES MATERIAL APPROVAL FORM","code":"QUMC/FMS-MNT/INT-FORM 00003","status":"valid","department":"maintenance","scope":"internal"},{"id":"FORM-MNT-INT-00004","name":"EMPLOYEE ACCREDITATION FORM","code":"QUMC/FMS-MNT/INT-FORM 00004","status":"valid","department":"maintenance","scope":"internal"},{"id":"FORM-MNT-INT-00005","name":"JOB INTERVIEW FORM","code":"QUMC/FMS-MNT/INT-FORM 00005","status":"valid","department":"maintenance","scope":"internal"},{"id":"FORM-MNT-INT-00006","name":"JOB DESCRIPTIONS FORM","code":"QUMC/FMS-MNT/INT-FORM 00006","status":"valid","department":"maintenance","scope":"internal"},{"id":"FORM-MNT-INT-00007","name":"EVALUATING EMPLOYEE'S PERFORMANCE DURING TRIAL PERIOD FORM","code":"QUMC/FMS-MNT/INT-FORM 00007","status":"valid","department":"maintenance","scope":"internal"},{"id":"FORM-MNT-INT-00008","name":"ANNUAL PERFORMANCE EVALUATION FORM","code":"QUMC/FMS-MNT/INT-FORM 00008","status":"valid","department":"maintenance","scope":"internal"},{"id":"FORM-MNT-INT-00009","name":"REPAIR CERTIFICATE FORM","code":"QUMC/FMS-MNT/INT-FORM 00009","status":"valid","department":"maintenance","scope":"internal"},{"id":"FORM-MNT-INT-00010","name":"REPAIR REQUEST FORM","code":"QUMC/FMS-MNT/INT-FORM 00010","status":"valid","department":"maintenance","scope":"internal"},{"id":"FORM-MNT-INT-00011","name":"APPLICATION FORM","code":"QUMC/FMS-MNT/INT-FORM 00011","status":"valid","department":"maintenance","scope":"internal"},{"id":"FORM-MNT-INT-00012","name":"MATERIAL STOCK RELEASE FORM","code":"QUMC/FMS-MNT/INT-FORM 00012","status":"valid","department":"maintenance","scope":"internal"},{"id":"FORM-MNT-INT-00013","name":"COMMENCEMENT OF WORK FOR CONTRACTORS FORM","code":"QUMC/FMS-MNT/INT-FORM 00013","status":"valid","department":"maintenance","scope":"internal"},{"id":"FORM-MNT-INT-00014","name":"DESTRUCTION OF CONTAMINATED MATERIALS FORM","code":"QUMC/FMS-MNT/INT-FORM 00014","status":"valid","department":"maintenance","scope":"internal"},{"id":"FORM-MNT-INT-00015","name":"MATERIAL RECEIVED FORM","code":"QUMC/FMS-MNT/INT-FORM 00015","status":"valid","department":"maintenance","scope":"internal"},{"id":"FORM-MNT-INT-00016","name":"MATERIAL RETURN FORM","code":"QUMC/FMS-MNT/INT-FORM 00016","status":"valid","department":"maintenance","scope":"internal"},{"id":"FORM-MNT-INT-00017","name":"SUBCONTRACTOR VISIT FORM","code":"QUMC/FMS-MNT/INT-FORM 00017","status":"valid","department":"maintenance","scope":"internal"},{"id":"FORM-SAF-INT-00001","name":"EMPLOYEE CUSTODAY FORM","code":"QUMC/FMS-SAF/INT-FORM 00001","status":"valid","department":"safety","scope":"internal"},{"id":"FORM-SAF-INT-00002","name":"PROJECT MANAGER ACCREDITATION FORM","code":"QUMC/FMS-SAF/INT-FORM 00002","status":"valid","department":"safety","scope":"internal"},{"id":"FORM-SAF-INT-00003","name":"SUB-CONTRACTOR APPROVAL FORM","code":"QUMC/FMS-SAF/INT-FORM 00003","status":"valid","department":"safety","scope":"internal"},{"id":"FORM-SAF-INT-00004","name":"CONSUMABLES MATERIAL APPROVAL FORM","code":"QUMC/FMS-SAF/INT-FORM 00004","status":"valid","department":"safety","scope":"internal"},{"id":"FORM-SAF-INT-00005","name":"EMPLOYEE ACCREDITATION FORM","code":"QUMC/FMS-SAF/INT-FORM 00005","status":"valid","department":"safety","scope":"internal"},{"id":"FORM-SAF-INT-00006","name":"JOB INTERVIEW FORM","code":"QUMC/FMS-SAF/INT-FORM 00006","status":"valid","department":"safety","scope":"internal"},{"id":"FORM-SAF-INT-00007","name":"JOB DESCRIPTIONS FORM","code":"QUMC/FMS-SAF/INT-FORM 00007","status":"valid","department":"safety","scope":"internal"},{"id":"FORM-SAF-INT-00008","name":"EVALUATING EMPLOYEE'S PERFORMANCE DURING TRIAL PERIOD FORM","code":"QUMC/FMS-SAF/INT-FORM 00008","status":"valid","department":"safety","scope":"internal"},{"id":"FORM-SAF-INT-00009","name":"ANNUAL PERFORMANCE EVALUATION FORM","code":"QUMC/FMS-SAF/INT-FORM 00009","status":"valid","department":"safety","scope":"internal"},{"id":"FORM-SAF-INT-00010","name":"REPAIR CERTIFICATE FORM","code":"QUMC/FMS-SAF/INT-FORM 00010","status":"valid","department":"safety","scope":"internal"},{"id":"FORM-SAF-INT-00011","name":"REPAIR REQUEST FORM","code":"QUMC/FMS-SAF/INT-FORM 00011","status":"valid","department":"safety","scope":"internal"},{"id":"FORM-SAF-INT-00012","name":"APPLICATION FORM","code":"QUMC/FMS-SAF/INT-FORM 00012","status":"valid","department":"safety","scope":"internal"},{"id":"FORM-SAF-INT-00013","name":"MATERIAL STOCK RELEASE FORM","code":"QUMC/FMS-SAF/INT-FORM 00013","status":"valid","department":"safety","scope":"internal"},{"id":"FORM-SAF-INT-00014","name":"COMMENCEMENT OF WORK FOR CONTRACTORS FORM","code":"QUMC/FMS-SAF/INT-FORM 00014","status":"valid","department":"safety","scope":"internal"},{"id":"FORM-SAF-INT-00015","name":"MATERIAL RECEIVED FORM","code":"QUMC/FMS-SAF/INT-FORM 00015","status":"valid","department":"safety","scope":"internal"},{"id":"FORM-SAF-INT-00016","name":"MATERIAL RETURN FORM","code":"QUMC/FMS-SAF/INT-FORM 00016","status":"valid","department":"safety","scope":"internal"},{"id":"FORM-SAF-INT-00017","name":"SUBCONTRACTOR VISIT FORM","code":"QUMC/FMS-SAF/INT-FORM 00017","status":"valid","department":"safety","scope":"internal"}];
 
-  var RISK_REGISTER_SEED=[{"id":"SAF 01","riskIdentified":"Presence of anesthetic gases& equipment which act source of fire","riskCategory":"Hazard / Environmental","likelihood":3,"impact":5,"riskScore":15,"riskLevel":"Critical","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 02","riskIdentified":"storage of flamable items& hazardouse chemical which source of fire","riskCategory":"Hazard / Environmental","likelihood":2,"impact":5,"riskScore":10,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 03","riskIdentified":"fire in the medical record","riskCategory":"Hazard / Environmental","likelihood":2,"impact":2,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 04","riskIdentified":"Inadequate cleaning of grease filters and hoods near natural gas lines may leads to oil-ignited kitchen fires during cooking operations that may cause service interruption in food supply and threat to staff and visitor safety.","riskCategory":"Hazard / Environmental","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 05","riskIdentified":"electrical spark& flamable solar  as source fire","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 06","riskIdentified":"electrical sparks from equipment produce source of fire","riskCategory":"Hazard / Environmental","likelihood":1,"impact":3,"riskScore":3,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 07","riskIdentified":"Overheating and electrical faults from equipment which may act as source of fire& connected to electricty","riskCategory":"Hazard / Environmental","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 08","riskIdentified":"explosion of medical gase& presensice of flamable gases","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 09","riskIdentified":"lack of awarness of staff about how to deal in case of presence of fire","riskCategory":"Hazard / Environmental","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 10","riskIdentified":"Smoking inside the hospital","riskCategory":"Hazard / Environmental","likelihood":4,"impact":2,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 11","riskIdentified":"explosuion of natural gase line","riskCategory":"Hazard / Environmental","likelihood":2,"impact":1,"riskScore":2,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 12","riskIdentified":"fire in the main disel tank","riskCategory":"Hazard / Environmental","likelihood":1,"impact":4,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 13","riskIdentified":"Fire in parking area","riskCategory":"Hazard / Environmental","likelihood":1,"impact":4,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"open","department":"safety"},{"id":"SAF 14","riskIdentified":"Poor coordination in emergency responses","riskCategory":"Operational","likelihood":1,"impact":3,"riskScore":3,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 15","riskIdentified":"Slip, trip, and fall hazards","riskCategory":"Hazard / Environmental","likelihood":1,"impact":2,"riskScore":2,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 16","riskIdentified":"Natural disasters (e.g., earthquakes, floods)","riskCategory":"Hazard / Environmental","likelihood":1,"impact":3,"riskScore":3,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 17","riskIdentified":"Hazardous chemical spills","riskCategory":"Hazard / Environmental","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 18","riskIdentified":"Improper disposal of expired medications or chemical containers","riskCategory":"Hazard / Environmental","likelihood":4,"impact":2,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 19","riskIdentified":"Lack of evacuation maps in departments","riskCategory":"Strategic","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 20","riskIdentified":"No Fm-200 in some rooms","riskCategory":"Hazard / Environmental","likelihood":2,"impact":4,"riskScore":8,"riskLevel":"High","controlType":"Loss Reduction","actionStatus":"open","department":"safety"},{"id":"SAF 21","riskIdentified":"No water availabilty in fire OPD","riskCategory":"Hazard / Environmental","likelihood":3,"impact":5,"riskScore":15,"riskLevel":"Critical","controlType":"Loss Reduction","actionStatus":"open","department":"safety"},{"id":"SAF 22","riskIdentified":"failure to inspect fire extinguishing  during preventive rounds","riskCategory":"Hazard / Environmental","likelihood":1,"impact":2,"riskScore":2,"riskLevel":"Low","controlType":"Risk Avoidance","actionStatus":"closed","department":"safety"},{"id":"SAF 23","riskIdentified":"lack of sufficient fire extinguishers in some places","riskCategory":"Hazard / Environmental","likelihood":1,"impact":2,"riskScore":2,"riskLevel":"Low","controlType":"Risk Acceptance","actionStatus":"closed","department":"safety"},{"id":"SAF 24","riskIdentified":"Improper storage of hazardous chemical","riskCategory":"Hazard / Environmental","likelihood":2,"impact":5,"riskScore":10,"riskLevel":"High","controlType":"Loss Reduction","actionStatus":"closed","department":"safety"},{"id":"SAF 25","riskIdentified":"Operational failure of the fire alarm system","riskCategory":"Hazard / Environmental","likelihood":4,"impact":3,"riskScore":12,"riskLevel":"High","controlType":"Loss Reduction","actionStatus":"closed","department":"safety"},{"id":"SAF 26","riskIdentified":"Failure of Firefighting System (Sprinklers / Pumps / Hose Reel)","riskCategory":"Hazard / Environmental","likelihood":3,"impact":5,"riskScore":15,"riskLevel":"Critical","controlType":"Loss Reduction","actionStatus":"closed","department":"safety"},{"id":"MNT 01","riskIdentified":"Operational failure of the Air Handling Unit (AHU) in critical zones.","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"open","department":"maintenance"},{"id":"MNT 02","riskIdentified":"Interruption or depletion of medical gas supply.","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"maintenance"},{"id":"MNT 03","riskIdentified":"Main electrical power supply failure.","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Risk Transfer","actionStatus":"closed","department":"maintenance"},{"id":"MNT 04","riskIdentified":"Interruption or failure of the main water supply network","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Risk Transfer","actionStatus":"closed","department":"maintenance"},{"id":"HK01","riskIdentified":"Slip and fall hazards due to wet surfaces","riskCategory":"Hazard / Environmental","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK02","riskIdentified":"Risk of infection transmission via contaminated surfaces or equipment","riskCategory":"Hazard / Environmental","likelihood":4,"impact":3,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK03","riskIdentified":"Ergonomic injuries from handling heavy cleaning equipment","riskCategory":"Operational","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK04","riskIdentified":"Spills of liquids or beverages on corridors and floors","riskCategory":"Hazard / Environmental","likelihood":5,"impact":4,"riskScore":20,"riskLevel":"Critical","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK05","riskIdentified":"Neglecting the cleaning of electrical and mechanical rooms","riskCategory":"Operational","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK06","riskIdentified":"Accidental exposure to hazardous medical waste","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK07","riskIdentified":"Risk of cross-contamination via contaminated cleaning tools","riskCategory":"Operational","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK08","riskIdentified":"Chemical burns from hazardous cleaning agents","riskCategory":"Hazard / Environmental","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK09","riskIdentified":"Electrical hazards during the operation of cleaning equipment","riskCategory":"Operational","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK10","riskIdentified":"Inhalation of hazardous chemical fumes and toxic vapors","riskCategory":"Hazard / Environmental","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK11","riskIdentified":"Airborne dust and particulate accumulation in the workplace","riskCategory":"Hazard / Environmental","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK12","riskIdentified":"Spread of biological contaminants in the facility environment","riskCategory":"Hazard / Environmental","likelihood":1,"impact":4,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK13","riskIdentified":"Improper disposal and accumulation of regular waste","riskCategory":"Hazard / Environmental","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK14","riskIdentified":"Risk of staff non-compliance with trained cleaning policies","riskCategory":"Human Capital","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK15","riskIdentified":"Use of expired cleaning and disinfection materials","riskCategory":"Operational","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"open","department":"housekeeping"},{"id":"HK16","riskIdentified":"Contamination risks from shared cleaning equipment between departments","riskCategory":"Operational","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK17","riskIdentified":"Fall hazards when cleaning elevated areas","riskCategory":"Hazard / Environmental","likelihood":1,"impact":2,"riskScore":2,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK18","riskIdentified":"Accidental exposure to sharp medical needles and contaminated waste","riskCategory":"Operational","likelihood":4,"impact":4,"riskScore":16,"riskLevel":"Critical","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK19","riskIdentified":"Risk of hazardous cleaning detergent chemical spills or leaks","riskCategory":"Hazard / Environmental","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND01","riskIdentified":"ccidental exposure to hazardous chemical products","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"laundry"},{"id":"LUND 02","riskIdentified":"Ergonomic and physical injuries from manual lifting","riskCategory":"Operational","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"laundry"},{"id":"LUND03","riskIdentified":"Risk of infection transmission among laundry staff","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"laundry"},{"id":"LUND04","riskIdentified":"Exposure to high heat and steam from laundry machinery","riskCategory":"Hazard / Environmental","likelihood":2,"impact":2,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Reduction","actionStatus":"closed","department":"laundry"},{"id":"LUND05","riskIdentified":"Mishandling of contaminated bio-hazardous fabrics","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"laundry"},{"id":"LUND06","riskIdentified":"Staff exposure to biological infections","riskCategory":"Hazard / Environmental","likelihood":2,"impact":4,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"laundry"},{"id":"LUND07","riskIdentified":"Incomplete or improper drying of laundered clothes","riskCategory":"Operational","likelihood":2,"impact":4,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"laundry"},{"id":"LUND08","riskIdentified":"Cross-washing of contaminated and clean linens","riskCategory":"Operational","likelihood":2,"impact":5,"riskScore":10,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"laundry"},{"id":"LUND 09","riskIdentified":"Chemical leakages or spills from laundry machinery","riskCategory":"Operational","likelihood":2,"impact":4,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"laundry"},{"id":"LUND10","riskIdentified":"Improper handling of hot water in washing machinery","riskCategory":"Operational","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"laundry"},{"id":"LUND11","riskIdentified":"Accumulation of dust and pathogens on curtains","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"laundry"},{"id":"LUND12","riskIdentified":"Use of extreme temperatures or harsh cleaning chemicals.","riskCategory":"Operational","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"laundry"},{"id":"LUND13","riskIdentified":"Foul odors due to insufficient washing or prolonged dampness","riskCategory":"Hazard / Environmental","likelihood":2,"impact":4,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"laundry"},{"id":"LUND14","riskIdentified":"Inhalation of toxic chemical gases or foul vapors from laundry","riskCategory":"Hazard / Environmental","likelihood":1,"impact":4,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"laundry"},{"id":"LUND15","riskIdentified":"High noise levels and severe vibrations from heavy machinery","riskCategory":"Operational","likelihood":1,"impact":2,"riskScore":2,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"open","department":"laundry"},{"id":"PM 01","riskIdentified":"Project completion delays","riskCategory":"Operational","likelihood":4,"impact":2,"riskScore":8,"riskLevel":"High","controlType":"Loss Reduction","actionStatus":"closed","department":"projects"},{"id":"PM 02","riskIdentified":"Contractor working without obtaining required permits","riskCategory":"Operational","likelihood":5,"impact":1,"riskScore":5,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"projects"},{"id":"PM 03","riskIdentified":"Project scope changes by the end-user","riskCategory":"Operational","likelihood":2,"impact":5,"riskScore":10,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"projects"},{"id":"PM 04","riskIdentified":"Substitution of approved project materials","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"projects"},{"id":"PM 05","riskIdentified":"Unauthorized onboarding or entry of contractors without project department knowledge.","riskCategory":"Operational","likelihood":2,"impact":5,"riskScore":10,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"projects"},{"id":"PM 06","riskIdentified":"Use of unauthorized or restricted materials by the contractor.","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"projects"}];
+  var RISK_REGISTER_SEED=[{"id":"SAF 01","riskIdentified":"Presence of anesthetic gases& equipment which act source of fire","riskCategory":"Hazard / Environmental","likelihood":3,"impact":5,"riskScore":15,"riskLevel":"Critical","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 02","riskIdentified":"storage of flamable items& hazardouse chemical which source of fire","riskCategory":"Hazard / Environmental","likelihood":2,"impact":5,"riskScore":10,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 03","riskIdentified":"fire in the medical record","riskCategory":"Hazard / Environmental","likelihood":2,"impact":2,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 04","riskIdentified":"Inadequate cleaning of grease filters and hoods near natural gas lines may leads to oil-ignited kitchen fires during cooking operations that may cause service interruption in food supply and threat to staff and visitor safety.","riskCategory":"Hazard / Environmental","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 05","riskIdentified":"electrical spark& flamable solar  as source fire","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 06","riskIdentified":"electrical sparks from equipment produce source of fire","riskCategory":"Hazard / Environmental","likelihood":1,"impact":3,"riskScore":3,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 07","riskIdentified":"Overheating and electrical faults from equipment which may act as source of fire& connected to electricty","riskCategory":"Hazard / Environmental","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 08","riskIdentified":"explosion of medical gase& presensice of flamable gases","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 09","riskIdentified":"lack of awarness of staff about how to deal in case of presence of fire","riskCategory":"Hazard / Environmental","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 10","riskIdentified":"Smoking inside the hospital","riskCategory":"Hazard / Environmental","likelihood":4,"impact":2,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 11","riskIdentified":"explosuion of natural gase line","riskCategory":"Hazard / Environmental","likelihood":2,"impact":1,"riskScore":2,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 12","riskIdentified":"fire in the main disel tank","riskCategory":"Hazard / Environmental","likelihood":1,"impact":4,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 13","riskIdentified":"Fire in parking area","riskCategory":"Hazard / Environmental","likelihood":1,"impact":4,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"open","department":"safety"},{"id":"SAF 14","riskIdentified":"Poor coordination in emergency responses","riskCategory":"Operational","likelihood":1,"impact":3,"riskScore":3,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 15","riskIdentified":"Slip, trip, and fall hazards","riskCategory":"Hazard / Environmental","likelihood":1,"impact":2,"riskScore":2,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 16","riskIdentified":"Natural disasters (e.g., earthquakes, floods)","riskCategory":"Hazard / Environmental","likelihood":1,"impact":3,"riskScore":3,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 17","riskIdentified":"Hazardous chemical spills","riskCategory":"Hazard / Environmental","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 18","riskIdentified":"Improper disposal of expired medications or chemical containers","riskCategory":"Hazard / Environmental","likelihood":4,"impact":2,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 19","riskIdentified":"Lack of evacuation maps in departments","riskCategory":"Strategic","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"safety"},{"id":"SAF 20","riskIdentified":"No Fm-200 in some rooms","riskCategory":"Hazard / Environmental","likelihood":2,"impact":4,"riskScore":8,"riskLevel":"High","controlType":"Loss Reduction","actionStatus":"open","department":"safety"},{"id":"SAF 21","riskIdentified":"No water availabilty in fire OPD","riskCategory":"Hazard / Environmental","likelihood":3,"impact":5,"riskScore":15,"riskLevel":"Critical","controlType":"Loss Reduction","actionStatus":"open","department":"safety"},{"id":"SAF 22","riskIdentified":"failure to inspect fire extinguishing  during preventive rounds","riskCategory":"Hazard / Environmental","likelihood":1,"impact":2,"riskScore":2,"riskLevel":"Low","controlType":"Risk Avoidance","actionStatus":"closed","department":"safety"},{"id":"SAF 23","riskIdentified":"lack of sufficient fire extinguishers in some places","riskCategory":"Hazard / Environmental","likelihood":1,"impact":2,"riskScore":2,"riskLevel":"Low","controlType":"Risk Acceptance","actionStatus":"closed","department":"safety"},{"id":"SAF 24","riskIdentified":"Improper storage of hazardous chemical","riskCategory":"Hazard / Environmental","likelihood":2,"impact":5,"riskScore":10,"riskLevel":"High","controlType":"Loss Reduction","actionStatus":"closed","department":"safety"},{"id":"SAF 25","riskIdentified":"Operational failure of the fire alarm system","riskCategory":"Hazard / Environmental","likelihood":4,"impact":3,"riskScore":12,"riskLevel":"High","controlType":"Loss Reduction","actionStatus":"closed","department":"safety"},{"id":"SAF 26","riskIdentified":"Failure of Firefighting System (Sprinklers / Pumps / Hose Reel)","riskCategory":"Hazard / Environmental","likelihood":3,"impact":5,"riskScore":15,"riskLevel":"Critical","controlType":"Loss Reduction","actionStatus":"closed","department":"safety"},{"id":"MNT 01","riskIdentified":"Operational failure of the Air Handling Unit (AHU) in critical zones.","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"open","department":"maintenance"},{"id":"MNT 02","riskIdentified":"Interruption or depletion of medical gas supply.","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"maintenance"},{"id":"MNT 03","riskIdentified":"Main electrical power supply failure.","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Risk Transfer","actionStatus":"closed","department":"maintenance"},{"id":"MNT 04","riskIdentified":"Interruption or failure of the main water supply network","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Risk Transfer","actionStatus":"closed","department":"maintenance"},{"id":"HK01","riskIdentified":"Slip and fall hazards due to wet surfaces","riskCategory":"Hazard / Environmental","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK02","riskIdentified":"Risk of infection transmission via contaminated surfaces or equipment","riskCategory":"Hazard / Environmental","likelihood":4,"impact":3,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK03","riskIdentified":"Ergonomic injuries from handling heavy cleaning equipment","riskCategory":"Operational","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK04","riskIdentified":"Spills of liquids or beverages on corridors and floors","riskCategory":"Hazard / Environmental","likelihood":5,"impact":4,"riskScore":20,"riskLevel":"Critical","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK05","riskIdentified":"Neglecting the cleaning of electrical and mechanical rooms","riskCategory":"Operational","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK06","riskIdentified":"Accidental exposure to hazardous medical waste","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK07","riskIdentified":"Risk of cross-contamination via contaminated cleaning tools","riskCategory":"Operational","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK08","riskIdentified":"Chemical burns from hazardous cleaning agents","riskCategory":"Hazard / Environmental","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK09","riskIdentified":"Electrical hazards during the operation of cleaning equipment","riskCategory":"Operational","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK10","riskIdentified":"Inhalation of hazardous chemical fumes and toxic vapors","riskCategory":"Hazard / Environmental","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK11","riskIdentified":"Airborne dust and particulate accumulation in the workplace","riskCategory":"Hazard / Environmental","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK12","riskIdentified":"Spread of biological contaminants in the facility environment","riskCategory":"Hazard / Environmental","likelihood":1,"impact":4,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK13","riskIdentified":"Improper disposal and accumulation of regular waste","riskCategory":"Hazard / Environmental","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK14","riskIdentified":"Risk of staff non-compliance with trained cleaning policies","riskCategory":"Human Capital","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK15","riskIdentified":"Use of expired cleaning and disinfection materials","riskCategory":"Operational","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"open","department":"housekeeping"},{"id":"HK16","riskIdentified":"Contamination risks from shared cleaning equipment between departments","riskCategory":"Operational","likelihood":2,"impact":3,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK17","riskIdentified":"Fall hazards when cleaning elevated areas","riskCategory":"Hazard / Environmental","likelihood":1,"impact":2,"riskScore":2,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK18","riskIdentified":"Accidental exposure to sharp medical needles and contaminated waste","riskCategory":"Operational","likelihood":4,"impact":4,"riskScore":16,"riskLevel":"Critical","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"HK19","riskIdentified":"Risk of hazardous cleaning detergent chemical spills or leaks","riskCategory":"Hazard / Environmental","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND01","riskIdentified":"ccidental exposure to hazardous chemical products","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND 02","riskIdentified":"Ergonomic and physical injuries from manual lifting","riskCategory":"Operational","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND03","riskIdentified":"Risk of infection transmission among laundry staff","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND04","riskIdentified":"Exposure to high heat and steam from laundry machinery","riskCategory":"Hazard / Environmental","likelihood":2,"impact":2,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Reduction","actionStatus":"closed","department":"housekeeping"},{"id":"LUND05","riskIdentified":"Mishandling of contaminated bio-hazardous fabrics","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND06","riskIdentified":"Staff exposure to biological infections","riskCategory":"Hazard / Environmental","likelihood":2,"impact":4,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND07","riskIdentified":"Incomplete or improper drying of laundered clothes","riskCategory":"Operational","likelihood":2,"impact":4,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND08","riskIdentified":"Cross-washing of contaminated and clean linens","riskCategory":"Operational","likelihood":2,"impact":5,"riskScore":10,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND 09","riskIdentified":"Chemical leakages or spills from laundry machinery","riskCategory":"Operational","likelihood":2,"impact":4,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND10","riskIdentified":"Improper handling of hot water in washing machinery","riskCategory":"Operational","likelihood":3,"impact":3,"riskScore":9,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND11","riskIdentified":"Accumulation of dust and pathogens on curtains","riskCategory":"Hazard / Environmental","likelihood":3,"impact":4,"riskScore":12,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND12","riskIdentified":"Use of extreme temperatures or harsh cleaning chemicals.","riskCategory":"Operational","likelihood":3,"impact":2,"riskScore":6,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND13","riskIdentified":"Foul odors due to insufficient washing or prolonged dampness","riskCategory":"Hazard / Environmental","likelihood":2,"impact":4,"riskScore":8,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND14","riskIdentified":"Inhalation of toxic chemical gases or foul vapors from laundry","riskCategory":"Hazard / Environmental","likelihood":1,"impact":4,"riskScore":4,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"housekeeping"},{"id":"LUND15","riskIdentified":"High noise levels and severe vibrations from heavy machinery","riskCategory":"Operational","likelihood":1,"impact":2,"riskScore":2,"riskLevel":"Low","controlType":"Loss Prevention","actionStatus":"open","department":"housekeeping"},{"id":"PM 01","riskIdentified":"Project completion delays","riskCategory":"Operational","likelihood":4,"impact":2,"riskScore":8,"riskLevel":"High","controlType":"Loss Reduction","actionStatus":"closed","department":"projects"},{"id":"PM 02","riskIdentified":"Contractor working without obtaining required permits","riskCategory":"Operational","likelihood":5,"impact":1,"riskScore":5,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"projects"},{"id":"PM 03","riskIdentified":"Project scope changes by the end-user","riskCategory":"Operational","likelihood":2,"impact":5,"riskScore":10,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"projects"},{"id":"PM 04","riskIdentified":"Substitution of approved project materials","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"projects"},{"id":"PM 05","riskIdentified":"Unauthorized onboarding or entry of contractors without project department knowledge.","riskCategory":"Operational","likelihood":2,"impact":5,"riskScore":10,"riskLevel":"High","controlType":"Loss Prevention","actionStatus":"closed","department":"projects"},{"id":"PM 06","riskIdentified":"Use of unauthorized or restricted materials by the contractor.","riskCategory":"Operational","likelihood":1,"impact":5,"riskScore":5,"riskLevel":"Medium","controlType":"Loss Prevention","actionStatus":"closed","department":"projects"}];
 
 
   function defaultState(){
@@ -577,48 +577,32 @@
     if(canonicalCode)merged.code=canonicalCode;
     return merged;
   }
-  function repairGovernanceCollection(collection,records){
+  function repairGovernanceCollection(records){
     var source=Array.isArray(records)?records:[],slots=[],groups={};
-    /* Governance codes are not globally unique across the FMS Division. A code
-       that exists in Maintenance and Project Management represents two distinct
-       department records. The old repair grouped by code alone, so Super Admin
-       (who loads every department) silently merged cross-department rows while a
-       scoped user still saw the original Project Management records. */
-    var departmentScoped={policies:1,plans:1,forms:1,manuals:1,documents:1,initiatives:1,actions:1};
     source.forEach(function(record){
       var item=copyRecord(record||{}),code=item.code;
       if(!isFmsGovernanceCode(code)){
         slots.push({record:item});
         return;
       }
-      var canonical=canonicalGovernanceCode(code),dept=departmentScoped[collection]?grcRecordDepartment(collection,item):'';
-      var scopePart=collection==='forms'?String(item.scope||item.formScope||'').trim().toLowerCase():'';
-      var key=(departmentScoped[collection]?(dept||'unassigned')+'|':'')+governanceCodeKey(canonical)+(scopePart?'|'+scopePart:'');
+      var canonical=canonicalGovernanceCode(code),key=governanceCodeKey(canonical);
       item.code=canonical;
-      if(dept){item.department=dept;item.departmentKey=dept;}
       if(!groups[key]){
-        groups[key]={key:key,canonical:canonical,department:dept,records:[]};
+        groups[key]={key:key,canonical:canonical,records:[]};
         slots.push({group:key});
       }
       groups[key].records.push(item);
     });
     return slots.map(function(slot){
       if(slot.record)return slot.record;
-      var group=groups[slot.group],merged=mergeDuplicateGovernanceRecords(group.records,group.canonical);
-      if(group.department){merged.department=group.department;merged.departmentKey=group.department;}
-      return merged;
+      var group=groups[slot.group];
+      return mergeDuplicateGovernanceRecords(group.records,group.canonical);
     });
-  }
-  function departmentGovernanceCodeKey(collection,record){
-    record=record||{};
-    var dept=grcRecordDepartment(collection,record)||'unassigned';
-    var scope=collection==='forms'?String(record.scope||record.formScope||'').trim().toLowerCase():'';
-    return dept+'|'+governanceCodeKey(record.code)+(scope?'|'+scope:'');
   }
   function repairGovernanceCodeState(value){
     var target=value&&typeof value==='object'?value:defaultState();
     GRC_CODE_COLLECTIONS.forEach(function(collection){
-      target[collection]=repairGovernanceCollection(collection,target[collection]);
+      target[collection]=repairGovernanceCollection(target[collection]);
     });
     return target;
   }
@@ -637,27 +621,27 @@
   function applySafetyFormSeed(s){
     s=s||defaultState();
     var seeds=SAFETY_FORM_SEED.concat(HOUSEKEEPING_FORM_SEED,PROJECTS_FORM_SEED,MAINTENANCE_FORM_SEED,INTERNAL_FORM_SEED),seededKeys={},existingByKey={},unmatched=[];
-    function formSeedKey(r){return departmentGovernanceCodeKey('forms',r)+'|'+String(r&&r.name||'').trim().toLowerCase();}
+    function formSeedKey(r){return governanceCodeKey(r&&r.code)+'|'+String(r&&r.name||'').trim().toLowerCase();}
     (s.forms||[]).forEach(function(r){
       var key=formSeedKey(r);
       if(key&&key!=='|'&&!existingByKey[key])existingByKey[key]=r;else unmatched.push(r);
     });
     var merged=seeds.map(function(seed){
       var key=formSeedKey(seed),old=existingByKey[key],r=copyRecord(seed);
-      /* Seeds provide a missing-record baseline only. Once a cloud/admin record
-         exists, its editable values must win; otherwise every render/save would
-         silently restore the hard-coded seed and make Super Admin edits appear
-         briefly then disappear. */
-      if(old)Object.keys(old).forEach(function(p){if(old[p]!==undefined&&old[p]!==null&&old[p]!=='')r[p]=old[p];});
+      if(old){
+        if(old.id)r.id=old.id;
+        if(old.createdAt)r.createdAt=old.createdAt;
+        if(old.createdBy)r.createdBy=old.createdBy;
+        if(old.updatedAt)r.updatedAt=old.updatedAt;
+      }
       r.department=seed.department;
-      r.departmentKey=seed.department;
-      r.scope=String(r.scope||seed.scope||'internal').toLowerCase()==='external'?'external':'internal';
-      r.status=normalizeStatus(r.status||seed.status);
+      r.scope=String(seed.scope||'internal').toLowerCase()==='external'?'external':'internal';
+      r.status=normalizeStatus(seed.status);
       seededKeys[key]=1;
       return r;
     });
     Object.keys(existingByKey).forEach(function(key){if(!seededKeys[key])unmatched.push(existingByKey[key]);});
-    s.forms=repairGovernanceCollection('forms',merged.concat(unmatched.filter(function(r){return !seededKeys[formSeedKey(r)];})));
+    s.forms=repairGovernanceCollection(merged.concat(unmatched.filter(function(r){return !seededKeys[formSeedKey(r)];})));
     return s;
   }
 
@@ -665,11 +649,11 @@
     s=repairGovernanceCodeState(s||defaultState());
     var seededCodes={},existingByCode={},unmatched=[];
     (s.policies||[]).forEach(function(r){
-      var key=departmentGovernanceCodeKey('policies',r);
+      var key=governanceCodeKey(r.code);
       if(key&&!existingByCode[key])existingByCode[key]=r;else unmatched.push(r);
     });
     var merged=MAINTENANCE_POLICY_SEED.concat(SAFETY_POLICY_SEED,HOUSEKEEPING_POLICY_SEED).map(function(seed){
-      var key=departmentGovernanceCodeKey('policies',seed),old=existingByCode[key],r=copyRecord(seed);
+      var key=governanceCodeKey(seed.code),old=existingByCode[key],r=copyRecord(seed);
       if(old)r=mergeDuplicateGovernanceRecords([r,old],canonicalGovernanceCode(seed.code));
       r.code=canonicalGovernanceCode(r.code||seed.code);
       r.department=seed.department||r.department||'maintenance';
@@ -678,7 +662,7 @@
       return r;
     });
     Object.keys(existingByCode).forEach(function(key){if(!seededCodes[key])unmatched.push(existingByCode[key]);});
-    s.policies=repairGovernanceCollection('policies',merged.concat(unmatched.filter(function(r){return !seededCodes[departmentGovernanceCodeKey('policies',r)];})));
+    s.policies=repairGovernanceCollection(merged.concat(unmatched.filter(function(r){return !seededCodes[governanceCodeKey(r.code)];})));
     return applySafetyFormSeed(s);
   }
 
@@ -686,20 +670,24 @@
     s=s||defaultState();
     var seededCodes={},existingByCode={},unmatched=[];
     (s.plans||[]).forEach(function(r){
-      var key=departmentGovernanceCodeKey('plans',r);
+      var key=governanceCodeKey(r.code);
       if(key&&!existingByCode[key])existingByCode[key]=r;else unmatched.push(r);
     });
     var merged=SAFETY_PLAN_SEED.concat(MAINTENANCE_PLAN_SEED).map(function(seed){
-      var key=departmentGovernanceCodeKey('plans',seed),old=existingByCode[key],r=copyRecord(seed);
-      if(old)Object.keys(old).forEach(function(p){if(old[p]!==undefined&&old[p]!==null&&old[p]!=='')r[p]=old[p];});
-      r.department=seed.department||r.department||'safety';
-      r.departmentKey=r.department;
-      r.status=normalizeStatus(r.status||seed.status);
+      var key=governanceCodeKey(seed.code),old=existingByCode[key],r=copyRecord(seed);
+      if(old){
+        if(old.id)r.id=old.id;
+        if(old.createdAt)r.createdAt=old.createdAt;
+        if(old.createdBy)r.createdBy=old.createdBy;
+        if(old.updatedAt)r.updatedAt=old.updatedAt;
+      }
+      r.department=seed.department||'safety';
+      r.status=normalizeStatus(seed.status);
       seededCodes[key]=1;
       return r;
     });
     Object.keys(existingByCode).forEach(function(key){if(!seededCodes[key])unmatched.push(existingByCode[key]);});
-    s.plans=repairGovernanceCollection('plans',merged.concat(unmatched.filter(function(r){return !seededCodes[departmentGovernanceCodeKey('plans',r)];})));
+    s.plans=repairGovernanceCollection(merged.concat(unmatched.filter(function(r){return !seededCodes[governanceCodeKey(r.code)];})));
     return applyMaintenancePolicySeed(s);
   }
   function applyRiskRegisterSeed(s){
@@ -772,8 +760,11 @@
     if(x.indexOf('maintenance')>=0)return'maintenance';if(x.indexOf('safety')>=0)return'safety';if(x.indexOf('house')>=0)return'housekeeping';if(x.indexOf('project')>=0)return'projects';if(x.indexOf('governance')>=0)return'division';return'';
   }
   function loadState(){
-    try{return migrateState(JSON.parse(localStorage.getItem(STORAGE_KEY)||'null'));}
-    catch(_){return applyRiskRegisterSeed(defaultState());}
+    /* FIRESTORE IS THE ONLY REGISTER SOURCE OF TRUTH.
+       Never hydrate register state from localStorage, bundled seeds, or the
+       legacy shared document. The UI starts empty and is populated only by the
+       server-confirmed Firestore listeners started by startSharedStateSync(). */
+    return defaultState();
   }
   var INITIATIVE_SEED=[{"id":"INIT-001","nameAr":"مركز بلاغات إدارة المرافق (FMS Division)","nameEn":"Facility Management Reporting Center (FMS Division)","department":"allFms","status":"proposed","team":[],"code":"INIT-001","executionStatus":"","progress":0},{"id":"INIT-002","nameAr":"مبادرة اكتمال الكادر التشغيلي","nameEn":"Operational Workforce Completion Initiative","department":"housekeeping","status":"proposed","team":[],"code":"INIT-002","executionStatus":"","progress":0},{"id":"INIT-003","nameAr":"مبادرة تعزيز جودة النظافة عبر رمز الاستجابة السريعة","nameEn":"Housekeeping Quality Enhancement via QR Code","department":"housekeeping","status":"proposed","team":[],"code":"INIT-003","executionStatus":"","progress":0},{"id":"INIT-004","nameAr":"مبادرة يوم الجودة الإداري الشهري","nameEn":"Monthly Administrative Quality Day Initiative","department":"housekeeping","status":"proposed","team":[],"code":"INIT-004","executionStatus":"","progress":0},{"id":"INIT-005","nameAr":"مبادرة تطوير التقارير الربعية لتجربة المريض","nameEn":"Patient Experience Quarterly Reports Development Initiative","department":"housekeeping","status":"proposed","team":[],"code":"INIT-005","executionStatus":"","progress":0},{"id":"INIT-006","nameAr":"مبادرة تصميم خريطة توجيه للمراجعين داخل المدينة الطبية","nameEn":"Medical City Wayfinding Map Initiative","department":"projects","status":"selected","team":[{"name":"م. مشاري الصعب","roleAr":"قائد الفريق","roleEn":"Team Leader","gender":"male","department":"safety"},{"name":"م. إبراهيم الصقيهي","roleAr":"عضو الفريق","roleEn":"Team Member","gender":"male","department":"projects"}],"code":"INIT-006","executionStatus":"in_progress","progress":0},{"id":"INIT-007","nameAr":"مبادرة تصميم حزام حمل لاسطوانات الغازات الطبية","nameEn":"Medical Gas Cylinder Carrying Belt Initiative","department":"maintenance","status":"selected","team":[{"name":"م. عبدالله الزوين","roleAr":"قائد الفريق","roleEn":"Team Leader","gender":"male","department":"maintenance"}],"code":"INIT-007","executionStatus":"in_progress","progress":0},{"id":"INIT-008","nameAr":"مبادرة إنشاء محطة غسيل عيون متنقلة","nameEn":"Mobile Eyewash Station Initiative","department":"housekeeping","status":"selected","team":[{"name":"م. عبدالله الزوين","roleAr":"قائد الفريق","roleEn":"Team Leader","gender":"male","department":"maintenance"},{"name":"م. عبدالوهاب الشتوي","roleAr":"عضو الفريق","roleEn":"Team Member","gender":"male","department":"maintenance"}],"code":"INIT-008","executionStatus":"in_progress","progress":0},{"id":"INIT-009","nameAr":"مبادرة تهوية الغرف المغلقة","nameEn":"Closed Rooms Ventilation Initiative","department":"maintenance","status":"proposed","team":[],"code":"INIT-009","executionStatus":"","progress":0},{"id":"INIT-010","nameAr":"مبادرة قياس مستوى الضجيج داخل منشآت المدينة الطبية","nameEn":"Medical City Noise Level Monitoring Initiative","department":"safety","status":"selected","team":[{"name":"أ. رغد المشيقح","roleAr":"قائد الفريق","roleEn":"Team Leader","gender":"female","department":"division"},{"name":"أ. لطيفة الحربي","roleAr":"عضو الفريق","roleEn":"Team Member","gender":"female","department":"housekeeping"}],"code":"INIT-010","executionStatus":"in_progress","progress":0}];
   /* Historical Emergency Coding System records imported from the approved admin export.
@@ -893,8 +884,9 @@
     var savedOwner='',savedBuild='';
     try{savedOwner=String(localStorage.getItem(GRC_CACHE_OWNER_KEY)||'');savedBuild=String(localStorage.getItem(GRC_CACHE_BUILD_KEY)||'');}catch(_){}
     if(savedOwner===owner&&savedBuild===GRC_CLIENT_BUILD)return false;
-    state=applyRiskRegisterSeed(repairGovernanceCodeState(defaultState()));
-    state=repairGovernanceCodeState(state);
+    /* Never restore bundled/local register data here. A browser cache reset
+       must leave register state empty until Firestore server data hydrates it. */
+    state=repairGovernanceCodeState(defaultState());
     try{
       localStorage.setItem(STORAGE_KEY,JSON.stringify(state));
       localStorage.setItem(GRC_CACHE_OWNER_KEY,owner);
@@ -945,19 +937,13 @@
     grcApplyViewportPosition(position);
   }
   function grcScheduleRemoteRender(position,delay){
-    /* v225: Firestore can deliver several real changes in a short burst. The
-       old implementation cancelled/restarted the timer on every snapshot,
-       which caused repeated full GRC shell renders. On large registers this
-       made the page look frozen and the filter row visibly blinked. Keep one
-       coalesced render window instead of restarting it for every snapshot. */
     grcRemoteRenderPosition=position||grcRemoteRenderPosition||grcViewportPosition();
-    if(grcRemoteRenderTimer)return;
-    var wait=Math.max(450,Number(delay)||650);
+    if(grcRemoteRenderTimer)clearTimeout(grcRemoteRenderTimer);
     grcRemoteRenderTimer=setTimeout(function(){
       var pos=grcRemoteRenderPosition||grcViewportPosition();
       grcRemoteRenderTimer=null;grcRemoteRenderPosition=null;
       renderAtSamePosition(pos);
-    },wait);
+    },Math.max(0,Number(delay)||0));
   }
   function grcScheduleLocalCachePersist(delay){
     if(grcCachePersistTimer)clearTimeout(grcCachePersistTimer);
@@ -966,7 +952,7 @@
       try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}
     },Math.max(40,Number(delay)||120));
   }
-  function saveState(immediateCloudSave,collectionHint){var position=grcRegisterViewportPosition(grcViewportPosition());applyAutomaticExpiry();state=repairGovernanceCodeState(state);state.risks=(state.risks||[]).map(normalizeRiskClassification);state.initiatives=normalizeInitiativePeople(state.initiatives);state.version=STATE_VERSION;state.updatedAt=new Date().toISOString();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}renderAtSamePosition(position);queueSharedStateSave(immediateCloudSave===true,collectionHint);}
+  function saveState(immediateCloudSave){var position=grcRegisterViewportPosition(grcViewportPosition());applyAutomaticExpiry();state=repairGovernanceCodeState(state);state.risks=(state.risks||[]).map(normalizeRiskClassification);state.initiatives=normalizeInitiativePeople(state.initiatives);state.version=STATE_VERSION;state.updatedAt=new Date().toISOString();try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){}renderAtSamePosition(position);queueSharedStateSave(immediateCloudSave===true);}
 
   /* GRC secure storage v79
      Each register is stored as individual Firestore documents. Department users
@@ -982,9 +968,9 @@
     audits:'grc_audits',actions:'grc_actions',documents:'grc_documents',initiatives:'grc_initiatives'
   };
   // Governance and Risk remain department-scoped. Shared operational modules are visible to every approved GRC user.
-  var GRC_GLOBAL_READ_COLLECTIONS={};
-  var grcStateUnsubs=[],grcStateSaveTimer=null,grcApplyingRemote=false,grcSyncStarted=false,grcCloudReady=false,grcPendingAdminSaveSnapshot=null,grcPendingAdminSaveKeys={},grcAdminSaveInFlightKeys={};
-  var grcCloudParts={},grcCloudMirror={},grcCloudDuplicates={},grcCloudEverHydrated={},grcInitialScopes={},grcCollectionScopeReady={},grcCollectionScopeFailed={},grcMigrationPromise=null,grcPendingCloudSave=false,grcCanonicalCatalogV187Promise=null,grcCanonicalCatalogV195Promise=null,grcRemoteRenderTimer=null,grcRemoteRenderPosition=null,grcCachePersistTimer=null,grcSyncStartingPromise=null,grcSyncStartToken=0;
+  var GRC_GLOBAL_READ_COLLECTIONS={manuals:true,codes:true,compliance:true,audits:true,actions:true,documents:true,initiatives:true};
+  var grcStateUnsubs=[],grcStateSaveTimer=null,grcApplyingRemote=false,grcSyncStarted=false,grcCloudReady=false;
+  var grcCloudParts={},grcCloudMirror={},grcCloudDuplicates={},grcCloudEverHydrated={},grcInitialScopes={},grcCollectionScopeReady={},grcCollectionScopeFailed={},grcMigrationPromise=null,grcPendingCloudSave=false,grcCanonicalCatalogV187Promise=null,grcCanonicalCatalogV193Promise=null,grcRemoteRenderTimer=null,grcRemoteRenderPosition=null,grcCachePersistTimer=null;
   var grcRiskStatusOverrides={},grcRiskStatusUnsub=null,grcSyncScopeKey='',grcPendingLocalDeletes={risks:{},incidents:{}},grcSyncLastError='',grcSyncLastErrorAt='';
   function grcPendingDeleteKey(collectionKey,record){if(collectionKey!=='risks'&&collectionKey!=='incidents')return'';return grcRegisterBusinessKey(record||{});}
   function grcMarkPendingLocalDelete(collectionKey,record){var key=grcPendingDeleteKey(collectionKey,record);if(!key)return;grcPendingLocalDeletes[collectionKey]=grcPendingLocalDeletes[collectionKey]||{};grcPendingLocalDeletes[collectionKey][key]=Date.now();}
@@ -1009,8 +995,6 @@
     grcStateUnsubs.splice(0).forEach(function(u){try{u&&u();}catch(_){}});
     if(grcRiskStatusUnsub){try{grcRiskStatusUnsub();}catch(_){}grcRiskStatusUnsub=null;}
     try{if(typeof stopAssessmentCloudSync==='function')stopAssessmentCloudSync();}catch(_assessmentStop){}
-    grcSyncStartToken++;
-    grcSyncStartingPromise=null;
     grcSyncStarted=false;grcCloudReady=false;grcCloudParts={};grcCloudMirror={};grcCloudDuplicates={};grcCloudEverHydrated={};grcInitialScopes={};grcCollectionScopeReady={};grcCollectionScopeFailed={};grcPendingCloudSave=false;grcPendingLocalDeletes={risks:{},incidents:{}};grcSyncScopeKey='';
   }
   /* Firestore quota guard: GRC listeners exist only while the GRC portal is active. */
@@ -1061,19 +1045,6 @@
     return'division';
   }
   function grcRecordVisibility(collectionKey,record){return grcRecordDepartment(collectionKey,record)==='division'?'shared':'department';}
-  /* v198: Policy/Plan/Form document identity is department-scoped. The previous
-     generic id used only code/id, so the same business code in two departments
-     could share one Firestore document and one department silently replaced the
-     other. Keep the source document id separately for safe migration/cleanup. */
-  var GRC_DEPARTMENT_IDENTITY_COLLECTIONS={policies:true,plans:true,forms:true};
-  function grcGenericBusinessKey(collectionKey,record,index){
-    record=record||{};
-    var dept=grcRecordDepartment(collectionKey,record)||'division';
-    var code=governanceCodeKey(record.code||'');
-    var identity=code||String(record.id||record.requirementId||record.standard||record.nameEn||record.nameAr||record.name||record.title||('row_'+index)).trim().toLowerCase().replace(/\s+/g,' ');
-    var scope=collectionKey==='forms'?String(record.scope||record.formScope||'internal').trim().toLowerCase():'';
-    return [dept,identity,scope].join('|');
-  }
   function grcCloudDocId(collectionKey,record,index){
     record=record||{};
     /* Risk and Incident registers must have exactly one canonical Firestore
@@ -1083,11 +1054,6 @@
     if(collectionKey==='risks'||collectionKey==='incidents'){
       var businessIdentity=String(record.id||record.code||record.riskId||'').trim();
       if(businessIdentity)return grcSafeDocPart(businessIdentity)+'_'+grcHash(collectionKey+'|'+businessIdentity);
-    }
-    if(GRC_DEPARTMENT_IDENTITY_COLLECTIONS[collectionKey]){
-      var businessKey=grcGenericBusinessKey(collectionKey,record,index);
-      var label=String(record.code||record.id||record.name||record.title||('row_'+index));
-      return grcSafeDocPart(label)+'_'+grcHash(collectionKey+'|'+businessKey);
     }
     var existing=String(record._cloudId||record.cloudId||'').trim();if(existing)return grcSafeDocPart(existing);
     var identity=String(record.id||record.code||record.requirementId||record.standard||record.nameEn||record.nameAr||record.name||record.title||record.riskIdentified||('row_'+index));
@@ -1339,7 +1305,6 @@
 
     function identity(r){
       if(collectionKey==='risks'||collectionKey==='incidents')return grcRegisterBusinessKey(r);
-      if(GRC_DEPARTMENT_IDENTITY_COLLECTIONS[collectionKey])return grcGenericBusinessKey(collectionKey,r,0);
       var code=governanceCodeKey(r&&r.code);if(code)return code;
       return String(r&&r.id||'').toUpperCase().replace(/[^A-Z0-9]/g,'');
     }
@@ -1404,14 +1369,12 @@
         rows.push(winner);
       });
       rows=grcDeduplicateRegisterRows(collectionKey,rows);
-      /* Firestore is the only live Risk/Incident source after hydration.
-         Baseline rows are used only by the Super Admin canonical repair. */
+      /* Firestore remains authoritative for every existing business ID. The
+         baseline fallback only fills IDs that never reached the scoped
+         collection, and raw tombstones prevent deleted rows from returning. */
       if(collectionKey==='risks')rows=rows.map(normalizeRiskClassification);
       if(collectionKey==='incidents')rows=grcDeduplicateProjectIncidentContent(normalizeProjectIncidentIds(rows));
-      /* v195 single source: once Firestore answers, Risk/Incident rows come only
-         from Firestore (plus Firestore status overrides). Bundled seed rows are
-         used by the Super Admin canonical repair, never painted into a scoped
-         user's live register. */
+      /* No baseline/seed fallback here. Firestore snapshot is authoritative. */
       if(collectionKey==='risks')rows=grcDeduplicateRegisterRows(collectionKey,rows.map(normalizeRiskClassification));
       if(collectionKey==='risks')rows=applyRiskStatusOverrides(rows);
       if(collectionKey==='incidents')rows=grcDeduplicateProjectIncidentContent(normalizeProjectIncidentIds(grcDeduplicateRegisterRows(collectionKey,rows)));
@@ -1420,31 +1383,11 @@
       return;
     }
 
-    var map={},order=[],sourceMap={};
-    function preferGeneric(current,candidate){
-      if(!current)return candidate;
-      var a=grcRecordFreshness(current),b=grcRecordFreshness(candidate);
-      if(a!==b)return b>a?candidate:current;
-      var ad=current&&current.deleted===true,bd=candidate&&candidate.deleted===true;
-      if(ad!==bd)return bd?candidate:current;
-      return candidate;
-    }
-    rawRows.forEach(function(r,i){
-      var sourceId=String(r&&r._sourceCloudId||r&&r._cloudId||r&&r.cloudId||'').trim();
-      var id=grcCloudDocId(collectionKey,r,i);
-      r._sourceCloudId=sourceId||id;r._cloudId=id;r.cloudId=id;
-      if(!Object.prototype.hasOwnProperty.call(map,id))order.push(id);
-      map[id]=preferGeneric(map[id],r);
-      sourceMap[id]=sourceMap[id]||[];
-      if(sourceId&&sourceMap[id].indexOf(sourceId)<0)sourceMap[id].push(sourceId);
-    });
-    var rows=[];grcCloudMirror[collectionKey]={};grcCloudDuplicates[collectionKey]=sourceMap;
-    order.forEach(function(id){var winner=map[id];if(!winner)return;grcCloudMirror[collectionKey][id]=grcComparable(winner);if(winner.deleted===true)return;delete winner.deleted;delete winner.deletedAt;rows.push(winner);});
-    rows=grcMergeMissingApprovedBaseline(collectionKey,rows,rawRows);
-    /* Firestore is the render authority. Department-scoped governance rows are
-       keyed by department+business identity, so Super Admin and scoped users
-       now resolve the same canonical records. */
-    state[collectionKey]=rows;
+    var map={},tombstones={};rawRows.forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i),rk=String(r&&r.id||r&&r.code||'').toUpperCase().replace(/[^A-Z0-9]/g,'');r._cloudId=id;r.cloudId=id;if(r&&r.deleted===true){tombstones[id]=1;if(rk)tombstones[rk]=1;return;}map[id]=r;});
+    var rows=Object.keys(map).map(function(id){return map[id];});
+    /* Firestore snapshot is authoritative for every role. Never merge bundled
+       baseline/seed rows into the live register. */
+    state[collectionKey]=rows;grcCloudMirror[collectionKey]={};rows.forEach(function(r,i){var id=grcCloudDocId(collectionKey,r,i);if(map[id])grcCloudMirror[collectionKey][id]=grcComparable(r);});
     grcCloudEverHydrated[collectionKey]=true;
   }
   window._grcApplyPublishedRegisterRecord=function(recordType,operation,record){
@@ -1476,25 +1419,14 @@
   function grcApplyReadyCollection(collectionKey){
     if(!grcInitialScopes[collectionKey])return;
     var wasReady=grcCloudReady,position=grcViewportPosition();
-    /* While an Admin save owns this collection, keep the visible optimistic
-       state stable. The incoming snapshot is still stored in grcCloudParts,
-       but an older server version cannot repaint the register mid-save. */
-    var protectedSave=isGrcAdmin()&&(
-      (grcPendingAdminSaveKeys&&((grcPendingAdminSaveKeys.__all===true)||grcPendingAdminSaveKeys[collectionKey])) ||
-      (grcAdminSaveInFlightKeys&&((grcAdminSaveInFlightKeys.__all===true)||grcAdminSaveInFlightKeys[collectionKey]))
-    );
-    if(protectedSave){
-      if(grcAllInitialScopesReady()&&grcAllInitialScopesHealthy())grcCloudReady=true;
-      return;
-    }
     grcApplyingRemote=true;grcApplyCloudCollection(collectionKey);state=repairGovernanceCodeState(state);enforceLocalGrcScope();grcScheduleLocalCachePersist(140);grcApplyingRemote=false;
     if(grcAllInitialScopesReady()&&grcAllInitialScopesHealthy()){
       grcCloudReady=true;
       if(grcPendingCloudSave){grcPendingCloudSave=false;queueSharedStateSave(true);}
-      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminGovernanceIdentityV198().catch(function(err){console.error('[GRC Governance Identity v198]',err);});},0);
+      /* No automatic catalog repair from bundled seeds. Live registers mirror Firestore only. */
       /* All initial collection snapshots arrive in a burst. Render once after
          the burst, not once per collection. Later live updates are debounced. */
-      grcScheduleRemoteRender(position,wasReady?650:120);
+      grcScheduleRemoteRender(position,wasReady?90:20);
     }else grcCloudReady=false;
   }
   function grcHandleCollectionSnapshot(collectionKey,scope,snapshot){
@@ -1515,7 +1447,7 @@
     grcStampLocalCacheOwner();
   }
   function grcListen(b,collectionKey,scope,qref){
-    var unsub=b.fs.onSnapshot(qref,{includeMetadataChanges:false},function(snap){grcHandleCollectionSnapshot(collectionKey,scope,snap);},function(err){
+    var unsub=b.fs.onSnapshot(qref,{includeMetadataChanges:true},function(snap){grcHandleCollectionSnapshot(collectionKey,scope,snap);},function(err){
       console.error('[GRC Secure Sync] '+collectionKey+' '+scope+' failed',err);
       grcCloudParts[collectionKey]=grcCloudParts[collectionKey]||{};
       /* Never convert a permission/network failure into an empty register.
@@ -1710,15 +1642,45 @@
        department receives the same direct Open/Closed status, even if their
        user profile uses a different display label such as Project Management. */
     if(!canViewAllExecutiveDepartments()&&dept)qref=b.fs.query(col,b.fs.where('department','==',dept));
-    grcRiskStatusUnsub=b.fs.onSnapshot(qref,function(snap){var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});grcRiskStatusOverrides=next;if(grcCloudParts.risks){grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();grcScheduleLocalCachePersist(140);grcApplyingRemote=false;grcScheduleRemoteRender(grcViewportPosition(),650);}},function(err){console.warn('[GRC Risk Status] sync failed',err);});
+    grcRiskStatusUnsub=b.fs.onSnapshot(qref,function(snap){var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});grcRiskStatusOverrides=next;if(grcCloudParts.risks){grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();grcScheduleLocalCachePersist(140);grcApplyingRemote=false;grcScheduleRemoteRender(grcViewportPosition(),80);}},function(err){console.warn('[GRC Risk Status] sync failed',err);});
+  }
+  async function grcSuperAdminServerHydrate(b){
+    /* Super Admin gets an isolated authoritative bootstrap. It does not depend on
+       the scoped-user listener readiness barrier: one denied/failed collection
+       must never make the whole Super Admin register page blank. This path only
+       runs for Super Admin and leaves all other role scoping untouched. */
+    if(!isGrcSuperAdmin())return false;
+    var loaded=0,failed=[];
+    for(var i=0;i<Object.keys(GRC_COLLECTION_MAP).length;i++){
+      var key=Object.keys(GRC_COLLECTION_MAP)[i],col=b.fs.collection(b.db,GRC_COLLECTION_MAP[key]);
+      try{
+        var snap=(typeof b.fs.getDocsFromServer==='function')?await b.fs.getDocsFromServer(col):await b.fs.getDocs(col);
+        grcCloudParts[key]=grcCloudParts[key]||{};
+        grcCloudParts[key].all=grcDocsFromSnapshot(snap);
+        grcConfigureCollectionScopes(key,['all']);
+        grcMarkCollectionScopeReady(key,'all');
+        grcApplyingRemote=true;
+        grcApplyCloudCollection(key);
+        grcApplyingRemote=false;
+        loaded++;
+      }catch(err){
+        grcApplyingRemote=false;
+        failed.push(key);
+        grcCollectionScopeFailed[key]=grcCollectionScopeFailed[key]||{};
+        grcCollectionScopeFailed[key].all=true;
+        console.error('[GRC Super Admin] Firestore bootstrap failed for '+key,err);
+      }
+    }
+    grcCloudReady=loaded>0;
+    if(failed.length)grcSyncLastError='Super Admin Firestore read failed: '+failed.join(', ');
+    else {grcSyncLastError='';grcSyncLastErrorAt='';}
+    state=repairGovernanceCodeState(state);
+    enforceLocalGrcScope();
+    try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(_){ }
+    renderAtSamePosition(grcViewportPosition());
+    return loaded>0;
   }
   function startSharedStateSync(){
-    /* v226: render() can run many times while the first Firestore bootstrap is
-       still pending. Previously every render started another ensureReportBackend
-       chain; those chains could each attach listeners and call render again,
-       producing a render/listener feedback loop that freezes the GRC UI. Keep
-       exactly one bootstrap in flight. */
-    if(grcSyncStartingPromise)return grcSyncStartingPromise;
     var grcActive=window.__qumcActivePortal==='grc'||!!(document.body&&document.body.classList.contains('grc-mode'));
     if(!grcActive)return;
     var profileEmail=String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();
@@ -1731,18 +1693,16 @@
     if(!canAllNow&&!deptNow)return;
     if(grcSyncStarted&&grcSyncScopeKey===wanted)return;
     if(grcSyncStarted&&grcSyncScopeKey!==wanted)stopSharedStateSync();
-    var token=++grcSyncStartToken;
-    grcSyncStartingPromise=ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;
-      if(token!==grcSyncStartToken)return;
-      var actual=grcSyncIdentityKey();if(actual!==wanted){return;}
-      if(typeof window._qumcAssertFirestoreRulesV41==='function'||typeof window._qumcAssertFirestoreRulesV39==='function'||typeof window._qumcAssertFirestoreRulesV38==='function'||typeof window._qumcAssertFirestoreRulesV36==='function'||typeof window._qumcAssertFirestoreRulesV35==='function'||typeof window._qumcAssertFirestoreRulesV34==='function'||typeof window._qumcAssertFirestoreRulesV33==='function'){
-        try{await (window._qumcAssertFirestoreRulesV41||window._qumcAssertFirestoreRulesV39||window._qumcAssertFirestoreRulesV38||window._qumcAssertFirestoreRulesV36||window._qumcAssertFirestoreRulesV35||window._qumcAssertFirestoreRulesV34||window._qumcAssertFirestoreRulesV33)();}
+    ensureReportBackend().then(async function(b){if(!b.auth.currentUser)return;
+      var actual=grcSyncIdentityKey();if(actual!==wanted){stopSharedStateSync();setTimeout(startSharedStateSync,0);return;}
+      if(typeof window._qumcAssertFirestoreRulesV38==='function'||typeof window._qumcAssertFirestoreRulesV36==='function'||typeof window._qumcAssertFirestoreRulesV35==='function'||typeof window._qumcAssertFirestoreRulesV34==='function'||typeof window._qumcAssertFirestoreRulesV33==='function'){
+        try{await (window._qumcAssertFirestoreRulesV38||window._qumcAssertFirestoreRulesV36||window._qumcAssertFirestoreRulesV35||window._qumcAssertFirestoreRulesV34||window._qumcAssertFirestoreRulesV33)();}
         catch(ruleErr){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError=String(ruleErr&&ruleErr.message||ruleErr).replace(/^rules-version-mismatch:/,'');grcSyncLastErrorAt=new Date().toISOString();renderAtSamePosition(grcViewportPosition());return;}
       }
       grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
-      if(isGrcSuperAdmin()){
-        try{await runGrcCodeHealthMaintenanceV170(b);}catch(maintenanceErr){console.error('[GRC Code Health] one-time maintenance did not complete',maintenanceErr);grcSyncLastError='Automatic GRC maintenance failed: '+String(maintenanceErr&&maintenanceErr.message||maintenanceErr);grcSyncLastErrorAt=new Date().toISOString();}
-      }
+      if(isGrcSuperAdmin()){ try{ await grcSuperAdminServerHydrate(b); }catch(saHydrateErr){ console.error('[GRC Super Admin] authoritative bootstrap failed',saHydrateErr); } }
+      /* Do not run seed/baseline maintenance during normal login. It can publish
+         stale bundled records and overwrite the live register view. */
       /* Keep the last cache only when it belongs to this exact profile/build.
          Firestore replaces it as soon as server-confirmed snapshots arrive. A
          transient listener failure therefore cannot turn valid registers/charts
@@ -1771,33 +1731,27 @@
         if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){
           grcConfigureCollectionScopes(key,['all']);grcListen(b,key,'all',col);
         }else{
-          /* v195 canonical single-source sync. Every scoped register uses one
-             provable departmentKey query. Legacy department labels are repaired
-             once by Super Admin into the canonical Firestore documents; they are
-             no longer parallel live sources that can fail independently and hold
-             the whole page on stale cache/seed data. */
+          /* Canonical departmentKey is the required bootstrap path. Legacy
+             department-label queries are optional compatibility reads: if one
+             is denied, the canonical snapshot still hydrates the register. */
           var scopes=['departmentKey'];
-          if(key!=='risks'&&key!=='incidents')scopes.push('divisionKey');
+          var exactDepartments=[];
+          if(rawDept)exactDepartments.push(rawDept);
+          if(dept&&exactDepartments.indexOf(dept)<0)exactDepartments.push(dept);
           grcConfigureCollectionScopes(key,scopes);
           grcListen(b,key,'departmentKey',b.fs.query(col,b.fs.where('departmentKey','==',dept)));
-          if(scopes.indexOf('divisionKey')>=0)grcListen(b,key,'divisionKey',b.fs.query(col,b.fs.where('departmentKey','==','division')));
+          exactDepartments.forEach(function(value,idx){
+            if(!value)return;
+            grcListen(b,key,'departmentExact'+idx,b.fs.query(col,b.fs.where('department','==',value)));
+          });
         }
       });
-      if(isGrcSuperAdmin())setTimeout(function(){ensureSuperAdminGovernanceIdentityV198().catch(function(err){console.error('[GRC Governance Identity v198]',err);});},350);
-    }).catch(function(err){
-      grcSyncStarted=false;grcCloudReady=false;
-      grcSyncLastError='GRC sync initialization: '+String(err&&err.message||err);
-      grcSyncLastErrorAt=new Date().toISOString();
-      console.error('[GRC Secure Sync] init failed',err);
-      /* Never render recursively from the sync bootstrap error path. A failed
-         listener/rules check must not turn into an endless render -> sync ->
-         render loop. The next explicit navigation/profile change can retry. */
-    }).finally(function(){if(grcSyncStartingPromise)grcSyncStartingPromise=null;});
-    return grcSyncStartingPromise;
+      /* No automatic canonical catalog repair. Firestore is already the source of truth. */
+    }).catch(function(err){grcSyncStarted=false;grcCloudReady=false;grcSyncLastError='GRC sync initialization: '+String(err&&err.message||err);grcSyncLastErrorAt=new Date().toISOString();console.error('[GRC Secure Sync] init failed',err);renderAtSamePosition(grcViewportPosition());});
   }
-  async function grcPrimeAdminMirrorsFromServer(b,preserveLocalState,pendingOverride){
+  async function grcPrimeAdminMirrorsFromServer(b,preserveLocalState){
     if(!isGrcAdmin()||!b||!b.auth||!b.auth.currentUser)return false;
-    var pending=preserveLocalState?(pendingOverride?grcSerializable(pendingOverride):grcSerializable(state)):null;
+    var pending=preserveLocalState?grcSerializable(state):null;
     for(var ki=0,keys=Object.keys(GRC_COLLECTION_MAP);ki<keys.length;ki++){
       var key=keys[ki],col=b.fs.collection(b.db,GRC_COLLECTION_MAP[key]);
       var snap=(typeof b.fs.getDocsFromServer==='function')?await b.fs.getDocsFromServer(col):await b.fs.getDocs(col);
@@ -1850,12 +1804,12 @@
   window._grcEnsureCanonicalCatalogV187=ensureSuperAdminCanonicalCatalogV187;
 
 
-  async function ensureSuperAdminCanonicalCatalogV195(){
+  async function ensureSuperAdminCanonicalCatalogV193(){
     if(!isGrcSuperAdmin())return false;
-    if(grcCanonicalCatalogV195Promise)return grcCanonicalCatalogV195Promise;
-    grcCanonicalCatalogV195Promise=ensureReportBackend().then(async function(b){
+    if(grcCanonicalCatalogV193Promise)return grcCanonicalCatalogV193Promise;
+    grcCanonicalCatalogV193Promise=ensureReportBackend().then(async function(b){
       if(!b.auth.currentUser)return false;
-      var markerRef=b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v195'),marker=await b.fs.getDoc(markerRef);
+      var markerRef=b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v193'),marker=await b.fs.getDoc(markerRef);
       if(marker.exists()&&marker.data()&&marker.data().status==='completed')return false;
       await b.fs.setDoc(markerRef,{status:'running',build:GRC_CLIENT_BUILD,startedAt:b.fs.serverTimestamp(),startedBy:String(window._fbUser||'')},{merge:true});
       /* Rebuild the canonical server catalog from the current Firestore state.
@@ -1874,8 +1828,8 @@
         rows.forEach(function(record,index){
           var sourceId=String(record&&record._sourceCloudId||'').trim();
           var prepared=grcPrepareCloudRecord(key,record,index,b),id=prepared._cloudId;
-          prepared.canonicalCatalogVersion=195;
-          prepared.canonicalCatalogSource='server_single_source_repair_v195';
+          prepared.canonicalCatalogVersion=193;
+          prepared.canonicalCatalogSource='server_single_source_repair_v193';
           writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],id),data:prepared});
           if((key==='risks'||key==='incidents')&&sourceId&&sourceId!==id)obsolete.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],sourceId)});
         });
@@ -1894,77 +1848,32 @@
       await grcCommitWrites(b,writes);
       if(obsolete.length)await grcCommitWrites(b,obsolete);
       await b.fs.setDoc(markerRef,{status:'completed',build:GRC_CLIENT_BUILD,counts:counts,writes:writes.length,deletes:obsolete.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
-      try{window._recordAuditDirect&&window._recordAuditDirect('GRC_CANONICAL_CATALOG_V195','Published one canonical Firestore GRC catalog for all roles and departments',null,{counts:counts,writes:writes.length,deletes:obsolete.length},{portal:'grc'});}catch(_audit){}
+      try{window._recordAuditDirect&&window._recordAuditDirect('GRC_CANONICAL_CATALOG_V193','Published one canonical Firestore GRC catalog for all roles and departments',null,{counts:counts,writes:writes.length,deletes:obsolete.length},{portal:'grc'});}catch(_audit){}
       return true;
     }).then(function(changed){
       if(changed&&typeof window._grcRestartSecureSync==='function')setTimeout(function(){window._grcRestartSecureSync(true);},100);
       return changed;
     }).catch(async function(err){
-      try{var b=await ensureReportBackend();await b.fs.setDoc(b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v195'),{status:'failed',build:GRC_CLIENT_BUILD,error:String(err&&err.message||err).slice(0,500),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}
+      try{var b=await ensureReportBackend();await b.fs.setDoc(b.fs.doc(b.db,'grc_meta','canonical_register_catalog_v193'),{status:'failed',build:GRC_CLIENT_BUILD,error:String(err&&err.message||err).slice(0,500),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}
       throw err;
-    }).finally(function(){grcCanonicalCatalogV195Promise=null;});
-    return grcCanonicalCatalogV195Promise;
+    }).finally(function(){grcCanonicalCatalogV193Promise=null;});
+    return grcCanonicalCatalogV193Promise;
   }
-  window._grcEnsureCanonicalCatalogV195=ensureSuperAdminCanonicalCatalogV195;
-  window._grcEnsureCanonicalCatalogV193=ensureSuperAdminCanonicalCatalogV195;
-  window._grcEnsureCanonicalCatalogV190=ensureSuperAdminCanonicalCatalogV195;
-  window._grcEnsureCanonicalCatalogV188=ensureSuperAdminCanonicalCatalogV195;
-  window._grcEnsureCanonicalCatalogV187=ensureSuperAdminCanonicalCatalogV195;
+  window._grcEnsureCanonicalCatalogV193=ensureSuperAdminCanonicalCatalogV193;
+  window._grcEnsureCanonicalCatalogV190=ensureSuperAdminCanonicalCatalogV193;
+  window._grcEnsureCanonicalCatalogV188=ensureSuperAdminCanonicalCatalogV193;
+  window._grcEnsureCanonicalCatalogV187=ensureSuperAdminCanonicalCatalogV193;
 
-
-  var grcGovernanceIdentityV198Promise=null;
-  async function ensureSuperAdminGovernanceIdentityV198(){
-    if(!isGrcSuperAdmin())return false;
-    if(grcGovernanceIdentityV198Promise)return grcGovernanceIdentityV198Promise;
-    grcGovernanceIdentityV198Promise=ensureReportBackend().then(async function(b){
-      if(!b.auth.currentUser)return false;
-      var markerRef=b.fs.doc(b.db,'grc_meta','governance_identity_v198'),markerSnap=await b.fs.getDoc(markerRef);
-      if(markerSnap.exists()&&markerSnap.data()&&markerSnap.data().status==='completed')return false;
-      await b.fs.setDoc(markerRef,{status:'running',build:GRC_CLIENT_BUILD,startedAt:b.fs.serverTimestamp(),startedBy:String(window._fbUser||'')},{merge:true});
-      var keys=['policies','plans','forms'],writes=[],deletes=[],stats={};
-      for(var ki=0;ki<keys.length;ki++){
-        var key=keys[ki],snap=await b.fs.getDocs(b.fs.collection(b.db,GRC_COLLECTION_MAP[key])),groups={};
-        snap.forEach(function(d){
-          var row=grcSerializable(d.data()||{});row._sourceCloudId=d.id;row._cloudId=d.id;row.cloudId=d.id;
-          var dept=grcRecordDepartment(key,row);row.department=dept;row.departmentKey=dept;row.visibility=dept==='division'?'shared':'department';row.recordType=key;row.schemaVersion=GRC_SCHEMA_VERSION;
-          var canonicalId=grcCloudDocId(key,row,0);groups[canonicalId]=groups[canonicalId]||[];groups[canonicalId].push(row);
-        });
-        var migrated=0,removed=0;
-        Object.keys(groups).forEach(function(canonicalId){
-          var list=groups[canonicalId],winner=null;
-          list.forEach(function(x){if(!winner)winner=x;else{var a=grcRecordFreshness(winner),c=grcRecordFreshness(x);if(c>a||(c===a&&x.deleted===true&&winner.deleted!==true))winner=x;}});
-          if(!winner)return;
-          var prepared=grcPrepareCloudRecord(key,winner,0,b);prepared._cloudId=canonicalId;prepared.cloudId=canonicalId;prepared.canonicalIdentityVersion=198;prepared.cloudUpdatedAt=b.fs.serverTimestamp();prepared.updatedByEmail=String(window._fbUser||'').toLowerCase();
-          writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],canonicalId),data:prepared});migrated++;
-          list.forEach(function(x){var sourceId=String(x._sourceCloudId||'');if(sourceId&&sourceId!==canonicalId){deletes.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],sourceId)});removed++;}});
-        });
-        stats[key]={canonical:migrated,legacyDeletes:removed};
-      }
-      if(writes.length)await grcCommitWrites(b,writes);
-      if(deletes.length){var seen={};deletes=deletes.filter(function(w){if(seen[w.ref.path])return false;seen[w.ref.path]=1;return true;});await grcCommitWrites(b,deletes);}
-      await b.fs.setDoc(markerRef,{status:'completed',build:GRC_CLIENT_BUILD,stats:stats,writes:writes.length,deletes:deletes.length,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
-      return true;
-    }).then(function(changed){if(changed&&typeof window._grcRestartSecureSync==='function')setTimeout(function(){window._grcRestartSecureSync(true);},80);return changed;}).catch(async function(err){try{var b=await ensureReportBackend();await b.fs.setDoc(b.fs.doc(b.db,'grc_meta','governance_identity_v198'),{status:'failed',build:GRC_CLIENT_BUILD,error:String(err&&err.message||err).slice(0,500),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}throw err;}).finally(function(){grcGovernanceIdentityV198Promise=null;});
-    return grcGovernanceIdentityV198Promise;
-  }
-  window._grcEnsureGovernanceIdentityV198=ensureSuperAdminGovernanceIdentityV198;
-
-  async function flushSecureState(sourceSnapshot,onlyKeys){
+  async function flushSecureState(){
     if(grcApplyingRemote||!isGrcAdmin())return false;
     var b=await ensureReportBackend();if(!b.auth.currentUser)throw new Error('not-authenticated');
-    /* Capture-before-listener rule: direct Admin/Super Admin CRUD passes the
-       exact state snapshot that existed when Save was clicked. A Firestore
-       listener may receive the previous server version while this write is
-       queued; it must never erase the data that is about to be committed. */
-    var source=sourceSnapshot&&typeof sourceSnapshot==='object'?grcSerializable(sourceSnapshot):grcSerializable(state);
-    var keys=Array.isArray(onlyKeys)&&onlyKeys.length?onlyKeys.filter(function(k){return !!GRC_COLLECTION_MAP[k];}):Object.keys(GRC_COLLECTION_MAP);
-    if(!keys.length)return true;
-    /* If another listener made the global ready flag false, rebuild mirrors
-       from the server but restore the captured pending state afterwards. */
-    if(!grcCloudReady)await grcPrimeAdminMirrorsFromServer(b,true,source);
+    /* v187: an unrelated failed listener must never turn a Super Admin edit into
+       a device-local change. Rebuild the server mirror directly, preserve the
+       pending local edit, then write it through to Firestore. */
+    if(!grcCloudReady)await grcPrimeAdminMirrorsFromServer(b,true);
     var writes=[],now=new Date().toISOString();
-    keys.forEach(function(key){
-      var current={},arr=Array.isArray(source[key])?source[key]:[],isRegister=key==='risks'||key==='incidents';
+    Object.keys(GRC_COLLECTION_MAP).forEach(function(key){
+      var current={},arr=Array.isArray(state[key])?state[key]:[],isRegister=key==='risks'||key==='incidents';
       arr.forEach(function(record,index){
         var canonicalId=grcCloudDocId(key,record,index),previous=(grcCloudMirror[key]||{})[canonicalId],prepared=grcPrepareCloudRecord(key,record,index,b),beforeComparable=grcComparable(prepared),changed=!previous||previous.deleted===true||!grcRecordsEqual(beforeComparable,previous);
         if(isRegister&&changed){
@@ -1972,14 +1881,9 @@
           prepared=grcPrepareCloudRecord(key,record,index,b);prepared.updatedAt=now;prepared.updatedAtIso=now;prepared.publishedAtIso=now;prepared.publicationRevision=now;prepared.revisionSource='direct_admin';prepared.canonicalDocument=true;prepared.updatedByEmail=String(window._fbUser||'').toLowerCase();delete prepared.deleted;delete prepared.deletedAt;
           writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],canonicalId),data:prepared});
           if(key==='risks'&&previous&&normalizeStatus(previous.actionStatus)!==normalizeStatus(record.actionStatus))writes.push({op:'delete',ref:b.fs.doc(b.db,'grc_risk_status',canonicalId)});
-        }else if(!isRegister&&changed){
-          prepared.updatedByEmail=String(window._fbUser||'').toLowerCase();prepared.cloudUpdatedAt=b.fs.serverTimestamp();
-          writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],canonicalId),data:prepared});
-        }
+        }else if(!isRegister&&changed){prepared.updatedByEmail=String(window._fbUser||'').toLowerCase();prepared.cloudUpdatedAt=b.fs.serverTimestamp();writes.push({op:'set',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],canonicalId),data:prepared});}
         current[canonicalId]=grcComparable(prepared);
-        if(isRegister||GRC_DEPARTMENT_IDENTITY_COLLECTIONS[key]){
-          var sourceRecordId=String(record&&record._sourceCloudId||'').trim();
-          if(sourceRecordId&&sourceRecordId!==canonicalId)writes.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],sourceRecordId)});
+        if(isRegister){
           (grcCloudDuplicates[key]&&grcCloudDuplicates[key][canonicalId]||[]).forEach(function(sourceId){if(sourceId&&sourceId!==canonicalId)writes.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],sourceId)});});
         }
       });
@@ -1992,6 +1896,11 @@
           if(key==='risks')writes.push({op:'delete',ref:b.fs.doc(b.db,'grc_risk_status',id)});
           (grcCloudDuplicates[key]&&grcCloudDuplicates[key][id]||[]).forEach(function(sourceId){if(sourceId&&sourceId!==id)writes.push({op:'delete',ref:b.fs.doc(b.db,GRC_COLLECTION_MAP[key],sourceId)});});
         }else{
+          /* Governance/Compliance deletions are persisted as tombstones too.
+             Hard-deleting a bundled baseline row made grcMergeMissingApprovedBaseline
+             recreate it on the next server snapshot, which looked like Delete
+             had failed or required repeated clicks. Keep the business identity
+             in Firestore while hiding the row from every register. */
           var genericTomb=grcSerializable(previous);genericTomb._cloudId=id;genericTomb.cloudId=id;
           genericTomb.department=grcRecordDepartment(key,genericTomb);genericTomb.departmentKey=genericTomb.department;genericTomb.visibility=grcRecordVisibility(key,genericTomb);genericTomb.recordType=key;genericTomb.schemaVersion=GRC_SCHEMA_VERSION;
           genericTomb.deleted=true;genericTomb.deletedAt=now;genericTomb.updatedAt=now;genericTomb.updatedAtIso=now;genericTomb.updatedByEmail=String(window._fbUser||'').toLowerCase();genericTomb.cloudUpdatedAt=b.fs.serverTimestamp();delete genericTomb._sourceCloudId;delete genericTomb._fromCache;
@@ -1999,39 +1908,12 @@
         }
       });
     });
+    /* De-duplicate identical batch operations generated by alias cleanup. */
     var unique=[],seen={};writes.forEach(function(w){var path=String(w.ref&&w.ref.path||''),sig=w.op+'|'+path;if(seen[sig]){if(w.op==='set')unique[seen[sig]-1]=w;return;}seen[sig]=unique.length+1;unique.push(w);});writes=unique;
-    if(writes.length)await grcCommitWrites(b,writes);
-    /* If an old server snapshot painted over the optimistic edit while the
-       commit was running, restore only the collections that this save owned.
-       The live server snapshot will then confirm the same canonical data. */
-    keys.forEach(function(key){state[key]=Array.isArray(source[key])?source[key].map(copyRecord):[];});
-    state=repairGovernanceCodeState(state);state.risks=(state.risks||[]).map(normalizeRiskClassification);state.initiatives=normalizeInitiativePeople(state.initiatives);enforceLocalGrcScope();
-    grcScheduleLocalCachePersist(50);renderAtSamePosition(grcViewportPosition());
-    return true;
+    if(!writes.length)return true;await grcCommitWrites(b,writes);return true;
   }
-  function queueSharedStateSave(immediate,collectionHint){
-    if(grcApplyingRemote||!isGrcAdmin())return;
-    /* Snapshot now, not when the timer fires. This is the core fix for records
-       that appeared for a moment and then disappeared before Firestore wrote. */
-    grcPendingAdminSaveSnapshot=grcSerializable(state);
-    if(collectionHint&&GRC_COLLECTION_MAP[collectionHint])grcPendingAdminSaveKeys[collectionHint]=true;
-    else grcPendingAdminSaveKeys.__all=true;
-    clearTimeout(grcStateSaveTimer);
-    grcStateSaveTimer=setTimeout(function(){
-      var snapshot=grcPendingAdminSaveSnapshot;
-      var saveAll=grcPendingAdminSaveKeys.__all===true;
-      var keys=saveAll?null:Object.keys(grcPendingAdminSaveKeys).filter(function(k){return k!=='__all';});
-      grcAdminSaveInFlightKeys=saveAll?{__all:true}:keys.reduce(function(out,k){out[k]=true;return out;},{});
-      grcPendingAdminSaveSnapshot=null;grcPendingAdminSaveKeys={};
-      flushSecureState(snapshot,keys).then(function(){
-        grcAdminSaveInFlightKeys={};
-      }).catch(function(err){
-        grcAdminSaveInFlightKeys={};
-        console.error('[GRC Secure Sync] save failed',err);
-        grcPendingLocalDeletes={risks:{},incidents:{}};
-        ensureReportBackend().then(function(b){return grcPrimeAdminMirrorsFromServer(b,false);}).then(function(){renderAtSamePosition(grcViewportPosition());}).catch(function(reloadErr){console.error('[GRC Secure Sync] server restore failed',reloadErr);});
-      });
-    },immediate?0:220);
+  function queueSharedStateSave(immediate){
+    if(grcApplyingRemote||!isGrcAdmin())return;clearTimeout(grcStateSaveTimer);grcStateSaveTimer=setTimeout(function(){flushSecureState().catch(function(err){console.error('[GRC Secure Sync] save failed',err);grcPendingLocalDeletes={risks:{},incidents:{}};ensureReportBackend().then(function(b){return grcPrimeAdminMirrorsFromServer(b,false);}).then(function(){renderAtSamePosition(grcViewportPosition());}).catch(function(reloadErr){console.error('[GRC Secure Sync] server restore failed',reloadErr);});});},immediate?0:220);
   }
 
 
@@ -2040,7 +1922,7 @@
   function isGrcAdmin(){var r=normalizedRole();return r==='super_admin'||r==='admin';}
   function isGrcAnalyticsManager(){return normalizedRole()==='governance_performance_manager'||(Array.isArray(window._fbPerms)&&window._fbPerms.indexOf('view_request_analytics')>=0);}
   function canOpenGrcAdminCenter(){return isGrcAdmin()||isGrcAnalyticsManager();}
-  function canAccessRiskIncidentRegisters(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return ['super_admin','admin','executive','department_manager','dept_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].indexOf(r)>=0||p.indexOf('access_grc')>=0||p.indexOf('view_grc_department')>=0||p.indexOf('view_grc_all_departments')>=0||p.indexOf('edit_risk_management')>=0||p.indexOf('edit_incident_register')>=0||p.indexOf('*')>=0;}
+  function canAccessRiskIncidentRegisters(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[];return ['super_admin','admin','department_manager','dept_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].indexOf(r)>=0||p.indexOf('access_grc')>=0||p.indexOf('view_grc_department')>=0||p.indexOf('edit_risk_management')>=0||p.indexOf('edit_incident_register')>=0||p.indexOf('*')>=0;}
   window._grcCanAccessRiskIncidentRegisters=canAccessRiskIncidentRegisters;
   function isGrcSuperAdmin(){return normalizedRole()==='super_admin';}
   function canonicalGrcDepartment(value){
@@ -2064,13 +1946,7 @@
     return'';
   }
   function currentGrcDept(){return canonicalGrcDepartment(rawCurrentGrcDepartment());}
-  function canViewAllExecutiveDepartments(){
-    // Data visibility is determined by department only. An explicitly assigned
-    // department always scopes the GRC registers, regardless of role. Users with
-    // no meaningful department see the complete register.
-    var d=currentGrcDept();
-    return !d;
-  }
+  function canViewAllExecutiveDepartments(){var r=normalizedRole(),p=Array.isArray(window._fbPerms)?window._fbPerms:[],d=currentGrcDept(),assigned=['safety','maintenance','housekeeping','laundry','projects'].indexOf(d)>=0;if(r==='super_admin'||r==='admin'||r==='governance_performance_manager'||p.indexOf('*')>=0||p.indexOf('view_grc_all_departments')>=0)return true;if(!d)return canEnterGrc();if(assigned)return false;return r==='executive';}
   function resolvedExecutiveDept(value){var raw=String(value||executiveDeptFilter||'');if(/^(all\s*fms|allfms|all_departments|all)$/i.test(raw.replace(/[&/_-]+/g,' ')))return canViewAllExecutiveDepartments()?'allFms':(currentGrcDept()||'allFms');var d=canonicalGrcDepartment(raw);if(canViewAllExecutiveDepartments())return d&&d!=='division'?d:'allFms';d=currentGrcDept();return d&&d!=='division'?d:'allFms';}
   function executiveDepartmentFilterHtml(selected){if(!canViewAllExecutiveDepartments())return'';var choices=[['allFms',isAr()?'جميع الأقسام':'All Departments'],['safety',deptName('safety')],['maintenance',deptName('maintenance')],['housekeeping',deptName('housekeeping')],['laundry',deptName('laundry')],['projects',deptName('projects')]];return'<div class="grc-executive-filter"><label><span>'+(isAr()?'تصفية القسم':'Department Filter')+'</span><select onchange="window._grcSetExecutiveDepartment(this.value)">'+choices.map(function(x){return'<option value="'+x[0]+'" '+(selected===x[0]?'selected':'')+'>'+esc(x[1])+'</option>';}).join('')+'</select></label></div>';}
   window._grcSetExecutiveDepartment=function(value){var raw=String(value||'allFms');executiveDeptFilter=/^(all\s*fms|allfms|all_departments|all)$/i.test(raw.replace(/[&/_-]+/g,' '))?'allFms':canonicalGrcDepartment(raw);renderAtSamePosition(grcViewportPosition());};
@@ -2260,7 +2136,7 @@
           '</div>'+
         '</div>'+
       '</div>'+
-      '<main class="grc-main"><section id="grc-page-'+activeTab+'" class="grc-page is-active">'+pageHtml(activeTab)+'</section></main>'+
+      '<main class="grc-main">'+((typeof assessmentCloudError==='string'&&assessmentCloudError)?'<div role="alert" style="margin:10px 18px 0;padding:10px 13px;border:1px solid #f0c97a;border-radius:10px;background:#fff8e8;color:#8a5b00;font-size:11px;font-weight:700">Compliance assessment sync issue: '+esc(assessmentCloudError)+' — changes are retained locally and will retry.</div>':'')+'<section id="grc-page-'+activeTab+'" class="grc-page is-active">'+pageHtml(activeTab)+'</section></main>'+
       '<footer class="footbar grc-performance-footer"><div class="footbar-l"><div class="footbar-back-wrap"><button class="footer-back-glass" onclick="window._exitGRC()" type="button" title="Back to Portal Selection"><span>'+(isAr()?'رجوع':'← Back')+'</span></button></div><div class="footbar-logo"><img alt="QUMC" src="'+logo+'"></div><div class="footbar-info"><span class="footbar-title">Governance, Risk &amp; Compliance</span><span class="footbar-sub">Facility Management &amp; Safety Division — Governance &amp; Performance</span></div></div><div class="footbar-r"><div class="footbar-status"><span class="live-dot"></span><span class="footbar-live">Live</span></div><span class="footbar-sep" style="opacity:.4">·</span><span class="footbar-clock" id="grcClockEl">--:--</span><span class="footbar-sep" style="opacity:.4">·</span><span class="footbar-copy">© 2026 QUMC</span></div></footer>';
   }
   function enhanceRegisterFilters(){
@@ -2290,7 +2166,7 @@
   }
   function updateGrcFooterClock(){var el=document.getElementById('grcClockEl');if(!el)return;try{el.textContent=new Date().toLocaleTimeString(isAr()?'ar-SA':'en-GB',{hour:'2-digit',minute:'2-digit'});}catch(_e){var d=new Date(),h=String(d.getHours()).padStart(2,'0'),m=String(d.getMinutes()).padStart(2,'0');el.textContent=h+':'+m;}}
   if(!window._grcFooterClockTimer){window._grcFooterClockTimer=setInterval(updateGrcFooterClock,1000);}
-  function render(){if(window._fbUser)enforceLocalGrcScope();var _repairBefore=governanceCodeRepairSnapshot(state);state=repairGovernanceCodeState(state);try{if(_repairBefore!==governanceCodeRepairSnapshot(state)){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}}catch(_e2){}applyAutomaticExpiry();if(!app||!app.classList.contains('grc-visible'))return;app.setAttribute('dir',isAr()?'rtl':'ltr');try{app.innerHTML=shellHtml();}catch(err){try{console.error('[GRC Render]',err);}catch(_e){}app.innerHTML='<main class="grc-main"><section class="grc-page is-active"><div class="grc-section"><div class="grc-section-title">GRC</div><div class="grc-section-sub">'+esc(String(err&&err.message||err))+'</div></div></section></main>';return;}updateGrcFooterClock();setTimeout(enhanceRegisterFilters,0);setTimeout(enhanceAllRegisterCrud,0);setTimeout(function(){if(typeof window._grcRiskRefreshUi==='function')window._grcRiskRefreshUi();if(typeof window._grcRiskBindHeader==='function')window._grcRiskBindHeader();if(typeof window._grcChatEnsure==='function')window._grcChatEnsure();},0);startSharedStateSync();try{if(activeTab==='compliance'&&typeof startAssessmentCloudSync==='function')startAssessmentCloudSync();}catch(_assessmentSync){}if(activeTab==='reports'||activeTab==='compliance'||activeTab==='manuals')setTimeout(mountReportViewer,0);if(activeTab==='advisory'&&typeof window._grcAdvisoryMount==='function')setTimeout(window._grcAdvisoryMount,0);}
+  function render(){if(window._fbUser)enforceLocalGrcScope();var _repairBefore=governanceCodeRepairSnapshot(state);state=repairGovernanceCodeState(state);try{if(_repairBefore!==governanceCodeRepairSnapshot(state)){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));queueSharedStateSave(true);}}catch(_e2){}applyAutomaticExpiry();if(!app||!app.classList.contains('grc-visible'))return;app.setAttribute('dir',isAr()?'rtl':'ltr');try{app.innerHTML=shellHtml();}catch(err){try{console.error('[GRC Render]',err);}catch(_e){}app.innerHTML='<main class="grc-main"><section class="grc-page is-active"><div class="grc-section"><div class="grc-section-title">GRC</div><div class="grc-section-sub">'+esc(String(err&&err.message||err))+'</div></div></section></main>';return;}updateGrcFooterClock();setTimeout(enhanceRegisterFilters,0);setTimeout(enhanceAllRegisterCrud,0);setTimeout(function(){if(typeof window._grcRiskRefreshUi==='function')window._grcRiskRefreshUi();if(typeof window._grcRiskBindHeader==='function')window._grcRiskBindHeader();if(typeof window._grcChatEnsure==='function')window._grcChatEnsure();},0);startSharedStateSync();try{if(typeof startAssessmentCloudSync==='function')startAssessmentCloudSync();}catch(_assessmentSync){}if(activeTab==='reports'||activeTab==='compliance'||activeTab==='manuals')setTimeout(mountReportViewer,0);if(activeTab==='advisory'&&typeof window._grcAdvisoryMount==='function')setTimeout(window._grcAdvisoryMount,0);}
 
   function hero(eye,title,desc,actions){return'<div class="grc-hero"><div class="grc-hero-row"><div><div class="grc-eyebrow">'+eye+'</div><h1>'+title+'</h1><p>'+desc+'</p></div><div class="grc-hero-actions">'+(actions||'')+'</div></div></div>';}
   function sectionHead(title,sub,badgeText){return'<div class="grc-section-head"><div><div class="grc-section-title">'+title+'</div><div class="grc-section-sub">'+(sub||'')+'</div></div>'+(badgeText?'<span class="grc-section-badge">'+badgeText+'</span>':'')+'</div>';}
@@ -3302,8 +3178,8 @@
     ensureReportBackend().then(async function(b){await waitForReportAuth(b);for(const kind of ['cbahi','jci']){
       var ref=assessmentCloudRef(b,kind),getServer=typeof b.fs.getDocFromServer==='function'?b.fs.getDocFromServer:b.fs.getDoc,snap;
       try{snap=await getServer(ref);if(snap.exists())assessmentApplyCloud(kind,snap.data());else if(normalizedRole()==='super_admin'&&assessmentKindHasEdits(kind)){await persistAssessmentKind(kind);}else{assessmentEdits[kind]={};assessmentCloudReady[kind]=true;assessmentSaveLocalCache();}}
-      catch(err){assessmentCloudReady[kind]=false;try{console.warn('[GRC Assessment Sync] '+kind+' initial read failed',err);}catch(_e){}}
-      try{var unsub=b.fs.onSnapshot(ref,function(live){if(live.metadata&&live.metadata.fromCache&&!assessmentCloudReady[kind])return;if(live.exists())assessmentApplyCloud(kind,live.data());else if(assessmentCloudReady[kind]){assessmentEdits[kind]={};assessmentSaveLocalCache();if(app&&app.classList.contains('grc-visible')&&activeTab==='compliance')render();}},function(err){try{console.warn('[GRC Assessment Sync] '+kind+' listener failed',err);}catch(_e){}});assessmentCloudUnsubs.push(unsub);}catch(listenErr){try{console.warn('[GRC Assessment Sync] '+kind+' listener setup failed',listenErr);}catch(_e){}}
+      catch(err){assessmentCloudError=kind+': '+String(err&&err.message||err);assessmentCloudReady[kind]=false;}
+      try{var unsub=b.fs.onSnapshot(ref,function(live){if(live.metadata&&live.metadata.fromCache&&!assessmentCloudReady[kind])return;if(live.exists())assessmentApplyCloud(kind,live.data());else if(assessmentCloudReady[kind]){assessmentEdits[kind]={};assessmentSaveLocalCache();if(app&&app.classList.contains('grc-visible')&&activeTab==='compliance')render();}},function(err){assessmentCloudError=kind+': '+String(err&&err.message||err);});assessmentCloudUnsubs.push(unsub);}catch(listenErr){assessmentCloudError=kind+': '+String(listenErr&&listenErr.message||listenErr);}
     }}).catch(function(err){assessmentCloudStarted=false;assessmentCloudError='Assessment sync initialization: '+String(err&&err.message||err);});
   }
   function assessmentRows(kind,rows){var base=rows.slice(),added=(assessmentEdits[kind]&&assessmentEdits[kind]._added)||[],deleted=(assessmentEdits[kind]&&assessmentEdits[kind]._deleted)||{};base=base.concat(added);return base.map(function(source,rowIndex){var r=source.slice(),edit=assessmentEdits[kind]&&assessmentEdits[kind][rowIndex];if(edit)Object.keys(edit).forEach(function(col){if(col!=='_added'&&col!=='_deleted')r[Number(col)]=edit[col];});r=cleanAssessmentRowCodes(r);r._sourceIndex=rowIndex;return r;}).filter(function(r){return !deleted[r._sourceIndex];});}
@@ -3926,8 +3802,8 @@
     },0);
   };
   window._grcAdminContinue=function(){var page=document.getElementById('_grcAdminPage').value,action=document.getElementById('_grcAdminAction').value,type=document.getElementById('_grcAdminType').value,dept=document.getElementById('_grcAdminDept').value,scope=document.getElementById('_grcAdminScope').value,id=document.getElementById('_grcAdminRecord')&&document.getElementById('_grcAdminRecord').value,ov=document.getElementById('_grcAdminControl');if(ov)ov.remove();if(type==='cbahi'||type==='jci'){window._grcOpenAssessmentModal(type,action,id);return;}if(action==='delete'){if(type==='report'){window._grcDeleteReport(id);return;}if(type==='guide'){window._grcDeleteGuide(id);return;}window._grcDeleteAdminRecord(type,id);return;}if(type==='report'){window._grcOpenReportUpload(action==='edit'?id:null);return;}if(type==='guide'){window._grcOpenGuideUpload(action==='edit'?id:null);return;}if(action==='add'){window._grcOpenForm(type,dept);setTimeout(function(){var f=document.getElementById('_grcForm');if(f&&type==='form'&&f.elements.scope)f.elements.scope.value=scope;},0);}else window._grcOpenRecordEditor(type,id,dept);};
-  window._grcDeleteAdminRecord=function(type,id){if(!isGrcAdmin()||!window.confirm(isAr()?'هل تريد حذف هذا السجل؟':'Delete this record?'))return;var collection=_grcTypeCollection(type),arr=state[collection]||[],idx=arr.findIndex(function(r,i){return String(r.id||i)===String(id);});if(idx<0)return;arr.splice(idx,1);saveState(true,collection);render();};
-  window._grcOpenRecordEditor=function(type,id,dept){if(!isGrcAdmin())return;var spec=formSpec(type,dept),arr=state[spec.collection]||[],record=arr.find(function(r){return String(r.id)===String(id);});if(!record)return;var old=document.getElementById('_grcFormModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcFormModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(isAr()?'تعديل':'Edit')+' · '+esc(record.code||record.id||recordName(record))+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcFormModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcForm"><div class="grc-form-grid">'+spec.fields+'</div><div id="_grcFormErr"></div><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcFormModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-primary-btn">'+L('save')+'</button></div></form></div>';document.body.appendChild(ov);var f=document.getElementById('_grcForm');Object.keys(record).forEach(function(k){if(f.elements[k])f.elements[k].value=record[k]==null?'':record[k];});prepareConditionalFields(f,record);f.addEventListener('submit',function(e){e.preventDefault();var ok=true,first=null;Array.prototype.forEach.call(f.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);var wrap=el.closest('.grc-field,.grc-report-upload-field');if(wrap)wrap.classList.toggle('required-missing',miss);if(miss){ok=false;if(!first)first=el;}});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(f),updated=Object.assign({},record,{updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){if(k!=='code'||type==='policy')updated[k]=v;});updated=resolveConditionalFields(updated);updated=normalizeRecordBeforeSave(type,updated);var idx=arr.indexOf(record);_grcAuditRegisterChange('GRC_REGISTER_UPDATE',type,record,updated);arr[idx]=updated;ov.remove();saveState(true,spec.collection);});};
+  window._grcDeleteAdminRecord=function(type,id){if(!isGrcAdmin()||!window.confirm(isAr()?'هل تريد حذف هذا السجل؟':'Delete this record?'))return;var collection=_grcTypeCollection(type),arr=state[collection]||[],idx=arr.findIndex(function(r,i){return String(r.id||i)===String(id);});if(idx<0)return;arr.splice(idx,1);saveState();render();};
+  window._grcOpenRecordEditor=function(type,id,dept){if(!isGrcAdmin())return;var spec=formSpec(type,dept),arr=state[spec.collection]||[],record=arr.find(function(r){return String(r.id)===String(id);});if(!record)return;var old=document.getElementById('_grcFormModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcFormModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(isAr()?'تعديل':'Edit')+' · '+esc(record.code||record.id||recordName(record))+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcFormModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcForm"><div class="grc-form-grid">'+spec.fields+'</div><div id="_grcFormErr"></div><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcFormModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-primary-btn">'+L('save')+'</button></div></form></div>';document.body.appendChild(ov);var f=document.getElementById('_grcForm');Object.keys(record).forEach(function(k){if(f.elements[k])f.elements[k].value=record[k]==null?'':record[k];});prepareConditionalFields(f,record);f.addEventListener('submit',function(e){e.preventDefault();var ok=true,first=null;Array.prototype.forEach.call(f.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);var wrap=el.closest('.grc-field,.grc-report-upload-field');if(wrap)wrap.classList.toggle('required-missing',miss);if(miss){ok=false;if(!first)first=el;}});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(f),updated=Object.assign({},record,{updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){if(k!=='code'||type==='policy')updated[k]=v;});updated=resolveConditionalFields(updated);updated=normalizeRecordBeforeSave(type,updated);var idx=arr.indexOf(record);_grcAuditRegisterChange('GRC_REGISTER_UPDATE',type,record,updated);arr[idx]=updated;ov.remove();saveState();});};
   window._grcOpenAdminAddHub=function(){if(!isGrcAdmin())return;var old=document.getElementById('_grcAdminHub');if(old)old.remove();var items=[['CBAHI',"window._grcOpenAssessmentModal('cbahi','add')"],['JCI',"window._grcOpenAssessmentModal('jci','add')"],[L('addPolicy'),"window._grcOpenForm('policy')"],[L('addPlan'),"window._grcOpenForm('plan')"],[L('addForm'),"window._grcOpenForm('form')"],[L('uploadReport'),"window._grcOpenReportUpload()"],[L('uploadGuide'),"window._grcOpenGuideUpload()"]];var ov=document.createElement('div');ov.id='_grcAdminHub';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div class="grc-modal-title">'+(isAr()?'إضافة سجل أو مستند':'Add record or document')+'</div><button class="grc-modal-close" onclick="document.getElementById(\'_grcAdminHub\').remove()">×</button></div><div class="grc-modal-body"><div class="grc-admin-hub-grid">'+items.map(function(x){return'<button onclick="document.getElementById(\'_grcAdminHub\').remove();'+x[1]+'">＋ '+x[0]+'</button>';}).join('')+'</div></div></div>';document.body.appendChild(ov);};
   window._grcOpenAdminEditHub=function(){if(activeTab==='compliance')window._grcOpenAssessmentModal('cbahi','edit');else{var old=document.getElementById('_grcAdminHub');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcAdminHub';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div class="grc-modal-title">'+(isAr()?'اختيار التعديل':'Choose edit action')+'</div><button class="grc-modal-close" onclick="document.getElementById(\'_grcAdminHub\').remove()">×</button></div><div class="grc-modal-body"><div class="grc-admin-hub-grid"><button onclick="document.getElementById(\'_grcAdminHub\').remove();window._grcOpenAssessmentModal(\'cbahi\',\'edit\')">✎ CBAHI</button><button onclick="document.getElementById(\'_grcAdminHub\').remove();window._grcOpenAssessmentModal(\'jci\',\'edit\')">✎ JCI</button><button onclick="document.getElementById(\'_grcAdminHub\').remove();window._grcSwitch(\'reports\')">✎ '+L('reportsTitle')+'</button><button onclick="document.getElementById(\'_grcAdminHub\').remove();window._grcSwitch(\'manuals\')">✎ '+(isAr()?'الدليل':'Manual')+'</button></div></div></div>';document.body.appendChild(ov);}};
 
@@ -4584,7 +4460,7 @@
         for(var i=0;i<requests.length;i++)await window._grcRiskRequestSubmit('update',requests[i]);
         window.toast&&window.toast((isAr()?'تم إرسال ':'Sent ')+requests.length+(isAr()?' طلب تعديل للاعتماد.':' update request(s) for approval.'));
       }
-      if(changed){state[map.collection]=records;saveState(true,map.collection);}
+      if(changed){state[map.collection]=records;saveState();}
       else renderAtSamePosition(grcViewportPosition());
       if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();
     }catch(err){_grcInlineMessage(block,String(err&&err.message||err),'bad');}
@@ -4594,7 +4470,7 @@
   }
   function _grcOpenDeleteDecision(block,map,resolved,current){
     grcHoldRegisterViewport();
-    var old=document.getElementById('_grcDeleteDecisionOv');if(old)old.remove();var requestMode=canSubmitRegisterRequest(map.type)&&!isGrcAdmin(),label=genericRecordLabel(current)||_grcRecordIdentity(current),ov=document.createElement('div');ov.id='_grcDeleteDecisionOv';ov.className='grc-risk-overlay inner';ov.innerHTML='<div class="grc-risk-dialog" style="width:min(560px,94vw)"><header><div><h2>'+(requestMode?(isAr()?'طلب حذف سجل':'Delete Record Request'):(isAr()?'حذف السجل':'Delete Record'))+'</h2><p>'+esc(label)+'</p></div><button type="button" onclick="document.getElementById(\'_grcDeleteDecisionOv\').remove()">×</button></header><main><div class="grc-risk-inline-decision '+(requestMode?'warn':'bad')+'" style="display:block"><div class="grc-risk-inline-title">'+(requestMode?(isAr()?'إرسال طلب الحذف للاعتماد':'Send deletion request for approval'):(isAr()?'تأكيد الحذف النهائي':'Confirm permanent deletion'))+'</div><div class="grc-risk-inline-copy">'+(requestMode?(isAr()?'اكتب سبب الحذف ثم أرسل الطلب.':'Enter the deletion reason, then submit the request.'):(isAr()?'سيتم حذف هذا السجل نهائيًا.':'This record will be deleted permanently.'))+'</div>'+(requestMode?'<label class="grc-risk-inline-label">'+(isAr()?'سبب الحذف *':'Deletion reason *')+'</label><textarea id="_grcDeleteReason" class="grc-risk-inline-textarea" rows="3"></textarea>':'')+'<div id="_grcDeleteDecisionErr" class="grc-risk-inline-error"></div><div class="grc-risk-inline-buttons"><button id="_grcDeleteDecisionGo" type="button" class="grc-risk-inline-confirm '+(requestMode?'warn':'bad')+'">'+(requestMode?(isAr()?'إرسال طلب الحذف':'Submit Delete Request'):(isAr()?'حذف نهائي':'Delete Permanently'))+'</button><button type="button" class="grc-risk-inline-cancel" onclick="document.getElementById(\'_grcDeleteDecisionOv\').remove()">'+(isAr()?'إلغاء':'Cancel')+'</button></div></div></main></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});var go=document.getElementById('_grcDeleteDecisionGo');go.onclick=async function(){var errEl=document.getElementById('_grcDeleteDecisionErr'),reason=requestMode?String((document.getElementById('_grcDeleteReason')||{}).value||'').trim():'';if(requestMode&&!reason){var ta=document.getElementById('_grcDeleteReason');if(ta)ta.classList.add('is-invalid');if(errEl)errEl.textContent=isAr()?'سبب الحذف مطلوب قبل الإرسال.':'Deletion reason is required before submitting.';return;}try{go.disabled=true;if(requestMode){if(typeof window._grcRiskRequestSubmit!=='function')throw new Error(isAr()?'خدمة طلبات السجلات غير جاهزة.':'Register approval service is not ready.');await window._grcRiskRequestSubmit('delete',{recordType:map.type,currentRecord:current,targetRiskId:current.id||current.code,targetRecordId:current.id||current.code,department:currentGrcDept(),deleteReason:reason});_grcInlineMessage(block,isAr()?'تم إرسال طلب الحذف للاعتماد.':'Deletion request sent for approval.','good');if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();}else{_grcAuditRegisterChange('GRC_REGISTER_DELETE',map.type,current,null);grcMarkPendingLocalDelete(map.collection,current);state[map.collection].splice(resolved.index,1);saveState(true,map.collection);}_grcCloseDeleteDecision();renderAtSamePosition(grcViewportPosition());}catch(err){go.disabled=false;if(errEl)errEl.textContent=String(err&&err.message||err);}};var ta=document.getElementById('_grcDeleteReason');if(ta)setTimeout(function(){ta.focus();},30);
+    var old=document.getElementById('_grcDeleteDecisionOv');if(old)old.remove();var requestMode=canSubmitRegisterRequest(map.type)&&!isGrcAdmin(),label=genericRecordLabel(current)||_grcRecordIdentity(current),ov=document.createElement('div');ov.id='_grcDeleteDecisionOv';ov.className='grc-risk-overlay inner';ov.innerHTML='<div class="grc-risk-dialog" style="width:min(560px,94vw)"><header><div><h2>'+(requestMode?(isAr()?'طلب حذف سجل':'Delete Record Request'):(isAr()?'حذف السجل':'Delete Record'))+'</h2><p>'+esc(label)+'</p></div><button type="button" onclick="document.getElementById(\'_grcDeleteDecisionOv\').remove()">×</button></header><main><div class="grc-risk-inline-decision '+(requestMode?'warn':'bad')+'" style="display:block"><div class="grc-risk-inline-title">'+(requestMode?(isAr()?'إرسال طلب الحذف للاعتماد':'Send deletion request for approval'):(isAr()?'تأكيد الحذف النهائي':'Confirm permanent deletion'))+'</div><div class="grc-risk-inline-copy">'+(requestMode?(isAr()?'اكتب سبب الحذف ثم أرسل الطلب.':'Enter the deletion reason, then submit the request.'):(isAr()?'سيتم حذف هذا السجل نهائيًا.':'This record will be deleted permanently.'))+'</div>'+(requestMode?'<label class="grc-risk-inline-label">'+(isAr()?'سبب الحذف *':'Deletion reason *')+'</label><textarea id="_grcDeleteReason" class="grc-risk-inline-textarea" rows="3"></textarea>':'')+'<div id="_grcDeleteDecisionErr" class="grc-risk-inline-error"></div><div class="grc-risk-inline-buttons"><button id="_grcDeleteDecisionGo" type="button" class="grc-risk-inline-confirm '+(requestMode?'warn':'bad')+'">'+(requestMode?(isAr()?'إرسال طلب الحذف':'Submit Delete Request'):(isAr()?'حذف نهائي':'Delete Permanently'))+'</button><button type="button" class="grc-risk-inline-cancel" onclick="document.getElementById(\'_grcDeleteDecisionOv\').remove()">'+(isAr()?'إلغاء':'Cancel')+'</button></div></div></main></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});var go=document.getElementById('_grcDeleteDecisionGo');go.onclick=async function(){var errEl=document.getElementById('_grcDeleteDecisionErr'),reason=requestMode?String((document.getElementById('_grcDeleteReason')||{}).value||'').trim():'';if(requestMode&&!reason){var ta=document.getElementById('_grcDeleteReason');if(ta)ta.classList.add('is-invalid');if(errEl)errEl.textContent=isAr()?'سبب الحذف مطلوب قبل الإرسال.':'Deletion reason is required before submitting.';return;}try{go.disabled=true;if(requestMode){if(typeof window._grcRiskRequestSubmit!=='function')throw new Error(isAr()?'خدمة طلبات السجلات غير جاهزة.':'Register approval service is not ready.');await window._grcRiskRequestSubmit('delete',{recordType:map.type,currentRecord:current,targetRiskId:current.id||current.code,targetRecordId:current.id||current.code,department:currentGrcDept(),deleteReason:reason});_grcInlineMessage(block,isAr()?'تم إرسال طلب الحذف للاعتماد.':'Deletion request sent for approval.','good');if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();}else{_grcAuditRegisterChange('GRC_REGISTER_DELETE',map.type,current,null);grcMarkPendingLocalDelete(map.collection,current);state[map.collection].splice(resolved.index,1);saveState(true);}_grcCloseDeleteDecision();renderAtSamePosition(grcViewportPosition());}catch(err){go.disabled=false;if(errEl)errEl.textContent=String(err&&err.message||err);}};var ta=document.getElementById('_grcDeleteReason');if(ta)setTimeout(function(){ta.focus();},30);
   }
   function _grcCloseDeleteDecision(){var x=document.getElementById('_grcDeleteDecisionOv');if(x)x.remove();}
   function _grcBeginInlineDelete(block,map){
@@ -4636,7 +4512,7 @@
   }
   function genericRecordLabel(r){return [recordName(r),r.code,r.id].filter(Boolean).join(' · ');}
   window._grcOpenRegisterCrud=function(collection,type,action,scope){if(!isGrcAdmin())return;grcHoldRegisterViewport();var records=(state[collection]||[]).slice();if(scope)records=records.filter(function(r){return String(r.scope||'')===String(scope);});if(!records.length){alert(L('noRecords'));return;}var old=document.getElementById('_grcRegisterCrudModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcRegisterCrudModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(action==='delete'?(isAr()?'حذف سجل':'Delete Record'):(isAr()?'تعديل سجل':'Edit Record'))+'</div><div class="grc-modal-sub">'+(isAr()?'اختر السجل المطلوب':'Select the record')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcRegisterCrudModal\').remove()">×</button></div><div class="grc-modal-body"><label class="grc-field"><span>'+(isAr()?'السجل':'Record')+'</span><select id="_grcCrudRecordSelect">'+records.map(function(r){return'<option value="'+esc(r.id)+'">'+esc(genericRecordLabel(r))+'</option>';}).join('')+'</select></label><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcRegisterCrudModal\').remove()">'+L('cancel')+'</button><button type="button" class="'+(action==='delete'?'grc-btn danger':'grc-primary-btn')+'" onclick="window._grcConfirmRegisterCrud(\''+collection+'\',\''+type+'\',\''+action+'\')">'+(action==='delete'?L('delete'):(isAr()?'فتح للتعديل':'Open Edit'))+'</button></div></div></div>';document.body.appendChild(ov);};
-  window._grcConfirmRegisterCrud=function(collection,type,action){var sel=document.getElementById('_grcCrudRecordSelect'),id=sel&&sel.value;if(!id)return;if(action==='delete'){if(window.confirm(L('confirmDelete'))){var deleted=(state[collection]||[]).find(function(r){return String(r.id)===String(id);});_grcAuditRegisterChange('GRC_REGISTER_DELETE',type,deleted,null);grcMarkPendingLocalDelete(collection,deleted);state[collection]=(state[collection]||[]).filter(function(r){return String(r.id)!==String(id);});document.getElementById('_grcRegisterCrudModal').remove();saveState(true,collection);}return;}var record=(state[collection]||[]).find(function(r){return String(r.id)===String(id);});document.getElementById('_grcRegisterCrudModal').remove();window._grcOpenEditRecord(collection,type,record);};
+  window._grcConfirmRegisterCrud=function(collection,type,action){var sel=document.getElementById('_grcCrudRecordSelect'),id=sel&&sel.value;if(!id)return;if(action==='delete'){if(window.confirm(L('confirmDelete'))){var deleted=(state[collection]||[]).find(function(r){return String(r.id)===String(id);});_grcAuditRegisterChange('GRC_REGISTER_DELETE',type,deleted,null);grcMarkPendingLocalDelete(collection,deleted);state[collection]=(state[collection]||[]).filter(function(r){return String(r.id)!==String(id);});document.getElementById('_grcRegisterCrudModal').remove();saveState(true);}return;}var record=(state[collection]||[]).find(function(r){return String(r.id)===String(id);});document.getElementById('_grcRegisterCrudModal').remove();window._grcOpenEditRecord(collection,type,record);};
   window._grcOpenEditRecord=function(collection,type,record){if(!record)return;grcHoldRegisterViewport();var spec=formSpec(type,record.department),old=document.getElementById('_grcFormModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcFormModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(isAr()?'تعديل السجل':'Edit Record')+'</div><div class="grc-modal-sub">'+esc(genericRecordLabel(record))+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcFormModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcEditForm"><div class="grc-form-grid">'+spec.fields+'</div><div id="_grcFormErr"></div><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcFormModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-primary-btn">'+L('save')+'</button></div></form></div>';document.body.appendChild(ov);var form=document.getElementById('_grcEditForm');
     var grid=form.querySelector('.grc-form-grid');
     Object.keys(record).forEach(function(k){
@@ -4650,7 +4526,7 @@
       else if(/description|gap|cap|evidence|requirement|finding|remarks/i.test(k))inputType='textarea';
       grid.insertAdjacentHTML('beforeend',field(k,label,options?'select':inputType,options,false,inputType==='textarea'));
     });
-    Object.keys(record).forEach(function(k){var el=form.elements[k];if(el)el.value=record[k]==null?'':record[k];});prepareConditionalFields(form,record);if(type==='initiative')window._grcPrepareInitiativeForm(form,record);form.addEventListener('submit',function(e){e.preventDefault();var ok=true;Array.prototype.forEach.call(form.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);if(miss)ok=false;});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(form),updated=Object.assign({},record,{updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){if(!/^(leader|member\d)(Name|Gender|Department)$/.test(k))updated[k]=v;});if(type==='initiative')updated.team=initiativeTeamFromForm(form);updated=resolveConditionalFields(updated);if(updated.likelihood!==undefined)updated.likelihood=Number(updated.likelihood);if(updated.impact!==undefined)updated.impact=Number(updated.impact);if(updated.progress!==undefined)updated.progress=Number(updated.progress||0);updated=normalizeRecordBeforeSave(type,updated);_grcAuditRegisterChange('GRC_REGISTER_UPDATE',type,record,updated);state[collection]=(state[collection]||[]).map(function(r){return String(r.id)===String(record.id)?updated:r;});ov.remove();saveState(true,collection);});};
+    Object.keys(record).forEach(function(k){var el=form.elements[k];if(el)el.value=record[k]==null?'':record[k];});prepareConditionalFields(form,record);if(type==='initiative')window._grcPrepareInitiativeForm(form,record);form.addEventListener('submit',function(e){e.preventDefault();var ok=true;Array.prototype.forEach.call(form.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);if(miss)ok=false;});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(form),updated=Object.assign({},record,{updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){if(!/^(leader|member\d)(Name|Gender|Department)$/.test(k))updated[k]=v;});if(type==='initiative')updated.team=initiativeTeamFromForm(form);updated=resolveConditionalFields(updated);if(updated.likelihood!==undefined)updated.likelihood=Number(updated.likelihood);if(updated.impact!==undefined)updated.impact=Number(updated.impact);if(updated.progress!==undefined)updated.progress=Number(updated.progress||0);updated=normalizeRecordBeforeSave(type,updated);_grcAuditRegisterChange('GRC_REGISTER_UPDATE',type,record,updated);state[collection]=(state[collection]||[]).map(function(r){return String(r.id)===String(record.id)?updated:r;});ov.remove();saveState();});};
 
   window._grcOpenHeatCell=function(dept,likelihood,impact){
     var records=filterDept(state.risks,dept).filter(function(r){return Number(r.likelihood)===Number(likelihood)&&Number(r.impact)===Number(impact);}),old=document.getElementById('_grcDetailModal');if(old)old.remove();
@@ -4671,31 +4547,18 @@
     if(requestMode&&openedForm&&openedForm.elements.department){openedForm.elements.department.value=type==='risk'?currentRiskRecordDept():currentGrcDept();openedForm.elements.department.disabled=true;}
     if(type==='form'&&scopeOverride&&openedForm&&openedForm.elements.scope)openedForm.elements.scope.value=scopeOverride;
     if(type==='initiative'&&openedForm)window._grcPrepareInitiativeForm(openedForm,null);
-    prepareConditionalFields(document.getElementById('_grcForm'),null);document.getElementById('_grcForm').addEventListener('submit',function(e){e.preventDefault();var ok=true,first=null;Array.prototype.forEach.call(e.target.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);var wrap=el.closest('.grc-field,.grc-report-upload-field');if(wrap)wrap.classList.toggle('required-missing',miss);if(miss){ok=false;if(!first)first=el;}});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(e.target),obj={createdAt:new Date().toISOString(),createdBy:currentName()};fd.forEach(function(v,k){if(!/^(leader|member\d)(Name|Gender|Department)$/.test(k))obj[k]=v;});if(requestMode)obj.department=type==='risk'?currentRiskRecordDept():currentGrcDept();obj.id=requestMode?nextRegisterIdForCurrentUser(type):nextRecordCode(spec,obj);if(!obj.code)obj.code=obj.id;if(type==='initiative')obj.team=initiativeTeamFromForm(e.target);obj=resolveConditionalFields(obj);if(obj.likelihood!==undefined)obj.likelihood=Number(obj.likelihood);if(obj.impact!==undefined)obj.impact=Number(obj.impact);if(obj.progress!==undefined)obj.progress=Number(obj.progress||0);obj=normalizeRecordBeforeSave(type,obj);if(requestMode){obj.department=type==='risk'?currentRiskRecordDept():currentGrcDept();if(typeof window._grcRiskRequestSubmit!=='function'){document.getElementById('_grcFormErr').textContent=isAr()?'خدمة طلبات السجلات غير جاهزة.':'Register approval service is not ready.';return;}var submitBtn=e.target.querySelector('button[type=submit]');if(submitBtn)submitBtn.disabled=true;window._grcRiskRequestSubmit('add',{recordType:type,proposedRecord:obj,department:currentGrcDept()}).then(function(){ov.remove();window.toast&&window.toast(isAr()?'تم إرسال طلب الإضافة للاعتماد.':'Add record request sent for approval.');if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();}).catch(function(err){document.getElementById('_grcFormErr').textContent=String(err&&err.message||err);if(submitBtn)submitBtn.disabled=false;});return;}_grcAuditRegisterChange('GRC_REGISTER_ADD',type,null,obj);state[spec.collection].push(obj);ov.remove();saveState(true,spec.collection);});
+    prepareConditionalFields(document.getElementById('_grcForm'),null);document.getElementById('_grcForm').addEventListener('submit',function(e){e.preventDefault();var ok=true,first=null;Array.prototype.forEach.call(e.target.querySelectorAll('[required]'),function(el){var miss=!String(el.value||'').trim();el.classList.toggle('grc-input-invalid',miss);var wrap=el.closest('.grc-field,.grc-report-upload-field');if(wrap)wrap.classList.toggle('required-missing',miss);if(miss){ok=false;if(!first)first=el;}});if(!ok){document.getElementById('_grcFormErr').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر.':'Complete all fields highlighted in red.';return;}var fd=new FormData(e.target),obj={createdAt:new Date().toISOString(),createdBy:currentName()};fd.forEach(function(v,k){if(!/^(leader|member\d)(Name|Gender|Department)$/.test(k))obj[k]=v;});if(requestMode)obj.department=type==='risk'?currentRiskRecordDept():currentGrcDept();obj.id=requestMode?nextRegisterIdForCurrentUser(type):nextRecordCode(spec,obj);if(!obj.code)obj.code=obj.id;if(type==='initiative')obj.team=initiativeTeamFromForm(e.target);obj=resolveConditionalFields(obj);if(obj.likelihood!==undefined)obj.likelihood=Number(obj.likelihood);if(obj.impact!==undefined)obj.impact=Number(obj.impact);if(obj.progress!==undefined)obj.progress=Number(obj.progress||0);obj=normalizeRecordBeforeSave(type,obj);if(requestMode){obj.department=type==='risk'?currentRiskRecordDept():currentGrcDept();if(typeof window._grcRiskRequestSubmit!=='function'){document.getElementById('_grcFormErr').textContent=isAr()?'خدمة طلبات السجلات غير جاهزة.':'Register approval service is not ready.';return;}var submitBtn=e.target.querySelector('button[type=submit]');if(submitBtn)submitBtn.disabled=true;window._grcRiskRequestSubmit('add',{recordType:type,proposedRecord:obj,department:currentGrcDept()}).then(function(){ov.remove();window.toast&&window.toast(isAr()?'تم إرسال طلب الإضافة للاعتماد.':'Add record request sent for approval.');if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();}).catch(function(err){document.getElementById('_grcFormErr').textContent=String(err&&err.message||err);if(submitBtn)submitBtn.disabled=false;});return;}_grcAuditRegisterChange('GRC_REGISTER_ADD',type,null,obj);state[spec.collection].push(obj);ov.remove();saveState();});
   };
 
   window._grcOpenRiskRequestResubmit=function(request){
     grcHoldRegisterViewport();
-    if(!request)return;
-    var rawType=String(request.recordType||'risk').trim().toLowerCase(),recordType=(rawType==='incident'||rawType==='incidents')?'incident':'risk';
-    var ownerRole=['risk_owner','grc_owner','platform_owner'].indexOf(normalizedRole())>=0;
-    if(!ownerRole&&!canSubmitRegisterRequest(recordType)){if(window.toast)window.toast(isAr()?'لا تملك صلاحية تعديل وإعادة إرسال هذا الطلب.':'You do not have permission to edit and resubmit this request.');return;}
-    var record=Object.assign({},request.proposedRecord||request.currentRecord||{}),spec=formSpec(recordType,request.department||currentGrcDept()),requested=Array.isArray(request.returnFields)?request.returnFields.filter(Boolean):[],old=document.getElementById('_grcFormModal');if(old)old.remove();
-    var requestedLabels=requested.map(function(k){return ((I18N[lang]&&I18N[lang][k])||String(k).replace(/([A-Z])/g,' $1').replace(/^./,function(x){return x.toUpperCase();}));});
-    var returnNote=String(request.returnNote||request.managerNote||request.superAdminNote||'').trim();
-    var guidance=(requested.length||returnNote)?'<div style="margin:0 0 14px;padding:12px;border:1px solid #f0c36a;background:#fff9e9;border-radius:10px;font-size:10px;color:#6b4b0b"><strong style="display:block;margin-bottom:6px">'+(isAr()?'المطلوب تعديله في نفس الطلب':'Requested corrections in this same request')+'</strong>'+(requested.length?'<div style="margin-bottom:5px">'+(isAr()?'الحقول المفتوحة للتعديل: ':'Editable fields: ')+esc(requestedLabels.join(' · '))+'</div>':'')+(returnNote?'<div><b>'+(isAr()?'الملاحظة: ':'Note: ')+'</b>'+esc(returnNote)+'</div>':'')+'</div>':'';
-    var ov=document.createElement('div');ov.id='_grcFormModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(isAr()?'تعديل وإعادة إرسال نفس الطلب':'Edit & Resubmit Same Request')+'</div><div class="grc-modal-sub">'+esc(request.requestCode||'')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcFormModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcRiskResubmitForm">'+guidance+'<div class="grc-form-grid">'+spec.fields+'</div><div id="_grcFormErr"></div><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcFormModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-primary-btn">'+(isAr()?'إعادة الإرسال لمدير القسم':'Resubmit to Department Manager')+'</button></div></form></div>';document.body.appendChild(ov);
-    var f=document.getElementById('_grcRiskResubmitForm');
-    Object.keys(record).forEach(function(k){if(f.elements[k])f.elements[k].value=record[k]==null?'':record[k];});
-    if(f.elements.department){f.elements.department.value=request.department||currentRiskRecordDept();f.elements.department.disabled=true;}
-    if(requested.length){Array.prototype.forEach.call(f.elements,function(el){if(!el||!el.name)return;if(el.name==='department')return;if(requested.indexOf(el.name)<0){el.disabled=true;el.setAttribute('data-return-locked','1');var wrap=el.closest&&el.closest('.grc-field');if(wrap){wrap.style.opacity='.55';wrap.title=isAr()?'هذا الحقل غير مطلوب تعديله في هذه الإعادة.':'This field was not requested for correction.';}}});}
-    f.addEventListener('submit',function(e){
-      e.preventDefault();var fd=new FormData(f),updated=Object.assign({},record,{department:request.department||currentRiskRecordDept(),updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){updated[k]=v;});if(recordType==='risk'){updated.likelihood=Number(updated.likelihood||0);updated.impact=Number(updated.impact||0);}updated=normalizeRecordBeforeSave(recordType,updated);var btn=f.querySelector('button[type=submit]');if(btn)btn.disabled=true;
-      window._grcRiskRequestResubmit(request.id,updated,isAr()?'تم تعديل الحقول المطلوبة وإعادة الإرسال.':'Requested fields updated and resubmitted.').then(function(){ov.remove();window.toast&&window.toast(isAr()?'تمت إعادة إرسال نفس الطلب لمدير القسم.':'The same request was resubmitted to the Department Manager.');if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();}).catch(function(err){document.getElementById('_grcFormErr').textContent=String(err&&err.message||err);if(btn)btn.disabled=false;});
-    });
+    if(!request||!canSubmitRegisterRequest(request.recordType||'risk'))return;var recordType=request.recordType==='incident'?'incident':'risk',record=Object.assign({},request.proposedRecord||request.currentRecord||{}),spec=formSpec(recordType,request.department||currentGrcDept()),old=document.getElementById('_grcFormModal');if(old)old.remove();
+    var ov=document.createElement('div');ov.id='_grcFormModal';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(isAr()?'تعديل وإعادة إرسال الطلب':'Edit & Resubmit Request')+'</div><div class="grc-modal-sub">'+esc(request.requestCode||'')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcFormModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcRiskResubmitForm"><div class="grc-form-grid">'+spec.fields+'</div><div id="_grcFormErr"></div><div class="grc-modal-actions"><button type="button" class="grc-secondary-btn" onclick="document.getElementById(\'_grcFormModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-primary-btn">'+(isAr()?'إعادة الإرسال للاعتماد':'Resubmit for Approval')+'</button></div></form></div>';document.body.appendChild(ov);
+    var f=document.getElementById('_grcRiskResubmitForm');Object.keys(record).forEach(function(k){if(f.elements[k])f.elements[k].value=record[k]==null?'':record[k];});if(f.elements.department){f.elements.department.value=request.department||currentRiskRecordDept();f.elements.department.disabled=true;}
+    f.addEventListener('submit',function(e){e.preventDefault();var fd=new FormData(f),updated=Object.assign({},record,{department:request.department||currentRiskRecordDept(),updatedAt:new Date().toISOString(),updatedBy:currentName()});fd.forEach(function(v,k){updated[k]=v;});if(recordType==='risk'){updated.likelihood=Number(updated.likelihood||0);updated.impact=Number(updated.impact||0);}updated=normalizeRecordBeforeSave(recordType,updated);var btn=f.querySelector('button[type=submit]');if(btn)btn.disabled=true;window._grcRiskRequestResubmit(request.id,updated,'Updated and resubmitted').then(function(){ov.remove();window.toast&&window.toast(isAr()?'تمت إعادة إرسال الطلب.':'Request resubmitted.');if(window._grcRiskRefreshUi)window._grcRiskRefreshUi();}).catch(function(err){document.getElementById('_grcFormErr').textContent=String(err&&err.message||err);if(btn)btn.disabled=false;});});
   };
 
-  window._grcDelete=function(collection,id){if(!isGrcAdmin())return;grcHoldRegisterViewport();if(!window.confirm(L('confirmDelete')))return;var deleted=(state[collection]||[]).find(function(r){return String(r.id)===String(id);});_grcAuditRegisterChange('GRC_REGISTER_DELETE',collection,deleted,null);grcMarkPendingLocalDelete(collection,deleted);state[collection]=(state[collection]||[]).filter(function(r){return String(r.id)!==String(id);});saveState(true,collection);};
+  window._grcDelete=function(collection,id){if(!isGrcAdmin())return;grcHoldRegisterViewport();if(!window.confirm(L('confirmDelete')))return;var deleted=(state[collection]||[]).find(function(r){return String(r.id)===String(id);});_grcAuditRegisterChange('GRC_REGISTER_DELETE',collection,deleted,null);grcMarkPendingLocalDelete(collection,deleted);state[collection]=(state[collection]||[]).filter(function(r){return String(r.id)!==String(id);});saveState(true);};
   window._grcSwitch=function(id){if(!canEnterGrc()){window._showGrcComingSoon();return;}if(!modules.some(function(x){return x.id===id;}))id='executive';activeTab=id;if(id==='reports')reportNav={group:null,type:null,year:null,quarter:null};if(id==='compliance'){complianceNavAuthority=null;complianceNavDocument=null;}try{window.__qumcActivePortal='grc';if(typeof window.addAudit==='function')window.addAudit('GRC_NAV','Opened GRC page: '+id);}catch(_){}render();var m=app&&app.querySelector('.grc-main');if(m)m.scrollTop=0;};
   window._grcToggleLang=function(){if(typeof window.lang!=='undefined')window.lang=window.lang==='en'?'ar':'en';else window.lang=isAr()?'en':'ar';document.documentElement.lang=isAr()?'ar':'en';document.documentElement.dir=isAr()?'rtl':'ltr';var b=document.getElementById('langBtn');if(b)b.textContent=isAr()?'EN':'عربي';render();};
   window._grcRefreshLanguage=function(){render();};
@@ -4869,7 +4732,7 @@
     window._clearGrcAuditFromFS().then(function(){window._grcAdminRenderAudit();if(window.toast)window.toast('GRC audit log cleared.');}).catch(function(err){window.alert(String(err&&err.message||err));});
   };
 
-  document.addEventListener('DOMContentLoaded',function(){ensureApp();startSharedStateSync();setTimeout(function(){if(Array.isArray(window.__grcRiskRequestCache)&&window.__grcRiskRequestCache.length)grcSetPublishedWorkflowRequests(window.__grcRiskRequestCache);},0);});
+  document.addEventListener('DOMContentLoaded',function(){ensureApp();startSharedStateSync();startAssessmentCloudSync();setTimeout(function(){if(Array.isArray(window.__grcRiskRequestCache)&&window.__grcRiskRequestCache.length)grcSetPublishedWorkflowRequests(window.__grcRiskRequestCache);},0);});
 })();
 
 (function(){
@@ -4917,5 +4780,3 @@
 })();
 
 })();
-
-/* QUMC GRC v225 performance patch: coalesced Firestore renders + no periodic chrome scan. */
