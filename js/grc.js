@@ -1071,9 +1071,11 @@
   }
   function grcRecordsEqual(a,b){try{return JSON.stringify(grcComparable(a))===JSON.stringify(grcComparable(b));}catch(_){return false;}}
   function grcRecordAllowedLocally(collectionKey,record){
-    if(canViewAllExecutiveDepartments()||GRC_GLOBAL_READ_COLLECTIONS[collectionKey])return true;
-    var mine=currentGrcDept(),key=canonicalGrcDepartment(record&&record.departmentKey),shared=key==='division'||String(record&&record.visibility||'').toLowerCase()==='shared';
-    return !!mine&&(shared||(key&&key===mine)||grcRecordDepartment(collectionKey,record)===mine);
+    /* GRC Registers are a shared read view. Department still controls
+       who may create/update/approve records; it must not hide approved/live
+       records from another department in the Registers page. */
+    if(canAccessGrc()||GRC_GLOBAL_READ_COLLECTIONS[collectionKey])return true;
+    return false;
   }
   function enforceLocalGrcScope(){
     if(!window._fbUser)return;
@@ -1704,7 +1706,10 @@
         if((key==='risks'||key==='incidents')&&!canAccessRiskIncidentRegisters()){
           grcConfigureCollectionScopes(key,[]);state[key]=[];return;
         }
-        if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){
+        if(canAccessGrc()){
+          /* All approved GRC users read the same live Firestore collection.
+             Department remains an authorization boundary for writes/workflow,
+             not a visibility filter for the consolidated Registers page. */
           grcConfigureCollectionScopes(key,['all']);grcListen(b,key,'all',col);
         }else{
           /* v195 canonical single-source sync. Every scoped register uses one
