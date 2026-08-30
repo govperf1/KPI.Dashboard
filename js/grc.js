@@ -980,6 +980,12 @@
      department, not only for the Super Admin who published it. */
   var grcPublishedWorkflowRequests={risks:[],incidents:[]};
 
+  function canViewAllGrcRegisterData(){
+    /* Registers are a consolidated read-only catalogue for every approved GRC
+       user. Workflow approval queues remain department-scoped separately. */
+    var r=normalizedRole();
+    return !!window._fbUser && ['super_admin','admin','executive','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].indexOf(r)>=0;
+  }
   function grcSyncIdentityKey(){
     var email=String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();
     var role=normalizedRole();
@@ -1082,7 +1088,7 @@
        the published registers. Viewer/User are intentionally allowed and remain
        department-scoped by the canonical Firestore listeners below. */
     if(!canAccessRiskIncidentRegisters()){state.risks=[];state.incidents=[];}
-    if(canViewAllExecutiveDepartments())return;
+    if(canViewAllGrcRegisterData())return;
     Object.keys(GRC_COLLECTION_MAP).forEach(function(key){state[key]=(state[key]||[]).filter(function(r){return grcRecordAllowedLocally(key,r);});});
   }
   function cleanSharedState(value){
@@ -1660,7 +1666,7 @@
     var grcActive=window.__qumcActivePortal==='grc'||!!(document.body&&document.body.classList.contains('grc-mode'));
     if(!grcActive)return;
     var profileEmail=String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();
-    var wanted=grcSyncIdentityKey(),deptNow=currentGrcDept(),canAllNow=canViewAllExecutiveDepartments();
+    var wanted=grcSyncIdentityKey(),deptNow=currentGrcDept(),canAllNow=canViewAllGrcRegisterData();
     /* Firebase Auth can become ready before the Firestore user profile. Do not
        lock the GRC sync into an empty department scope. Wait until the resolved
        profile (role + department) is available, then bind the live listeners. */
@@ -1678,8 +1684,19 @@
         if(typeof rulesProbe==='function')rulesProbe().catch(function(ruleErr){console.warn('[GRC Rules Probe] diagnostic only:',ruleErr);});
       }catch(_rulesProbeErr){console.warn('[GRC Rules Probe] skipped:',_rulesProbeErr);}
       grcSyncStarted=true;grcSyncScopeKey=actual;enforceLocalGrcScope();
-      /* Register page is read-live only. Never run migration/consolidation/seed
-         maintenance while the user is opening the page. */
+      /* One-time Super Admin recovery restores any canonical records that were
+         lost from the per-record collections but still exist in the original
+         shared GRC catalog. It is import-only and never overwrites newer live
+         records. All other roles remain read-live only. */
+      if(isGrcSuperAdmin())setTimeout(function(){
+        ensureGrcDataRecoveryV260(b).then(function(changed){
+          if(changed){stopSharedStateSync();setTimeout(startSharedStateSync,120);}
+        });
+        ensureGrcDataRecoveryV263(b).then(function(changed){
+          if(changed){stopSharedStateSync();setTimeout(startSharedStateSync,180);}
+        });
+      },250);
+      /* Register page is read-live only for normal users. */
       /* Keep the last cache only when it belongs to this exact profile/build.
          Firestore replaces it as soon as server-confirmed snapshots arrive. A
          transient listener failure therefore cannot turn valid registers/charts
@@ -1776,6 +1793,48 @@
   }
   window._grcEnsureCanonicalCatalogV187=ensureSuperAdminCanonicalCatalogV187;
 
+
+  var grcDataRecoveryV260Promise=null;
+  async function ensureGrcDataRecoveryV260(b){
+    if(!isGrcSuperAdmin()||!b||!b.auth||!b.auth.currentUser)return false;
+    if(grcDataRecoveryV260Promise)return grcDataRecoveryV260Promise;
+    grcDataRecoveryV260Promise=(async function(){
+      var markerRef=b.fs.doc(b.db,'grc_meta','register_data_recovery_v260'),marker=await b.fs.getDoc(markerRef);
+      if(marker.exists()&&marker.data()&&marker.data().status==='completed')return false;
+      await b.fs.setDoc(markerRef,{status:'running',build:GRC_CLIENT_BUILD,startedAt:b.fs.serverTimestamp(),startedBy:String(window._fbUser||'')},{merge:true});
+      var recovered=await migrateLegacyGrcState(b,true);
+      await b.fs.setDoc(markerRef,{status:'completed',build:GRC_CLIENT_BUILD,recovered:recovered===true,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+      return recovered===true;
+    })().catch(async function(err){
+      try{await b.fs.setDoc(b.fs.doc(b.db,'grc_meta','register_data_recovery_v260'),{status:'failed',build:GRC_CLIENT_BUILD,error:String(err&&err.message||err).slice(0,500),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}
+      console.error('[GRC Register Recovery v260]',err);return false;
+    }).finally(function(){grcDataRecoveryV260Promise=null;});
+    return grcDataRecoveryV260Promise;
+  }
+  window._grcEnsureDataRecoveryV260=ensureGrcDataRecoveryV260;
+
+  /* v263: one-time authoritative recovery for the current GRC register count.
+     Older recovery markers can be completed even when later migrations or
+     partial writes left rows missing. Import only records that are still absent
+     from the canonical per-record collections; never overwrite a newer live row. */
+  var grcDataRecoveryV263Promise=null;
+  async function ensureGrcDataRecoveryV263(b){
+    if(!isGrcSuperAdmin()||!b||!b.auth||!b.auth.currentUser)return false;
+    if(grcDataRecoveryV263Promise)return grcDataRecoveryV263Promise;
+    grcDataRecoveryV263Promise=(async function(){
+      var markerRef=b.fs.doc(b.db,'grc_meta','register_data_recovery_v263'),marker=await b.fs.getDoc(markerRef);
+      if(marker.exists()&&marker.data()&&marker.data().status==='completed')return false;
+      await b.fs.setDoc(markerRef,{status:'running',build:GRC_CLIENT_BUILD,startedAt:b.fs.serverTimestamp(),startedBy:String(window._fbUser||'')},{merge:true});
+      var recovered=await migrateLegacyGrcState(b,true);
+      await b.fs.setDoc(markerRef,{status:'completed',build:GRC_CLIENT_BUILD,recovered:recovered===true,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
+      return recovered===true;
+    })().catch(async function(err){
+      try{await b.fs.setDoc(b.fs.doc(b.db,'grc_meta','register_data_recovery_v263'),{status:'failed',build:GRC_CLIENT_BUILD,error:String(err&&err.message||err).slice(0,500),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}
+      console.error('[GRC Register Recovery v263]',err);return false;
+    }).finally(function(){grcDataRecoveryV263Promise=null;});
+    return grcDataRecoveryV263Promise;
+  }
+  window._grcEnsureDataRecoveryV263=ensureGrcDataRecoveryV263;
 
   async function ensureSuperAdminCanonicalCatalogV195(){
     if(!isGrcSuperAdmin())return false;
