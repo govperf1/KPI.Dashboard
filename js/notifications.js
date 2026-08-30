@@ -514,6 +514,21 @@ function updateExecTrend(yr){
     if(!scopeReady()) return null;
     var ks = allKpis(), st = state(), out = [];
 
+    /* GRC approval inbox: the authoritative live queue is supplied by the
+       Review & Development / Risk workflow hub. It is intentionally read-only
+       here; clicking the notification opens the GRC request center. */
+    try{
+      var mq=window.__qumcGrcManagerApprovalRows||{};
+      if((role()==='department_manager'||role()==='dept_manager')&&Array.isArray(mq.review))mq.review.forEach(function(r){
+        if(!r||!r.id)return;
+        out.push({id:'grc-review-manager:'+r.id,type:'grc_approval',level:'orange',dept:r.departmentKey||r.department,title:r.code||r.id,meta:isAr()?'طلب مراجعة وتطوير بانتظار موافقتك':'Review & Development request pending your approval',body:String(r.title||r.details||''),active:true,ts:Date.parse(r.updatedAtIso||r.createdAtIso||'')||Date.now(),approvalId:r.id});
+      });
+      if((role()==='department_manager'||role()==='dept_manager')&&Array.isArray(mq.risk))mq.risk.forEach(function(r){
+        if(!r||!r.id)return;
+        out.push({id:'grc-risk-manager:'+r.id,type:'grc_approval',level:'orange',dept:r.departmentKey||r.department,title:r.requestCode||r.id,meta:isAr()?'طلب مخاطر/حادث بانتظار موافقتك':'Risk / Incident request pending your approval',body:String(r.requesterNote||r.requestedChange||''),active:true,ts:Date.parse(r.updatedAtIso||r.createdAtIso||'')||Date.now(),approvalId:r.id});
+      });
+    }catch(_grcNotifErr){}
+
     (ks || []).forEach(function(k){
       if(!canSee(k)) return;
       qvals(k).forEach(function(x){
@@ -645,6 +660,7 @@ function updateExecTrend(yr){
       h.style.display='flex'; h.style.justifyContent='space-between'; h.style.alignItems='center';
     }
   }
+  window.addEventListener('grc:notifications-updated',function(){try{renderNotifications();}catch(_){}});
   function renderNotifications(){
     var count=$('userAlertCount'), list=$('userAlertList');
     if(!scopeReady()){
@@ -726,6 +742,14 @@ function updateExecTrend(yr){
     ov.appendChild(box); ov.onclick=function(e){ if(e.target===ov) ov.remove(); }; document.body.appendChild(ov);
   }
   function handleNotificationOpen(n){
+    if(n && n.type === 'grc_approval'){
+      try{
+        var nav=document.querySelector('[data-tab="advisory"], [data-module="advisory"]');
+        if(nav&&typeof nav.click==='function')nav.click();
+        if(typeof window._advSwitchView==='function')window._advSwitchView('requests');
+      }catch(_grcOpen){ }
+      return;
+    }
     if(n && n.type === 'gap_approval'){
       if(typeof window._showGapApprovalDetails === 'function'){ window._showGapApprovalDetails(n.approvalId); return; }
       if(typeof window._showGapApprovals === 'function'){ window._showGapApprovals(); return; }
