@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v60.0 — Compiler-Safe Canonical GRC Profile + Single-Source Workflow
+// FIRESTORE SECURITY RULES v64.0 — Compiler-Safe Canonical GRC Profile + Single-Source Workflow
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -705,7 +705,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // the unique v60 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v60-grc-department-scope-approval-20260823';
+      allow get: if approved() && versionId == 'v64-grc-department-scope-approval-20260830';
       allow list, create, update, delete: if false;
     }
 
@@ -953,8 +953,9 @@ service cloud.firestore {
     // ── Risk and Incident approval workflow ──────────────────────────
     function canSubmitRiskRequest() {
       return canAccessGrc() && canRunGrcOperationalWorkflow() && (
-        riskOwner() || hasPerm('submit_risk_changes') ||
-        hasPerm('edit_risk_management') || hasPerm('edit_incident_register')
+        role() in ['risk_owner','grc_owner','platform_owner'] ||
+        hasPerm('submit_risk_changes') || hasPerm('edit_risk_management') ||
+        hasPerm('edit_incident_register')
       );
     }
 
