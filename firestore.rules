@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════
-// FIRESTORE SECURITY RULES v36.1 — Compiler-Safe Canonical GRC Profile + Single-Source Workflow
+// FIRESTORE SECURITY RULES v60.0 — Compiler-Safe Canonical GRC Profile + Single-Source Workflow
 // Schema: GRC register documents are stored individually by department.
 // Deploy from Firebase Console → Firestore Database → Rules.
 // ═══════════════════════════════════════════════════════════════════════
@@ -284,12 +284,11 @@ service cloud.firestore {
     }
 
     function viewAllGrcDepartments() {
-      // Platform-wide permission is authoritative even if an old user profile
-      // accidentally still contains an operational department value.
-      return admin() || role() == 'governance_performance_manager' ||
-        hasPerm('view_grc_all_departments') ||
-        !hasConfiguredDepartment() ||
-        (!hasAssignedOperationalDepartment() && executive());
+      // All approved GRC users have read access to the consolidated Registers.
+      // Department scoping is used for workflow approvals, not for the read-only
+      // register catalogue. This restores the platform-wide register view while
+      // keeping all write paths restricted to the existing roles.
+      return canAccessGrc();
     }
 
 
@@ -568,40 +567,37 @@ service cloud.firestore {
 
     // ── Department-scoped GRC register collections ───────────────────
     match /grc_policies/{recordId} {
-      // Consolidated Register: every approved GRC user can read all departments.
-      allow get: if canAccessGrc();
-      allow list: if canAccessGrc();
+      allow get: if canGetDepartmentGrcRecord(resource.data);
+      allow list: if canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_plans/{recordId} {
-      // Consolidated Register: every approved GRC user can read all departments.
-      allow get: if canAccessGrc();
-      allow list: if canAccessGrc();
+      allow get: if canGetDepartmentGrcRecord(resource.data);
+      allow list: if canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_forms/{recordId} {
-      // Consolidated Register: every approved GRC user can read all departments.
-      allow get: if canAccessGrc();
-      allow list: if canAccessGrc();
+      allow get: if canGetDepartmentGrcRecord(resource.data);
+      allow list: if canListDepartmentGrcRecord(resource.data);
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_manuals/{recordId} {
-      // Consolidated Register is read-only and visible to every approved GRC user.
       allow read: if canAccessGrc();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_risks/{recordId} {
-      // Consolidated Register: all approved GRC users can read all departments.
-      allow get: if canReadRiskIncidentRegister();
-      allow list: if canReadRiskIncidentRegister();
+      // Platform-wide Risk readers get an unconditional collection read branch;
+      // scoped operational roles use the department-safe branch below. Keeping
+      // these paths separate makes full-collection queries provably safe.
+      allow get, list: if canAccessGrc();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if
         (canWriteGrcRecord() && validGrcRecord(request.resource.data)) ||
@@ -609,50 +605,42 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_incidents/{recordId} {
-      allow get, list: if admin() || role() == 'governance_performance_manager';
-      allow get: if canReadRiskIncidentRegister();
-      allow list: if canReadRiskIncidentRegister();
+      allow get, list: if canAccessGrc();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_codes/{recordId} {
-      // Consolidated Register is read-only and visible to every approved GRC user.
       allow read: if canAccessGrc();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_compliance/{recordId} {
-      // Consolidated Register is read-only and visible to every approved GRC user.
       allow read: if canAccessGrc();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_audits/{recordId} {
-      // Consolidated Register is read-only and visible to every approved GRC user.
       allow read: if canAccessGrc();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_actions/{recordId} {
-      // Consolidated Register is read-only and visible to every approved GRC user.
       allow read: if canAccessGrc();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_documents/{recordId} {
-      // Consolidated Register is read-only and visible to every approved GRC user.
       allow read: if canAccessGrc();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
     }
     match /grc_initiatives/{recordId} {
-      // Consolidated Register is read-only and visible to every approved GRC user.
       allow read: if canAccessGrc();
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
@@ -720,9 +708,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // a unique v36 path prevents an older ruleset from being mistaken for this build.
+    // the unique v60 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v36-grc-canonical-profile-20260817';
+      allow get: if approved() && versionId == 'v60-grc-department-scope-approval-20260823';
       allow list, create, update, delete: if false;
     }
 
@@ -916,8 +904,7 @@ service cloud.firestore {
       allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
       allow list: if departmentManager() &&
-        ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey() &&
-        ('workflowStage' in resource.data) && resource.data.workflowStage == 'pending_department_manager';
+        ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey();
 
       allow update: if
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
@@ -1037,14 +1024,11 @@ service cloud.firestore {
     // Requesters may create only their own scoped queue entry; managers may read
     // and remove entries only for their own department.
     match /grc_department_approval_inbox_v3/{departmentKey}/{kind}/{requestId} {
-      allow create: if approved() &&
+      allow create: if approved() && canAccessGrc() &&
         request.resource.data.departmentKey == departmentKey &&
         departmentKey == userDepartmentKey() &&
         kind in ['review','risk'] &&
-        (
-          superAdmin() ||
-          request.resource.data.requesterEmail == authEmail()
-        );
+        request.resource.data.requesterEmail == authEmail();
       allow get, list: if departmentManager() &&
         departmentKey == userDepartmentKey() &&
         kind in ['review','risk'];
