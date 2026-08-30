@@ -1688,14 +1688,7 @@
          lost from the per-record collections but still exist in the original
          shared GRC catalog. It is import-only and never overwrites newer live
          records. All other roles remain read-live only. */
-      if(isGrcSuperAdmin())setTimeout(function(){
-        ensureGrcDataRecoveryV260(b).then(function(changed){
-          if(changed){stopSharedStateSync();setTimeout(startSharedStateSync,120);}
-        });
-        ensureGrcDataRecoveryV263(b).then(function(changed){
-          if(changed){stopSharedStateSync();setTimeout(startSharedStateSync,180);}
-        });
-      },250);
+      if(isGrcSuperAdmin())setTimeout(function(){ensureGrcDataRecoveryV260(b).then(function(changed){if(changed){stopSharedStateSync();setTimeout(startSharedStateSync,120);}});},250);
       /* Register page is read-live only for normal users. */
       /* Keep the last cache only when it belongs to this exact profile/build.
          Firestore replaces it as soon as server-confirmed snapshots arrive. A
@@ -1705,7 +1698,7 @@
       /* Status overrides are required for approved baseline risks that have not
          yet been materialized as canonical grc_risks documents. */
       startRiskStatusOverrideSync(b);
-      var registerAll=activeTab==='register',canAll=canViewAllExecutiveDepartments()||registerAll,dept=currentGrcDept(),rawDept=rawCurrentGrcDepartment();rawDept=(rawDept===null||rawDept===undefined)?'':String(rawDept).trim();if(['null','none','undefined','n/a','na','unassigned','not assigned','-','—'].indexOf(rawDept.toLowerCase())>=0)rawDept='';
+      var registerAll=activeTab==='register',canAll=true,dept=currentGrcDept(),rawDept=rawCurrentGrcDepartment();rawDept=(rawDept===null||rawDept===undefined)?'':String(rawDept).trim();if(['null','none','undefined','n/a','na','unassigned','not assigned','-','—'].indexOf(rawDept.toLowerCase())>=0)rawDept='';
       var aliasMap={
         safety:['safety','Safety','Safety Department','Safety Management','Safety Management Department','السلامة','إدارة السلامة','قسم السلامة'],
         maintenance:['maintenance','Maintenance','Maintenance Department','Maintenance Management','Maintenance Management Department','الصيانة','إدارة الصيانة','قسم الصيانة'],
@@ -1812,29 +1805,6 @@
     return grcDataRecoveryV260Promise;
   }
   window._grcEnsureDataRecoveryV260=ensureGrcDataRecoveryV260;
-
-  /* v263: one-time authoritative recovery for the current GRC register count.
-     Older recovery markers can be completed even when later migrations or
-     partial writes left rows missing. Import only records that are still absent
-     from the canonical per-record collections; never overwrite a newer live row. */
-  var grcDataRecoveryV263Promise=null;
-  async function ensureGrcDataRecoveryV263(b){
-    if(!isGrcSuperAdmin()||!b||!b.auth||!b.auth.currentUser)return false;
-    if(grcDataRecoveryV263Promise)return grcDataRecoveryV263Promise;
-    grcDataRecoveryV263Promise=(async function(){
-      var markerRef=b.fs.doc(b.db,'grc_meta','register_data_recovery_v263'),marker=await b.fs.getDoc(markerRef);
-      if(marker.exists()&&marker.data()&&marker.data().status==='completed')return false;
-      await b.fs.setDoc(markerRef,{status:'running',build:GRC_CLIENT_BUILD,startedAt:b.fs.serverTimestamp(),startedBy:String(window._fbUser||'')},{merge:true});
-      var recovered=await migrateLegacyGrcState(b,true);
-      await b.fs.setDoc(markerRef,{status:'completed',build:GRC_CLIENT_BUILD,recovered:recovered===true,completedAt:b.fs.serverTimestamp(),completedBy:String(window._fbUser||'')},{merge:false});
-      return recovered===true;
-    })().catch(async function(err){
-      try{await b.fs.setDoc(b.fs.doc(b.db,'grc_meta','register_data_recovery_v263'),{status:'failed',build:GRC_CLIENT_BUILD,error:String(err&&err.message||err).slice(0,500),failedAt:b.fs.serverTimestamp(),failedBy:String(window._fbUser||'')},{merge:true});}catch(_e){}
-      console.error('[GRC Register Recovery v263]',err);return false;
-    }).finally(function(){grcDataRecoveryV263Promise=null;});
-    return grcDataRecoveryV263Promise;
-  }
-  window._grcEnsureDataRecoveryV263=ensureGrcDataRecoveryV263;
 
   async function ensureSuperAdminCanonicalCatalogV195(){
     if(!isGrcSuperAdmin())return false;

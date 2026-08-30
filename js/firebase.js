@@ -1161,7 +1161,7 @@ window._selectPortal=async portal=>{
            delayed or missing. The inbox remains a compatibility fallback for old
            requests that predate this routing fix. */
         const settled=await Promise.allSettled([
-          getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey))),
+          getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey),where('workflowStage','in',['pending_department_manager','pending_manager']))),
           getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)))
         ]);
         if(settled[0].status==='fulfilled')settled[0].value.forEach(function(d){const snap=d.data()||{};if(String(snap.workflowStage||'')!=='pending_department_manager')return;const out=_advNormalizeRow(d.id,snap,'advisory_requests');out._managerAssigned=true;result.review.push(out);});
@@ -1204,7 +1204,7 @@ window._selectPortal=async portal=>{
       const listen=function(kind){
         try{
           const qref=kind==='review'
-            ? query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',hub.profile.departmentKey))
+            ? query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',hub.profile.departmentKey),where('workflowStage','in',['pending_department_manager','pending_manager']))
             : query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',hub.profile.departmentKey));
           const u=onSnapshot(qref,{includeMetadataChanges:false},function(snap){
             if(hub.stopped)return;const rows=[];
