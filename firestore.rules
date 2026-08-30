@@ -698,7 +698,8 @@ service cloud.firestore {
         (
           !('department' in request.resource.data) ||
           request.resource.data.department == '' ||
-          sameDepartment(request.resource.data.department)
+          sameDepartment(request.resource.data.department) ||
+          (('departmentKey' in request.resource.data) && request.resource.data.departmentKey == userDepartmentKey())
         );
       allow read: if canAccessGrc() && (admin() || hasPerm('view_request_analytics') || ownEmail(resource.data.userEmail));
       allow update: if admin() ||
@@ -745,9 +746,9 @@ service cloud.firestore {
         request.resource.data.departmentKey == advisorySubmissionDepartmentKey() &&
         (
           (advisoryDirectSubmitter() &&
-            request.resource.data.workflowStage == 'pending_super_admin') ||
+            request.resource.data.workflowStage in ['pending_super_admin','pending_manager']) ||
           (!advisoryDirectSubmitter() &&
-            request.resource.data.workflowStage == 'pending_department_manager')
+            request.resource.data.workflowStage in ['pending_department_manager','pending_manager'])
         );
     }
 
@@ -777,7 +778,7 @@ service cloud.firestore {
     // manager's own request, while the update rule below still blocks self-approval.
     function advisoryManagerCanRead(data) {
       return advisoryManagerDepartmentMatch(data) &&
-        ('workflowStage' in data) && data.workflowStage == 'pending_department_manager';
+        ('workflowStage' in data) && data.workflowStage in ['pending_department_manager','pending_manager'];
     }
 
     function validAdvisoryOwnerChange() {
@@ -792,8 +793,8 @@ service cloud.firestore {
     function advisoryOwnerRoutePreserved() {
       return
         (
-          resource.data.workflowStage == 'pending_department_manager' &&
-          request.resource.data.workflowStage in ['pending_department_manager', 'closed']
+          resource.data.workflowStage in ['pending_department_manager','pending_manager'] &&
+          request.resource.data.workflowStage in ['pending_department_manager','pending_manager','closed']
         ) ||
         (
           resource.data.workflowStage == 'pending_super_admin' &&
@@ -804,7 +805,7 @@ service cloud.firestore {
           request.resource.data.workflowStage == 'rejected_manager'
         ) ||
         !(resource.data.workflowStage in [
-          'pending_department_manager', 'pending_super_admin', 'rejected_manager'
+          'pending_department_manager', 'pending_manager', 'pending_super_admin', 'rejected_manager'
         ]);
     }
 
@@ -818,7 +819,7 @@ service cloud.firestore {
     }
 
     function advisoryAdminCanProcess() {
-      return !(resource.data.workflowStage in ['pending_department_manager', 'rejected_manager']) &&
+      return !(resource.data.workflowStage in ['pending_department_manager', 'pending_manager', 'rejected_manager']) &&
         (
           !advisoryRequesterNeedsManager(resource.data) ||
           (resource.data.managerDecision == 'approved' &&
@@ -831,7 +832,7 @@ service cloud.firestore {
       // request body remains immutable; only workflow/decision/audit fields may
       // change.
       return advisoryManagerDepartmentMatch(resource.data) &&
-        resource.data.workflowStage == 'pending_department_manager' &&
+        resource.data.workflowStage in ['pending_department_manager','pending_manager'] &&
         !ownEmail(resource.data.userEmail) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status', 'workflowStage', 'closureReason',
@@ -877,7 +878,7 @@ service cloud.firestore {
           get(/databases/$(database)/documents/advisory_requests/$(requestId)).data
         ) &&
         (
-          get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.workflowStage == 'pending_department_manager' ||
+          get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.workflowStage in ['pending_department_manager','pending_manager'] ||
           ownEmail(get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.managerEmail)
         );
     }
@@ -1024,11 +1025,15 @@ service cloud.firestore {
     // Requesters may create only their own scoped queue entry; managers may read
     // and remove entries only for their own department.
     match /grc_department_approval_inbox_v3/{departmentKey}/{kind}/{requestId} {
-      allow create: if approved() && canAccessGrc() &&
+      allow create: if approved() &&
         request.resource.data.departmentKey == departmentKey &&
         departmentKey == userDepartmentKey() &&
         kind in ['review','risk'] &&
-        request.resource.data.requesterEmail == authEmail();
+        (
+          superAdmin() ||
+          (role() in ['risk_owner','grc_owner','platform_owner','department_manager','admin'] &&
+           request.resource.data.requesterEmail == authEmail())
+        );
       allow get, list: if departmentManager() &&
         departmentKey == userDepartmentKey() &&
         kind in ['review','risk'];
@@ -1047,12 +1052,12 @@ service cloud.firestore {
         request.resource.data.submittedByUid is string &&
         request.resource.data.submittedByUid == request.auth.uid &&
         request.resource.data.department is string &&
-        request.resource.data.department == userDepartmentKey() &&
+        (request.resource.data.department == userDepartmentKey() || sameDepartment(request.resource.data.department)) &&
         request.resource.data.departmentKey is string &&
         request.resource.data.departmentKey == userDepartmentKey() &&
         request.resource.data.recordType in ['risk', 'incident'] &&
         request.resource.data.operation in ['add', 'update', 'delete'] &&
-        request.resource.data.status == 'pending_manager';
+        request.resource.data.status in ['pending_manager','pending_department_manager'];
 
       // Direct opens retain compatibility with historical aliases.
       allow get: if canReadRiskIncidentWorkflow() && (
