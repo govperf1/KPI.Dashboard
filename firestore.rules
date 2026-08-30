@@ -595,12 +595,13 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_risks/{recordId} {
-      // Platform-wide Risk readers get an unconditional collection read branch;
-      // scoped operational roles use the department-safe branch below. Keeping
-      // these paths separate makes full-collection queries provably safe.
-      allow get, list: if admin() || role() == 'governance_performance_manager';
-      allow get: if canReadRiskIncidentRegister() && canGetDepartmentGrcRecord(resource.data);
-      allow list: if canReadRiskIncidentRegister() && canListDepartmentGrcRecord(resource.data);
+      // One get rule and one list rule per match block. Firestore rejects
+      // overlapping read methods in the same match, so platform-wide and
+      // department-scoped access are combined into each method below.
+      allow get: if admin() || role() == 'governance_performance_manager' ||
+        (canReadRiskIncidentRegister() && canGetDepartmentGrcRecord(resource.data));
+      allow list: if admin() || role() == 'governance_performance_manager' ||
+        (canReadRiskIncidentRegister() && canListDepartmentGrcRecord(resource.data));
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if
         (canWriteGrcRecord() && validGrcRecord(request.resource.data)) ||
@@ -608,9 +609,10 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_incidents/{recordId} {
-      allow get, list: if admin() || role() == 'governance_performance_manager';
-      allow get: if canReadRiskIncidentRegister() && canGetDepartmentGrcRecord(resource.data);
-      allow list: if canReadRiskIncidentRegister() && canListDepartmentGrcRecord(resource.data);
+      allow get: if admin() || role() == 'governance_performance_manager' ||
+        (canReadRiskIncidentRegister() && canGetDepartmentGrcRecord(resource.data));
+      allow list: if admin() || role() == 'governance_performance_manager' ||
+        (canReadRiskIncidentRegister() && canListDepartmentGrcRecord(resource.data));
       allow create: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow update: if canWriteGrcRecord() && validGrcRecord(request.resource.data);
       allow delete: if canWriteGrcRecord();
@@ -832,9 +834,10 @@ service cloud.firestore {
     }
 
     function validAdvisoryManagerChange() {
-      // Department Manager may approve, return for update, or reject. The
-      // request body remains immutable; only workflow/decision/audit fields may
-      // change.
+      // The workflowStage is the authoritative signal that this request is
+      // waiting for the Department Manager. Older requests may not contain the
+      // newer requiresManagerApproval field, so do not reject a valid manager
+      // decision just because that compatibility field is missing.
       return advisoryManagerDepartmentMatch(resource.data) &&
         resource.data.workflowStage == 'pending_department_manager' &&
         !ownEmail(resource.data.userEmail) &&
@@ -853,13 +856,6 @@ service cloud.firestore {
             request.resource.data.managerDecision == 'approved' &&
             request.resource.data.status == 'open' &&
             request.resource.data.closureReason == ''
-          ) ||
-          (
-            request.resource.data.workflowStage == 'returned_requester' &&
-            request.resource.data.managerDecision == 'returned' &&
-            request.resource.data.status == 'open' &&
-            request.resource.data.closureReason == 'returned_by_department_manager' &&
-            request.resource.data.managerComment.size() > 0
           ) ||
           (
             request.resource.data.workflowStage == 'rejected_manager' &&
@@ -895,22 +891,24 @@ service cloud.firestore {
         ownEmail(request.resource.data.userEmail) &&
         validAdvisoryCreateRoute();
 
-      // Keep read paths separate. Firestore evaluates collection queries against
-      // their potential result set, so each browser query gets one simple rule
-      // branch instead of a large nested OR that is difficult to prove safely.
-      allow get: if admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics');
-      allow get: if approved() && (
-        (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) ||
-        (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
-      );
-      allow get: if advisoryManagerCanRead(resource.data);
+      // Firestore does not permit overlapping get/list statements in one match.
+      // Keep one rule per method while preserving analytics, requester, and
+      // Department Manager access paths.
+      allow get: if
+        admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics') ||
+        (approved() && (
+          (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) ||
+          (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
+        )) ||
+        advisoryManagerCanRead(resource.data);
 
-      allow list: if admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics');
-      allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
-      allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
-      allow list: if departmentManager() &&
-        ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey() &&
-        ('workflowStage' in resource.data) && resource.data.workflowStage == 'pending_department_manager';
+      allow list: if
+        admin() || role() == 'governance_performance_manager' || hasPerm('view_request_analytics') ||
+        (approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) ||
+        (approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail()) ||
+        (departmentManager() &&
+          ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey() &&
+          ('workflowStage' in resource.data) && resource.data.workflowStage == 'pending_department_manager');
 
       allow update: if
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
@@ -1025,29 +1023,6 @@ service cloud.firestore {
         request.resource.data.status in ['pending_super_admin', 'returned_requester', 'rejected_manager'];
     }
 
-    // Department Manager approval inbox. This is a secondary routing index;
-    // the authoritative request remains advisory_requests / grc_risk_requests.
-    // Requesters may create only their own scoped queue entry; managers may read
-    // and remove entries only for their own department.
-    match /grc_department_approval_inbox_v3/{departmentKey}/{kind}/{requestId} {
-      allow create: if approved() &&
-        request.resource.data.departmentKey == departmentKey &&
-        departmentKey == userDepartmentKey() &&
-        kind in ['review','risk'] &&
-        (
-          superAdmin() ||
-          (role() in ['risk_owner','grc_owner','platform_owner','department_manager','admin'] &&
-           request.resource.data.requesterEmail == authEmail())
-        );
-      allow get, list: if departmentManager() &&
-        departmentKey == userDepartmentKey() &&
-        kind in ['review','risk'];
-      allow delete: if (departmentManager() &&
-        departmentKey == userDepartmentKey() &&
-        kind in ['review','risk']) || superAdmin();
-      allow update: if superAdmin();
-    }
-
     match /grc_risk_requests/{requestId} {
       // Every new Risk/Incident request is written with canonical identity and
       // department fields taken from the authenticated Firestore profile.
@@ -1096,16 +1071,17 @@ service cloud.firestore {
     // per-record cloud migration. This collection stores status only; it cannot
     // be used to add or edit Risk Register content.
     match /grc_risk_status/{recordId} {
-      allow get, list: if admin() || role() == 'governance_performance_manager';
-      allow get: if canReadRiskIncidentRegister() && (
-        viewAllGrcDepartments() ||
-        (('department' in resource.data) && sameDepartment(resource.data.department)) ||
-        (('departmentRaw' in resource.data) && rawUserDepartment(resource.data.departmentRaw))
-      );
-      allow list: if canReadRiskIncidentRegister() && (
-        viewAllGrcDepartments() ||
-        (('department' in resource.data) && resource.data.department == userDepartmentKey())
-      );
+      allow get: if admin() || role() == 'governance_performance_manager' ||
+        (canReadRiskIncidentRegister() && (
+          viewAllGrcDepartments() ||
+          (('department' in resource.data) && sameDepartment(resource.data.department)) ||
+          (('departmentRaw' in resource.data) && rawUserDepartment(resource.data.departmentRaw))
+        ));
+      allow list: if admin() || role() == 'governance_performance_manager' ||
+        (canReadRiskIncidentRegister() && (
+          viewAllGrcDepartments() ||
+          (('department' in resource.data) && resource.data.department == userDepartmentKey())
+        ));
       allow create: if canUpdateRiskStatusOverride() &&
         validRiskStatusOverride(request.resource.data) &&
         request.resource.data.department == userDepartmentKey() &&
