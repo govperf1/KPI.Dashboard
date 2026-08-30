@@ -277,12 +277,6 @@ service cloud.firestore {
       return approved() && meaningfulDepartmentValue(profileDepartmentValue());
     }
 
-    function hasAssignedOperationalDepartment() {
-      return userDepartmentKey() in [
-        'safety', 'maintenance', 'housekeeping', 'laundry', 'projects'
-      ];
-    }
-
     function viewAllGrcDepartments() {
       // All approved GRC users have read access to the consolidated Registers.
       // Department scoping is used for workflow approvals, not for the read-only
