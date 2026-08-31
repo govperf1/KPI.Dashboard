@@ -1,3 +1,4 @@
+/* v271 compatibility fix */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
     import { getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,sendPasswordResetEmail,setPersistence,browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
     import { getFirestore,doc,getDoc,getDocFromServer,setDoc,addDoc,collection,serverTimestamp,onSnapshot,updateDoc,arrayUnion,query,where,orderBy,getDocs,getDocsFromServer,deleteDoc,runTransaction,writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
@@ -1111,12 +1112,17 @@ window._selectPortal=async portal=>{
        manager-email directory and no manager-specific inbox, so stale manager
        assignments can never hide a valid pending request from the department's
        current Department Manager. */
-    const GRC_MANAGER_QUEUE_ROOT='grc_department_approval_inbox_v3';
+    /* v271 compatibility fix — use the legacy department-scoped inbox as the
+       write/read contract. The currently deployed rules may be older than the
+       unpublished v65 inbox rules, while the legacy queue is explicitly kept
+       readable/writable by the published workflow rules. This prevents a v3
+       queue permission denial from blocking the entire Department Manager page. */
+    const GRC_MANAGER_QUEUE_ROOT='grc_department_approval_queues';
     function _grcManagerQueueCollection(departmentKey,kind){
-      return collection(db,GRC_MANAGER_QUEUE_ROOT,String(departmentKey||''),String(kind||'review')==='risk'?'risk':'review');
+      return collection(db,GRC_MANAGER_QUEUE_ROOT,String(departmentKey||''),'items');
     }
     function _grcManagerQueueItemRef(departmentKey,kind,requestId){
-      return doc(db,GRC_MANAGER_QUEUE_ROOT,String(departmentKey||''),String(kind||'review')==='risk'?'risk':'review',String(requestId||''));
+      return doc(db,GRC_MANAGER_QUEUE_ROOT,String(departmentKey||''),'items',String(requestId||''));
     }
     function _grcQueuePlain(v){
       if(v==null)return v;
@@ -1138,7 +1144,21 @@ window._selectPortal=async portal=>{
       });
     }
     function _grcQueueItem(kind,requestId,departmentKey,requesterEmail,snapshot){
-      return {requestId:String(requestId||''),queueKind:String(kind||'review'),departmentKey:String(departmentKey||''),requesterEmail:String(requesterEmail||'').toLowerCase().trim(),requestCode:String(snapshot&&snapshot.code||snapshot&&snapshot.requestCode||requestId||''),status:String(snapshot&&snapshot.status||''),workflowStage:String(snapshot&&snapshot.workflowStage||''),snapshot:snapshot||{},createdAt:serverTimestamp(),createdAtIso:String(snapshot&&snapshot.createdAtIso||_advIso()),updatedAt:serverTimestamp(),updatedAtIso:_advIso()};
+      const queueKind=String(kind||'review')==='risk'?'risk':'review';
+      return {
+        requestId:String(requestId||''),
+        queueKind:queueKind,
+        requestKind:queueKind,
+        sourceCollection:queueKind==='review'?'advisory_requests':'grc_risk_requests',
+        departmentKey:String(departmentKey||''),
+        requesterEmail:String(requesterEmail||'').toLowerCase().trim(),
+        requestCode:String(snapshot&&snapshot.code||snapshot&&snapshot.requestCode||requestId||''),
+        status:String(snapshot&&snapshot.status||''),
+        workflowStage:String(snapshot&&snapshot.workflowStage||''),
+        snapshot:snapshot||{},
+        createdAt:serverTimestamp(),createdAtIso:String(snapshot&&snapshot.createdAtIso||_advIso()),
+        updatedAt:serverTimestamp(),updatedAtIso:_advIso()
+      };
     }
     async function _grcResolveManagerProfile(profile){
       profile=profile||await _advFreshProfile();
@@ -1153,13 +1173,11 @@ window._selectPortal=async portal=>{
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         /*
-         * Department Manager approval inbox is intentionally read ONLY from the
-         * canonical, department-scoped inbox. The previous implementation also
-         * queried the source collections (advisory_requests / grc_risk_requests)
-         * by departmentKey. Those extra queries were not needed for the inbox and
-         * could be rejected by Firestore Rules, causing the entire manager queue
-         * to surface "Missing or insufficient permissions" even when the inbox
-         * itself was readable.
+         * Department Manager approval inbox is read from the department-scoped
+         * queue that is supported by the deployed rules. Do not query the source
+         * Review collection here: its manager list access is intentionally not the
+         * routing contract. The queue is the compatibility boundary for both the
+         * currently deployed rules and the newer v65 rules.
          */
         const result={profile:fresh,review:[],risk:[],errors:[]};
         const settled=await Promise.allSettled([
@@ -1186,11 +1204,11 @@ window._selectPortal=async portal=>{
           if(data){data._managerAssigned=true;riskMap[key]=data;}
         }
         if(settled[0].status==='fulfilled')settled[0].value.forEach(function(d){
-          const item=d.data()||{},snap=item.snapshot||{};
+          const item=d.data()||{},snap=item.snapshot&&typeof item.snapshot==='object'?item.snapshot:item;
           addReview(String(item.requestId||d.id),snap);
         });
         if(settled[1].status==='fulfilled')settled[1].value.forEach(function(d){
-          const item=d.data()||{},snap=item.snapshot||{};
+          const item=d.data()||{},snap=item.snapshot&&typeof item.snapshot==='object'?item.snapshot:item;
           addRisk(String(item.requestId||d.id),snap);
         });
         result.review=Object.keys(reviewMap).map(function(k){return reviewMap[k];});
