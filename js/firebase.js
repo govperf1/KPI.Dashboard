@@ -1156,18 +1156,16 @@ window._selectPortal=async portal=>{
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         /*
-         * Department Manager approval inbox is intentionally read ONLY from the
-         * canonical, department-scoped inbox. The previous implementation also
-         * queried the source collections (advisory_requests / grc_risk_requests)
-         * by departmentKey. Those extra queries were not needed for the inbox and
-         * could be rejected by Firestore Rules, causing the entire manager queue
-         * to surface "Missing or insufficient permissions" even when the inbox
-         * itself was readable.
+         * Department Manager approvals are read from the authoritative request
+         * collections. The inbox_v3 rows are only a routing/cache aid; relying on
+         * them made older pending requests disappear when a queue row was missing.
+         * The rules explicitly allow a department manager to list documents whose
+         * departmentKey matches the manager's canonical department.
          */
         const result={profile:fresh,review:[],risk:[],errors:[]};
         const settled=await Promise.allSettled([
-          getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review')),
-          getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'))
+          getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey))),
+          getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)))
         ]);
         if(settled[0].status==='rejected')result.errors.push('Review queue: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason));
         if(settled[1].status==='rejected')result.errors.push('Risk queue: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
@@ -1189,12 +1187,10 @@ window._selectPortal=async portal=>{
           if(data){data._managerAssigned=true;riskMap[key]=data;}
         }
         if(settled[0].status==='fulfilled')settled[0].value.forEach(function(d){
-          const item=d.data()||{},snap=item.snapshot||{};
-          addReview(String(item.requestId||d.id),snap);
+          addReview(d.id,d.data()||{});
         });
         if(settled[1].status==='fulfilled')settled[1].value.forEach(function(d){
-          const item=d.data()||{},snap=item.snapshot||{};
-          addRisk(String(item.requestId||d.id),snap);
+          addRisk(d.id,d.data()||{});
         });
         result.review=Object.keys(reviewMap).map(function(k){return reviewMap[k];});
         result.risk=Object.keys(riskMap).map(function(k){return riskMap[k];});
@@ -1310,8 +1306,7 @@ window._selectPortal=async portal=>{
     window._advisoryGetManagerQueue=async function(){
       const bundle=await window._grcGetDepartmentApprovalQueue(true);
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
-      const own=await window._advisoryGetMine().catch(function(){return[];});
-      return _advMergeRows(bundle.review,own,false);
+      return bundle.review||[];
     };
     function stageOfManagerRow(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
