@@ -1153,15 +1153,24 @@ window._selectPortal=async portal=>{
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         /*
-         * Department Manager approval inbox is intentionally read ONLY from the
-         * canonical, department-scoped inbox. The previous implementation also
-         * queried the source collections (advisory_requests / grc_risk_requests)
-         * by departmentKey. Those extra queries were not needed for the inbox and
-         * could be rejected by Firestore Rules, causing the entire manager queue
-         * to surface "Missing or insufficient permissions" even when the inbox
-         * itself was readable.
+         * The Department Manager queue is read from queue collections only.
+         * Never make advisory_requests ownership/dept queries part of this path:
+         * those queries are the source of the repeated permission-denied errors
+         * seen in the browser and can turn a valid queue into "0 requests".
+         *
+         * v3 is the current queue. The legacy queue is read as a compatibility
+         * source so requests created before v3 was introduced are not invisible.
          */
         const result={profile:fresh,review:[],risk:[],errors:[]};
+        const settled=await Promise.allSettled([
+          getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review')),
+          getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk')),
+          getDocsFromServer(collection(db,'grc_department_approval_queues',String(fresh.departmentKey),'items')),
+        ]);
+        if(settled[0].status==='rejected')result.errors.push('Review queue v3: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason));
+        if(settled[1].status==='rejected')result.errors.push('Risk queue v3: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
+        if(settled[2].status==='rejected')result.errors.push('Legacy queue: '+String(settled[2].reason&&settled[2].reason.message||settled[2].reason));
+
         const reviewMap={},riskMap={};
         function addReview(id,row){
           const key=String(id||row&&row.id||'');if(!key)return;
@@ -1172,55 +1181,38 @@ window._selectPortal=async portal=>{
         }
         function addRisk(id,row){
           const key=String(id||row&&row.id||'');if(!key)return;
-          const status=String(row&&row.status||'').toLowerCase();
           if(String(row&&row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;
+          const status=String(row&&row.status||'').toLowerCase();
           if(!['pending_manager','returned_manager'].includes(status))return;
           const data=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});
           if(data){data._managerAssigned=true;riskMap[key]=data;}
         }
-
-        /* IMPORTANT: The published V65 rules explicitly allow a Department Manager
-           to list the authoritative source collections when departmentKey equals
-           the manager's canonical department. Existing requests were created before
-           inbox_v3 was introduced, so using inbox_v3 as the ONLY source made all of
-           those requests disappear. Read the authoritative collections first, then
-           use the inbox only as a compatibility fallback for deployments that have
-           already populated it. */
-        const sourceSettled=await Promise.allSettled([
-          getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey))),
-          getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)))
-        ]);
-        if(sourceSettled[0].status==='fulfilled'){
-          sourceSettled[0].value.forEach(function(d){addReview(d.id,d.data()||{});});
-        }else{
-          result.errors.push('Review source: '+String(sourceSettled[0].reason&&sourceSettled[0].reason.message||sourceSettled[0].reason));
+        function consumeV3(snap,kind){
+          if(!snap)return;
+          snap.docs.forEach(function(d){
+            const item=d.data()||{},snapData=item.snapshot||{};
+            if(kind==='review')addReview(String(item.requestId||d.id),snapData);
+            else addRisk(String(item.requestId||d.id),snapData);
+          });
         }
-        if(sourceSettled[1].status==='fulfilled'){
-          sourceSettled[1].value.forEach(function(d){addRisk(d.id,d.data()||{});});
-        }else{
-          result.errors.push('Risk source: '+String(sourceSettled[1].reason&&sourceSettled[1].reason.message||sourceSettled[1].reason));
-        }
-
-        /* Compatibility fallback: only consult inbox_v3 when the authoritative
-           source did not return rows. This prevents a stale/empty inbox from hiding
-           valid requests that already exist in the source collection. */
-        if(!Object.keys(reviewMap).length){
-          try{
-            const snap=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review'));
-            snap.forEach(function(d){const item=d.data()||{},row=item.snapshot||{};addReview(String(item.requestId||d.id),row);});
-          }catch(e){if(!sourceSettled[0]||sourceSettled[0].status!=='rejected')result.errors.push('Review inbox: '+String(e&&e.message||e));}
-        }
-        if(!Object.keys(riskMap).length){
-          try{
-            const snap=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'));
-            snap.forEach(function(d){const item=d.data()||{},row=item.snapshot||{};addRisk(String(item.requestId||d.id),row);});
-          }catch(e){if(!sourceSettled[1]||sourceSettled[1].status!=='rejected')result.errors.push('Risk inbox: '+String(e&&e.message||e));}
+        if(settled[0].status==='fulfilled')consumeV3(settled[0].value,'review');
+        if(settled[1].status==='fulfilled')consumeV3(settled[1].value,'risk');
+        if(settled[2].status==='fulfilled'){
+          settled[2].value.docs.forEach(function(d){
+            const item=d.data()||{},kind=String(item.requestKind||item.queueKind||'review').toLowerCase();
+            const snap=item.snapshot||item.requestSnapshot||item;
+            if(kind==='risk'||kind==='incident')addRisk(String(item.requestId||d.id),snap);
+            else addReview(String(item.requestId||d.id),snap);
+          });
         }
         result.review=Object.keys(reviewMap).map(function(k){return reviewMap[k];});
         result.risk=Object.keys(riskMap).map(function(k){return riskMap[k];});
         result.risk=_grcRiskSort(result.risk);
         result.review.sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
-        if(result.errors.length&&!result.review.length&&!result.risk.length)throw new Error(result.errors.join(' · '));
+        /* Only fail when every queue source failed. An empty but readable queue is
+           a valid state and must remain visibly empty rather than throwing. */
+        const readable=settled.some(function(x){return x.status==='fulfilled';});
+        if(!readable)throw new Error(result.errors.join(' · ')||'Department approval queue could not be read.');
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;
       })();
       try{return await _grcManagerQueueCachePromise;}finally{_grcManagerQueueCachePromise=null;}
@@ -1328,8 +1320,15 @@ window._selectPortal=async portal=>{
     window._advisoryGetManagerQueue=async function(){
       const bundle=await window._grcGetDepartmentApprovalQueue(true);
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
-      const own=await window._advisoryGetMine().catch(function(){return[];});
-      return _advMergeRows(bundle.review,own,false);
+      /* Department Manager approval view must come from the department queue only.
+         Do NOT call _advisoryGetMine() here: that performs requester-ownership
+         queries against advisory_requests and, under the deployed rules, can be
+         denied for a manager. That denial used to erase an otherwise valid queue
+         and display 0 requests. The manager's own submitted requests are not
+         approval items and are intentionally handled by the requester view. */
+      const review=Array.isArray(bundle.review)?bundle.review:[],risk=Array.isArray(bundle.risk)?bundle.risk:[];
+      review._grcRiskRecords=risk;
+      return review;
     };
     function stageOfManagerRow(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
@@ -1438,9 +1437,12 @@ window._selectPortal=async portal=>{
         if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
         if(String(live.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request.');
         if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
-        else if(action==='return'){finalStage='returned_requester';finalStatus='in_progress';closureReason='returned_by_department_manager';}
+        else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='';}
         else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
-        const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:action==='approve'?'approved':action==='return'?'returned':'rejected',managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
+        const decision=action==='approve'?'approved':action==='return'?'returned':'rejected';
+        const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:decision,managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
+        if(action==='return'){updates.returnNote=managerComment;updates.returnSource='department_manager';updates.returnedAt=serverTimestamp();}
+        else{updates.returnNote='';updates.returnSource='';}
         if(action==='reject')updates.closedAt=serverTimestamp();
         tx.update(requestRef,updates);
       });
@@ -1450,7 +1452,7 @@ window._selectPortal=async portal=>{
          never be allowed to veto the actual manager decision. */
       try{await deleteDoc(queueRef);}catch(queueErr){console.warn('[Review Development Manager Queue] cleanup skipped after successful decision',queueErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
-      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':action==='return'?'Returned for update ':'Rejected ')+String(current.code||requestId),{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:action==='approve'?'approved':action==='return'?'returned':'rejected',comment:managerComment},{portal:String(current.platform||'grc')});}catch(_){ }
+      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':action==='return'?'Returned for update ':'Rejected ')+String(current.code||requestId),{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:decision,comment:managerComment},{portal:String(current.platform||'grc')});}catch(_){}
       return true;
     };
 
