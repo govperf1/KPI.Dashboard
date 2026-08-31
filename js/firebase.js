@@ -1166,39 +1166,8 @@ window._selectPortal=async portal=>{
           getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review')),
           getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'))
         ]);
-
-        /*
-         * The authoritative collections are the recovery path for existing
-         * pending requests and for any deployment where the manager inbox
-         * documents were not backfilled. The query is strictly department
-         * scoped, so it remains safe under the Department Manager Rules.
-         */
-        if(settled[0].status==='rejected'){
-          try{
-            settled[0]={
-              status:'fulfilled',
-              value:await getDocsFromServer(
-                query(collection(db,ADV_REQUESTS_COLLECTION),
-                  where('departmentKey','==',fresh.departmentKey))
-              )
-            };
-          }catch(reviewErr){
-            result.errors.push('Review queue: '+String(reviewErr&&reviewErr.message||reviewErr));
-          }
-        }
-        if(settled[1].status==='rejected'){
-          try{
-            settled[1]={
-              status:'fulfilled',
-              value:await getDocsFromServer(
-                query(collection(db,GRC_RISK_REQUESTS_COLLECTION),
-                  where('departmentKey','==',fresh.departmentKey))
-              )
-            };
-          }catch(riskErr){
-            result.errors.push('Risk queue: '+String(riskErr&&riskErr.message||riskErr));
-          }
-        }
+        if(settled[0].status==='rejected')result.errors.push('Review queue: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason));
+        if(settled[1].status==='rejected')result.errors.push('Risk queue: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
 
         const reviewMap={},riskMap={};
         function addReview(id,row){
@@ -1437,22 +1406,17 @@ window._selectPortal=async portal=>{
       if(String(current.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request. Your request must be reviewed by Super Admin.');
       if(current._storage!=='advisory_requests')throw new Error('Legacy requests cannot use the Department Manager approval workflow.');
       if(String(current.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
-      if(!['approve','return','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
-      if((action==='return'||action==='reject')&&!managerComment)throw new Error(action==='return'?'A return note is required.':'A rejection reason is required.');
+      if(!['approve','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
+      if(action==='reject'&&!managerComment)throw new Error('A rejection reason is required.');
       const requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso(),queueRef=_grcManagerQueueItemRef(String(current.departmentKey||''),'review',requestId);
-      let finalStage='',finalStatus='',closureReason='',managerDecision='';
+      let finalStage='',finalStatus='',closureReason='';
       await runTransaction(db,async tx=>{
         const snap=await tx.get(requestRef);if(!snap.exists())throw new Error('Request not found.');const live=snap.data()||{};
         if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
         if(String(live.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request.');
-        if(action==='approve'){
-          finalStage='pending_super_admin';finalStatus='open';closureReason='';managerDecision='approved';
-        }else if(action==='return'){
-          finalStage='returned_requester';finalStatus='open';closureReason='returned_by_department_manager';managerDecision='returned';
-        }else{
-          finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';managerDecision='rejected';
-        }
-        const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:managerDecision,managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
+        if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
+        else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
+        const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:action==='approve'?'approved':'rejected',managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
         if(action==='reject')updates.closedAt=serverTimestamp();
         tx.update(requestRef,updates);
       });
@@ -1462,7 +1426,7 @@ window._selectPortal=async portal=>{
          never be allowed to veto the actual manager decision. */
       try{await deleteDoc(queueRef);}catch(queueErr){console.warn('[Review Development Manager Queue] cleanup skipped after successful decision',queueErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
-      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':action==='return'?'Returned ':'Rejected ')+String(current.code||requestId),{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:managerDecision,comment:managerComment},{portal:String(current.platform||'grc')});}catch(_){}
+      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':'Rejected ')+String(current.code||requestId),{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:action==='approve'?'approved':'rejected',comment:managerComment},{portal:String(current.platform||'grc')});}catch(_){}
       return true;
     };
 
