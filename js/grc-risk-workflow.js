@@ -22,7 +22,7 @@
   window._grcCanAccessRiskIncidentWorkflow=canAccessRiskIncidentWorkflow;
   function currentDepartmentKey(){if(isManager()&&window.__grcManagerDepartmentKey)return String(window.__grcManagerDepartmentKey);var raw=Object.prototype.hasOwnProperty.call(window,'_fbDept')?window._fbDept:window.currentUserDept;if(typeof window._grcCanonicalDepartment==='function')return String(window._grcCanonicalDepartment(raw)||'');return String(raw==null?'':raw).trim().toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');}
   function requestDepartmentKey(r){r=r||{};var raw=r.departmentKey||r.department||r.departmentRaw||r.proposedRecord&&r.proposedRecord.department||r.currentRecord&&r.currentRecord.department||'';if(typeof window._grcCanonicalDepartment==='function')return String(window._grcCanonicalDepartment(raw)||'');return String(raw==null?'':raw).trim().toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');}
-  function managerDepartmentRequest(r){if(!isManager())return true;if(!r)return false;var assigned=r._managerAssigned===true||String(r.assignedManagerEmail||'').toLowerCase().trim()===email();if(assigned)return true;var mine=String(currentDepartmentKey()||'').trim(),dept=requestDepartmentKey(r);var status=String(r.status||'').toLowerCase();return !!mine&&dept===mine&&['pending_manager','returned_manager'].indexOf(status)>=0&&String(r.submittedByEmail||'').toLowerCase().trim()!==email();}
+  function managerDepartmentRequest(r){if(!isManager())return true;if(!r)return false;var assigned=r._managerAssigned===true||String(r.assignedManagerEmail||'').toLowerCase().trim()===email();if(assigned)return true;var mine=String(currentDepartmentKey()||'').trim(),dept=requestDepartmentKey(r);return !!mine&&dept===mine&&String(r.submittedByEmail||'').toLowerCase().trim()!==email();}
   function ownRequest(r){return String(r&&r.submittedByEmail||'').toLowerCase().trim()===email();}
   function reviewStage(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
   function reviewDepartmentKey(r){var raw=r&&r.departmentKey||'';if(typeof window._grcCanonicalDepartment==='function')return String(window._grcCanonicalDepartment(raw)||'');return String(raw||'').trim().toLowerCase();}
@@ -269,9 +269,32 @@
   }
   function activeApprovalTab(){var el=document.querySelector('[data-grc-risk-tab].active');return el&&el.dataset?el.dataset.grcRiskTab||'all':'all';}
   function filteredRisk(tab){var base=isManager()?cache.filter(managerDepartmentRequest):cache;return base.filter(function(r){if(tab==='all')return true;if(tab==='action')return actionable(r);if(tab==='published')return r.status==='published';if(tab==='returned')return /^returned|^rejected/.test(r.status);return r.status===tab;});}
-  function filteredReview(tab){if(!isManager()||['all','action'].indexOf(tab)<0)return[];return reviewApprovalRows.filter(reviewManagerRequest);}
+  function reviewHistoryStatus(r){
+    var s=String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase(),reason=String(r&&r.closureReason||'').trim().toLowerCase();
+    if(s==='pending_department_manager')return'action';
+    if(s==='returned_requester'||s==='rejected_manager'||s==='rejected_super_admin'||reason.indexOf('rejected')>=0)return'returned';
+    if(s==='closed'&&reason.indexOf('approved')>=0)return'published';
+    return'all';
+  }
+  function filteredReview(tab){
+    if(!isManager())return[];
+    return reviewApprovalRows.filter(function(r){
+      if(!r)return false;
+      var dept=reviewDepartmentKey(r),mine=String(currentDepartmentKey()||'').trim().toLowerCase();
+      if(dept!==mine||String(r.userEmail||'').toLowerCase().trim()===email())return false;
+      var state=reviewHistoryStatus(r);
+      if(tab==='action')return state==='action';
+      if(tab==='returned')return state==='returned';
+      if(tab==='published')return state==='published';
+      return true;
+    });
+  }
   function reviewProfileCard(r){
-    return `<article class="grc-risk-request-card"><div class="grc-risk-card-head"><div><strong>${esc(r.code||r.id)}</strong><small>${esc(isAr()?'مراجعة وتطوير':'Review & Development')} · ${esc(reviewTypeText(r))}</small></div><span class="grc-risk-status warn">${esc(isAr()?'بانتظار موافقة مدير القسم':'Pending Department Manager Approval')}</span></div><div class="grc-risk-card-grid"><span>${esc(isAr()?'نوع العنصر':'Item Type')}</span><b>${esc(r.category||r.relatedType||'—')}</b><span>${esc(isAr()?'السجل المرتبط':'Related Record')}</span><b>${esc(reviewRelatedText(r))}</b><span>${esc(isAr()?'مقدم الطلب':'Submitted by')}</span><b>${esc(r.userName||r.userEmail||'—')}</b><span>${esc(isAr()?'تاريخ الإرسال':'Submitted')}</span><b>${esc(reviewDateText(r))}</b><span>${esc(isAr()?'الأولوية':'Priority')}</span><b>${esc(r.priority||'—')}</b></div><button class="grc-risk-details-btn" onclick="window._grcReviewApprovalOpenRequest('${esc(r.id)}')">${esc(isAr()?'مراجعة واعتماد':'Review & Approve')}</button></article>`;
+    var state=reviewHistoryStatus(r),labelEn=state==='action'?'Pending Department Manager Approval':state==='returned'?'Returned / Rejected':state==='published'?'Published':'In Approval';
+    var labelAr=state==='action'?'بانتظار موافقة مدير القسم':state==='returned'?'معاد / مرفوض':state==='published'?'منشور':'قيد الاعتماد';
+    var cls=state==='action'?'warn':state==='returned'?'bad':state==='published'?'good':'';
+    var button=state==='action'?'<button class="grc-risk-details-btn" onclick="window._grcReviewApprovalOpenRequest(\''+esc(r.id)+'\')">'+esc(isAr()?'مراجعة واعتماد':'Review & Approve')+'</button>':'<button class="grc-risk-details-btn" onclick="window._grcReviewApprovalOpenRequest(\''+esc(r.id)+'\')">'+esc(isAr()?'عرض الطلب':'View Request')+'</button>';
+    return '<article class="grc-risk-request-card"><div class="grc-risk-card-head"><div><strong>'+esc(r.code||r.id)+'</strong><small>'+esc(isAr()?'مراجعة وتطوير':'Review & Development')+' · '+esc(reviewTypeText(r))+'</small></div><span class="grc-risk-status '+cls+'">'+esc(isAr()?labelAr:labelEn)+'</span></div><div class="grc-risk-card-grid"><span>'+esc(isAr()?'نوع العنصر':'Item Type')+'</span><b>'+esc(r.category||r.relatedType||'—')+'</b><span>'+esc(isAr()?'السجل المرتبط':'Related Record')+'</span><b>'+esc(reviewRelatedText(r))+'</b><span>'+esc(isAr()?'مقدم الطلب':'Submitted by')+'</span><b>'+esc(r.userName||r.userEmail||'—')+'</b><span>'+esc(isAr()?'تاريخ الإرسال':'Submitted')+'</span><b>'+esc(reviewDateText(r))+'</b><span>'+esc(isAr()?'الأولوية':'Priority')+'</span><b>'+esc(r.priority||'—')+'</b></div>'+button+'</article>';
   }
   function renderProfileBody(){
     var body=document.getElementById('_grcRiskProfileBody');if(!body)return;
