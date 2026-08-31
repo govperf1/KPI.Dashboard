@@ -1156,48 +1156,56 @@ window._selectPortal=async portal=>{
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         /*
-         * Department Manager approvals are read from the authoritative request
-         * collections. The inbox_v3 rows are only a routing/cache aid; relying on
-         * them made older pending requests disappear when a queue row was missing.
-         * The rules explicitly allow a department manager to list documents whose
-         * departmentKey matches the manager's canonical department.
+         * Department Manager approvals are read from the two authoritative
+         * request collections.  The previous implementation made the manager
+         * depend on grc_department_approval_inbox_v3.  That secondary inbox was
+         * the source of the repeated "Missing or insufficient permissions"
+         * error and caused a perfectly valid pending request to appear as an
+         * empty queue.
+         *
+         * The request collections already contain departmentKey and the
+         * Firestore rules authorize a Department Manager to list only their
+         * own department.  Querying that exact department is therefore the
+         * single source of truth for the manager screen.
          */
         const result={profile:fresh,review:[],risk:[],errors:[]};
+        const reviewMap={},riskMap={};
+
         const settled=await Promise.allSettled([
           getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey))),
           getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)))
         ]);
+
         if(settled[0].status==='rejected')result.errors.push('Review queue: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason));
         if(settled[1].status==='rejected')result.errors.push('Risk queue: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
 
-        const reviewMap={},riskMap={};
-        function addReview(id,row){
-          const key=String(id||row&&row.id||'');if(!key)return;
-          const normalized=_advNormalizeRow(key,row||{},'advisory_requests');
-          if(String(normalized.workflowStage||'')!=='pending_department_manager')return;
-          if(String(normalized.userEmail||'').toLowerCase().trim()===fresh.email)return;
-          normalized._managerAssigned=true;reviewMap[key]=normalized;
-        }
-        function addRisk(id,row){
-          const key=String(id||row&&row.id||'');if(!key)return;
-          const status=String(row&&row.status||'').toLowerCase();
-          if(String(row&&row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;
-          if(!['pending_manager','returned_manager'].includes(status))return;
-          const data=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});
-          if(data){data._managerAssigned=true;riskMap[key]=data;}
-        }
         if(settled[0].status==='fulfilled')settled[0].value.forEach(function(d){
-          addReview(d.id,d.data()||{});
+          const row=d.data()||{},stage=String(row.workflowStage||'').trim().toLowerCase();
+          const requester=String(row.userEmail||'').toLowerCase().trim();
+          if(stage!=='pending_department_manager'||requester===fresh.email)return;
+          const normalized=_advNormalizeRow(d.id,row,'advisory_requests');
+          normalized._managerAssigned=true;
+          normalized._managerQueueRef=null;
+          reviewMap[d.id]=normalized;
         });
+
         if(settled[1].status==='fulfilled')settled[1].value.forEach(function(d){
-          addRisk(d.id,d.data()||{});
+          const row=d.data()||{},status=String(row.status||'').trim().toLowerCase();
+          const requester=String(row.submittedByEmail||'').toLowerCase().trim();
+          if(!['pending_manager','returned_manager'].includes(status)||requester===fresh.email)return;
+          const data=_grcRiskRequestData(d);
+          if(data){data._managerAssigned=true;data._managerQueueRef=null;riskMap[d.id]=data;}
         });
+
         result.review=Object.keys(reviewMap).map(function(k){return reviewMap[k];});
-        result.risk=Object.keys(riskMap).map(function(k){return riskMap[k];});
-        result.risk=_grcRiskSort(result.risk);
-        result.review.sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
-        if(result.errors.length&&!result.review.length&&!result.risk.length)throw new Error(result.errors.join(' · '));
-        _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;
+        result.risk=_grcRiskSort(Object.keys(riskMap).map(function(k){return riskMap[k];}));
+        result.review.sort(function(a,b){return _advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso);});
+
+        if(result.errors.length&&!result.review.length&&!result.risk.length){
+          throw new Error(result.errors.join(' · '));
+        }
+        _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();
+        return result;
       })();
       try{return await _grcManagerQueueCachePromise;}finally{_grcManagerQueueCachePromise=null;}
     };
@@ -1403,8 +1411,8 @@ window._selectPortal=async portal=>{
       if(String(current.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request. Your request must be reviewed by Super Admin.');
       if(current._storage!=='advisory_requests')throw new Error('Legacy requests cannot use the Department Manager approval workflow.');
       if(String(current.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
-      if(!['approve','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
-      if(action==='reject'&&!managerComment)throw new Error('A rejection reason is required.');
+      if(!['approve','return','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
+      if((action==='return'||action==='reject')&&!managerComment)throw new Error(action==='return'?'A return note is required.':'A rejection reason is required.');
       const requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso(),queueRef=_grcManagerQueueItemRef(String(current.departmentKey||''),'review',requestId);
       let finalStage='',finalStatus='',closureReason='';
       await runTransaction(db,async tx=>{
@@ -1412,8 +1420,9 @@ window._selectPortal=async portal=>{
         if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
         if(String(live.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request.');
         if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
+        else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='returned_by_department_manager';}
         else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
-        const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:action==='approve'?'approved':'rejected',managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
+        const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:action==='approve'?'approved':action==='return'?'returned':'rejected',managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
         if(action==='reject')updates.closedAt=serverTimestamp();
         tx.update(requestRef,updates);
       });
@@ -1423,7 +1432,7 @@ window._selectPortal=async portal=>{
          never be allowed to veto the actual manager decision. */
       try{await deleteDoc(queueRef);}catch(queueErr){console.warn('[Review Development Manager Queue] cleanup skipped after successful decision',queueErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
-      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':'Rejected ')+String(current.code||requestId),{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:action==='approve'?'approved':'rejected',comment:managerComment},{portal:String(current.platform||'grc')});}catch(_){}
+      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':'Rejected ')+String(current.code||requestId),{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:action==='approve'?'approved':action==='return'?'returned':'rejected',comment:managerComment},{portal:String(current.platform||'grc')});}catch(_){}
       return true;
     };
 
