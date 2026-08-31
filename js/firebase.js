@@ -978,9 +978,12 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV65Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v65-grc-manager-scope-20260831'));window.__advRulesV65Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v65 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      /* Diagnostic only. A denied version-probe must never block a real workflow
+         request; the actual Firestore operation is the authoritative permission check. */
+      if(window.__advRulesProbeDone===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v65-grc-manager-scope-20260831'));window.__advRulesProbeDone=true;}
+      catch(e){window.__advRulesProbeDone=true;console.warn('[Rules Probe] non-blocking:',e&&e.code||e&&e.message||e);}
+      return true;
     }
     async function _advAssertProfileScope(profile){
       profile=profile||{};
@@ -990,7 +993,7 @@ window._selectPortal=async portal=>{
         return true;
       }catch(e){
         const denied=String(e&&e.code||e&&e.message||'').toLowerCase().includes('permission');
-        if(denied)throw new Error('profile-scope-mismatch: Firebase Rules do not resolve this account to role='+String(profile.role||'')+' and departmentKey='+String(profile.departmentKey||'')+'.');
+        if(denied){console.warn('[Profile Scope Probe] non-blocking:',String(profile.role||'viewer'),'departmentKey='+String(profile.departmentKey||''));return true;}
         throw e;
       }
     }
@@ -1225,12 +1228,14 @@ window._selectPortal=async portal=>{
       const isFreshAdmin=['admin','super_admin'].includes(freshProfile.role);
       const requiresManagerApproval=!!departmentKey&&!isFreshManager&&!isFreshPlatformManager&&!isFreshAdmin;
       const routedDeptCode=departmentKey?_advSafeCode(({safety:'SAF',maintenance:'MNT',laundry:'LND',housekeeping:'HSK',projects:'PRJ',governance:'GOV',division:'FMS'})[departmentKey]||payload.departmentCode):'FMS';
-      const year=new Date().getFullYear(),deptCode=routedDeptCode,counterId=year+'_'+deptCode;
-      const counterRef=doc(db,'advisory_counters',counterId),primaryRef=doc(collection(db,ADV_REQUESTS_COLLECTION));
-      let code='',counterFallback=false;
-      try{
-        await runTransaction(db,async tx=>{const c=await tx.get(counterRef),next=Number(c.exists()&&c.data().next||0)+1;code='RD-'+deptCode+'-'+year+'-'+String(next).padStart(3,'0');tx.set(counterRef,{next,updatedAt:serverTimestamp()},{merge:true});});
-      }catch(_){counterFallback=true;code='RD-'+deptCode+'-'+year+'-'+String(Date.now()).slice(-6)+Math.random().toString(36).slice(2,4).toUpperCase();}
+      const year=new Date().getFullYear(),deptCode=routedDeptCode;
+      const primaryRef=doc(collection(db,ADV_REQUESTS_COLLECTION));
+      /* Shared counter transactions caused repeated BatchGet reads and 429
+         resource-exhausted failures. Request IDs are already unique, so use a
+         collision-safe display code without a counter read. */
+      const entropy=(typeof crypto!=='undefined'&&crypto.randomUUID)?crypto.randomUUID().replace(/-/g,'').slice(0,6).toUpperCase():Math.random().toString(36).slice(2,8).toUpperCase();
+      const code='RD-'+deptCode+'-'+year+'-'+String(Date.now()).slice(-6)+entropy;
+      const counterFallback=true;
       const nowIso=_advIso(),base={
         userName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]||'User'),userEmail:freshProfile.email,requesterUid:freshProfile.uid,requesterRole:freshProfile.role,
         departmentKey:departmentKey,departmentRaw:String(freshProfile.rawDepartment==null?'':freshProfile.rawDepartment).trim(),departmentCode:deptCode,gender:String(payload.gender||''),priority:String(payload.priority||'Medium'),
@@ -1371,13 +1376,10 @@ window._selectPortal=async portal=>{
         }catch(err){sources[key]={ready:true,rows:[],error:String(err&&err.message||err||'listener-failed')};emit();}
       };
       if(_advIsDepartmentManager()){
-        if(dept){
-          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)),'advisory_requests');
-          listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
-        }else{
-          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
-        }
-        listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
+        /* Manager approvals are sourced only from the canonical department inbox.
+           Do not attach legacy advisory/kpi listeners that are outside the manager
+           permission surface and generate false permission-denied errors. */
+        if(dept)listen('primary',collection(db,'grc_department_approval_inbox_v3',dept,'review'),'advisory_requests');
       }else if(_advIsAdmin()){
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
         listen('fallback',collection(db,ADV_FALLBACK_COLLECTION),'kpi_requests');
@@ -1748,14 +1750,11 @@ window._selectPortal=async portal=>{
       const existingRecord=payload.currentRecord||payload.proposedRecord||{},recordDepartment=_grcRiskRecordDepartment(existingRecord,userDepartment);
       if((operation==='update'||operation==='delete')&&recordDepartment&&recordDepartment!==userDepartment)throw new Error('You can submit requests for your assigned department only.');
       const department=userDepartment;
-      const current=_grcRiskJson(payload.currentRecord),proposed=_grcRiskJson(payload.proposedRecord),year=new Date().getFullYear(),deptCode=_grcRiskDeptCode(department),kindCode=recordType==='incident'?'INC':'RSK',counterRef=doc(db,GRC_RISK_COUNTERS_COLLECTION,kindCode+'_'+deptCode+'_'+year),requestRef=doc(collection(db,GRC_RISK_REQUESTS_COLLECTION)),nowIso=_grcRiskIso();
-      let requestCode='';
-      try{
-        requestCode=await runTransaction(db,async tx=>{const cs=await tx.get(counterRef),next=Number(cs.exists()&&cs.data().next||0)+1,code=kindCode+'-REQ-'+deptCode+'-'+year+'-'+String(next).padStart(3,'0');tx.set(counterRef,{next,recordType,updatedAt:serverTimestamp(),updatedBy:_grcRiskEmail()},{merge:true});return code;});
-      }catch(counterError){
-        console.warn('[GRC Risk Workflow] counter unavailable; using collision-safe fallback code',counterError&&counterError.code||counterError);
-        requestCode=kindCode+'-REQ-'+deptCode+'-'+year+'-'+String(Date.now()).slice(-7);
-      }
+      const current=_grcRiskJson(payload.currentRecord),proposed=_grcRiskJson(payload.proposedRecord),year=new Date().getFullYear(),deptCode=_grcRiskDeptCode(department),kindCode=recordType==='incident'?'INC':'RSK',requestRef=doc(collection(db,GRC_RISK_REQUESTS_COLLECTION)),nowIso=_grcRiskIso();
+      /* Avoid shared counter transactions; they add BatchGet contention while the
+         Firestore request document already provides a unique identity. */
+      const entropy=(typeof crypto!=='undefined'&&crypto.randomUUID)?crypto.randomUUID().replace(/-/g,'').slice(0,6).toUpperCase():Math.random().toString(36).slice(2,8).toUpperCase();
+      const requestCode=kindCode+'-REQ-'+deptCode+'-'+year+'-'+String(Date.now()).slice(-6)+entropy;
       const requestData={requestCode,recordType,operation,department,departmentKey:department,departmentRaw:departmentRaw,assignedManagerEmail:'',targetRiskId:String(payload.targetRiskId||payload.targetRecordId||current&&current.id||current&&current.code||proposed&&proposed.id||''),targetRecordId:String(payload.targetRecordId||payload.targetRiskId||current&&current.id||current&&current.code||proposed&&proposed.id||''),currentRecord:current,proposedRecord:proposed,changedFields:_grcRiskChangedFields(current,proposed),deleteReason:String(payload.deleteReason||''),requesterNote:String(payload.note||''),returnFields:[],returnNote:'',returnSource:'',status:'pending_manager',submittedByName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]),submittedByEmail:freshProfile.email,submittedByUid:freshProfile.uid,submittedByRole:freshProfile.role,managerName:'',managerEmail:'',managerNote:'',superAdminName:'',superAdminEmail:'',superAdminNote:'',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:nowIso,updatedAtIso:nowIso,history:[{status:'pending_manager',by:freshProfile.email,role:freshProfile.role,at:nowIso,note:String(payload.note||'')}]};
       try{
         const batch=writeBatch(db),snapshot=_grcRiskQueueSnapshot(requestData,requestRef.id);

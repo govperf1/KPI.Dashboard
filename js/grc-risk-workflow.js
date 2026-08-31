@@ -233,7 +233,7 @@
       managerPollTimer=setInterval(function(){
         if(document.body.classList.contains('grc-mode')&&isManager())refreshManagerApprovalQueues(true);
         else if(managerPollTimer){clearInterval(managerPollTimer);managerPollTimer=null;}
-      },4000);
+      },10000);
       return;
     }
     if(typeof window._grcRiskRequestsSubscribe!=='function'){cache=[];window.__grcRiskRequestCache=[];refreshBadge();return;}

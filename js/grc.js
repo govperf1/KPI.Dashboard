@@ -275,7 +275,13 @@
       applyReportIndex(snap.exists()?snap.data():{reports:[]});refreshManualsNavCount();
       if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
     },function(err){
-      console.error('[GRC Reports] live sync failed',err);reportLibraryError=String(err&&err.code||err&&err.message||err||'sync-failed');reportLibraryLoading=false;if(!REPORT_LIBRARY.length)restoreReportLibraryCache();reportLibraryLoaded=REPORT_LIBRARY.length>0;scheduleReportRetry();if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
+      const code=String(err&&err.code||'').toLowerCase();
+      console.error('[GRC Reports] live sync failed',err);reportLibraryError=String(err&&err.code||err&&err.message||err||'sync-failed');reportLibraryLoading=false;if(!REPORT_LIBRARY.length)restoreReportLibraryCache();reportLibraryLoaded=REPORT_LIBRARY.length>0;
+      /* A permission denial is a Rules deployment problem. Do not retry forever;
+         keep the last known report library until Rules are corrected or the user
+         explicitly presses Refresh. */
+      if(!code.includes('permission-denied'))scheduleReportRetry();
+      if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
     });
   }
   function loadReportLibrary(force){
