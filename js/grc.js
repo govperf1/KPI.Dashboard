@@ -270,17 +270,20 @@
   }
   function refreshManualsNavCount(){try{var n=countFor('manuals');Array.prototype.forEach.call(document.querySelectorAll('#grcApp .grc-page-tab'),function(tab){var action=String(tab.getAttribute('onclick')||'');if(action.indexOf("'manuals'")<0)return;var badge=tab.querySelector('.tab-badge');if(badge)badge.textContent=String(n);});}catch(_e){}}
   function ensureReportIndexListener(b){
+    /* Reports are a shared, low-frequency library. Use a server-confirmed
+       one-shot read instead of a permanent listener. This avoids the old
+       secondary live-listener permission loop while preserving fresh data on
+       page entry and explicit Refresh. */
     if(reportIndexUnsub)return;
-    reportIndexUnsub=b.fs.onSnapshot(reportIndexRef(b),function(snap){
+    var read=(b.fs.getDocFromServer?b.fs.getDocFromServer(reportIndexRef(b)):b.fs.getDoc(reportIndexRef(b)));
+    reportIndexUnsub=true;
+    read.then(function(snap){
       applyReportIndex(snap.exists()?snap.data():{reports:[]});refreshManualsNavCount();
       if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
-    },function(err){
-      const code=String(err&&err.code||'').toLowerCase();
-      console.error('[GRC Reports] live sync failed',err);reportLibraryError=String(err&&err.code||err&&err.message||err||'sync-failed');reportLibraryLoading=false;if(!REPORT_LIBRARY.length)restoreReportLibraryCache();reportLibraryLoaded=REPORT_LIBRARY.length>0;
-      /* A permission denial is a Rules deployment problem. Do not retry forever;
-         keep the last known report library until Rules are corrected or the user
-         explicitly presses Refresh. */
-      if(!code.includes('permission-denied'))scheduleReportRetry();
+    }).catch(function(err){
+      console.warn('[GRC Reports] server sync failed',err&&err.code||err&&err.message||err);
+      reportLibraryError=String(err&&err.code||err&&err.message||err||'sync-failed');reportLibraryLoading=false;
+      if(!REPORT_LIBRARY.length)restoreReportLibraryCache();reportLibraryLoaded=REPORT_LIBRARY.length>0;
       if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
     });
   }
@@ -290,7 +293,7 @@
     reportLibraryLoading=true;reportLibraryError='';
     if(!REPORT_LIBRARY.length)restoreReportLibraryCache();
     return ensureReportBackend().then(function(b){
-      return waitForReportAuth(b).then(function(){ensureReportIndexListener(b);return b.fs.getDoc(reportIndexRef(b));});
+      return waitForReportAuth(b).then(function(){if(force)reportIndexUnsub=null;ensureReportIndexListener(b);return b.fs.getDoc(reportIndexRef(b));});
     }).then(function(snap){
       applyReportIndex(snap.exists()?snap.data():{reports:[]});refreshManualsNavCount();
       if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
@@ -1669,6 +1672,13 @@
   function startRiskStatusOverrideSync(b){
     if(grcRiskStatusUnsub){try{grcRiskStatusUnsub();}catch(_){}grcRiskStatusUnsub=null;}
     if(!canAccessRiskIncidentRegisters()){grcRiskStatusOverrides={};return;}
+    /* Department Manager status overrides are intentionally skipped here. The V65
+       Rules authorize grc_risk_status using canonicalDepartment(resource.data),
+       which is not query-provable from a broad/department equality listener. The
+       authoritative Risk Register sync already supplies the manager's department
+       data; skipping this optional mirror prevents a false permission-denied sync
+       from poisoning the GRC page. */
+    if(normalizedRole()==='department_manager'||normalizedRole()==='dept_manager'){grcRiskStatusOverrides={};return;}
     var col=b.fs.collection(b.db,'grc_risk_status'),qref=col,dept=currentGrcDept();
     /* Subscribe by canonical department so every user assigned to the same
        department receives the same direct Open/Closed status, even if their

@@ -207,7 +207,7 @@
       if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
       if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();
       scheduleApprovalNotice(false);
-    }).catch(function(err){window.__grcManagerApprovalError=String(err&&err.message||err&&err.code||err||'Unable to load department approvals.');console.warn('[GRC Manager Approval Pull]',window.__grcManagerApprovalError);}).finally(function(){managerPullBusy=false;});
+    }).catch(function(err){window.__grcManagerApprovalError=String(err&&err.message||err&&err.code||err||'Unable to load department approvals.');if(window.__grcManagerApprovalError.toLowerCase().indexOf('missing or insufficient permissions')<0)console.warn('[GRC Manager Approval Pull]',window.__grcManagerApprovalError);}).finally(function(){managerPullBusy=false;});
   }
   window._grcRiskInjectManagerQueue=function(riskRows,reviewRows){
     if(!isManager())return;
