@@ -4685,7 +4685,7 @@
     if(window._grcRiskRefreshUi)try{window._grcRiskRefreshUi();}catch(_){}
     return grcFirstShellReady();
   };
-  window._enterGRC=function(){if(!canEnterGrc()){if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied('grc');else window._showGrcComingSoon();return;}window.__qumcActivePortal='grc';activeTab=activeTab||'executive';closePerformanceUiForGrc();['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.remove('dashboard-mode','auth-mode','portal-mode','performance-advisory-mode');document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');try{grcResetLocalCacheForProfile();}catch(cacheErr){console.warn('[GRC Cache] profile reset skipped',cacheErr);}render();window._grcEnsureFirstRender();};
+  window._enterGRC=function(){if(!canEnterGrc()){if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied('grc');else window._showGrcComingSoon();return;}window.__qumcActivePortal='grc';activeTab=activeTab||'executive';closePerformanceUiForGrc();['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.remove('dashboard-mode','auth-mode','portal-mode','performance-advisory-mode');document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');try{grcResetLocalCacheForProfile();}catch(cacheErr){console.warn('[GRC Cache] profile reset skipped',cacheErr);}render();if(typeof window._grcRiskRefreshUi==='function'&&['department_manager','dept_manager'].indexOf(String(window._fbRole||window.currentUserRole||'').toLowerCase().replace(/[\s-]+/g,'_'))>=0){try{window._grcRiskRefreshUi();}catch(_managerRefresh){}}window._grcEnsureFirstRender();};
   window._closeGrcComingSoon=function(){var ov=document.getElementById('_grcComingSoon');if(ov)ov.remove();document.body.classList.remove('grc-coming-open');};
   window._showGrcComingSoon=function(){
     window._closeGrcComingSoon();document.body.classList.add('grc-coming-open');
@@ -4830,6 +4830,7 @@
     window._clearGrcAuditFromFS().then(function(){window._grcAdminRenderAudit();if(window.toast)window.toast('GRC audit log cleared.');}).catch(function(err){window.alert(String(err&&err.message||err));});
   };
 
+  document.addEventListener('grc:managerApprovalQueueUpdated',function(){try{if(typeof window._advRefreshAfterManagerQueue==='function')window._advRefreshAfterManagerQueue();}catch(_){}});
   document.addEventListener('DOMContentLoaded',function(){ensureApp();startSharedStateSync();startAssessmentCloudSync();setTimeout(function(){if(Array.isArray(window.__grcRiskRequestCache)&&window.__grcRiskRequestCache.length)grcSetPublishedWorkflowRequests(window.__grcRiskRequestCache);},0);});
 })();
 

@@ -22,11 +22,11 @@
   window._grcCanAccessRiskIncidentWorkflow=canAccessRiskIncidentWorkflow;
   function currentDepartmentKey(){if(isManager()&&window.__grcManagerDepartmentKey)return String(window.__grcManagerDepartmentKey);var raw=Object.prototype.hasOwnProperty.call(window,'_fbDept')?window._fbDept:window.currentUserDept;if(typeof window._grcCanonicalDepartment==='function')return String(window._grcCanonicalDepartment(raw)||'');return String(raw==null?'':raw).trim().toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');}
   function requestDepartmentKey(r){r=r||{};var raw=r.departmentKey||r.department||r.departmentRaw||r.proposedRecord&&r.proposedRecord.department||r.currentRecord&&r.currentRecord.department||'';if(typeof window._grcCanonicalDepartment==='function')return String(window._grcCanonicalDepartment(raw)||'');return String(raw==null?'':raw).trim().toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');}
-  function managerDepartmentRequest(r){if(!isManager())return true;return !!(r&&r._managerAssigned===true);}
+  function managerDepartmentRequest(r){if(!isManager())return true;if(!r)return false;var assigned=r._managerAssigned===true||String(r.assignedManagerEmail||'').toLowerCase().trim()===email();if(assigned)return true;var mine=String(currentDepartmentKey()||'').trim(),dept=requestDepartmentKey(r);var status=String(r.status||'').toLowerCase();return !!mine&&dept===mine&&['pending_manager','returned_manager'].indexOf(status)>=0&&String(r.submittedByEmail||'').toLowerCase().trim()!==email();}
   function ownRequest(r){return String(r&&r.submittedByEmail||'').toLowerCase().trim()===email();}
   function reviewStage(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
   function reviewDepartmentKey(r){var raw=r&&r.departmentKey||'';if(typeof window._grcCanonicalDepartment==='function')return String(window._grcCanonicalDepartment(raw)||'');return String(raw||'').trim().toLowerCase();}
-  function reviewManagerRequest(r){return isManager()&&r&&r._managerAssigned===true&&String(r&&r.platform||'grc').toLowerCase()==='grc'&&reviewStage(r)==='pending_department_manager'&&String(r&&r.userEmail||'').toLowerCase().trim()!==email();}
+  function reviewManagerRequest(r){if(!isManager()||!r)return false;if(String(r&&r.platform||'grc').toLowerCase()!=='grc'||reviewStage(r)!=='pending_department_manager')return false;if(String(r&&r.userEmail||'').toLowerCase().trim()===email())return false;var assigned=r._managerAssigned===true||String(r.assignedManagerEmail||'').toLowerCase().trim()===email();var mine=String(currentDepartmentKey()||'').trim(),dept=reviewDepartmentKey(r);return assigned||(!assigned&&!!mine&&dept===mine);}
   function reviewRequestTime(r){var v=r&&r.updatedAt||r&&r.createdAt||r&&r.updatedAtIso||r&&r.createdAtIso||'';try{return v&&v.toDate?v.toDate().getTime():new Date(v||0).getTime()||0;}catch(_){return 0;}}
   function reviewRelatedText(r){var out=(Array.isArray(r&&r.relatedItems)?r.relatedItems:[]).map(function(x){return x&&x.code?String(x.code)+(x.name?' — '+String(x.name):''):String(x&&x.name||x&&x.label||'');}).filter(Boolean);if(r&&r.relatedNewText)out.push('New: '+String(r.relatedNewText));return out.join('; ')||'—';}
   function reviewTypeText(r){var t=String(r&&r.requestType||'');return t==='new'?'New Item Request':'Existing Item Review & Update';}
@@ -145,7 +145,7 @@
   window._grcRiskApprovalNoticeClose=closeApprovalNotice;
   window._grcRiskApprovalNoticeOpenAll=function(){closeApprovalNotice();window._grcRiskOpenProfile&&window._grcRiskOpenProfile();};
   window._grcRiskApprovalNoticeOpenRequest=function(id){closeApprovalNotice();window._grcRiskOpenProfile&&window._grcRiskOpenProfile(id);};
-  window._grcReviewApprovalOpenRequest=function(id){closeApprovalNotice();var p=document.getElementById('_grcRiskProfileOv');if(p)p.remove();if(typeof window._advOpenApprovalRequest==='function')window._advOpenApprovalRequest(id);else if(typeof window._advOpenRequest==='function')window._advOpenRequest(id);};
+  window._grcReviewApprovalOpenRequest=function(id){closeApprovalNotice();var p=document.getElementById('_grcRiskProfileOv');if(p)p.remove();if(typeof window._advisoryGetManagerQueue==='function'&&isManager()){Promise.resolve(window._advisoryGetManagerQueue()).catch(function(){}).then(function(){if(typeof window._advOpenApprovalRequest==='function')window._advOpenApprovalRequest(id);else if(typeof window._advOpenRequest==='function')window._advOpenRequest(id);});}else if(typeof window._advOpenApprovalRequest==='function')window._advOpenApprovalRequest(id);else if(typeof window._advOpenRequest==='function')window._advOpenRequest(id);};
   window._grcRiskApprovalEntryNoticeReset=function(){approvalNoticeEntry++;approvalNoticeKey='';scheduleApprovalNotice(true);};
   function notifSeenKey(){return 'qumc_grc_risk_notif_seen_v111::'+email()+'::'+role();}
   function readNotifSeen(){try{var x=JSON.parse(localStorage.getItem(notifSeenKey())||'[]');return Array.isArray(x)?x.map(String):[];}catch(_){return[];}}
@@ -203,6 +203,7 @@
       window.__grcRiskRequestCache=cache;
       try{document.dispatchEvent(new CustomEvent('grc:riskRequestsUpdated',{detail:{rows:cache}}));}catch(_e){}
       refreshBadge();
+      try{document.dispatchEvent(new CustomEvent('grc:managerApprovalQueueUpdated',{detail:{risk:cache,review:reviewApprovalRows}}));}catch(_queueEvent){}
       if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
       if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();
       scheduleApprovalNotice(false);
@@ -213,6 +214,7 @@
     cache=(Array.isArray(riskRows)?riskRows:[]).filter(managerDepartmentRequest);
     reviewApprovalRows=(Array.isArray(reviewRows)?reviewRows:[]).filter(reviewManagerRequest);
     window.__grcRiskRequestCache=cache;
+    try{document.dispatchEvent(new CustomEvent('grc:managerApprovalQueueUpdated',{detail:{risk:cache,review:reviewApprovalRows}}));}catch(_queueEvent){}
     refreshBadge();
     if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
     if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();
