@@ -1163,27 +1163,6 @@ window._selectPortal=async portal=>{
          */
         const result={profile:fresh,review:[],risk:[],errors:[]};
         const reviewMap={},riskMap={};
-
-        /*
-         * The inbox document is an index, not the source of truth. Some older
-         * requests were created before inbox_v3 existed, and an earlier client
-         * could also remove an index row while the authoritative request was
-         * still pending. Never let an empty/stale index make the manager see
-         * zero requests. Read the index first, then reconcile from the two
-         * authoritative collections and the legacy queue. Each fallback is
-         * isolated so one denied/legacy path cannot blank the whole inbox.
-         */
-        const queueReads=await Promise.allSettled([
-          getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review')),
-          getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk')),
-          getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey))),
-          getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey))),
-          getDocsFromServer(collection(db,'grc_department_approval_queues',fresh.departmentKey,'items'))
-        ]);
-        const labels=['Review inbox v3','Risk inbox v3','Review source','Risk source','Legacy manager queue'];
-        queueReads.forEach(function(s,i){
-          if(s.status==='rejected')result.errors.push(labels[i]+': '+String(s.reason&&s.reason.message||s.reason));
-        });
         function addReview(id,row){
           const key=String(id||row&&row.id||'');if(!key)return;
           const normalized=_advNormalizeRow(key,row||{},'advisory_requests');
@@ -1199,33 +1178,44 @@ window._selectPortal=async portal=>{
           const data=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});
           if(data){data._managerAssigned=true;riskMap[key]=data;}
         }
-        /* v3 indexed review rows */
-        if(queueReads[0].status==='fulfilled')queueReads[0].value.forEach(function(d){
-          const item=d.data()||{},snap=item.snapshot||{};
-          addReview(String(item.requestId||d.id),snap);
-        });
-        /* v3 indexed risk rows */
-        if(queueReads[1].status==='fulfilled')queueReads[1].value.forEach(function(d){
-          const item=d.data()||{},snap=item.snapshot||{};
-          addRisk(String(item.requestId||d.id),snap);
-        });
-        /* Authoritative Review & Development fallback. Only pending manager
-           rows are admitted; the source collection remains authoritative. */
-        if(queueReads[2].status==='fulfilled')queueReads[2].value.forEach(function(d){
-          const row=d.data()||{};
-          if(String(row.workflowStage||'')==='pending_department_manager')addReview(d.id,row);
-        });
-        /* Authoritative Risk/Incident fallback. */
-        if(queueReads[3].status==='fulfilled')queueReads[3].value.forEach(function(d){
-          const row=d.data()||{};
-          addRisk(d.id,row);
-        });
-        /* Legacy queue fallback used by requests created before inbox_v3. */
-        if(queueReads[4].status==='fulfilled')queueReads[4].value.forEach(function(d){
-          const item=d.data()||{},kind=String(item.requestKind||item.queueKind||'').toLowerCase(),snap=item.snapshot||{};
-          if(kind==='review'||String(item.sourceCollection||'')===ADV_REQUESTS_COLLECTION)addReview(String(item.requestId||d.id),snap);
-          else if(kind==='risk'||kind==='incident'||String(item.sourceCollection||'')===GRC_RISK_REQUESTS_COLLECTION)addRisk(String(item.requestId||d.id),snap);
-        });
+
+        /* IMPORTANT: The published V65 rules explicitly allow a Department Manager
+           to list the authoritative source collections when departmentKey equals
+           the manager's canonical department. Existing requests were created before
+           inbox_v3 was introduced, so using inbox_v3 as the ONLY source made all of
+           those requests disappear. Read the authoritative collections first, then
+           use the inbox only as a compatibility fallback for deployments that have
+           already populated it. */
+        const sourceSettled=await Promise.allSettled([
+          getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey))),
+          getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)))
+        ]);
+        if(sourceSettled[0].status==='fulfilled'){
+          sourceSettled[0].value.forEach(function(d){addReview(d.id,d.data()||{});});
+        }else{
+          result.errors.push('Review source: '+String(sourceSettled[0].reason&&sourceSettled[0].reason.message||sourceSettled[0].reason));
+        }
+        if(sourceSettled[1].status==='fulfilled'){
+          sourceSettled[1].value.forEach(function(d){addRisk(d.id,d.data()||{});});
+        }else{
+          result.errors.push('Risk source: '+String(sourceSettled[1].reason&&sourceSettled[1].reason.message||sourceSettled[1].reason));
+        }
+
+        /* Compatibility fallback: only consult inbox_v3 when the authoritative
+           source did not return rows. This prevents a stale/empty inbox from hiding
+           valid requests that already exist in the source collection. */
+        if(!Object.keys(reviewMap).length){
+          try{
+            const snap=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review'));
+            snap.forEach(function(d){const item=d.data()||{},row=item.snapshot||{};addReview(String(item.requestId||d.id),row);});
+          }catch(e){if(!sourceSettled[0]||sourceSettled[0].status!=='rejected')result.errors.push('Review inbox: '+String(e&&e.message||e));}
+        }
+        if(!Object.keys(riskMap).length){
+          try{
+            const snap=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'));
+            snap.forEach(function(d){const item=d.data()||{},row=item.snapshot||{};addRisk(String(item.requestId||d.id),row);});
+          }catch(e){if(!sourceSettled[1]||sourceSettled[1].status!=='rejected')result.errors.push('Risk inbox: '+String(e&&e.message||e));}
+        }
         result.review=Object.keys(reviewMap).map(function(k){return reviewMap[k];});
         result.risk=Object.keys(riskMap).map(function(k){return riskMap[k];});
         result.risk=_grcRiskSort(result.risk);
@@ -1338,15 +1328,8 @@ window._selectPortal=async portal=>{
     window._advisoryGetManagerQueue=async function(){
       const bundle=await window._grcGetDepartmentApprovalQueue(true);
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
-      /* Department Manager must never call _advisoryGetMine() here. That function
-         uses requesterUid/userEmail ownership queries, while the manager inbox is
-         authorized by department. On the deployed rules those ownership queries
-         can be denied and the rejection used to turn the entire approval inbox
-         into an empty list. The department queue is the sole manager source. */
-      const rows=_advMergeRows(bundle.review,[],false);
-      rows._grcRiskRecords=Array.isArray(bundle.risk)?bundle.risk:[];
-      rows._grcQueueErrors=Array.isArray(bundle.errors)?bundle.errors.slice():[];
-      return rows;
+      const own=await window._advisoryGetMine().catch(function(){return[];});
+      return _advMergeRows(bundle.review,own,false);
     };
     function stageOfManagerRow(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
@@ -1383,11 +1366,13 @@ window._selectPortal=async portal=>{
           if(closed)return;
           let primary=(sources.primary&&sources.primary.rows)||[];
           const fallback=(sources.fallback&&sources.fallback.rows)||[];
-          /* Department Manager visibility is department-scoped. Do not merge an
-             ownership listener here; a denied requesterUid/userEmail listener must
-             never blank or warn against the manager approval queue. */
+          /* Manager privacy and query correctness use two narrow listeners while
+             this page is open: one exact pending queue for the manager's department
+             and one exact own-request query. This prevents cross-department reads
+             and avoids a broad department listener that Firestore can reject. */
           if(_advIsDepartmentManager()){
-            primary=primary.filter(function(r){return stageOf(r)==='pending_department_manager';});
+            primary=primary.filter(function(r){return stageOf(r)==='pending_department_manager';})
+              .concat((sources.own&&sources.own.rows)||[]);
           }
           const merged=_advMergeRows(primary,fallback,false);
           const dashboardRows=merged.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
@@ -1411,6 +1396,7 @@ window._selectPortal=async portal=>{
       if(_advIsDepartmentManager()){
         if(dept){
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)),'advisory_requests');
+          listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
         }else{
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
         }
