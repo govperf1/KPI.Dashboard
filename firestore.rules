@@ -783,6 +783,27 @@ service cloud.firestore {
         );
     }
 
+    function validAdvisoryOwnerResubmit() {
+      return approved() &&
+        ownEmail(resource.data.userEmail) &&
+        resource.data.workflowStage == 'returned_requester' &&
+        request.resource.data.workflowStage == 'pending_department_manager' &&
+        request.resource.data.status == 'open' &&
+        request.resource.data.managerDecision == 'pending' &&
+        request.resource.data.managerEmail == '' &&
+        request.resource.data.managerName == '' &&
+        request.resource.data.managerComment == '' &&
+        request.resource.data.updatedBy == authEmail() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'title','details','priority','relatedNewText',
+          'status','workflowStage','closureReason',
+          'managerDecision','managerComment','managerName','managerEmail',
+          'managerActionAt','managerActionAtIso',
+          'messages','attachments','attachmentCount',
+          'updatedAt','updatedAtIso','updatedBy'
+        ]);
+    }
+
     function advisoryOwner(requestId) {
       return exists(/databases/$(database)/documents/advisory_requests/$(requestId)) &&
         ownEmail(get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.userEmail);
@@ -840,6 +861,7 @@ service cloud.firestore {
 
       allow update: if
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
+        (validAdvisoryOwnerResubmit()) ||
         (approved() && ownEmail(resource.data.userEmail) &&
           validAdvisoryOwnerChange() && advisoryOwnerRoutePreserved()) ||
         (approved() && validAdvisoryManagerChange());
