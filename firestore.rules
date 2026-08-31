@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v66 — Canonical GRC Profile + Department Manager Review Workflow
+// FIRESTORE SECURITY RULES v65 — Canonical GRC Profile + Department Workflow
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -726,9 +726,11 @@ service cloud.firestore {
           request.resource.data.workflowStage in ['pending_department_manager','closed']) ||
         (resource.data.workflowStage == 'pending_super_admin' &&
           request.resource.data.workflowStage in ['pending_super_admin','closed']) ||
+        (resource.data.workflowStage == 'returned_requester' &&
+          request.resource.data.workflowStage in ['returned_requester','pending_department_manager','closed']) ||
         (resource.data.workflowStage == 'rejected_manager' &&
           request.resource.data.workflowStage == 'rejected_manager') ||
-        !(resource.data.workflowStage in ['pending_department_manager','pending_super_admin','rejected_manager']);
+        !(resource.data.workflowStage in ['pending_department_manager','pending_super_admin','returned_requester','rejected_manager']);
     }
 
     function validAdvisoryAdminChange() {
@@ -1066,16 +1068,7 @@ service cloud.firestore {
     // per-record cloud migration. This collection stores status only; it cannot
     // be used to add or edit Risk Register content.
     match /grc_risk_status/{recordId} {
-      allow get: if canReadRiskStatusData(resource.data);
-      // Query-safe scoped read. The client queries the stored canonical
-      // department value directly; avoid canonicalDepartment() in a list rule
-      // because Firestore cannot prove transformed resource values for queries.
-      allow list: if approved() &&
-        (role() in ['department_manager','risk_owner','grc_owner','platform_owner','viewer','user']) &&
-        userDepartmentKey() != '' &&
-        ('department' in resource.data) &&
-        resource.data.department == userDepartmentKey();
-      allow list: if approved() && role() in ['super_admin','admin','governance_performance_manager'];
+      allow get, list: if canReadRiskStatusData(resource.data);
       allow create: if validRiskStatusOverrideWrite(request.resource.data) &&
         request.resource.data.keys().hasOnly([
           'recordId', 'cloudId', 'department', 'departmentRaw', 'actionStatus',
