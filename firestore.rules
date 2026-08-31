@@ -1061,7 +1061,16 @@ service cloud.firestore {
     // per-record cloud migration. This collection stores status only; it cannot
     // be used to add or edit Risk Register content.
     match /grc_risk_status/{recordId} {
-      allow get, list: if canReadRiskStatusData(resource.data);
+      allow get: if canReadRiskStatusData(resource.data);
+      // Query-safe scoped read. The client queries the stored canonical
+      // department value directly; avoid canonicalDepartment() in a list rule
+      // because Firestore cannot prove transformed resource values for queries.
+      allow list: if approved() &&
+        (role() in ['department_manager','risk_owner','grc_owner','platform_owner','viewer','user']) &&
+        userDepartmentKey() != '' &&
+        ('department' in resource.data) &&
+        resource.data.department == userDepartmentKey();
+      allow list: if approved() && role() in ['super_admin','admin','governance_performance_manager'];
       allow create: if validRiskStatusOverrideWrite(request.resource.data) &&
         request.resource.data.keys().hasOnly([
           'recordId', 'cloudId', 'department', 'departmentRaw', 'actionStatus',
