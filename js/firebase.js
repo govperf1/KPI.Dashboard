@@ -1,4 +1,3 @@
-/* v271 compatibility fix */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
     import { getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,sendPasswordResetEmail,setPersistence,browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
     import { getFirestore,doc,getDoc,getDocFromServer,setDoc,addDoc,collection,serverTimestamp,onSnapshot,updateDoc,arrayUnion,query,where,orderBy,getDocs,getDocsFromServer,deleteDoc,runTransaction,writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
@@ -1112,17 +1111,12 @@ window._selectPortal=async portal=>{
        manager-email directory and no manager-specific inbox, so stale manager
        assignments can never hide a valid pending request from the department's
        current Department Manager. */
-    /* v271 compatibility fix — use the legacy department-scoped inbox as the
-       write/read contract. The currently deployed rules may be older than the
-       unpublished v65 inbox rules, while the legacy queue is explicitly kept
-       readable/writable by the published workflow rules. This prevents a v3
-       queue permission denial from blocking the entire Department Manager page. */
-    const GRC_MANAGER_QUEUE_ROOT='grc_department_approval_queues';
+    const GRC_MANAGER_QUEUE_ROOT='grc_department_approval_inbox_v3';
     function _grcManagerQueueCollection(departmentKey,kind){
-      return collection(db,GRC_MANAGER_QUEUE_ROOT,String(departmentKey||''),'items');
+      return collection(db,GRC_MANAGER_QUEUE_ROOT,String(departmentKey||''),String(kind||'review')==='risk'?'risk':'review');
     }
     function _grcManagerQueueItemRef(departmentKey,kind,requestId){
-      return doc(db,GRC_MANAGER_QUEUE_ROOT,String(departmentKey||''),'items',String(requestId||''));
+      return doc(db,GRC_MANAGER_QUEUE_ROOT,String(departmentKey||''),String(kind||'review')==='risk'?'risk':'review',String(requestId||''));
     }
     function _grcQueuePlain(v){
       if(v==null)return v;
@@ -1144,21 +1138,7 @@ window._selectPortal=async portal=>{
       });
     }
     function _grcQueueItem(kind,requestId,departmentKey,requesterEmail,snapshot){
-      const queueKind=String(kind||'review')==='risk'?'risk':'review';
-      return {
-        requestId:String(requestId||''),
-        queueKind:queueKind,
-        requestKind:queueKind,
-        sourceCollection:queueKind==='review'?'advisory_requests':'grc_risk_requests',
-        departmentKey:String(departmentKey||''),
-        requesterEmail:String(requesterEmail||'').toLowerCase().trim(),
-        requestCode:String(snapshot&&snapshot.code||snapshot&&snapshot.requestCode||requestId||''),
-        status:String(snapshot&&snapshot.status||''),
-        workflowStage:String(snapshot&&snapshot.workflowStage||''),
-        snapshot:snapshot||{},
-        createdAt:serverTimestamp(),createdAtIso:String(snapshot&&snapshot.createdAtIso||_advIso()),
-        updatedAt:serverTimestamp(),updatedAtIso:_advIso()
-      };
+      return {requestId:String(requestId||''),queueKind:String(kind||'review'),departmentKey:String(departmentKey||''),requesterEmail:String(requesterEmail||'').toLowerCase().trim(),requestCode:String(snapshot&&snapshot.code||snapshot&&snapshot.requestCode||requestId||''),status:String(snapshot&&snapshot.status||''),workflowStage:String(snapshot&&snapshot.workflowStage||''),snapshot:snapshot||{},createdAt:serverTimestamp(),createdAtIso:String(snapshot&&snapshot.createdAtIso||_advIso()),updatedAt:serverTimestamp(),updatedAtIso:_advIso()};
     }
     async function _grcResolveManagerProfile(profile){
       profile=profile||await _advFreshProfile();
@@ -1173,11 +1153,13 @@ window._selectPortal=async portal=>{
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         /*
-         * Department Manager approval inbox is read from the department-scoped
-         * queue that is supported by the deployed rules. Do not query the source
-         * Review collection here: its manager list access is intentionally not the
-         * routing contract. The queue is the compatibility boundary for both the
-         * currently deployed rules and the newer v65 rules.
+         * Department Manager approval inbox is intentionally read ONLY from the
+         * canonical, department-scoped inbox. The previous implementation also
+         * queried the source collections (advisory_requests / grc_risk_requests)
+         * by departmentKey. Those extra queries were not needed for the inbox and
+         * could be rejected by Firestore Rules, causing the entire manager queue
+         * to surface "Missing or insufficient permissions" even when the inbox
+         * itself was readable.
          */
         const result={profile:fresh,review:[],risk:[],errors:[]};
         const settled=await Promise.allSettled([
@@ -1204,11 +1186,11 @@ window._selectPortal=async portal=>{
           if(data){data._managerAssigned=true;riskMap[key]=data;}
         }
         if(settled[0].status==='fulfilled')settled[0].value.forEach(function(d){
-          const item=d.data()||{},snap=item.snapshot&&typeof item.snapshot==='object'?item.snapshot:item;
+          const item=d.data()||{},snap=item.snapshot||{};
           addReview(String(item.requestId||d.id),snap);
         });
         if(settled[1].status==='fulfilled')settled[1].value.forEach(function(d){
-          const item=d.data()||{},snap=item.snapshot&&typeof item.snapshot==='object'?item.snapshot:item;
+          const item=d.data()||{},snap=item.snapshot||{};
           addRisk(String(item.requestId||d.id),snap);
         });
         result.review=Object.keys(reviewMap).map(function(k){return reviewMap[k];});
@@ -1424,8 +1406,8 @@ window._selectPortal=async portal=>{
       if(String(current.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request. Your request must be reviewed by Super Admin.');
       if(current._storage!=='advisory_requests')throw new Error('Legacy requests cannot use the Department Manager approval workflow.');
       if(String(current.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
-      if(!['approve','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
-      if(action==='reject'&&!managerComment)throw new Error('A rejection reason is required.');
+      if(!['approve','return','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
+      if((action==='return'||action==='reject')&&!managerComment)throw new Error(action==='return'?'A return note is required.':'A rejection reason is required.');
       const requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso(),queueRef=_grcManagerQueueItemRef(String(current.departmentKey||''),'review',requestId);
       let finalStage='',finalStatus='',closureReason='';
       await runTransaction(db,async tx=>{
@@ -1433,8 +1415,12 @@ window._selectPortal=async portal=>{
         if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
         if(String(live.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request.');
         if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
+        else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='';}
         else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
-        const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:action==='approve'?'approved':'rejected',managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
+        const decision=action==='approve'?'approved':action==='return'?'returned':'rejected';
+        const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:decision,managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
+        if(action==='return'){updates.returnNote=managerComment;updates.returnSource='department_manager';updates.returnedAt=serverTimestamp();}
+        else{updates.returnNote='';updates.returnSource='';}
         if(action==='reject')updates.closedAt=serverTimestamp();
         tx.update(requestRef,updates);
       });
@@ -1444,7 +1430,7 @@ window._selectPortal=async portal=>{
          never be allowed to veto the actual manager decision. */
       try{await deleteDoc(queueRef);}catch(queueErr){console.warn('[Review Development Manager Queue] cleanup skipped after successful decision',queueErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
-      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':'Rejected ')+String(current.code||requestId),{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:action==='approve'?'approved':'rejected',comment:managerComment},{portal:String(current.platform||'grc')});}catch(_){}
+      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':action==='return'?'Returned for update ':'Rejected ')+String(current.code||requestId),{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:decision,comment:managerComment},{portal:String(current.platform||'grc')});}catch(_){}
       return true;
     };
 
