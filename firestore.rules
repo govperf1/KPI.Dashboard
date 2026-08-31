@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v46 — Stable Department Approval Queue
+// FIRESTORE SECURITY RULES v64 — Canonical GRC Profile + Department Workflow
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -605,9 +605,9 @@ service cloud.firestore {
 
 
     // Read-only rules deployment probe. The document does not need to exist;
-    // a unique v46 path prevents an older ruleset from being mistaken for this build.
+    // a unique v64 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v47-grc-department-approval-20260830';
+      allow get: if approved() && versionId == 'v64-grc-superadmin-global-20260824';
       allow list, create, update, delete: if false;
     }
 
@@ -628,6 +628,38 @@ service cloud.firestore {
     // Risk/Incident requests are indexed here atomically with the source
     // request. The path itself is department-scoped, so the manager query does
     // not depend on Firestore treating a resource-data rule as a filter.
+    // Canonical V64 Department Manager inbox. The path is department-scoped
+    // and split by workflow kind so manager queries are directly provable.
+    match /grc_department_approval_inbox_v3/{departmentKey}/{kind}/{itemId} {
+      allow get, list: if approved() && kind in ['review','risk'] && (
+        role() in ['admin','super_admin'] ||
+        (role() == 'department_manager' && userDepartmentKey() == departmentKey)
+      );
+
+      allow create, update: if approved() && kind in ['review','risk'] &&
+        request.resource.data.departmentKey is string &&
+        request.resource.data.departmentKey == departmentKey &&
+        request.resource.data.requesterEmail is string &&
+        request.resource.data.requestId is string &&
+        request.resource.data.queueKind is string &&
+        request.resource.data.queueKind == kind &&
+        (
+          role() in ['admin','super_admin'] ||
+          (role() == 'department_manager' && userDepartmentKey() == departmentKey) ||
+          (ownEmail(request.resource.data.requesterEmail) &&
+            userDepartmentKey() == departmentKey)
+        );
+
+      allow delete: if approved() && kind in ['review','risk'] && (
+        role() in ['admin','super_admin'] ||
+        (role() == 'department_manager' && userDepartmentKey() == departmentKey) ||
+        (resource.data.requesterEmail is string && ownEmail(resource.data.requesterEmail) &&
+          userDepartmentKey() == departmentKey)
+      );
+    }
+
+    // Keep the legacy queue readable/writable during migration so old pending
+    // requests are not orphaned. New V64 client code uses inbox_v3 above.
     match /grc_department_approval_queues/{departmentKey}/items/{itemId} {
       // Department-scoped approval queue. Managers list only their own
       // department. Requesters may index only their own request in their own
