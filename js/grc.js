@@ -981,10 +981,18 @@
   var grcPublishedWorkflowRequests={risks:[],incidents:[]};
 
   function canViewAllGrcRegisterData(){
-    /* Registers are a consolidated read-only catalogue for every approved GRC
-       user. Workflow approval queues remain department-scoped separately. */
-    var r=normalizedRole();
-    return !!window._fbUser && ['super_admin','admin','executive','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].indexOf(r)>=0;
+    /* Register reads must mirror Firestore Rules. Department Managers and
+       operational roles are department-scoped; only platform-wide roles read
+       the complete register catalogue. A Department Manager with
+       Project_Management therefore uses the projects departmentKey query
+       instead of an all-collection query that Rules correctly reject. */
+    var r=normalizedRole(),d=currentGrcDept(),raw=rawCurrentGrcDepartment();
+    var meaningful=raw!==null&&raw!==undefined&&String(raw).trim()!==''&&
+      !['null','none','undefined','n/a','na','unassigned','not assigned','-','—'].includes(String(raw).trim().toLowerCase());
+    if(!window._fbUser)return false;
+    if(['super_admin','admin','governance_performance_manager'].indexOf(r)>=0)return true;
+    if(['executive','viewer','user'].indexOf(r)>=0)return !meaningful;
+    return false;
   }
   function grcSyncIdentityKey(){
     var email=String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();
@@ -1698,7 +1706,7 @@
       /* Status overrides are required for approved baseline risks that have not
          yet been materialized as canonical grc_risks documents. */
       startRiskStatusOverrideSync(b);
-      var registerAll=activeTab==='register',canAll=true,dept=currentGrcDept(),rawDept=rawCurrentGrcDepartment();rawDept=(rawDept===null||rawDept===undefined)?'':String(rawDept).trim();if(['null','none','undefined','n/a','na','unassigned','not assigned','-','—'].indexOf(rawDept.toLowerCase())>=0)rawDept='';
+      var registerAll=activeTab==='register',canAll=canViewAllGrcRegisterData(),dept=currentGrcDept(),rawDept=rawCurrentGrcDepartment();rawDept=(rawDept===null||rawDept===undefined)?'':String(rawDept).trim();if(['null','none','undefined','n/a','na','unassigned','not assigned','-','—'].indexOf(rawDept.toLowerCase())>=0)rawDept='';
       var aliasMap={
         safety:['safety','Safety','Safety Department','Safety Management','Safety Management Department','السلامة','إدارة السلامة','قسم السلامة'],
         maintenance:['maintenance','Maintenance','Maintenance Department','Maintenance Management','Maintenance Management Department','الصيانة','إدارة الصيانة','قسم الصيانة'],
