@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v65 — Canonical GRC Profile + Department Workflow
+// FIRESTORE SECURITY RULES v66 — Canonical GRC Profile + Department Manager Review Workflow
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -775,6 +775,11 @@ service cloud.firestore {
             request.resource.data.managerDecision == 'approved' &&
             request.resource.data.status == 'open' &&
             request.resource.data.closureReason == '') ||
+          (request.resource.data.workflowStage == 'returned_requester' &&
+            request.resource.data.managerDecision == 'returned' &&
+            request.resource.data.status == 'open' &&
+            request.resource.data.closureReason == 'returned_by_department_manager' &&
+            request.resource.data.managerComment.size() > 0) ||
           (request.resource.data.workflowStage == 'rejected_manager' &&
             request.resource.data.managerDecision == 'rejected' &&
             request.resource.data.status == 'closed' &&
