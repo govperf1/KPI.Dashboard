@@ -1153,19 +1153,21 @@ window._selectPortal=async portal=>{
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         /*
-         * The Department Manager queue is read from queue collections only.
-         * Never make advisory_requests ownership/dept queries part of this path:
-         * those queries are the source of the repeated permission-denied errors
-         * seen in the browser and can turn a valid queue into "0 requests".
-         *
-         * v3 is the current queue. The legacy queue is read as a compatibility
-         * source so requests created before v3 was introduced are not invisible.
+         * Department Manager approval inbox is intentionally read ONLY from the
+         * canonical, department-scoped inbox. The previous implementation also
+         * queried the source collections (advisory_requests / grc_risk_requests)
+         * by departmentKey. Those extra queries were not needed for the inbox and
+         * could be rejected by Firestore Rules, causing the entire manager queue
+         * to surface "Missing or insufficient permissions" even when the inbox
+         * itself was readable.
          */
         const result={profile:fresh,review:[],risk:[],errors:[]};
+        const legacyReview=collection(db,'grc_department_approval_queues',String(fresh.departmentKey||''),'items');
+        const legacyRisk=legacyReview;
         const settled=await Promise.allSettled([
           getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review')),
           getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk')),
-          getDocsFromServer(collection(db,'grc_department_approval_queues',String(fresh.departmentKey),'items')),
+          getDocsFromServer(legacyReview)
         ]);
         if(settled[0].status==='rejected')result.errors.push('Review queue v3: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason));
         if(settled[1].status==='rejected')result.errors.push('Risk queue v3: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
@@ -1181,38 +1183,38 @@ window._selectPortal=async portal=>{
         }
         function addRisk(id,row){
           const key=String(id||row&&row.id||'');if(!key)return;
-          if(String(row&&row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;
           const status=String(row&&row.status||'').toLowerCase();
+          if(String(row&&row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;
           if(!['pending_manager','returned_manager'].includes(status))return;
           const data=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});
           if(data){data._managerAssigned=true;riskMap[key]=data;}
         }
-        function consumeV3(snap,kind){
-          if(!snap)return;
-          snap.docs.forEach(function(d){
-            const item=d.data()||{},snapData=item.snapshot||{};
-            if(kind==='review')addReview(String(item.requestId||d.id),snapData);
-            else addRisk(String(item.requestId||d.id),snapData);
-          });
-        }
-        if(settled[0].status==='fulfilled')consumeV3(settled[0].value,'review');
-        if(settled[1].status==='fulfilled')consumeV3(settled[1].value,'risk');
-        if(settled[2].status==='fulfilled'){
-          settled[2].value.docs.forEach(function(d){
-            const item=d.data()||{},kind=String(item.requestKind||item.queueKind||'review').toLowerCase();
-            const snap=item.snapshot||item.requestSnapshot||item;
-            if(kind==='risk'||kind==='incident')addRisk(String(item.requestId||d.id),snap);
-            else addReview(String(item.requestId||d.id),snap);
-          });
-        }
+        if(settled[0].status==='fulfilled')settled[0].value.forEach(function(d){
+          const item=d.data()||{},snap=item.snapshot||{};
+          addReview(String(item.requestId||d.id),snap);
+        });
+        if(settled[1].status==='fulfilled')settled[1].value.forEach(function(d){
+          const item=d.data()||{},snap=item.snapshot||{};
+          addRisk(String(item.requestId||d.id),snap);
+        });
+        /* V2/V3 migration compatibility: older deployments stored manager
+           approvals under grc_department_approval_queues/{dept}/items. Read
+           that queue as a fallback only; never query advisory_requests or
+           grc_risk_requests from the manager inbox because those collections
+           may contain legacy rows without departmentKey and Firestore Rules
+           will correctly reject a filtered collection query. */
+        if(settled[2].status==='fulfilled')settled[2].value.forEach(function(d){
+          const item=d.data()||{},snap=item.snapshot||item.record||item.data||item;
+          const kind=String(item.requestKind||item.queueKind||snap.requestKind||snap.queueKind||'').toLowerCase();
+          const id=String(item.requestId||snap.requestId||d.id);
+          if(kind==='review'||String(snap.workflowStage||'')==='pending_department_manager')addReview(id,snap);
+          else if(kind==='risk'||['pending_manager','returned_manager'].includes(String(snap.status||'').toLowerCase()))addRisk(id,snap);
+        });
         result.review=Object.keys(reviewMap).map(function(k){return reviewMap[k];});
         result.risk=Object.keys(riskMap).map(function(k){return riskMap[k];});
         result.risk=_grcRiskSort(result.risk);
         result.review.sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
-        /* Only fail when every queue source failed. An empty but readable queue is
-           a valid state and must remain visibly empty rather than throwing. */
-        const readable=settled.some(function(x){return x.status==='fulfilled';});
-        if(!readable)throw new Error(result.errors.join(' · ')||'Department approval queue could not be read.');
+        if(result.errors.length&&!result.review.length&&!result.risk.length)throw new Error(result.errors.join(' · '));
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;
       })();
       try{return await _grcManagerQueueCachePromise;}finally{_grcManagerQueueCachePromise=null;}
@@ -1320,15 +1322,8 @@ window._selectPortal=async portal=>{
     window._advisoryGetManagerQueue=async function(){
       const bundle=await window._grcGetDepartmentApprovalQueue(true);
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
-      /* Department Manager approval view must come from the department queue only.
-         Do NOT call _advisoryGetMine() here: that performs requester-ownership
-         queries against advisory_requests and, under the deployed rules, can be
-         denied for a manager. That denial used to erase an otherwise valid queue
-         and display 0 requests. The manager's own submitted requests are not
-         approval items and are intentionally handled by the requester view. */
-      const review=Array.isArray(bundle.review)?bundle.review:[],risk=Array.isArray(bundle.risk)?bundle.risk:[];
-      review._grcRiskRecords=risk;
-      return review;
+      const own=await window._advisoryGetMine().catch(function(){return[];});
+      return _advMergeRows(bundle.review,own,false);
     };
     function stageOfManagerRow(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
@@ -1442,7 +1437,6 @@ window._selectPortal=async portal=>{
         const decision=action==='approve'?'approved':action==='return'?'returned':'rejected';
         const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:decision,managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
         if(action==='return'){updates.returnNote=managerComment;updates.returnSource='department_manager';updates.returnedAt=serverTimestamp();}
-        else{updates.returnNote='';updates.returnSource='';}
         if(action==='reject')updates.closedAt=serverTimestamp();
         tx.update(requestRef,updates);
       });
@@ -1450,7 +1444,8 @@ window._selectPortal=async portal=>{
          Historical requests may have an alias in departmentKey (for example
          "Project Management" instead of "projects"). A stale queue path must
          never be allowed to veto the actual manager decision. */
-      try{await deleteDoc(queueRef);}catch(queueErr){console.warn('[Review Development Manager Queue] cleanup skipped after successful decision',queueErr);}
+      try{await deleteDoc(queueRef);}catch(queueErr){console.warn('[Review Development Manager Queue] v3 cleanup skipped after successful decision',queueErr);}
+      try{await deleteDoc(doc(db,'grc_department_approval_queues',String(current.departmentKey||''),'items',String(requestId)));}catch(queueErr){console.warn('[Review Development Manager Queue] legacy cleanup skipped after successful decision',queueErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':action==='return'?'Returned for update ':'Rejected ')+String(current.code||requestId),{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:decision,comment:managerComment},{portal:String(current.platform||'grc')});}catch(_){}
       return true;
@@ -1907,7 +1902,8 @@ window._selectPortal=async portal=>{
       /* The authoritative request update must never be coupled to deleting a
          legacy/aliased queue path. A queue cleanup failure is non-fatal. */
       await updateDoc(ref,updates);
-      try{await deleteDoc(_grcManagerQueueItemRef(dept,'risk',requestId));}catch(queueErr){console.warn('[GRC Risk Manager Queue] cleanup skipped after successful decision',queueErr);}
+      try{await deleteDoc(_grcManagerQueueItemRef(dept,'risk',requestId));}catch(queueErr){console.warn('[GRC Risk Manager Queue] v3 cleanup skipped after successful decision',queueErr);}
+      try{await deleteDoc(doc(db,'grc_department_approval_queues',String(dept||''),'items',String(requestId)));}catch(queueErr){console.warn('[GRC Risk Manager Queue] legacy cleanup skipped after successful decision',queueErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('GRC_MANAGER_APPROVAL_'+action.toUpperCase(),'Department Manager '+action+' · '+String(r.requestCode||requestId),{status:r.status},{status:status,note:note,returnFields:fields},{portal:'grc',dept:fresh.departmentKey,recordType:r.recordType||'risk'});}catch(_){}
       return true;
