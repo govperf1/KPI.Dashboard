@@ -425,3 +425,16 @@ body > .adv-success-backdrop .adv-success-ok:focus{outline:3px solid rgba(18,167
 .adv-success-route strong{display:block;font-size:11px;color:#547181;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
 .adv-success-route span{display:block;font-size:14px;font-weight:800;color:#173f55;margin-bottom:4px}
 .adv-success-route small{display:block;font-size:11px;line-height:1.55;color:#637c89}
+
+/* v276 — Department Manager approval presentation */
+.adv-manager-approval-card .adv-table-wrap{border-radius:14px}
+.adv-manager-approval-card .adv-table td{vertical-align:top}
+.adv-manager-approval-card .adv-mini-muted{margin-top:4px;color:#718797;font-size:9px}
+.adv-manager-approval-card .adv-manager-detail-cell{min-width:250px;max-width:360px;white-space:normal;line-height:1.45}
+.adv-manager-approval-card .adv-manager-detail-cell b{display:block;color:#183f57;margin-bottom:3px}
+.adv-manager-approval-card .adv-manager-detail-cell div{color:#526c7b;font-size:10px}
+.adv-manager-approval-card .adv-manager-detail-cell small{display:block;margin-top:5px;color:#7a8e99;font-size:8.5px}
+.adv-manager-approval-card .adv-manager-quick-actions{display:flex;gap:6px;flex-wrap:wrap;min-width:270px}
+.adv-manager-approval-card .adv-manager-quick-actions .adv-btn{white-space:nowrap}
+.adv-manager-sync-error{border-color:#f0b8b8!important;background:#fff7f7!important;color:#9f2028!important}
+@media(max-width:900px){.adv-manager-approval-card .adv-manager-detail-cell{min-width:210px}.adv-manager-approval-card .adv-manager-quick-actions{min-width:220px}}
