@@ -607,7 +607,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // a unique v64 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v65-grc-manager-scope-20260831';
+      allow get: if approved() && versionId == 'v66-grc-manager-approval-20260901';
       allow list, create, update, delete: if false;
     }
 
@@ -761,11 +761,11 @@ service cloud.firestore {
 
     function validAdvisoryManagerChange() {
       return advisoryManagerDepartmentMatch(resource.data) &&
-        resource.data.workflowStage == 'pending_department_manager' &&
+        resource.data.workflowStage in ['pending_department_manager','returned_manager'] &&
         !ownEmail(resource.data.userEmail) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status','workflowStage','closureReason',
-          'managerDecision','managerComment','managerName','managerEmail',
+          'managerDecision','managerComment','managerName','managerEmail','managerReturnFields',
           'managerActionAt','managerActionAtIso','closedAt',
           'updatedAt','updatedAtIso','updatedBy'
         ]) &&
