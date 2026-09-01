@@ -60,12 +60,12 @@
   }
   function historyTimeline(r,compact){var h=Array.isArray(r&&r.history)?r.history.slice():[];if(!h.length)return'';if(compact&&h.length>4)h=h.slice(-4);return'<section class="grc-risk-history '+(compact?'compact':'')+'"><div class="grc-risk-block-title">'+esc(isAr()?'سجل الاعتماد':'Approval History')+'</div><div class="grc-risk-history-list">'+h.map(function(x){var note=String(x&&x.note||'').trim(),actor=String(x&&x.by||'').trim(),rlabel=historyRoleLabel(x&&x.role||''),fields=Array.isArray(x&&x.fields)?x.fields:[];return'<div class="grc-risk-history-item"><i></i><div><div class="grc-risk-history-top"><strong>'+esc(historyStatusLabel(x&&x.status||''))+'</strong><time>'+esc(historyTime(x&&x.at||x&&x.createdAt))+'</time></div><small>'+esc(rlabel+(actor?' · '+actor:''))+'</small>'+(fields.length?'<p><b>'+esc(isAr()?'الحقول: ':'Fields: ')+'</b>'+esc(fields.map(fieldLabel).join(' · '))+'</p>':'')+(note?'<p>'+esc(note)+'</p>':'')+'</div></div>';}).join('')+'</div></section>';}
   function tone(s){if(/^pending/.test(s)||/^returned/.test(s))return'warn';if(s==='published')return'good';if(/^rejected/.test(s)||s==='cancelled')return'bad';return'info';}
-  function actionable(r){var s=String(r.status||'');if(isOwner())return ownRequest(r)&&s==='returned_requester';if(isManager())return !ownRequest(r)&&managerDepartmentRequest(r)&&(s==='pending_manager'||s==='returned_manager');if(isSuper())return s==='pending_super_admin';return false;}
+  function actionable(r){var s=String(r.status||'');if(isOwner())return ownRequest(r)&&s==='returned_requester';if(isManager())return !ownRequest(r)&&managerDepartmentRequest(r)&&s==='pending_manager';if(isSuper())return s==='pending_super_admin';return false;}
   function riskApprovalNoticeRows(){
     return cache.filter(function(r){
       var s=String(r&&r.status||'');
       if(isSuper())return s==='pending_super_admin';
-      if(isManager())return !ownRequest(r)&&managerDepartmentRequest(r)&&(s==='pending_manager'||s==='returned_manager');
+      if(isManager())return !ownRequest(r)&&managerDepartmentRequest(r)&&s==='pending_manager';
       if(isNoticeOwner())return ownRequest(r)&&['pending_manager','pending_super_admin','returned_manager','returned_requester'].indexOf(s)>=0;
       return false;
     });
@@ -129,7 +129,11 @@
   function renderApprovalNoticeBody(){
     var ov=document.getElementById('_grcApprovalNoticeOv');if(!ov)return;
     var rows=approvalNoticeRows(),body=ov.querySelector('.grc-apn-body');if(!body)return;
-    body.innerHTML='<div class="grc-apn-summary"><span>'+esc(isAr()?'حالة طلبات الاعتماد':'Approval request status')+'</span><b>'+rows.length+' '+esc(isAr()?'طلب يحتاج متابعة':'request(s) require attention')+'</b></div>'+rows.map(approvalNoticeCard).join('');
+    var risk=rows.filter(function(x){return x.kind==='risk';}),review=rows.filter(function(x){return x.kind==='review';});
+    function section(title,subtitle,list){
+      return '<section class="grc-apn-section"><div class="grc-apn-section-head"><div><strong>'+esc(title)+'</strong><small>'+esc(subtitle)+'</small></div><b>'+list.length+'</b></div>'+(list.length?list.map(approvalNoticeCard).join(''):'<div class="grc-apn-empty">'+esc(isAr()?'لا توجد طلبات اعتماد قائمة في هذا القسم.':'No pending approval requests in this section.')+'</div>')+'</section>';
+    }
+    body.innerHTML='<div class="grc-apn-summary"><span>'+esc(isAr()?'حالة طلبات الاعتماد':'Approval request status')+'</span><b>'+rows.length+' '+esc(isAr()?'طلب قائم':'pending request(s)')+'</b></div>'+section(isAr()?'طلبات اعتماد سجلات المخاطر والحوادث':'Risk & Incident Register Approval Requests',isAr()?'طلبات السجل التي تنتظر موافقتك.':'Register requests currently awaiting your approval.',risk)+section(isAr()?'طلبات اعتماد المراجعة والتطوير':'Review & Development Approval Requests',isAr()?'طلبات التطوير والمراجعة التي تنتظر موافقتك.':'Review & Development requests currently awaiting your approval.',review);
     if(!rows.length)closeApprovalNotice();
   }
   function showApprovalNotice(force){
@@ -257,7 +261,6 @@
   function inlineDecisionShell(){return '<div class="grc-risk-inline-decision" hidden></div>';}
   function actions(r){var s=String(r.status||''),html='';
     if(isManager()&&!ownRequest(r)&&managerDepartmentRequest(r)&&s==='pending_manager')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_approve\',this)">Approve to Super Admin</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_return\',this)">Return to '+esc(submitterLabel(r))+'</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_reject\',this)">Reject</button>';
-    if(isManager()&&!ownRequest(r)&&managerDepartmentRequest(r)&&s==='returned_manager')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_resend\',this)">Resend to Super Admin</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_return\',this)">Return to '+esc(submitterLabel(r))+'</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_reject\',this)">Reject</button>';
     if(isSuper()&&s==='pending_super_admin')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_approve\',this)">Approve & Publish</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_return\',this)">Return to Department Manager</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_reject\',this)">Reject</button>';
     if(isOwner()&&ownRequest(r)&&s==='returned_requester')html='<button class="grc-risk-action good" onclick="window._grcRiskEditResubmit(\''+esc(r.id)+'\')">Edit Requested Fields & Resubmit</button>';
     if(isOwner()&&ownRequest(r)&&s==='pending_manager')html='<button class="grc-risk-action bad ghost" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'cancel\',this)">Cancel Request</button>';

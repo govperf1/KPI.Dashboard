@@ -1129,7 +1129,7 @@ window._selectPortal=async portal=>{
     }
     function _grcReviewQueueSnapshot(row,requestId){
       row=row||{};return _grcQueuePlain({
-        id:String(requestId||row.id||''),code:String(row.code||requestId||''),userName:String(row.userName||''),userEmail:String(row.userEmail||'').toLowerCase().trim(),requesterUid:String(row.requesterUid||''),requesterRole:String(row.requesterRole||''),departmentKey:String(row.departmentKey||''),departmentRaw:String(row.departmentRaw||''),departmentCode:String(row.departmentCode||''),platform:String(row.platform||'grc'),serviceType:String(row.serviceType||''),requestType:String(row.requestType||''),requestTypeLabel:String(row.requestTypeLabel||''),category:String(row.category||''),relatedType:String(row.relatedType||''),relatedItems:Array.isArray(row.relatedItems)?row.relatedItems:[],relatedNewText:String(row.relatedNewText||''),benchmarkType:String(row.benchmarkType||''),formDependencies:row.formDependencies||null,title:String(row.title||''),details:String(row.details||''),priority:String(row.priority||'Medium'),status:String(row.status||'open'),workflowStage:String(row.workflowStage||'pending_department_manager'),requiresManagerApproval:row.requiresManagerApproval!==false,managerDecision:String(row.managerDecision||'pending'),createdAtIso:String(row.createdAtIso||_advIso()),updatedAtIso:String(row.updatedAtIso||row.createdAtIso||_advIso()),attachments:Array.isArray(row.attachments)?row.attachments:[],attachmentCount:Number(row.attachmentCount||0),messages:Array.isArray(row.messages)?row.messages:[]
+        id:String(requestId||row.id||''),code:String(row.code||requestId||''),userName:String(row.userName||''),userEmail:String(row.userEmail||'').toLowerCase().trim(),requesterUid:String(row.requesterUid||''),requesterRole:String(row.requesterRole||''),departmentKey:String(row.departmentKey||''),departmentRaw:String(row.departmentRaw||''),departmentCode:String(row.departmentCode||''),platform:String(row.platform||'grc'),serviceType:String(row.serviceType||''),requestType:String(row.requestType||''),requestTypeLabel:String(row.requestTypeLabel||''),category:String(row.category||''),relatedType:String(row.relatedType||''),relatedItems:Array.isArray(row.relatedItems)?row.relatedItems:[],relatedNewText:String(row.relatedNewText||''),benchmarkType:String(row.benchmarkType||''),formDependencies:row.formDependencies||null,title:String(row.title||''),details:String(row.details||''),priority:String(row.priority||'Medium'),status:String(row.status||'open'),workflowStage:String(row.workflowStage||'pending_department_manager'),requiresManagerApproval:row.requiresManagerApproval!==false,managerDecision:String(row.managerDecision||'pending'),returnFields:Array.isArray(row.returnFields)?row.returnFields:[],returnNote:String(row.returnNote||''),createdAtIso:String(row.createdAtIso||_advIso()),updatedAtIso:String(row.updatedAtIso||row.createdAtIso||_advIso()),attachments:Array.isArray(row.attachments)?row.attachments:[],attachmentCount:Number(row.attachmentCount||0),messages:Array.isArray(row.messages)?row.messages:[]
       });
     }
     function _grcRiskQueueSnapshot(row,requestId){
@@ -1185,7 +1185,7 @@ window._selectPortal=async portal=>{
           const key=String(id||row&&row.id||'');if(!key)return;
           const status=String(row&&row.status||'').toLowerCase();
           if(String(row&&row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;
-          if(!['pending_manager','returned_manager'].includes(status))return;
+          if(status!=='pending_manager')return;
           const data=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});
           if(data){data._managerAssigned=true;riskMap[key]=data;}
         }
@@ -1208,7 +1208,7 @@ window._selectPortal=async portal=>{
           const kind=String(item.requestKind||item.queueKind||snap.requestKind||snap.queueKind||'').toLowerCase();
           const id=String(item.requestId||snap.requestId||d.id);
           if(kind==='review'||String(snap.workflowStage||'')==='pending_department_manager')addReview(id,snap);
-          else if(kind==='risk'||['pending_manager','returned_manager'].includes(String(snap.status||'').toLowerCase()))addRisk(id,snap);
+          else if(kind==='risk'||String(snap.status||'').toLowerCase()==='pending_manager')addRisk(id,snap);
         });
 
         /* Existing queue indexes can be sparse/legacy and may contain only the
@@ -1233,7 +1233,7 @@ window._selectPortal=async portal=>{
               const snap=await getDoc(doc(db,GRC_RISK_REQUESTS_COLLECTION,id));
               if(snap.exists()){
                 const r=snap.data()||{},status=String(r.status||'').toLowerCase();
-                if(['pending_manager','returned_manager'].includes(status) &&
+                if(status==='pending_manager' &&
                    String(r.submittedByEmail||'').toLowerCase().trim()!==fresh.email){
                   const data=_grcRiskRequestData(snap);
                   if(data){data._managerAssigned=true;riskMap[id]=data;}
@@ -1259,7 +1259,7 @@ window._selectPortal=async portal=>{
         });
         if(sourceReads[1].status==='fulfilled')sourceReads[1].value.forEach(function(d){
           const r=d.data()||{},status=String(r.status||'').toLowerCase();
-          if(['pending_manager','returned_manager'].includes(status) && String(r.submittedByEmail||'').toLowerCase().trim()!==fresh.email){
+          if(status==='pending_manager' && String(r.submittedByEmail||'').toLowerCase().trim()!==fresh.email){
             const data=_grcRiskRequestData(d);
             if(data){data._managerAssigned=true;riskMap[d.id]=data;}
           }
@@ -1279,7 +1279,7 @@ window._selectPortal=async portal=>{
       try{
         const [reviewSnap,riskSnap]=await Promise.all([getDocs(collection(db,ADV_REQUESTS_COLLECTION)),getDocs(collection(db,GRC_RISK_REQUESTS_COLLECTION))]);
         for(const d of reviewSnap.docs){const r=d.data()||{},dept=String(r.departmentKey||'');if(!dept||String(r.workflowStage||'')!=='pending_department_manager')continue;const snapshot=_grcReviewQueueSnapshot(r,d.id);await setDoc(_grcManagerQueueItemRef(dept,'review',d.id),_grcQueueItem('review',d.id,dept,String(r.userEmail||''),snapshot),{merge:false});count++;}
-        for(const d of riskSnap.docs){const r=d.data()||{},dept=String(r.departmentKey||r.department||''),status=String(r.status||'');if(!dept||!['pending_manager','returned_manager'].includes(status))continue;const snapshot=_grcRiskQueueSnapshot(r,d.id);await setDoc(_grcManagerQueueItemRef(dept,'risk',d.id),_grcQueueItem('risk',d.id,dept,String(r.submittedByEmail||''),snapshot),{merge:false});count++;}
+        for(const d of riskSnap.docs){const r=d.data()||{},dept=String(r.departmentKey||r.department||''),status=String(r.status||'');if(!dept||status!=='pending_manager')continue;const snapshot=_grcRiskQueueSnapshot(r,d.id);await setDoc(_grcManagerQueueItemRef(dept,'risk',d.id),_grcQueueItem('risk',d.id,dept,String(r.submittedByEmail||''),snapshot),{merge:false});count++;}
       }catch(e){console.warn('[GRC Department Inbox Backfill]',e&&e.code||e);}return count;
     };
 
@@ -1465,7 +1465,7 @@ window._selectPortal=async portal=>{
       return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
 
-    window._advisoryManagerAction=async function(requestId,action,comment){
+    window._advisoryManagerAction=async function(requestId,action,comment,fields){
       // Re-read the manager profile from the Firestore server immediately before
       // the decision. This keeps the client department/role exactly aligned with
       // the values Security Rules evaluate and avoids stale-device permission
@@ -1473,13 +1473,14 @@ window._selectPortal=async portal=>{
       await _advAssertRulesVersion();
       const freshProfile=await _grcResolveManagerProfile(await _advFreshProfile());
       await _advAssertProfileScope(freshProfile);
-      const dept=freshProfile.departmentKey,managerEmail=freshProfile.email,managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim();
+      const dept=freshProfile.departmentKey,managerEmail=freshProfile.email,managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim(),returnFields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
       const loc=await _advLocateRequest(requestId),current=Object.assign(loc.record,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
       if(String(current.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request. Your request must be reviewed by Super Admin.');
       if(current._storage!=='advisory_requests')throw new Error('Legacy requests cannot use the Department Manager approval workflow.');
       if(String(current.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
       if(!['approve','return','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
       if((action==='return'||action==='reject')&&!managerComment)throw new Error(action==='return'?'A return note is required.':'A rejection reason is required.');
+      if(action==='return'&&!returnFields.length)throw new Error('Select at least one field that the requester must update.');
       const requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso(),queueRef=_grcManagerQueueItemRef(String(current.departmentKey||''),'review',requestId);
       let finalStage='',finalStatus='',closureReason='';
       await runTransaction(db,async tx=>{
@@ -1491,7 +1492,7 @@ window._selectPortal=async portal=>{
         else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
         const decision=action==='approve'?'approved':action==='return'?'returned':'rejected';
         const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:decision,managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
-        if(action==='return'){updates.returnNote=managerComment;updates.returnSource='department_manager';updates.returnedAt=serverTimestamp();}
+        if(action==='return'){updates.returnNote=managerComment;updates.returnSource='department_manager';updates.returnFields=returnFields;updates.returnedAt=serverTimestamp();}
         if(action==='reject')updates.closedAt=serverTimestamp();
         tx.update(requestRef,updates);
       });
@@ -1561,7 +1562,7 @@ window._selectPortal=async portal=>{
         if(String(current.requestType||'').toLowerCase()==='new'&&!relatedNewText)throw new Error('Proposed item name is required.');
         updates.title=title;updates.details=details;updates.priority=priority;updates.relatedNewText=relatedNewText;
         updates.status='open';updates.workflowStage='pending_department_manager';updates.closureReason='';
-        updates.managerDecision='pending';updates.managerComment='';updates.managerName='';updates.managerEmail='';
+        updates.managerDecision='pending';updates.managerComment='';updates.managerName='';updates.managerEmail='';updates.returnFields=[];updates.returnNote='';updates.returnSource='';
         updates.managerActionAt=null;updates.managerActionAtIso='';
         updates.messages=arrayUnion({id:'msg_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),senderRole:_advRole(),senderName:String(window._fbName||'Requester'),senderEmail:_advEmail(),text:'Request updated and resubmitted to the Department Manager.',attachments:messageAttachments,createdAt:_advIso()});
         const snapshot=_grcReviewQueueSnapshot(Object.assign({},current,updates,{id:requestId,departmentKey:departmentKey,userEmail:_advEmail(),updatedAtIso:_advIso()}),requestId);
@@ -1938,15 +1939,14 @@ window._selectPortal=async portal=>{
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
       await _advAssertProfileScope(fresh);
       const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data(),currentStatus=String(r.status||'');
-      if(!['pending_manager','returned_manager'].includes(currentStatus))throw new Error('This request is not awaiting your approval.');
+      if(currentStatus!=='pending_manager')throw new Error('This request is not awaiting your approval.');
       action=String(action||'');note=String(note||'').trim();fields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
       let status='';
       if(action==='approve'&&currentStatus==='pending_manager')status='pending_super_admin';
-      else if(action==='resend'&&currentStatus==='returned_manager')status='pending_super_admin';
       else if(action==='return')status='returned_requester';
       else if(action==='reject')status='rejected_manager';
       else throw new Error('Invalid action for the current workflow stage.');
-      if(['return','reject','resend'].includes(action)&&!note)throw new Error('A note is required.');
+      if(['return','reject'].includes(action)&&!note)throw new Error('A note is required.');
       if(action==='return'&&!fields.length)throw new Error('Select at least one field that the GRC Owner must update.');
       const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];
       history.push({status,by:fresh.email,role:fresh.role,at:now,note:note,fields:fields});
@@ -2042,7 +2042,7 @@ window._selectPortal=async portal=>{
       const sources={},unsubs=[],failed={};let successCount=0;
       function emit(){
         let rows=_grcRiskMergeRows(Object.keys(sources).map(k=>sources[k]));
-        if(_grcRiskIsManager())rows=rows.filter(function(r){return ['pending_manager','returned_manager'].includes(String(r&&r.status||'').toLowerCase());});
+        if(_grcRiskIsManager())rows=rows.filter(function(r){return String(r&&r.status||'').toLowerCase()==='pending_manager';});
         callback(rows);
       }
       qrefs.forEach((qref,i)=>{unsubs.push(onSnapshot(qref,{includeMetadataChanges:true},snap=>{
