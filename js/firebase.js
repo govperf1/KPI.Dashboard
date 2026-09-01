@@ -1210,6 +1210,61 @@ window._selectPortal=async portal=>{
           if(kind==='review'||String(snap.workflowStage||'')==='pending_department_manager')addReview(id,snap);
           else if(kind==='risk'||['pending_manager','returned_manager'].includes(String(snap.status||'').toLowerCase()))addRisk(id,snap);
         });
+
+        /* Existing queue indexes can be sparse/legacy and may contain only the
+           request id plus workflow metadata. Rehydrate those rows from the
+           authoritative request document so the manager never sees a card full
+           of dashes and can open/decide the real request. */
+        await Promise.all([
+          ...Object.keys(reviewMap).map(async function(id){
+            try{
+              const snap=await getDoc(doc(db,ADV_REQUESTS_COLLECTION,id));
+              if(snap.exists()){
+                const r=_advNormalizeRow(snap.id,snap.data(),'advisory_requests');
+                if(String(r.workflowStage||'')==='pending_department_manager' &&
+                   String(r.userEmail||'').toLowerCase().trim()!==fresh.email){
+                  r._managerAssigned=true;reviewMap[id]=r;
+                }
+              }
+            }catch(e){console.warn('[GRC Manager Queue] review rehydrate skipped',id,e&&e.code||e);}
+          }),
+          ...Object.keys(riskMap).map(async function(id){
+            try{
+              const snap=await getDoc(doc(db,GRC_RISK_REQUESTS_COLLECTION,id));
+              if(snap.exists()){
+                const r=snap.data()||{},status=String(r.status||'').toLowerCase();
+                if(['pending_manager','returned_manager'].includes(status) &&
+                   String(r.submittedByEmail||'').toLowerCase().trim()!==fresh.email){
+                  const data=_grcRiskRequestData(snap);
+                  if(data){data._managerAssigned=true;riskMap[id]=data;}
+                }
+              }
+            }catch(e){console.warn('[GRC Manager Queue] risk rehydrate skipped',id,e&&e.code||e);}
+          })
+        ]);
+
+        /* Do not depend solely on the secondary inbox. The published Rules allow
+           a Department Manager to list authoritative requests in their own
+           department. This recovers requests whose queue index was not created
+           by an older deployment. */
+        const sourceReads=await Promise.allSettled([
+          getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',String(fresh.departmentKey||'')),where('workflowStage','==','pending_department_manager'))),
+          getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',String(fresh.departmentKey||''))))
+        ]);
+        if(sourceReads[0].status==='fulfilled')sourceReads[0].value.forEach(function(d){
+          const r=_advNormalizeRow(d.id,d.data(),'advisory_requests');
+          if(String(r.workflowStage||'')==='pending_department_manager' && String(r.userEmail||'').toLowerCase().trim()!==fresh.email){
+            r._managerAssigned=true;reviewMap[d.id]=r;
+          }
+        });
+        if(sourceReads[1].status==='fulfilled')sourceReads[1].value.forEach(function(d){
+          const r=d.data()||{},status=String(r.status||'').toLowerCase();
+          if(['pending_manager','returned_manager'].includes(status) && String(r.submittedByEmail||'').toLowerCase().trim()!==fresh.email){
+            const data=_grcRiskRequestData(d);
+            if(data){data._managerAssigned=true;riskMap[d.id]=data;}
+          }
+        });
+
         result.review=Object.keys(reviewMap).map(function(k){return reviewMap[k];});
         result.risk=Object.keys(riskMap).map(function(k){return riskMap[k];});
         result.risk=_grcRiskSort(result.risk);
@@ -1432,7 +1487,7 @@ window._selectPortal=async portal=>{
         if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
         if(String(live.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request.');
         if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
-        else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='';}
+        else if(action==='return'){finalStage='returned_requester';finalStatus='in_progress';closureReason='returned_by_department_manager';}
         else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
         const decision=action==='approve'?'approved':action==='return'?'returned':'rejected';
         const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:decision,managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
@@ -1895,9 +1950,13 @@ window._selectPortal=async portal=>{
       if(action==='return'&&!fields.length)throw new Error('Select at least one field that the GRC Owner must update.');
       const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];
       history.push({status,by:fresh.email,role:fresh.role,at:now,note:note,fields:fields});
-      const updates={status,managerName:String(window._fbName||fresh.email),managerEmail:fresh.email,managerNote:note,managerActionAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history};
-      if(action==='return'){updates.returnFields=fields;updates.returnNote=note;updates.returnSource='department_manager';}
-      else{updates.returnFields=[];updates.returnNote='';updates.returnSource='';}
+      /* V65 published Rules allow only the manager decision fields below.
+         Preserve the selected return fields inside managerNote/history so the
+         decision is accepted without weakening the deployed Rules. */
+      const managerDecisionNote=action==='return' && fields.length
+        ? note+'\n[Return fields: '+fields.join(', ')+']'
+        : note;
+      const updates={status,managerName:String(window._fbName||fresh.email),managerEmail:fresh.email,managerNote:managerDecisionNote,managerActionAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history};
       const dept=String(r.departmentKey||r.department||'');
       /* The authoritative request update must never be coupled to deleting a
          legacy/aliased queue path. A queue cleanup failure is non-fatal. */
