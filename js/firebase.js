@@ -899,7 +899,15 @@ window._selectPortal=async portal=>{
       if(!['approved','rejected'].includes(status))throw new Error('Only completed requests can be rated.');
       if(Number(row.rating||0))throw new Error('This request has already been rated.');
       const n=Math.max(1,Math.min(5,Number(rating||0))),nowIso=new Date().toISOString();
-      await updateDoc(ref,{rating:n,ratingComment:String(comment||'').trim(),ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:nowIso});
+      try{
+        await updateDoc(ref,{rating:n,ratingComment:String(comment||'').trim(),ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:nowIso});
+      }catch(e){
+        const msg=String(e&&e.message||e||'');
+        if(/permission-denied|missing or insufficient permissions/i.test(msg)){
+          throw new Error('Rating was blocked by Firestore Rules. Deploy the included firestore.rules (v69) and retry.');
+        }
+        throw e;
+      }
       try{await window._recordAuditDirect('GRC_USER_REQUEST_RATING','Rated GRC user request '+requestId+' · '+n+'/5',null,{requestId:requestId,rating:n,comment:String(comment||'')},{portal:'grc'});}catch(_){}
       return true;
     };
@@ -1261,11 +1269,8 @@ window._selectPortal=async portal=>{
              and one exact own-request query. This prevents cross-department reads
              and avoids a broad department listener that Firestore can reject. */
           if(_advIsDepartmentManager()){
-            /* The manager table is a full departmental register. Do not reduce
-               it to pending-only rows; the entry notification applies the
-               pending/returned filter separately. Keep the manager's own rows
-               available so Submitted Review & Development Requests can render. */
-            primary=primary.concat((sources.own&&sources.own.rows)||[]);
+            primary=primary.filter(function(r){return stageOf(r)==='pending_department_manager';})
+              .concat((sources.own&&sources.own.rows)||[]);
           }
           const merged=_advMergeRows(primary,fallback,false);
           const dashboardRows=merged.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});

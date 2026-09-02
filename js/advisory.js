@@ -106,10 +106,8 @@
     return raw.replace(/ /g,'_');
   }
   function isManagerApprovalRecord(r){
-    /* Department Approval Requests table: show every Review & Development
-       request belonging to the manager's department, regardless of status.
-       Pending/returned filtering is used only by the entry notification. */
     if(!isDepartmentManager()||!userDepartmentKey())return false;
+    if(workflowStage(r)!=='pending_department_manager')return false;
     var requestDept=canonicalDeptKey(r&&r.departmentKey||r&&r.department||r&&r.departmentRaw||'');
     var myDept=canonicalDeptKey(userDepartmentKey());
     return !!requestDept&&!!myDept&&requestDept===myDept&&String(r&&r.userEmail||'').toLowerCase().trim()!==userEmail();
@@ -255,7 +253,7 @@
   function managerRequestsHtml(){
     var review=records.filter(isManagerApprovalRecord);
     var error=lastLoadError?'<div class="adv-card" style="margin-bottom:12px;border-color:#f1b6b6;background:#fff7f7;color:#991b1b"><strong>Department approval sync error:</strong> '+esc(lastLoadError)+'</div>':'';
-    var table='<div class="adv-card" style="margin-bottom:14px"><div class="adv-register-toolbar"><div><h3>Department Approval Requests</h3><p>All Review & Development requests for your department. Pending/returned items requiring action appear in the entry notification.</p></div><div class="adv-filter-note"><b>'+review.length+'</b> Requests</div></div><div class="adv-table-wrap"><table class="adv-table" style="min-width:900px"><thead><tr><th>Request Code</th><th>Request Area</th><th>Requester</th><th>Approval Stage</th><th>Submitted</th><th></th></tr></thead><tbody>'+(review.length?review.map(function(x){var onclick="window._advOpenRequest('"+esc(x.id)+"')";return'<tr><td class="adv-code">'+esc(x.code||x.id)+'</td><td>'+esc(typeLabel(x))+'</td><td>'+esc(x.userName||x.userEmail||'—')+'</td><td><span class="adv-workflow-stage">'+esc(workflowLabel(x))+'</span></td><td>'+esc(formatDate(x.createdAt,true))+'</td><td><button class="adv-btn secondary" onclick="'+onclick+'">Review & Approve</button></td></tr>';}).join(''):'<tr><td colspan="6"><div class="adv-empty">No Review & Development requests are awaiting approval.</div></td></tr>')+'</tbody></table></div></div>';
+    var table='<div class="adv-card" style="margin-bottom:14px"><div class="adv-register-toolbar"><div><h3>Department Approval Requests</h3><p>Review & Development requests awaiting your department approval.</p></div><div class="adv-filter-note"><b>'+review.length+'</b> Pending</div></div><div class="adv-table-wrap"><table class="adv-table" style="min-width:900px"><thead><tr><th>Request Code</th><th>Request Area</th><th>Requester</th><th>Approval Stage</th><th>Submitted</th><th></th></tr></thead><tbody>'+(review.length?review.map(function(x){var onclick="window._advOpenRequest('"+esc(x.id)+"')";return'<tr><td class="adv-code">'+esc(x.code||x.id)+'</td><td>'+esc(typeLabel(x))+'</td><td>'+esc(x.userName||x.userEmail||'—')+'</td><td><span class="adv-workflow-stage">'+esc(workflowLabel(x))+'</span></td><td>'+esc(formatDate(x.createdAt,true))+'</td><td><button class="adv-btn secondary" onclick="'+onclick+'">Review & Approve</button></td></tr>';}).join(''):'<tr><td colspan="6"><div class="adv-empty">No Review & Development requests are awaiting approval.</div></td></tr>')+'</tbody></table></div></div>';
     return error+table+ownRequestsHtml();
   }
 
