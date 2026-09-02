@@ -1,0 +1,21 @@
+GRC Super Admin Visibility + One-Time Rating Notice Fix
+
+Modified files:
+- firebase.js
+- grc-risk-workflow.js
+
+Fixes:
+1) Super Admin now receives a dedicated Firestore listener for Review & Development requests with workflowStage=pending_super_admin.
+2) Those Review & Development requests are included in the Super Admin approval notification and approval count.
+3) The Super Admin notification card is read-only/open-to-respond and no longer shows Department Manager actions.
+4) Super Admin Risk/Incident requests continue using the existing risk approval queue.
+5) Rating notification dismissal key is now stable per request/status instead of depending on updatedAt, so repeated refresh/listener updates do not make the same rating notice appear again.
+6) Choosing Rate Now also dismisses the notification; the request can still be opened for rating.
+
+Validation performed:
+- node --check firebase.js: PASS
+- node --check grc-risk-workflow.js: PASS
+- node --check advisory.js (unchanged reference): PASS
+- Static checks confirmed the Super Admin Review queue listener, popup inclusion, stable rating key, and Rate Now dismissal are present.
+
+Firestore Rules were NOT modified in this package.
