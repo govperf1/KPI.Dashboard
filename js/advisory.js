@@ -192,16 +192,23 @@
         if(!apiReady('_advisoryGetAll'))throw new Error('Record request data service is unavailable.');
         next=await window._advisoryGetAll();managerRiskRecords=[];
       }else if(isDepartmentManager()){
-        if(!apiReady('_advisoryGetManagerQueue')||!apiReady('_grcRiskRequestsGetForManager'))throw new Error('Department approval services are unavailable.');
-        var bundle=await Promise.allSettled([window._advisoryGetManagerQueue(),window._grcRiskRequestsGetForManager()]),errs=[];
-        next=bundle[0].status==='fulfilled'?(bundle[0].value||[]):[];
-        managerRiskRecords=bundle[1].status==='fulfilled'&&Array.isArray(bundle[1].value)?bundle[1].value:[];
-        if(bundle[0].status==='rejected')errs.push('Review & Development: '+String(bundle[0].reason&&bundle[0].reason.message||bundle[0].reason));
-        if(bundle[1].status==='rejected')errs.push('Risk / Incident: '+String(bundle[1].reason&&bundle[1].reason.message||bundle[1].reason));
-        /* Do not replace a successfully loaded queue with an empty screen when
-           the other queue has a rules/network failure. Keep the working side visible. */
-        if(errs.length && !next.length && !managerRiskRecords.length)lastLoadError=errs.join(' · ');
-        else if(errs.length)lastLoadError='One approval queue could not be synchronized: '+errs.join(' · ');
+        /* Department Manager approval inbox is Review & Development only.
+           Risk / Incident requests are intentionally not loaded on this page.
+           Fetch the manager's own submissions separately so they remain visible
+           in Submitted Review & Development Requests without entering the
+           approval inbox. */
+        if(!apiReady('_advisoryGetManagerQueue')||!apiReady('_advisoryGetMine'))throw new Error('Review & Development request services are unavailable.');
+        var bundle=await Promise.allSettled([window._advisoryGetManagerQueue(),window._advisoryGetMine()]);
+        var approvalRows=bundle[0].status==='fulfilled'&&Array.isArray(bundle[0].value)?bundle[0].value:[];
+        var ownRows=bundle[1].status==='fulfilled'&&Array.isArray(bundle[1].value)?bundle[1].value:[];
+        var byId={};
+        approvalRows.concat(ownRows).forEach(function(r){if(r&&r.id)byId[String(r.id)]=r;});
+        next=Object.keys(byId).map(function(k){return byId[k];});
+        managerRiskRecords=[];
+        var errs=[];
+        if(bundle[0].status==='rejected')errs.push('Review & Development approval queue: '+String(bundle[0].reason&&bundle[0].reason.message||bundle[0].reason));
+        if(bundle[1].status==='rejected')errs.push('My Review & Development Requests: '+String(bundle[1].reason&&bundle[1].reason.message||bundle[1].reason));
+        if(errs.length)lastLoadError=errs.join(' · ');
       }else{
         if(!apiReady('_advisoryGetMine'))throw new Error('Record request data service is unavailable.');
         next=await window._advisoryGetMine();managerRiskRecords=[];
@@ -241,13 +248,12 @@
   window._advSetDashboardFilter=function(k,v){if(k==='search')dashboardSearch=String(v||'');if(k==='status')dashboardStatus=String(v||'');renderView();};
   window._advResetFilters=function(){dashboardFilter='all';departmentFilter='';dashboardSearch='';dashboardStatus='';renderView();};
 
-  function requestsHtml(){return'<section class="adv-view is-active"><div class="grc-section-head"><div><div class="grc-section-title">Review & Development Requests</div><div class="grc-section-sub">'+(isAdmin()?'Review and respond to '+PLATFORM_LABELS[currentPlatform]+' requests.':isDepartmentManager()?'Approve GRC requests from your department, then follow your own submitted requests below.':'Submit an Existing Item Review & Update request or a New Item Request.')+'</div></div><button class="grc-primary-btn" onclick="window._advOpenGuidanceRequest()">＋ Submit Request</button></div>'+(isAdmin()?adminRequestsHtml():isDepartmentManager()?managerRequestsHtml():ownRequestsHtml())+'</section>';}
+  function requestsHtml(){return'<section class="adv-view is-active"><div class="grc-section-head"><div><div class="grc-section-title">Review & Development Requests</div><div class="grc-section-sub">'+(isAdmin()?'Review and respond to '+PLATFORM_LABELS[currentPlatform]+' requests.':isDepartmentManager()?'Approve Review & Development requests from your department, then follow your own submitted requests below.':'Submit an Existing Item Review & Update request or a New Item Request.')+'</div></div><button class="grc-primary-btn" onclick="window._advOpenGuidanceRequest()">＋ Submit Request</button></div>'+(isAdmin()?adminRequestsHtml():isDepartmentManager()?managerRequestsHtml():ownRequestsHtml())+'</section>';}
   function ownRequestsHtml(){var list=records.filter(function(r){if(isDepartmentManager())return isManagerOwnRequest(r);return String(r&&r.userEmail||'').toLowerCase().trim()===userEmail();}).slice().sort(function(a,b){return timeMs(b.createdAt)-timeMs(a.createdAt);});return'<div class="adv-card"><div class="adv-register-toolbar"><div><h3>Submitted Review & Development Requests</h3><p>Your '+PLATFORM_LABELS[currentPlatform]+' requests only.</p></div><button class="adv-btn ghost" onclick="window._advReload()">Refresh</button></div><div class="adv-table-wrap"><table class="adv-table" style="min-width:980px"><thead><tr><th>Request Code</th><th>Request Type</th><th>Item Type</th><th>Related Record(s)</th><th>Submitted</th><th>Status</th><th>Approval Stage</th><th>Last Update</th><th>Rating</th><th></th></tr></thead><tbody>'+(list.length?list.map(function(r){return'<tr><td class="adv-code">'+esc(r.code||r.id)+'</td><td>'+esc(typeLabel(r))+'</td><td>'+esc(r.category||r.relatedType||'—')+'</td><td>'+esc(relatedText(r))+'</td><td>'+formatDate(r.createdAt,true)+'</td><td>'+statusBadge(r.status)+'</td><td><span class="adv-workflow-stage">'+esc(workflowLabel(r))+'</span></td><td>'+formatDate(r.updatedAt||r.respondedAt||r.createdAt,true)+'</td><td>'+stars(r.rating)+(r.ratingComment?'<div class="adv-rating-comment-mini">'+esc(r.ratingComment)+'</div>':'')+'</td><td><button class="adv-btn secondary" onclick="window._advOpenRequest(\''+esc(r.id)+'\')">Show</button></td></tr>';}).join(''):'<tr><td colspan="10"><div class="adv-empty">No requests have been submitted yet.</div></td></tr>')+'</tbody></table></div></div>';}
   function managerRequestsHtml(){
-    var review=records.filter(isManagerApprovalRecord),risk=(managerRiskRecords||[]).filter(function(r){return ['pending_manager','returned_manager'].indexOf(String(r&&r.status||'').toLowerCase())>=0;});
-    var combined=review.map(function(r){return{kind:'review',id:r.id,code:r.code||r.id,requester:r.userName||r.userEmail||'—',label:typeLabel(r),stage:workflowLabel(r),time:timeMs(r.createdAt),date:formatDate(r.createdAt,true)};}).concat(risk.map(function(r){return{kind:'risk',id:r.id,code:r.requestCode||r.id,requester:r.submittedByName||r.submittedByEmail||'—',label:(String(r.recordType||'risk').toLowerCase()==='incident'?'Incident ':'Risk ')+String(r.operation||'request').replace(/^./,function(c){return c.toUpperCase();}),stage:String(r.status||'pending_manager').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();}),time:timeMs(r.createdAt)||Date.parse(r.createdAtIso||0)||0,date:formatDate(r.createdAt||r.createdAtIso,true)};})).sort(function(a,b){return b.time-a.time;});
+    var review=records.filter(isManagerApprovalRecord);
     var error=lastLoadError?'<div class="adv-card" style="margin-bottom:12px;border-color:#f1b6b6;background:#fff7f7;color:#991b1b"><strong>Department approval sync error:</strong> '+esc(lastLoadError)+'</div>':'';
-    var table='<div class="adv-card" style="margin-bottom:14px"><div class="adv-register-toolbar"><div><h3>Department Approval Requests</h3><p>Risk, Incident, and Review & Development requests awaiting your department approval.</p></div><div class="adv-filter-note"><b>'+combined.length+'</b> Pending</div></div><div class="adv-table-wrap"><table class="adv-table" style="min-width:900px"><thead><tr><th>Request Code</th><th>Request Area</th><th>Requester</th><th>Approval Stage</th><th>Submitted</th><th></th></tr></thead><tbody>'+(combined.length?combined.map(function(x){var onclick=x.kind==='review'?"window._advOpenRequest('"+esc(x.id)+"')":"window._grcRiskOpenProfile('"+esc(x.id)+"')";return'<tr><td class="adv-code">'+esc(x.code)+'</td><td>'+esc(x.label)+'</td><td>'+esc(x.requester)+'</td><td><span class="adv-workflow-stage">'+esc(x.stage)+'</span></td><td>'+esc(x.date)+'</td><td><button class="adv-btn secondary" onclick="'+onclick+'">Open Approval</button></td></tr>';}).join(''):'<tr><td colspan="6"><div class="adv-empty">No department requests are awaiting approval.</div></td></tr>')+'</tbody></table></div></div>';
+    var table='<div class="adv-card" style="margin-bottom:14px"><div class="adv-register-toolbar"><div><h3>Department Approval Requests</h3><p>Review & Development requests awaiting your department approval.</p></div><div class="adv-filter-note"><b>'+review.length+'</b> Pending</div></div><div class="adv-table-wrap"><table class="adv-table" style="min-width:900px"><thead><tr><th>Request Code</th><th>Request Area</th><th>Requester</th><th>Approval Stage</th><th>Submitted</th><th></th></tr></thead><tbody>'+(review.length?review.map(function(x){var onclick="window._advOpenRequest('"+esc(x.id)+"')";return'<tr><td class="adv-code">'+esc(x.code||x.id)+'</td><td>'+esc(typeLabel(x))+'</td><td>'+esc(x.userName||x.userEmail||'—')+'</td><td><span class="adv-workflow-stage">'+esc(workflowLabel(x))+'</span></td><td>'+esc(formatDate(x.createdAt,true))+'</td><td><button class="adv-btn secondary" onclick="'+onclick+'">Review & Approve</button></td></tr>';}).join(''):'<tr><td colspan="6"><div class="adv-empty">No Review & Development requests are awaiting approval.</div></td></tr>')+'</tbody></table></div></div>';
     return error+table+ownRequestsHtml();
   }
 
