@@ -1261,8 +1261,11 @@ window._selectPortal=async portal=>{
              and one exact own-request query. This prevents cross-department reads
              and avoids a broad department listener that Firestore can reject. */
           if(_advIsDepartmentManager()){
-            primary=primary.filter(function(r){return stageOf(r)==='pending_department_manager';})
-              .concat((sources.own&&sources.own.rows)||[]);
+            /* The manager table is a full departmental register. Do not reduce
+               it to pending-only rows; the entry notification applies the
+               pending/returned filter separately. Keep the manager's own rows
+               available so Submitted Review & Development Requests can render. */
+            primary=primary.concat((sources.own&&sources.own.rows)||[]);
           }
           const merged=_advMergeRows(primary,fallback,false);
           const dashboardRows=merged.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
