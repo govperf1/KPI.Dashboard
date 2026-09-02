@@ -838,7 +838,7 @@ service cloud.firestore {
       allow list: if approved() && profileRoleFrom(userData()) == 'department_manager' &&
         profileDepartmentKeyFrom(userData()) != '' &&
         ('departmentKey' in resource.data) &&
-        canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData()) &&
+        resource.data.departmentKey == profileDepartmentKeyFrom(userData()) &&
         ('workflowStage' in resource.data) && resource.data.workflowStage == 'pending_department_manager';
       allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
@@ -1023,7 +1023,7 @@ service cloud.firestore {
         (approved() && profileRoleFrom(userData()) == 'department_manager' &&
           profileDepartmentKeyFrom(userData()) != '' &&
           ('departmentKey' in resource.data) &&
-          canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
+          resource.data.departmentKey == profileDepartmentKeyFrom(userData())) ||
         (canReadRiskIncidentWorkflow() && (
           (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid) ||
           (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail()) ||
