@@ -1,0 +1,24 @@
+GRC v282 ONE-TIME CLEANUP
+
+Deletes ONLY current GRC request data:
+- grc_requests
+- advisory_requests
+- advisory_public
+- advisory_attachments
+- grc_risk_requests
+- Review & Development fallback rows in kpi_requests only
+- nested grc_department_approval_inbox_v3/review/*
+- nested grc_department_approval_inbox_v3/risk/*
+
+PRESERVED:
+- Risk Register records
+- Incident Register records
+- Policies / Plans / Forms / Codes / Initiatives
+- Users and roles
+- Audit logs
+- Request counters
+- KPI data
+- all other GRC configuration
+
+The cleanup button is visible to Super Admin only and asks for confirmation.
+It runs once when the Super Admin clicks it, then reloads the GRC portal.

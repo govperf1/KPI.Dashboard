@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v69 — Compact Manager Approval Rules
+// FIRESTORE SECURITY RULES v69 — Compact Manager Approval Rules · v282 package
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
