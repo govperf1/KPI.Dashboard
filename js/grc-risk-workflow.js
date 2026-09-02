@@ -4,7 +4,7 @@
    Review & Development Center requests.
    ===================================================================== */
 (function(){
-  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V216__)return;window.__QUMC_GRC_RISK_WORKFLOW_V216__=true;
+  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V217__)return;window.__QUMC_GRC_RISK_WORKFLOW_V217__=true;
   var cache=[],unsub=null,startedFor='',reviewApprovalRows=[],approvalNoticeKey='',approvalNoticeEntry=0,approvalNoticeTimer=null,feedbackNormalRows=[],feedbackReviewRows=[],feedbackNormalUnsub=null,feedbackReviewUnsub=null,feedbackStartedFor='',feedbackTimer=null,managerPullBusy=false,managerPullAt=0,managerPollTimer=null;
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function role(){var raw=window._fbRole||window.currentUserRole||'viewer';return typeof window._normalizePortalRole==='function'?window._normalizePortalRole(raw):String(raw).trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
@@ -22,11 +22,11 @@
   window._grcCanAccessRiskIncidentWorkflow=canAccessRiskIncidentWorkflow;
   function currentDepartmentKey(){if(isManager()&&window.__grcManagerDepartmentKey)return String(window.__grcManagerDepartmentKey);var raw=Object.prototype.hasOwnProperty.call(window,'_fbDept')?window._fbDept:window.currentUserDept;if(typeof window._grcCanonicalDepartment==='function')return String(window._grcCanonicalDepartment(raw)||'');return String(raw==null?'':raw).trim().toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');}
   function requestDepartmentKey(r){r=r||{};var raw=r.departmentKey||r.department||r.departmentRaw||r.proposedRecord&&r.proposedRecord.department||r.currentRecord&&r.currentRecord.department||'';if(typeof window._grcCanonicalDepartment==='function')return String(window._grcCanonicalDepartment(raw)||'');return String(raw==null?'':raw).trim().toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');}
-  function managerDepartmentRequest(r){if(!isManager())return true;if(!r)return false;var assigned=r._managerAssigned===true||String(r.assignedManagerEmail||'').toLowerCase().trim()===email();if(assigned)return true;var mine=String(currentDepartmentKey()||'').trim(),dept=requestDepartmentKey(r);return !!mine&&dept===mine&&String(r.submittedByEmail||'').toLowerCase().trim()!==email();}
+  function managerDepartmentRequest(r){if(!isManager())return true;return !!(r&&r._managerAssigned===true);}
   function ownRequest(r){return String(r&&r.submittedByEmail||'').toLowerCase().trim()===email();}
   function reviewStage(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
   function reviewDepartmentKey(r){var raw=r&&r.departmentKey||'';if(typeof window._grcCanonicalDepartment==='function')return String(window._grcCanonicalDepartment(raw)||'');return String(raw||'').trim().toLowerCase();}
-  function reviewManagerRequest(r){if(!isManager()||!r)return false;if(String(r&&r.platform||'grc').toLowerCase()!=='grc'||reviewStage(r)!=='pending_department_manager')return false;if(String(r&&r.userEmail||'').toLowerCase().trim()===email())return false;var assigned=r._managerAssigned===true||String(r.assignedManagerEmail||'').toLowerCase().trim()===email();var mine=String(currentDepartmentKey()||'').trim(),dept=reviewDepartmentKey(r);return assigned||(!assigned&&!!mine&&dept===mine);}
+  function reviewManagerRequest(r){return isManager()&&r&&r._managerAssigned===true&&String(r&&r.platform||'grc').toLowerCase()==='grc'&&reviewStage(r)==='pending_department_manager'&&String(r&&r.userEmail||'').toLowerCase().trim()!==email();}
   function reviewRequestTime(r){var v=r&&r.updatedAt||r&&r.createdAt||r&&r.updatedAtIso||r&&r.createdAtIso||'';try{return v&&v.toDate?v.toDate().getTime():new Date(v||0).getTime()||0;}catch(_){return 0;}}
   function reviewRelatedText(r){var out=(Array.isArray(r&&r.relatedItems)?r.relatedItems:[]).map(function(x){return x&&x.code?String(x.code)+(x.name?' — '+String(x.name):''):String(x&&x.name||x&&x.label||'');}).filter(Boolean);if(r&&r.relatedNewText)out.push('New: '+String(r.relatedNewText));return out.join('; ')||'—';}
   function reviewTypeText(r){var t=String(r&&r.requestType||'');return t==='new'?'New Item Request':'Existing Item Review & Update';}
@@ -102,8 +102,21 @@
 #_grcApprovalNoticeOv .grc-apn-actions{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:13px}
 #_grcApprovalNoticeOv .grc-apn-btn{border:0;border-radius:10px;padding:8px 13px;font-size:10.5px;font-weight:900;cursor:pointer}
 #_grcApprovalNoticeOv .grc-apn-btn.primary{background:#0f7f86;color:#fff}#_grcApprovalNoticeOv .grc-apn-btn.secondary{background:#eaf1f4;color:#294f61}
-#_grcApprovalNoticeOv .grc-apn-section{margin:0 0 18px}#_grcApprovalNoticeOv .grc-apn-section-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 14px;margin-bottom:10px;border:1px solid #d7e4ea;border-radius:14px;background:#f7fbfc}#_grcApprovalNoticeOv .grc-apn-section-head h3{margin:0;color:#173f5f;font-size:13px;font-weight:900}#_grcApprovalNoticeOv .grc-apn-section-head p{margin:4px 0 0;color:#708591;font-size:9.5px}#_grcApprovalNoticeOv .grc-apn-section-head>b{min-width:28px;height:28px;border-radius:999px;display:grid;place-items:center;background:#0f536b;color:#fff;font-size:11px}#_grcApprovalNoticeOv .grc-apn-section-empty{padding:16px;border:1px dashed #cbdbe2;border-radius:13px;background:#fbfdfe;color:#78909d;text-align:center;font-size:10px;margin-bottom:12px}#_grcApprovalNoticeOv .adv-manager-inline-decision-slot{margin-top:8px}#_grcApprovalNoticeOv .adv-manager-inline-decision textarea{width:100%;box-sizing:border-box}#_grcApprovalNoticeOv .grc-apn-foot{display:flex;justify-content:flex-end;gap:9px;padding:14px 22px 18px;border-top:1px solid #dce7eb;background:#fff}
+#_grcApprovalNoticeOv .grc-apn-foot{display:flex;justify-content:flex-end;gap:9px;padding:14px 22px 18px;border-top:1px solid #dce7eb;background:#fff}
 @media(max-width:650px){#_grcApprovalNoticeOv{padding:10px}#_grcApprovalNoticeOv .grc-apn-dialog{max-height:94vh;border-radius:17px}#_grcApprovalNoticeOv .grc-apn-meta{grid-template-columns:1fr}#_grcApprovalNoticeOv .grc-apn-summary{align-items:flex-start;flex-direction:column}}
+
+      .grc-manager-approval-section{margin-bottom:18px}
+      .grc-manager-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;margin:0 0 10px;border:1px solid #dbe7ec;border-radius:13px;background:linear-gradient(180deg,#f8fbfc,#eef5f7)}
+      .grc-manager-section-head h3{margin:0;color:#173f5f;font-size:12px;font-weight:900}
+      .grc-manager-section-head p{margin:4px 0 0;color:#708592;font-size:9.5px}
+      .grc-manager-section-head>span{min-width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:#15566d;color:#fff;font-size:10px;font-weight:900}
+
+#_grcApprovalNoticeOv .grc-apn-group{margin:0 0 16px}
+#_grcApprovalNoticeOv .grc-apn-group-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;margin-bottom:9px;border:1px solid #dbe7ec;border-radius:13px;background:linear-gradient(180deg,#f8fbfc,#eef5f7)}
+#_grcApprovalNoticeOv .grc-apn-group-head strong{display:block;color:#173f5f;font-size:11px;font-weight:900}
+#_grcApprovalNoticeOv .grc-apn-group-head small{display:block;color:#708592;font-size:9px;margin-top:3px}
+#_grcApprovalNoticeOv .grc-apn-group-head>b{min-width:26px;height:26px;display:grid;place-items:center;border-radius:50%;background:#15566d;color:#fff;font-size:9px}
+#_grcApprovalNoticeOv .grc-apn-group-empty{padding:18px;text-align:center;border:1px dashed #cbdde4;border-radius:12px;color:#78909c;font-size:10px;background:#fbfdfe}
 `;document.head.appendChild(st);
   }
   function closeApprovalNotice(){var ov=document.getElementById('_grcApprovalNoticeOv');if(ov)ov.remove();}
@@ -118,7 +131,8 @@
     return isAr()?'تظهر هنا طلباتك التي ما زالت تحت الاعتماد أو تحتاج منك تعديلًا.':'These requests are still in approval or require an update from you.';
   }
   function reviewApprovalNoticeCard(r){
-    return `<article class="grc-apn-card" data-adv-manager-review-row="${esc(r.id)}"><div class="grc-apn-card-head"><div><strong>${esc(r.code||r.id)}</strong><small>${esc(isAr()?'مراجعة وتطوير':'Review & Development')} · ${esc(reviewTypeText(r))}</small></div><span class="grc-apn-status">${esc(isAr()?'بانتظار موافقة مدير القسم':'Pending Department Manager Approval')}</span></div><div class="grc-apn-meta"><span>${esc(isAr()?'نوع العنصر':'Item Type')}</span><b>${esc(r.category||r.relatedType||'—')}</b><span>${esc(isAr()?'السجل المرتبط':'Related Record')}</span><b>${esc(reviewRelatedText(r))}</b><span>${esc(isAr()?'مقدم الطلب':'Submitted by')}</span><b>${esc(r.userName||r.userEmail||'—')}</b><span>${esc(isAr()?'العنوان':'Title')}</span><b>${esc(r.title||'Request title not provided')}</b><span>${esc(isAr()?'التفاصيل':'Details')}</span><b>${esc(r.details||'Request details not provided')}</b><span>${esc(isAr()?'الأولوية':'Priority')}</span><b>${esc(r.priority||'Medium')}</b></div><div class="grc-apn-actions adv-manager-quick-actions"><button class="grc-apn-btn primary" type="button" onclick="window._advManagerQuickAction('${esc(r.id)}','approve',this)">${esc(isAr()?'اعتماد للسوبر أدمن':'Approve to Super Admin')}</button><button class="grc-apn-btn secondary" type="button" onclick="window._advManagerQuickAction('${esc(r.id)}','return',this)">${esc(isAr()?'إعادة':'Return')}</button><button class="grc-apn-btn secondary" type="button" onclick="window._advManagerQuickAction('${esc(r.id)}','reject',this)">${esc(isAr()?'رفض':'Reject')}</button></div><div class="adv-manager-inline-decision-slot"></div></article>`;
+    var details=String(r.details||r.title||r.relatedNewText||r.category||r.relatedType||'').trim();
+    return `<article class="grc-apn-card"><div class="grc-apn-card-head"><div><strong>${esc(r.code||r.id)}</strong><small>${esc(isAr()?'مراجعة وتطوير':'Review & Development')} · ${esc(reviewTypeText(r))}</small></div><span class="grc-apn-status">${esc(isAr()?'بانتظار موافقة مدير القسم':'Pending Department Manager Approval')}</span></div><div class="grc-apn-meta"><span>${esc(isAr()?'نوع العنصر':'Item Type')}</span><b>${esc(r.category||r.relatedType||r.requestTypeLabel||'—')}</b><span>${esc(isAr()?'السجل المرتبط':'Related Record')}</span><b>${esc(reviewRelatedText(r)||r.relatedNewText||'—')}</b><span>${esc(isAr()?'مقدم الطلب':'Submitted by')}</span><b>${esc(r.userName||r.userEmail||'—')}</b><span>${esc(isAr()?'التفاصيل':'Details')}</span><b>${esc(details||'No request details were stored.')}</b></div><div class="grc-apn-actions"><button class="grc-apn-btn primary" onclick="window._grcReviewManagerPanel('${esc(r.id)}','approve',this)">${esc(isAr()?'اعتماد للسوبر أدمن':'Approve to Super Admin')}</button><button class="grc-apn-btn secondary" onclick="window._grcReviewManagerPanel('${esc(r.id)}','return',this)">${esc(isAr()?'إعادة لمقدم الطلب':'Return to Requester')}</button><button class="grc-apn-btn secondary" onclick="window._grcReviewManagerPanel('${esc(r.id)}','reject',this)">${esc(isAr()?'رفض':'Reject')}</button></div><div class="grc-review-manager-panel grc-risk-inline-decision" hidden></div></article>`;
   }
   function approvalNoticeCard(item){
     if(item&&item.kind==='review')return reviewApprovalNoticeCard(item.row||{});
@@ -129,14 +143,14 @@
   function renderApprovalNoticeBody(){
     var ov=document.getElementById('_grcApprovalNoticeOv');if(!ov)return;
     var rows=approvalNoticeRows(),body=ov.querySelector('.grc-apn-body');if(!body)return;
-    var riskRows=rows.filter(function(x){return x.kind==='risk';}),reviewRows=rows.filter(function(x){return x.kind==='review';});
-    function section(title,subtitle,items,kind){
-      var empty=kind==='risk'?(isAr()?'لا توجد طلبات مخاطر أو حوادث معلقة.':'No pending Risk & Incident approvals.'):(isAr()?'لا توجد طلبات مراجعة وتطوير معلقة.':'No pending Review & Development approvals.');
-      return `<section class="grc-apn-section"><div class="grc-apn-section-head"><div><h3>${esc(title)}</h3><p>${esc(subtitle)}</p></div><b>${items.length}</b></div>${items.length?items.map(approvalNoticeCard).join(''):`<div class="grc-apn-section-empty">${esc(empty)}</div>`}</section>`;
+    if(isManager()){
+      var riskRows=rows.filter(function(x){return x.kind==='risk';}),reviewRows=rows.filter(function(x){return x.kind==='review';});
+      body.innerHTML='<div class="grc-apn-summary"><span>'+esc(isAr()?'طلبات الاعتماد الحالية':'Current approval requests')+'</span><b>'+rows.length+' '+esc(isAr()?'طلب قائم':'pending request(s)')+'</b></div>'+
+        '<section class="grc-apn-group"><div class="grc-apn-group-head"><div><strong>Risk & Incident Register Approval Requests</strong><small>Requests awaiting your department decision.</small></div><b>'+riskRows.length+'</b></div>'+(riskRows.length?riskRows.map(approvalNoticeCard).join(''):'<div class="grc-apn-group-empty">No pending Risk or Incident requests.</div>')+'</section>'+
+        '<section class="grc-apn-group"><div class="grc-apn-group-head"><div><strong>Review & Development Approval Requests</strong><small>Requests awaiting your department decision.</small></div><b>'+reviewRows.length+'</b></div>'+(reviewRows.length?reviewRows.map(approvalNoticeCard).join(''):'<div class="grc-apn-group-empty">No pending Review & Development requests.</div>')+'</section>';
+    }else{
+      body.innerHTML='<div class="grc-apn-summary"><span>'+esc(isAr()?'حالة طلبات الاعتماد':'Approval request status')+'</span><b>'+rows.length+' '+esc(isAr()?'طلب يحتاج متابعة':'request(s) require attention')+'</b></div>'+rows.map(approvalNoticeCard).join('');
     }
-    body.innerHTML=`<div class="grc-apn-summary"><span>${esc(isAr()?'طلبات الاعتماد الحالية':'Current approval requests')}</span><b>${rows.length} ${esc(isAr()?'طلب معلق':'pending request(s)')}</b></div>`+
-      section(isAr()?'طلبات اعتماد سجل المخاطر والحوادث':'Risk & Incident Register Approval Requests',isAr()?'الطلبات التي تحتاج قرار مدير القسم.':'Requests that currently require the Department Manager decision.',riskRows,'risk')+
-      section(isAr()?'طلبات اعتماد المراجعة والتطوير':'Review & Development Approval Requests',isAr()?'الطلبات الجديدة أو طلبات تحديث السجلات التي تحتاج قرارك.':'New item and existing-item review requests that require your decision.',reviewRows,'review');
     if(!rows.length)closeApprovalNotice();
   }
   function showApprovalNotice(force){
@@ -152,7 +166,7 @@
   window._grcRiskApprovalNoticeClose=closeApprovalNotice;
   window._grcRiskApprovalNoticeOpenAll=function(){closeApprovalNotice();window._grcRiskOpenProfile&&window._grcRiskOpenProfile();};
   window._grcRiskApprovalNoticeOpenRequest=function(id){closeApprovalNotice();window._grcRiskOpenProfile&&window._grcRiskOpenProfile(id);};
-  window._grcReviewApprovalOpenRequest=function(id){closeApprovalNotice();var p=document.getElementById('_grcRiskProfileOv');if(p)p.remove();if(typeof window._advisoryGetManagerQueue==='function'&&isManager()){Promise.resolve(window._advisoryGetManagerQueue()).catch(function(){}).then(function(){if(typeof window._advOpenApprovalRequest==='function')window._advOpenApprovalRequest(id);else if(typeof window._advOpenRequest==='function')window._advOpenRequest(id);});}else if(typeof window._advOpenApprovalRequest==='function')window._advOpenApprovalRequest(id);else if(typeof window._advOpenRequest==='function')window._advOpenRequest(id);};
+  window._grcReviewApprovalOpenRequest=function(id){closeApprovalNotice();var p=document.getElementById('_grcRiskProfileOv');if(p)p.remove();if(typeof window._advOpenApprovalRequest==='function')window._advOpenApprovalRequest(id);else if(typeof window._advOpenRequest==='function')window._advOpenRequest(id);};
   window._grcRiskApprovalEntryNoticeReset=function(){approvalNoticeEntry++;approvalNoticeKey='';scheduleApprovalNotice(true);};
   function notifSeenKey(){return 'qumc_grc_risk_notif_seen_v111::'+email()+'::'+role();}
   function readNotifSeen(){try{var x=JSON.parse(localStorage.getItem(notifSeenKey())||'[]');return Array.isArray(x)?x.map(String):[];}catch(_){return[];}}
@@ -203,25 +217,27 @@
     managerPullBusy=true;managerPullAt=now;
     var risk=typeof window._grcRiskRequestsGetForManager==='function'?window._grcRiskRequestsGetForManager():Promise.resolve([]);
     var review=typeof window._advisoryGetManagerQueue==='function'?window._advisoryGetManagerQueue():Promise.resolve([]);
-    return Promise.all([risk,review]).then(function(rows){
-      window.__grcManagerApprovalError='';
-      cache=(Array.isArray(rows[0])?rows[0]:[]).filter(managerDepartmentRequest);
-      reviewApprovalRows=(Array.isArray(rows[1])?rows[1]:[]).filter(reviewManagerRequest);
+    return Promise.allSettled([risk,review]).then(function(rows){
+      var errors=[];
+      if(rows[0].status==='fulfilled')cache=(Array.isArray(rows[0].value)?rows[0].value:[]).filter(managerDepartmentRequest);
+      else errors.push('Risk / Incident: '+String(rows[0].reason&&rows[0].reason.message||rows[0].reason||'Permission denied'));
+      if(rows[1].status==='fulfilled')reviewApprovalRows=(Array.isArray(rows[1].value)?rows[1].value:[]).filter(reviewManagerRequest);
+      else errors.push('Review & Development: '+String(rows[1].reason&&rows[1].reason.message||rows[1].reason||'Permission denied'));
+      window.__grcManagerApprovalError=errors.length?errors.join(' · '):'';
       window.__grcRiskRequestCache=cache;
       try{document.dispatchEvent(new CustomEvent('grc:riskRequestsUpdated',{detail:{rows:cache}}));}catch(_e){}
       refreshBadge();
-      try{document.dispatchEvent(new CustomEvent('grc:managerApprovalQueueUpdated',{detail:{risk:cache,review:reviewApprovalRows}}));}catch(_queueEvent){}
       if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
       if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();
+      if(errors.length)console.warn('[GRC Manager Approval Pull]',errors.join(' · '));
       scheduleApprovalNotice(false);
-    }).catch(function(err){window.__grcManagerApprovalError=String(err&&err.message||err&&err.code||err||'Unable to load department approvals.');if(window.__grcManagerApprovalError.toLowerCase().indexOf('missing or insufficient permissions')<0)console.warn('[GRC Manager Approval Pull]',window.__grcManagerApprovalError);}).finally(function(){managerPullBusy=false;});
+    }).finally(function(){managerPullBusy=false;});
   }
   window._grcRiskInjectManagerQueue=function(riskRows,reviewRows){
     if(!isManager())return;
     cache=(Array.isArray(riskRows)?riskRows:[]).filter(managerDepartmentRequest);
     reviewApprovalRows=(Array.isArray(reviewRows)?reviewRows:[]).filter(reviewManagerRequest);
     window.__grcRiskRequestCache=cache;
-    try{document.dispatchEvent(new CustomEvent('grc:managerApprovalQueueUpdated',{detail:{risk:cache,review:reviewApprovalRows}}));}catch(_queueEvent){}
     refreshBadge();
     if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
     if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();
@@ -242,7 +258,7 @@
       managerPollTimer=setInterval(function(){
         if(document.body.classList.contains('grc-mode')&&isManager())refreshManagerApprovalQueues(true);
         else if(managerPollTimer){clearInterval(managerPollTimer);managerPollTimer=null;}
-      },2000);
+      },4000);
       return;
     }
     if(typeof window._grcRiskRequestsSubscribe!=='function'){cache=[];window.__grcRiskRequestCache=[];refreshBadge();return;}
@@ -276,39 +292,52 @@
   }
   function activeApprovalTab(){var el=document.querySelector('[data-grc-risk-tab].active');return el&&el.dataset?el.dataset.grcRiskTab||'all':'all';}
   function filteredRisk(tab){var base=isManager()?cache.filter(managerDepartmentRequest):cache;return base.filter(function(r){if(tab==='all')return true;if(tab==='action')return actionable(r);if(tab==='published')return r.status==='published';if(tab==='returned')return /^returned|^rejected/.test(r.status);return r.status===tab;});}
-  function reviewHistoryStatus(r){
-    var s=String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase(),reason=String(r&&r.closureReason||'').trim().toLowerCase();
-    if(s==='pending_department_manager')return'action';
-    if(s==='returned_requester'||s==='rejected_manager'||s==='rejected_super_admin'||reason.indexOf('rejected')>=0)return'returned';
-    if(s==='closed'&&reason.indexOf('approved')>=0)return'published';
-    return'all';
+  function filteredReview(tab){if(!isManager()||['all','action'].indexOf(tab)<0)return[];return reviewApprovalRows.filter(reviewManagerRequest);}
+  function reviewReturnFieldsHtml(id){
+    var fs=[['requestType','Request Type'],['category','Item / Record Type'],['relatedType','Related Record'],['relatedNewText','Proposed Item'],['title','Request Title'],['details','Request Details'],['priority','Priority'],['attachments','Attachments / Evidence']];
+    return '<div class="grc-risk-inline-fields"><div class="grc-risk-inline-label">Fields to be corrected *</div><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px">'+fs.map(function(f){return '<label style="display:flex;align-items:center;gap:6px;padding:7px 8px;border:1px solid #dce7eb;border-radius:8px;background:#fff;font-size:9px;color:#405a6a"><input type="checkbox" data-review-return-field="'+esc(f[0])+'"><span>'+esc(f[1])+'</span></label>';}).join('')+'</div></div>';
   }
-  function filteredReview(tab){
-    if(!isManager())return[];
-    return reviewApprovalRows.filter(function(r){
-      if(!r)return false;
-      var dept=reviewDepartmentKey(r),mine=String(currentDepartmentKey()||'').trim().toLowerCase();
-      if(dept!==mine||String(r.userEmail||'').toLowerCase().trim()===email())return false;
-      var state=reviewHistoryStatus(r);
-      if(tab==='action')return state==='action';
-      if(tab==='returned')return state==='returned';
-      if(tab==='published')return state==='published';
-      return true;
-    });
+  function reviewManagerActionPanel(id,action,btn){
+    var cardEl=btn&&btn.closest?btn.closest('.grc-risk-request-card'):null;if(!cardEl)return;
+    var panel=cardEl.querySelector('.grc-review-manager-panel');if(!panel)return;
+    var needNote=action!=='approve',fields=action==='return'?reviewReturnFieldsHtml(id):'';
+    panel.hidden=false;
+    panel.innerHTML=(action==='return'?fields:'')+
+      (needNote?'<label class="grc-risk-inline-label">'+(action==='reject'?'Rejection reason *':'Return note *')+'</label><textarea class="grc-risk-inline-textarea" rows="3" placeholder="Enter the note here..."></textarea>':'')+
+      '<div class="grc-risk-inline-error"></div><div class="grc-risk-inline-buttons"><button type="button" class="grc-risk-inline-confirm '+(action==='reject'?'bad':action==='return'?'warn':'good')+'" onclick="window._grcReviewManagerSubmit(\''+esc(id)+'\',\''+esc(action)+'\',this)">'+(action==='approve'?'Approve to Super Admin':action==='return'?'Return to Requester':'Reject')+'</button><button type="button" class="grc-risk-inline-cancel" onclick="this.closest(\'.grc-review-manager-panel\').hidden=true">Cancel</button></div>';
   }
+  window._grcReviewManagerSubmit=async function(id,action,btn){
+    var panel=btn&&btn.closest?btn.closest('.grc-review-manager-panel'):null;if(!panel)return;
+    var note=String((panel.querySelector('textarea')||{}).value||'').trim(),fields=Array.prototype.slice.call(panel.querySelectorAll('[data-review-return-field]:checked')).map(function(x){return x.getAttribute('data-review-return-field');}),err=panel.querySelector('.grc-risk-inline-error');
+    if(action!=='approve'&&!note){if(err)err.textContent=action==='reject'?'A rejection reason is required.':'A return note is required.';return;}
+    if(action==='return'&&!fields.length){if(err)err.textContent='Select at least one field to be corrected.';return;}
+    var old=btn.textContent;btn.disabled=true;btn.textContent=action==='approve'?'Approving…':action==='return'?'Returning…':'Rejecting…';
+    try{
+      if(typeof window._advisoryManagerAction!=='function')throw new Error('Review & Development manager service is unavailable.');
+      await window._advisoryManagerAction(id,action,note,fields);
+      if(typeof window._advReload==='function')await window._advReload();
+      panel.hidden=true;
+    }catch(e){if(err)err.textContent=String(e&&e.message||e);btn.disabled=false;btn.textContent=old;}
+  };
+  window._grcReviewManagerPanel=function(id,action,btn){reviewManagerActionPanel(id,action,btn);};
   function reviewProfileCard(r){
-    var state=reviewStage(r),labelEn=state==='action'?'Pending Department Manager Approval':state==='returned'?'Returned / Rejected':state==='published'?'Published':'In Approval';
-    var labelAr=state==='action'?'بانتظار موافقة مدير القسم':state==='returned'?'معاد / مرفوض':state==='published'?'منشور':'قيد الاعتماد';
-    var cls=state==='action'?'warn':state==='returned'?'bad':state==='published'?'good':'';
-    var isPending=isManager()&&state==='pending_department_manager';
-    var button=isPending?`<div class="grc-risk-request-actions adv-manager-quick-actions"><button class="grc-risk-action good" type="button" onclick="window._advManagerQuickAction('${esc(r.id)}','approve',this)">${esc(isAr()?'اعتماد للسوبر أدمن':'Approve to Super Admin')}</button><button class="grc-risk-action warn" type="button" onclick="window._advManagerQuickAction('${esc(r.id)}','return',this)">${esc(isAr()?'إعادة':'Return')}</button><button class="grc-risk-action bad" type="button" onclick="window._advManagerQuickAction('${esc(r.id)}','reject',this)">${esc(isAr()?'رفض':'Reject')}</button></div><div class="adv-manager-inline-decision-slot"></div>`:`<button class="grc-risk-details-btn" onclick="window._grcReviewApprovalOpenRequest('${esc(r.id)}')">${esc(isAr()?'عرض الطلب':'View Request')}</button>`;
-    return `<article class="grc-risk-request-card" ${isPending?'data-adv-manager-review-row="'+esc(r.id)+'"':''}><div class="grc-risk-card-head"><div><strong>${esc(r.code||r.id)}</strong><small>${esc(isAr()?'مراجعة وتطوير':'Review & Development')} · ${esc(reviewTypeText(r))}</small></div><span class="grc-risk-status ${cls}">${esc(isAr()?labelAr:labelEn)}</span></div><div class="grc-risk-card-grid"><span>${esc(isAr()?'نوع العنصر':'Item Type')}</span><b>${esc(r.category||r.relatedType||'—')}</b><span>${esc(isAr()?'السجل المرتبط':'Related Record')}</span><b>${esc(reviewRelatedText(r))}</b><span>${esc(isAr()?'مقدم الطلب':'Submitted by')}</span><b>${esc(r.userName||r.userEmail||'—')}</b><span>${esc(isAr()?'تاريخ الإرسال':'Submitted')}</span><b>${esc(reviewDateText(r))}</b><span>${esc(isAr()?'الأولوية':'Priority')}</span><b>${esc(r.priority||'—')}</b><span>${esc(isAr()?'العنوان':'Title')}</span><b>${esc(r.title||'—')}</b><span>${esc(isAr()?'التفاصيل':'Details')}</span><b>${esc(r.details||'—')}</b></div>${button}</article>`;
+    var details=String(r.details||r.title||r.relatedNewText||r.category||r.relatedType||'').trim();
+    return `<article class="grc-risk-request-card"><div class="grc-risk-card-head"><div><strong>${esc(r.code||r.id)}</strong><small>${esc(isAr()?'مراجعة وتطوير':'Review & Development')} · ${esc(reviewTypeText(r))}</small></div><span class="grc-risk-status warn">${esc(isAr()?'بانتظار موافقة مدير القسم':'Pending Department Manager Approval')}</span></div><div class="grc-risk-card-grid"><span>${esc(isAr()?'نوع العنصر':'Item Type')}</span><b>${esc(r.category||r.relatedType||r.requestTypeLabel||'—')}</b><span>${esc(isAr()?'السجل المرتبط':'Related Record')}</span><b>${esc(reviewRelatedText(r)||r.relatedNewText||'—')}</b><span>${esc(isAr()?'مقدم الطلب':'Submitted by')}</span><b>${esc(r.userName||r.userEmail||'—')}</b><span>${esc(isAr()?'تاريخ الإرسال':'Submitted')}</span><b>${esc(reviewDateText(r))}</b><span>${esc(isAr()?'الأولوية':'Priority')}</span><b>${esc(r.priority||'—')}</b></div><div style="margin-top:9px;padding:9px 10px;border:1px solid #e1ebef;border-radius:9px;background:#f8fbfc"><div style="font-size:9px;font-weight:850;color:#5b7180;margin-bottom:4px">${esc(isAr()?'تفاصيل الطلب':'Request Details')}</div><div style="font-size:10px;line-height:1.55;color:#243f50;white-space:pre-wrap">${esc(details||'No request details were stored for this request.')}</div></div><div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;padding-top:10px;border-top:1px solid #e4edf1"><button type="button" class="grc-risk-action good" onclick="window._grcReviewManagerPanel('${esc(r.id)}','approve',this)">Approve to Super Admin</button><button type="button" class="grc-risk-action warn" onclick="window._grcReviewManagerPanel('${esc(r.id)}','return',this)">Return to Requester</button><button type="button" class="grc-risk-action bad" onclick="window._grcReviewManagerPanel('${esc(r.id)}','reject',this)">Reject</button></div><div class="grc-review-manager-panel grc-risk-inline-decision" hidden></div></article>`;
   }
   function renderProfileBody(){
     var body=document.getElementById('_grcRiskProfileBody');if(!body)return;
+    if(isManager()){
+      var riskRows=cache.filter(managerDepartmentRequest).filter(function(r){return ['pending_manager','returned_manager'].indexOf(String(r.status||'').toLowerCase())>=0;}).sort(function(a,b){return (new Date(b.updatedAtIso||b.createdAtIso||0).getTime()||0)-(new Date(a.updatedAtIso||a.createdAtIso||0).getTime()||0);});
+      var reviewRows=reviewApprovalRows.filter(reviewManagerRequest).filter(function(r){return String(r.workflowStage||r.status||'').toLowerCase()==='pending_department_manager';}).sort(function(a,b){return reviewRequestTime(b)-reviewRequestTime(a);});
+      var total=riskRows.length+reviewRows.length;
+      body.innerHTML=(riskRows.length?'<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Risk & Incident Register Approval Requests</h3><p>Active register changes awaiting your department decision.</p></div><span>'+riskRows.length+'</span></div>'+riskRows.map(function(r){return card(r);}).join('')+'</section>':'<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Risk & Incident Register Approval Requests</h3><p>Active register changes awaiting your department decision.</p></div><span>0</span></div><div class="grc-risk-empty">No pending Risk or Incident requests.</div></section>')+
+      (reviewRows.length?'<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Review & Development Approval Requests</h3><p>Active review and development requests awaiting your department decision.</p></div><span>'+reviewRows.length+'</span></div>'+reviewRows.map(function(r){return reviewProfileCard(r);}).join('')+'</section>':'<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Review & Development Approval Requests</h3><p>Active review and development requests awaiting your department decision.</p></div><span>0</span></div><div class="grc-risk-empty">No pending Review & Development requests.</div></section>');
+      var count=document.getElementById('_grcRiskProfileCount');if(count)count.textContent=total+' pending request(s)';
+      return;
+    }
     var tab=activeApprovalTab(),rows=filteredRisk(tab).map(function(r){return{kind:'risk',row:r,time:new Date(r.updatedAtIso||r.createdAtIso||0).getTime()||0};});
     rows=rows.concat(filteredReview(tab).map(function(r){return{kind:'review',row:r,time:reviewRequestTime(r)};})).sort(function(a,b){return b.time-a.time;});
-    body.innerHTML=rows.length?rows.map(function(x){return x.kind==='review'?reviewProfileCard(x.row):card(x.row);}).join(''):'<div class="grc-risk-empty">'+esc(isManager()?(isAr()?'لا توجد طلبات اعتماد GRC في هذا العرض.':'No GRC approval requests in this view.'):'No Risk or Incident Register requests in this view.')+'</div>';
+    body.innerHTML=rows.length?rows.map(function(x){return x.kind==='review'?reviewProfileCard(x.row):card(x.row);}).join(''):'<div class="grc-risk-empty">No Risk or Incident Register requests in this view.</div>';
     var count=document.getElementById('_grcRiskProfileCount');if(count)count.textContent=rows.length+' request(s)';
   }
   function closeProfileMenu(){var m=document.getElementById('_grcUserProfileMenu');if(m)m.remove();}
@@ -384,7 +413,7 @@
   window._grcRiskOpenCenterRequest=openCenterRequest;
   window._grcRiskOpenCenterRequests=openCenterRequests;
 
-  window._grcRiskOpenProfile=function(requestId){if(!canAccessRiskIncidentWorkflow())return;ensureReturnWorkflowStyles();start();var old=document.getElementById('_grcRiskProfileOv');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcRiskProfileOv';ov.className='grc-risk-overlay';var title=isManager()?'GRC Approval Requests':'Risk & Incident Registers',subtitle=isManager()?'One queue for Risk, Incident, and Review & Development approvals in your department.':'Additions, updates and deletion requests with the GRC approval workflow.';ov.innerHTML='<div class="grc-risk-dialog wide"><header><div><h2>'+esc(title)+'</h2><p>'+esc(subtitle)+'</p></div><button onclick="document.getElementById(\'_grcRiskProfileOv\').remove()">×</button></header><div class="grc-risk-profile-summary"><span id="_grcRiskProfileCount">0 request(s)</span><div class="grc-risk-tabs"><button class="active" data-grc-risk-tab="all">All</button><button data-grc-risk-tab="action">Needs Action</button><button data-grc-risk-tab="returned">Returned / Rejected</button><button data-grc-risk-tab="published">Published</button></div></div><main id="_grcRiskProfileBody"></main></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(btn){btn.onclick=function(){ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(x){x.classList.remove('active');});btn.classList.add('active');renderProfileBody();};});renderProfileBody();if(requestId)setTimeout(function(){window._grcRiskShowDetails(requestId);},50);};
+  window._grcRiskOpenProfile=function(requestId){if(!canAccessRiskIncidentWorkflow())return;ensureReturnWorkflowStyles();start();var old=document.getElementById('_grcRiskProfileOv');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcRiskProfileOv';ov.className='grc-risk-overlay';var manager=isManager(),title=manager?'GRC Requests Awaiting Your Approval':'Risk & Incident Registers',subtitle=manager?'Review only the active requests assigned to your department. Completed decisions are removed from this queue.':'Additions, updates and deletion requests with the GRC approval workflow.';ov.innerHTML='<div class="grc-risk-dialog wide"><header><div><h2>'+esc(title)+'</h2><p>'+esc(subtitle)+'</p></div><button onclick="document.getElementById(\'_grcRiskProfileOv\').remove()">×</button></header><div class="grc-risk-profile-summary"><span id="_grcRiskProfileCount">0 request(s)</span>'+(manager?'':'<div class="grc-risk-tabs"><button class="active" data-grc-risk-tab="all">All</button><button data-grc-risk-tab="action">Needs Action</button><button data-grc-risk-tab="returned">Returned / Rejected</button><button data-grc-risk-tab="published">Published</button></div>')+'</div><main id="_grcRiskProfileBody"></main></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});if(!manager)ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(btn){btn.onclick=function(){ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(x){x.classList.remove('active');});btn.classList.add('active');renderProfileBody();};});renderProfileBody();if(requestId)setTimeout(function(){window._grcRiskShowDetails(requestId);},50);};
   window._grcRiskShowDetails=function(id){
     ensureReturnWorkflowStyles();
     var r=cache.find(function(x){return String(x.id)===String(id);});if(!r)return;
@@ -435,24 +464,6 @@
     }catch(err){panel.classList.remove('is-busy');Array.prototype.forEach.call(panel.querySelectorAll('button,textarea,input'),function(el){el.disabled=false;});if(errEl)errEl.textContent=String(err&&err.message||err||'Unable to complete the action.');}
   };
   window._grcRiskEditResubmit=function(id){var r=cache.find(function(x){return String(x.id)===String(id);});if(!r)return;var d=document.getElementById('_grcRiskDetailsOv');if(d)d.remove();var p=document.getElementById('_grcRiskProfileOv');if(p)p.remove();if(typeof window._grcOpenRiskRequestResubmit==='function')window._grcOpenRiskRequestResubmit(r);};
-  window._grcRiskManagerQuickAction=function(id,action,btn){
-    if(!isManager())return;
-    var r=cache.find(function(x){return String(x.id)===String(id);});if(!r)return;
-    var row=btn&&btn.closest&&btn.closest('[data-grc-risk-manager-row]');var slot=row&&row.querySelector('.grc-risk-manager-inline-slot');if(!slot)return;
-    document.querySelectorAll('.grc-risk-manager-inline-slot').forEach(function(x){x.innerHTML='';});
-    action=String(action||'');
-    if(action==='approve'){
-      btn.disabled=true;btn.textContent=isAr()?'جارٍ الاعتماد…':'Approving…';
-      window._grcRiskRequestManagerAction(id,'approve','',[]).then(function(){refreshManagerApprovalQueues(true);}).catch(function(e){btn.disabled=false;btn.textContent=isAr()?'اعتماد للسوبر أدمن':'Approve to Super Admin';var msg=document.createElement('div');msg.className='grc-risk-inline-error';msg.textContent=String(e&&e.message||e);slot.appendChild(msg);});
-      return;
-    }
-    var isReturn=action==='return';
-    var fields=isReturn?returnFieldSelectorHtml(r,true):'';
-    slot.innerHTML='<div class="grc-risk-inline-decision '+(isReturn?'warn':'bad')+'" style="margin-top:8px"><div class="grc-risk-inline-title">'+esc(isReturn?(isAr()?'إعادة الطلب':'Return Request'):(isAr()?'رفض الطلب':'Reject Request'))+'</div><div class="grc-risk-inline-copy">'+esc(isReturn?(isAr()?'حدد الحقول التي يجب على مقدم الطلب تعديلها واكتب الملاحظة.':'Select the fields that must be corrected and add the return note.'):(isAr()?'سبب الرفض إلزامي.':'A rejection reason is required.'))+'</div>'+fields+'<label class="grc-risk-inline-label">'+esc(isReturn?(isAr()?'ملاحظة الإعادة *':'Return note *'):(isAr()?'سبب الرفض *':'Rejection reason *'))+'</label><textarea class="grc-risk-inline-textarea" rows="3" placeholder="'+esc(isAr()?'اكتب الملاحظة هنا...':'Enter the note here...')+'"></textarea><div class="grc-risk-inline-error"></div><div class="grc-risk-inline-buttons"><button type="button" class="grc-risk-inline-confirm '+(isReturn?'warn':'bad')+'">'+esc(isReturn?(isAr()?'تأكيد الإعادة':'Confirm Return'):(isAr()?'تأكيد الرفض':'Confirm Reject'))+'</button><button type="button" class="grc-risk-inline-cancel">'+esc(isAr()?'إلغاء':'Cancel')+'</button></div></div>';
-    var panel=slot.firstElementChild,ta=panel.querySelector('textarea'),err=panel.querySelector('.grc-risk-inline-error'),confirm=panel.querySelector('.grc-risk-inline-confirm');
-    panel.querySelector('.grc-risk-inline-cancel').onclick=function(){slot.innerHTML='';};
-    confirm.onclick=function(){var note=String(ta&&ta.value||'').trim(),chosen=Array.prototype.map.call(panel.querySelectorAll('[data-grc-return-field]:checked'),function(x){return x.value;});if(!note){err.textContent=isAr()?'الملاحظة مطلوبة.':'A note is required.';ta.classList.add('is-invalid');return;}if(isReturn&&!chosen.length){err.textContent=isAr()?'حدد حقلًا واحدًا على الأقل يحتاج تعديل.':'Select at least one field that needs correction.';return;}Array.prototype.forEach.call(panel.querySelectorAll('button,textarea,input'),function(x){x.disabled=true;});window._grcRiskRequestManagerAction(id,isReturn?'return':'reject',note,chosen).then(function(){slot.innerHTML='<div class="grc-risk-inline-copy" style="padding:8px 0;color:#166534;font-weight:800">'+esc(isAr()?'تم حفظ القرار بنجاح.':'Decision saved successfully.')+'</div>';setTimeout(function(){refreshManagerApprovalQueues(true);},250);}).catch(function(e){Array.prototype.forEach.call(panel.querySelectorAll('button,textarea,input'),function(x){x.disabled=false;});err.textContent=String(e&&e.message||e);});};
-  };
   function renderNotificationPanel(panel){if(!panel)return;var rows=notificationRows(),body=panel.querySelector('.grc-risk-notif-list');if(!body)return;body.innerHTML=rows.length?rows.map(function(r){var unread=notificationUnread(r),toneName=notificationTone(r),worked=notificationHandledByMe(r),tag=!unread?'<em>'+(worked?(isAr()?'تم الإجراء':'Actioned'):(isAr()?'مقروء':'Read'))+'</em>':'';return'<button type="button" class="grc-risk-notif-row '+toneName+' '+(unread?'is-unread':'is-read')+'" data-grc-notif-id="'+esc(r.id)+'"><i class="grc-risk-notif-dot"></i><span class="grc-risk-notif-copy"><strong>'+esc(r.requestCode||r.id)+tag+'</strong><small>'+esc(operationLabel(r.operation,r))+' · '+esc(statusLabel(r.status))+'</small></span></button>';}).join(''):'<p>'+esc(isAr()?'لا توجد إشعارات حالياً.':'No GRC notifications yet.')+'</p>';Array.prototype.forEach.call(body.querySelectorAll('[data-grc-notif-id]'),function(row){row.onclick=function(e){e.preventDefault();e.stopPropagation();var id=row.getAttribute('data-grc-notif-id'),r=cache.find(function(x){return String(x.id)===String(id);});markNotificationRead(r);panel.remove();window._grcRiskOpenProfile&&window._grcRiskOpenProfile(id);};});var mark=panel.querySelector('[data-grc-mark-all]');if(mark)mark.onclick=function(e){e.preventDefault();e.stopPropagation();markAllNotificationsRead();renderNotificationPanel(panel);};}
   window._grcRiskOpenNotifications=function(ev){if(ev){ev.preventDefault();ev.stopPropagation();}start();var old=document.getElementById('_grcRiskNotifPanel');if(old){old.remove();return;}var btn=document.getElementById('grcRiskNotifBtn'),rect=btn&&btn.getBoundingClientRect(),panel=document.createElement('div');panel.id='_grcRiskNotifPanel';panel.className='grc-risk-notif-panel';panel.style.top=((rect&&rect.bottom||70)+8)+'px';panel.style.right=Math.max(12,window.innerWidth-(rect&&rect.right||window.innerWidth-20))+'px';panel.innerHTML='<header><b>'+esc(isAr()?'إشعارات سجل المخاطر والحوادث':'Risk & Incident Register Notifications')+'</b><div class="grc-risk-notif-head-actions"><button type="button" data-grc-mark-all class="grc-risk-notif-mark">'+esc(isAr()?'تحديد الكل كمقروء':'Mark all read')+'</button><button type="button" class="grc-risk-notif-close" onclick="document.getElementById(\'_grcRiskNotifPanel\').remove()">×</button></div></header><div class="grc-risk-notif-list"></div>';document.body.appendChild(panel);renderNotificationPanel(panel);};
   window._grcRiskRefreshUi=function(){start();refreshBadge();scheduleApprovalNotice(false);};
