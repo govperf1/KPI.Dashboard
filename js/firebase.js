@@ -1222,6 +1222,11 @@ window._selectPortal=async portal=>{
                 freshRow._managerAssigned=true;
                 return Object.assign({},row,freshRow,{_managerAssigned:true});
               }
+              // The inbox row is historical. Once the authoritative request has
+              // moved to Super Admin / requester / closed, remove the stale
+              // manager-approval queue item so it cannot reappear as actionable.
+              try{await deleteDoc(_grcManagerQueueItemRef(fresh.departmentKey,'review',String(row.id||'')));}catch(_){}
+              return null;
             }
           }catch(_){ }
           return row;
@@ -1235,6 +1240,8 @@ window._selectPortal=async portal=>{
                 data._managerAssigned=true;
                 return Object.assign({},row,data,{_managerAssigned:true});
               }
+              try{await deleteDoc(_grcManagerQueueItemRef(fresh.departmentKey,'risk',String(row.id||'')));}catch(_){}
+              return null;
             }
           }catch(_){ }
           return row;
@@ -1271,12 +1278,14 @@ window._selectPortal=async portal=>{
       const isFreshAdmin=['admin','super_admin'].includes(freshProfile.role);
       const requiresManagerApproval=!!departmentKey&&!isFreshManager&&!isFreshPlatformManager&&!isFreshAdmin;
       const routedDeptCode=departmentKey?_advSafeCode(({safety:'SAF',maintenance:'MNT',laundry:'LND',housekeeping:'HSK',projects:'PRJ',governance:'GOV',division:'FMS'})[departmentKey]||payload.departmentCode):'FMS';
-      const year=new Date().getFullYear(),deptCode=routedDeptCode,counterId=year+'_'+deptCode;
+      const year=new Date().getFullYear(),deptCode=routedDeptCode;
+      const requestPrefix=String(payload.requestType||'').toLowerCase().trim()==='new'?'DEV':'REV';
+      const counterId=year+'_'+deptCode+'_'+requestPrefix;
       const counterRef=doc(db,'advisory_counters',counterId),primaryRef=doc(collection(db,ADV_REQUESTS_COLLECTION));
       let code='',counterFallback=false;
       try{
-        await runTransaction(db,async tx=>{const c=await tx.get(counterRef),next=Number(c.exists()&&c.data().next||0)+1;code='RD-'+deptCode+'-'+year+'-'+String(next).padStart(3,'0');tx.set(counterRef,{next,updatedAt:serverTimestamp()},{merge:true});});
-      }catch(_){counterFallback=true;code='RD-'+deptCode+'-'+year+'-'+String(Date.now()).slice(-6)+Math.random().toString(36).slice(2,4).toUpperCase();}
+        await runTransaction(db,async tx=>{const c=await tx.get(counterRef),next=Number(c.exists()&&c.data().next||0)+1;code=requestPrefix+'-REQ-'+deptCode+'-'+year+'-'+String(next).padStart(3,'0');tx.set(counterRef,{next,updatedAt:serverTimestamp()},{merge:true});});
+      }catch(_){counterFallback=true;code=requestPrefix+'-REQ-'+deptCode+'-'+year+'-'+String(Date.now()).slice(-6)+Math.random().toString(36).slice(2,4).toUpperCase();}
       const nowIso=_advIso(),base={
         userName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]||'User'),userEmail:freshProfile.email,requesterUid:freshProfile.uid,requesterRole:freshProfile.role,
         departmentKey:departmentKey,departmentRaw:String(freshProfile.rawDepartment==null?'':freshProfile.rawDepartment).trim(),departmentCode:deptCode,gender:String(payload.gender||''),priority:String(payload.priority||'Medium'),

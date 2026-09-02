@@ -355,8 +355,52 @@
 
   function showRequestModal(r){closeModal(false);document.body.classList.add('adv-modal-open');selectedRequest=r;selectedRating=0;selectedAdminAction='respond';var actions=isSuperAdmin()?adminActions(r):(isManagerApprovalRecord(r)?managerActions(r):(isOwnRequest(r)?requesterActions(r):'')),ov=document.createElement('div');ov.id='advModal';ov.className='adv-modal-backdrop';ov.innerHTML='<div class="adv-modal adv-modal-wide"><div class="adv-modal-head"><div><h2>'+esc(r.code||'Review & Development Request')+'</h2><p>'+esc(PLATFORM_LABELS[recordPlatform(r)]+' · '+typeLabel(r)+' · '+statusLabel(r.status)+' · '+workflowLabel(r))+'</p></div><button class="adv-modal-close" onclick="window._advCloseModal()">×</button></div><div class="adv-modal-body">'+requestDetails(r)+actions+'</div></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)closeModal();});}
   window._advDownloadAttachment=async function(requestId,attachmentId,name,type,count){if(!apiReady('_advisoryDownloadAttachment'))return toast('Attachment service is unavailable.');try{var blob=await window._advisoryDownloadAttachment(requestId,attachmentId,type,count),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name||'attachment';document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},1000);}catch(e){toast(String(e&&e.message||e));}};
-  function managerActions(r){if(!isManagerApprovalRecord(r))return'';var reqLabel=requesterLabelFor(r);return'<div class="adv-card adv-manager-action-card" style="margin-top:12px"><h3 class="adv-card-title">Department Manager Approval</h3><p class="adv-rating-help">Approve to forward this request to Super Admin, return it to the '+esc(reqLabel)+' for correction, or Reject it to close the workflow.</p><div class="adv-form"><div class="adv-field full"><label>Manager Comment / Return / Rejection Reason</label><textarea id="advManagerComment" placeholder="Required for Return and Reject; optional for Approve"></textarea><div id="advManagerError" class="adv-rating-error"></div></div><div class="adv-field full"><div class="adv-modal-actions" style="justify-content:flex-start"><button class="adv-btn good" type="button" onclick="window._advManagerAction(\'approve\',this)">Approve to Super Admin</button><button class="adv-btn warn" type="button" onclick="window._advManagerAction(\'return\',this)">Return to '+esc(reqLabel)+'</button><button class="adv-btn danger" type="button" onclick="window._advManagerAction(\'reject\',this)">Reject</button></div></div></div></div>';}
-  window._advManagerAction=async function(action,btn){if(!selectedRequest||!apiReady('_advisoryManagerAction'))return;var reqLabel=requesterLabelFor(selectedRequest);var comment=String((document.getElementById('advManagerComment')||{}).value||'').trim(),err=document.getElementById('advManagerError');if((action==='return'||action==='reject')&&!comment){if(err)err.textContent=action==='return'?'Enter the correction note before returning the request.':'Enter a rejection reason before rejecting the request.';return;}if(err)err.textContent='';var old=btn&&btn.textContent;if(btn){btn.disabled=true;btn.textContent=action==='approve'?'Approving…':(action==='return'?'Returning…':'Rejecting…');}try{await window._advisoryManagerAction(selectedRequest.id,action,comment);closeModal();await refreshAfterMutation();toast(action==='approve'?'Request approved and forwarded to Super Admin.':(action==='return'?'Request returned to the '+reqLabel+' for correction.':'Request rejected. It will not be forwarded to Super Admin.'));}catch(e){if(btn){btn.disabled=false;btn.textContent=old||'Submit';}if(err)err.textContent=String(e&&e.message||e);else toast(String(e&&e.message||e));}};
+  function managerActions(r){
+    if(!isManagerApprovalRecord(r))return'';
+    var reqLabel=requesterLabelFor(r);
+    var fields=[
+      ['requestType','Request Type'],
+      ['category','Item / Record Type'],
+      ['relatedType','Related Record'],
+      ['relatedNewText','Proposed Item'],
+      ['title','Request Title'],
+      ['details','Request Details'],
+      ['priority','Priority'],
+      ['attachments','Attachments / Evidence']
+    ];
+    var fieldHtml='<div class="adv-field full" id="advManagerReturnFields" hidden><label>Fields to be corrected *</label><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px">'+fields.map(function(f){
+      return '<label style="display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid #dce7eb;border-radius:8px;background:#fff;font-size:11px"><input type="checkbox" data-adv-return-field="'+esc(f[0])+'"><span>'+esc(f[1])+'</span></label>';
+    }).join('')+'</div></div>';
+    return'<div class="adv-card adv-manager-action-card" style="margin-top:12px"><h3 class="adv-card-title">Department Manager Approval</h3><p class="adv-rating-help">Approve to forward this request to Super Admin, return it to the requester for correction, or Reject it to close the workflow.</p><div class="adv-form"><div class="adv-field full"><label>Manager Comment / Return / Rejection Reason</label><textarea id="advManagerComment" placeholder="Required for Return and Reject; optional for Approve"></textarea><div id="advManagerError" class="adv-rating-error"></div></div>'+fieldHtml+'<div class="adv-field full"><div class="adv-modal-actions" style="justify-content:flex-start"><button class="adv-btn good" type="button" onclick="window._advManagerAction(\'approve\',this)">Approve to Super Admin</button><button class="adv-btn warn" type="button" onclick="window._advManagerAction(\'return\',this)">Return to '+esc(reqLabel)+'</button><button class="adv-btn danger" type="button" onclick="window._advManagerAction(\'reject\',this)">Reject</button></div></div></div></div>';
+  }
+  window._advManagerAction=async function(action,btn){
+    if(!selectedRequest||!apiReady('_advisoryManagerAction'))return;
+    var reqLabel=requesterLabelFor(selectedRequest),
+        comment=String((document.getElementById('advManagerComment')||{}).value||'').trim(),
+        err=document.getElementById('advManagerError'),
+        fieldBox=document.getElementById('advManagerReturnFields'),
+        fields=Array.prototype.slice.call((fieldBox||document).querySelectorAll('[data-adv-return-field]:checked')).map(function(x){return x.getAttribute('data-adv-return-field');});
+    if(fieldBox)fieldBox.hidden=action!=='return';
+    if((action==='return'||action==='reject')&&!comment){
+      if(err)err.textContent=action==='return'?'Enter the correction note before returning the request.':'Enter a rejection reason before rejecting the request.';
+      return;
+    }
+    if(action==='return'&&!fields.length){
+      if(err)err.textContent='Select at least one field that must be corrected before returning the request.';
+      return;
+    }
+    if(err)err.textContent='';
+    var old=btn&&btn.textContent;
+    if(btn){btn.disabled=true;btn.textContent=action==='approve'?'Approving…':(action==='return'?'Returning…':'Rejecting…');}
+    try{
+      await window._advisoryManagerAction(selectedRequest.id,action,comment,fields);
+      closeModal();await refreshAfterMutation();
+      toast(action==='approve'?'Request approved and forwarded to Super Admin.':(action==='return'?'Request returned to the '+reqLabel+' for correction.':'Request rejected. It will not be forwarded to Super Admin.'));
+    }catch(e){
+      if(btn){btn.disabled=false;btn.textContent=old||'Submit';}
+      if(err)err.textContent=String(e&&e.message||e);else toast(String(e&&e.message||e));
+    }
+  };
   function adminActionLabel(action){
     return action==='respond'?'Send Response / Close Request':(action==='request_info'?'Request More Information':(action==='reject'?'Reject Request':'Exceptional Action'));
   }
