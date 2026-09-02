@@ -33,7 +33,7 @@ service cloud.firestore {
     }
 
     function normalizedRoleValue(value) {
-      return value is string ? value.lower().trim().replace('[ _-]+', '_') : 'viewer';
+      return value is string ? value.lower().trim().replace(' ', '_').replace('-', '_') : 'viewer';
     }
 
     function role() {
