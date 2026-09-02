@@ -23,6 +23,7 @@
   function currentDepartmentKey(){if(isManager()&&window.__grcManagerDepartmentKey)return String(window.__grcManagerDepartmentKey);var raw=Object.prototype.hasOwnProperty.call(window,'_fbDept')?window._fbDept:window.currentUserDept;if(typeof window._grcCanonicalDepartment==='function')return String(window._grcCanonicalDepartment(raw)||'');return String(raw==null?'':raw).trim().toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');}
   function requestDepartmentKey(r){r=r||{};var raw=r.departmentKey||r.department||r.departmentRaw||r.proposedRecord&&r.proposedRecord.department||r.currentRecord&&r.currentRecord.department||'';if(typeof window._grcCanonicalDepartment==='function')return String(window._grcCanonicalDepartment(raw)||'');return String(raw==null?'':raw).trim().toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');}
   function managerDepartmentRequest(r){if(!isManager())return true;return !!(r&&r._managerAssigned===true);}
+  function responsibleRiskSubmitter(r){var role=String(r&&r.submittedByRole||'').toLowerCase().trim();return !role||['risk_owner','grc_owner','platform_owner'].indexOf(role)>=0;}
   function ownRequest(r){return String(r&&r.submittedByEmail||'').toLowerCase().trim()===email();}
   function reviewStage(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
   function reviewDepartmentKey(r){var raw=r&&r.departmentKey||'';if(typeof window._grcCanonicalDepartment==='function')return String(window._grcCanonicalDepartment(raw)||'');return String(raw||'').trim().toLowerCase();}
@@ -63,6 +64,7 @@
   function actionable(r){var s=String(r.status||'');if(isOwner())return ownRequest(r)&&s==='returned_requester';if(isManager())return !ownRequest(r)&&managerDepartmentRequest(r)&&(s==='pending_manager'||s==='returned_manager');if(isSuper())return s==='pending_super_admin';return false;}
   function riskApprovalNoticeRows(){
     return cache.filter(function(r){
+      if(isManager()&&!responsibleRiskSubmitter(r))return false;
       var s=String(r&&r.status||'');
       if(isSuper())return s==='pending_super_admin';
       if(isManager())return !ownRequest(r)&&managerDepartmentRequest(r)&&(s==='pending_manager'||s==='returned_manager');
@@ -71,6 +73,8 @@
     });
   }
   function approvalNoticeRows(){
+    /* Entry notification only: show pending items in two independent sections.
+       The manager profile queue below is intentionally not status-filtered. */
     var rows=riskApprovalNoticeRows().map(function(r){return{kind:'risk',row:r};});
     if(isManager())rows=rows.concat(reviewApprovalRows.filter(reviewManagerRequest).map(function(r){return{kind:'review',row:r};}));
     if(isSuper())rows=rows.concat(reviewApprovalRows.filter(function(r){return String(r&&r.workflowStage||r&&r.status||'').toLowerCase()==='pending_super_admin';}).map(function(r){return{kind:'review',row:r};}));
@@ -123,21 +127,13 @@
   function closeApprovalNotice(){var ov=document.getElementById('_grcApprovalNoticeOv');if(ov)ov.remove();}
   function approvalNoticeTitle(){
     if(isSuper())return isAr()?'طلبات اعتماد GRC بانتظار الموافقة النهائية':'GRC Requests Awaiting Final Approval';
-    if(isManager())return isAr()?'طلبات GRC بانتظار موافقتك':'GRC Requests Awaiting Your Approval';
+    if(isManager())return isAr()?'الطلبات المعلقة':'Pending Requests';
     return isAr()?'حالة طلباتك في GRC':'Your GRC Approval Requests';
   }
   function approvalNoticeSubtitle(){
     if(isSuper())return isAr()?'راجع طلبات تعديل سجلات المخاطر والحوادث واعتمد النشر النهائي.':'Review Risk and Incident Register changes awaiting final publication approval.';
-    if(isManager())return isAr()?'راجع جميع طلبات قسمك في مكان واحد: المخاطر والحوادث وطلبات المراجعة والتطوير.':'Review all department approvals in one place: Risk, Incident, and Review & Development requests.';
+    if(isManager())return isAr()?'طلبات الريسك والانسيدنت وطلبات الديفلوب المعلقة فقط.':'Only pending Risk & Incident and Review & Development requests.';
     return isAr()?'تظهر هنا طلباتك التي ما زالت تحت الاعتماد أو تحتاج منك تعديلًا.':'These requests are still in approval or require an update from you.';
-  }
-  function reviewApprovalNoticeCard(r){
-    var details=String(r.details||r.title||r.relatedNewText||r.category||r.relatedType||'').trim();
-    return `<article class="grc-apn-card"><div class="grc-apn-card-head"><div><strong>${esc(r.code||r.id)}</strong><small>${esc(isAr()?'مراجعة وتطوير':'Review & Development')} · ${esc(reviewTypeText(r))}</small></div><span class="grc-apn-status">${esc(isAr()?'بانتظار موافقة مدير القسم':'Pending Department Manager Approval')}</span></div><div class="grc-apn-meta"><span>${esc(isAr()?'نوع العنصر':'Item Type')}</span><b>${esc(r.category||r.relatedType||r.requestTypeLabel||'—')}</b><span>${esc(isAr()?'السجل المرتبط':'Related Record')}</span><b>${esc(reviewRelatedText(r)||r.relatedNewText||'—')}</b><span>${esc(isAr()?'مقدم الطلب':'Submitted by')}</span><b>${esc(r.userName||r.userEmail||'—')}</b><span>${esc(isAr()?'التفاصيل':'Details')}</span><b>${esc(details||'No request details were stored.')}</b></div><div class="grc-apn-actions"><button class="grc-apn-btn primary" onclick="window._grcReviewManagerPanel('${esc(r.id)}','approve',this)">${esc(isAr()?'اعتماد للسوبر أدمن':'Approve to Super Admin')}</button><button class="grc-apn-btn secondary" onclick="window._grcReviewManagerPanel('${esc(r.id)}','return',this)">${esc(isAr()?'إعادة لمقدم الطلب':'Return to Requester')}</button><button class="grc-apn-btn secondary" onclick="window._grcReviewManagerPanel('${esc(r.id)}','reject',this)">${esc(isAr()?'رفض':'Reject')}</button></div><div class="grc-review-manager-panel grc-risk-inline-decision" hidden></div></article>`;
-  }
-  function reviewSuperAdminNoticeCard(r){
-    var details=String(r&&r.details||r&&r.title||r&&r.relatedNewText||r&&r.category||r&&r.relatedType||'').trim();
-    return `<article class="grc-apn-card"><div class="grc-apn-card-head"><div><strong>${esc(r.code||r.id)}</strong><small>${esc(isAr()?'مراجعة وتطوير':'Review & Development')} · ${esc(reviewTypeText(r))}</small></div><span class="grc-apn-status">${esc(isAr()?'بانتظار المراجعة النهائية':'Pending Super Admin Review')}</span></div><div class="grc-apn-meta"><span>${esc(isAr()?'نوع العنصر':'Item Type')}</span><b>${esc(r.category||r.relatedType||r.requestTypeLabel||'—')}</b><span>${esc(isAr()?'السجل المرتبط':'Related Record')}</span><b>${esc(reviewRelatedText(r)||r.relatedNewText||'—')}</b><span>${esc(isAr()?'مقدم الطلب':'Submitted by')}</span><b>${esc(r.userName||r.userEmail||'—')}</b><span>${esc(isAr()?'التفاصيل':'Details')}</span><b>${esc(details||'No request details were stored.')}</b></div><div class="grc-apn-actions"><button class="grc-apn-btn primary" onclick="window._grcReviewApprovalOpenRequest('${esc(r.id)}')">${esc(isAr()?'فتح الطلب والرد':'Open & Respond')}</button></div></article>`;
   }
   function approvalNoticeCard(item){
     if(item&&item.kind==='review')return isSuper()?reviewSuperAdminNoticeCard(item.row||{}):reviewApprovalNoticeCard(item.row||{});
@@ -149,10 +145,10 @@
     var ov=document.getElementById('_grcApprovalNoticeOv');if(!ov)return;
     var rows=approvalNoticeRows(),body=ov.querySelector('.grc-apn-body');if(!body)return;
     if(isManager()){
-      var riskRows=rows.filter(function(x){return x.kind==='risk';}),reviewRows=rows.filter(function(x){return x.kind==='review';});
-      body.innerHTML='<div class="grc-apn-summary"><span>'+esc(isAr()?'طلبات الاعتماد الحالية':'Current approval requests')+'</span><b>'+rows.length+' '+esc(isAr()?'طلب قائم':'pending request(s)')+'</b></div>'+
-        '<section class="grc-apn-group"><div class="grc-apn-group-head"><div><strong>Risk & Incident Register Approval Requests</strong><small>Requests awaiting your department decision.</small></div><b>'+riskRows.length+'</b></div>'+(riskRows.length?riskRows.map(approvalNoticeCard).join(''):'<div class="grc-apn-group-empty">No pending Risk or Incident requests.</div>')+'</section>'+
-        '<section class="grc-apn-group"><div class="grc-apn-group-head"><div><strong>Review & Development Approval Requests</strong><small>Requests awaiting your department decision.</small></div><b>'+reviewRows.length+'</b></div>'+(reviewRows.length?reviewRows.map(approvalNoticeCard).join(''):'<div class="grc-apn-group-empty">No pending Review & Development requests.</div>')+'</section>';
+      var riskRows=rows.filter(function(x){return x.kind==='risk';});
+      var reviewRows=rows.filter(function(x){return x.kind==='review';});
+      body.innerHTML='<div class="grc-apn-summary"><span>'+esc(isAr()?'الطلبات المعلقة':'Pending requests')+'</span><b>'+rows.length+' '+esc(isAr()?'طلب':'request(s)')+'</b></div>'+
+        '<section class="grc-apn-group"><div class="grc-apn-group-head"><div><strong>Risk & Incident Requests</strong><small>Pending Risk and Incident requests awaiting your department approval.</small></div><b>'+riskRows.length+'</b></div>'+(riskRows.length?riskRows.map(approvalNoticeCard).join(''):'<div class="grc-apn-group-empty">No pending Risk or Incident requests.</div>')+'</section>'+        '<section class="grc-apn-group"><div class="grc-apn-group-head"><div><strong>Review & Development Requests</strong><small>Pending Review & Development requests awaiting your department approval.</small></div><b>'+reviewRows.length+'</b></div>'+(reviewRows.length?reviewRows.map(approvalNoticeCard).join(''):'<div class="grc-apn-group-empty">No pending Review & Development requests.</div>')+'</section>';
     }else{
       body.innerHTML='<div class="grc-apn-summary"><span>'+esc(isAr()?'حالة طلبات الاعتماد':'Approval request status')+'</span><b>'+rows.length+' '+esc(isAr()?'طلب يحتاج متابعة':'request(s) require attention')+'</b></div>'+rows.map(approvalNoticeCard).join('');
     }
@@ -343,10 +339,12 @@
   function renderProfileBody(){
     var body=document.getElementById('_grcRiskProfileBody');if(!body)return;
     if(isManager()){
-      /* Department Manager approval inbox is Review & Development only. */
-      var reviewRows=reviewApprovalRows.filter(reviewManagerRequest).filter(function(r){return String(r.workflowStage||r.status||'').toLowerCase()==='pending_department_manager';}).sort(function(a,b){return reviewRequestTime(b)-reviewRequestTime(a);});
-      body.innerHTML='<section class="grc-manager-approval-section grc-rd-only-section"><div class="grc-manager-section-head"><div><h3>Department Approval Requests</h3><p>Review & Development requests awaiting your department approval.</p></div><span>'+reviewRows.length+'</span></div>'+(reviewRows.length?reviewRows.map(function(r){return reviewProfileCard(r);}).join(''):'<div class="grc-risk-empty">No pending Review & Development requests.</div>')+'</section>';
-      var count=document.getElementById('_grcRiskProfileCount');if(count)count.textContent=reviewRows.length+' pending request(s)';
+      /* Profile queue: show all Risk & Incident requests for the manager's
+         department submitted by the responsible owner. No status filter here. */
+      var riskRows=cache.filter(managerDepartmentRequest).filter(function(r){return !ownRequest(r)&&responsibleRiskSubmitter(r);}).sort(function(a,b){return (new Date(b.updatedAtIso||b.createdAtIso||b.createdAt||0).getTime()||0)-(new Date(a.updatedAtIso||a.createdAtIso||a.createdAt||0).getTime()||0);});
+      var total=riskRows.length;
+      body.innerHTML=(riskRows.length?'<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Risk & Incident Register Requests</h3><p>Risk and Incident register requests submitted by the responsible owner for your department.</p></div><span>'+riskRows.length+'</span></div>'+riskRows.map(function(r){return card(r);}).join('')+'</section>':'<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Risk & Incident Register Requests</h3><p>Risk and Incident register requests submitted by the responsible owner for your department.</p></div><span>0</span></div><div class="grc-risk-empty">No Risk or Incident requests are available for your department.</div></section>');
+      var count=document.getElementById('_grcRiskProfileCount');if(count)count.textContent=total+' request(s)';
       return;
     }
     var tab=activeApprovalTab(),rows=filteredRisk(tab).map(function(r){return{kind:'risk',row:r,time:new Date(r.updatedAtIso||r.createdAtIso||0).getTime()||0};});
@@ -414,7 +412,7 @@
     var name=window._fbName||window.currentUserName||'User',dept=window._fbDept||window.currentUserDept||'—',last='Current session';
     try{last=(window._fbLastLogin||sessionStorage.getItem('qumc_last_login')||'Current session');}catch(_){}
     menu.id='_grcUserProfileMenu';menu.className='qumc-profile-drop grc-user-profile-menu grc-profile-drop-open';menu.style.display='block';menu.style.top=((rect&&rect.bottom||58)+8)+'px';menu.style.right=Math.max(12,window.innerWidth-(rect&&rect.right||window.innerWidth-20))+'px';
-    var approvalTaskTitle=isManager()?'Department Approval Requests':'Risk & Incident Registers',approvalTaskSub=isManager()?'Review & Development requests awaiting your department approval.':'Approval requests and publication status',approvalTaskCount=(isManager()?cache.filter(actionable).length+reviewApprovalRows.filter(reviewManagerRequest).length:cache.filter(actionable).length);
+    var approvalTaskTitle='Risk & Incident Registers',approvalTaskSub=isManager()?'Risk & Incident requests for your department':'Approval requests and publication status',approvalTaskCount=(isManager()?cache.filter(function(r){return managerDepartmentRequest(r)&&!ownRequest(r)&&responsibleRiskSubmitter(r);}).length:cache.filter(actionable).length);
     menu.innerHTML='<div class="qumc-profile-head"><div class="qumc-profile-avatar">'+esc(String(name).charAt(0).toUpperCase())+'</div><div style="min-width:0"><div class="qumc-profile-name">'+esc(name)+'</div><div class="qumc-profile-email">'+esc(email()||'—')+'</div></div></div>'+
       '<div class="qumc-profile-section-title">Profile</div><div class="qumc-profile-grid"><span>Name</span><b>'+esc(name)+'</b><span>Role</span><b>'+esc(role()==='governance_performance_manager'?'Governance & Performance Department Manager':role().replace(/_/g,' '))+'</b><span>Department</span><b>'+esc(dept)+'</b><span>Last Login</span><b>'+esc(last)+'</b></div>'+
       '<div class="grc-profile-task-panel"><div class="grc-profile-task-title">Requests</div>'+
@@ -427,7 +425,7 @@
   window._grcRiskOpenCenterRequest=openCenterRequest;
   window._grcRiskOpenCenterRequests=openCenterRequests;
 
-  window._grcRiskOpenProfile=function(requestId){if(!canAccessRiskIncidentWorkflow())return;ensureReturnWorkflowStyles();start();var old=document.getElementById('_grcRiskProfileOv');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcRiskProfileOv';ov.className='grc-risk-overlay';var manager=isManager(),title=manager?'Department Approval Requests':'Risk & Incident Registers',subtitle=manager?'Review & Development requests awaiting your department approval.':'Additions, updates and deletion requests with the GRC approval workflow.';ov.innerHTML='<div class="grc-risk-dialog wide"><header><div><h2>'+esc(title)+'</h2><p>'+esc(subtitle)+'</p></div><button onclick="document.getElementById(\'_grcRiskProfileOv\').remove()">×</button></header><div class="grc-risk-profile-summary"><span id="_grcRiskProfileCount">0 request(s)</span>'+(manager?'':'<div class="grc-risk-tabs"><button class="active" data-grc-risk-tab="all">All</button><button data-grc-risk-tab="action">Needs Action</button><button data-grc-risk-tab="returned">Returned / Rejected</button><button data-grc-risk-tab="published">Published</button></div>')+'</div><main id="_grcRiskProfileBody"></main></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});if(!manager)ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(btn){btn.onclick=function(){ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(x){x.classList.remove('active');});btn.classList.add('active');renderProfileBody();};});renderProfileBody();if(requestId)setTimeout(function(){window._grcRiskShowDetails(requestId);},50);};
+  window._grcRiskOpenProfile=function(requestId){if(!canAccessRiskIncidentWorkflow())return;ensureReturnWorkflowStyles();start();var old=document.getElementById('_grcRiskProfileOv');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcRiskProfileOv';ov.className='grc-risk-overlay';var manager=isManager(),title=manager?'GRC Requests Awaiting Your Approval':'Risk & Incident Registers',subtitle=manager?'Review only the active requests assigned to your department. Completed decisions are removed from this queue.':'Additions, updates and deletion requests with the GRC approval workflow.';ov.innerHTML='<div class="grc-risk-dialog wide"><header><div><h2>'+esc(title)+'</h2><p>'+esc(subtitle)+'</p></div><button onclick="document.getElementById(\'_grcRiskProfileOv\').remove()">×</button></header><div class="grc-risk-profile-summary"><span id="_grcRiskProfileCount">0 request(s)</span>'+(manager?'':'<div class="grc-risk-tabs"><button class="active" data-grc-risk-tab="all">All</button><button data-grc-risk-tab="action">Needs Action</button><button data-grc-risk-tab="returned">Returned / Rejected</button><button data-grc-risk-tab="published">Published</button></div>')+'</div><main id="_grcRiskProfileBody"></main></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});if(!manager)ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(btn){btn.onclick=function(){ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(x){x.classList.remove('active');});btn.classList.add('active');renderProfileBody();};});renderProfileBody();if(requestId)setTimeout(function(){window._grcRiskShowDetails(requestId);},50);};
   window._grcRiskShowDetails=async function(id){
     ensureReturnWorkflowStyles();
     var r=cache.find(function(x){return String(x.id)===String(id);});if(!r)return;
