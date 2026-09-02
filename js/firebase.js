@@ -900,11 +900,11 @@ window._selectPortal=async portal=>{
       if(Number(row.rating||0))throw new Error('This request has already been rated.');
       const n=Math.max(1,Math.min(5,Number(rating||0))),nowIso=new Date().toISOString();
       try{
-        await updateDoc(ref,{rating:n,ratingComment:String(comment||'').trim(),ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:nowIso});
+        await updateDoc(ref,{rating:n,ratingComment:String(comment||'').trim(),ratingAt:serverTimestamp()});
       }catch(e){
         const msg=String(e&&e.message||e||'');
         if(/permission-denied|missing or insufficient permissions/i.test(msg)){
-          throw new Error('Rating was blocked by Firestore Rules. Deploy the included firestore.rules (v69) and retry.');
+          throw new Error('Rating could not be saved by Firestore. The request was read successfully, but Firebase rejected the rating update.');
         }
         throw e;
       }
@@ -1190,7 +1190,6 @@ window._selectPortal=async portal=>{
         }
         result.review=readQueue(settled[0],'review').filter(function(r){
           return String(r.userEmail||'').toLowerCase().trim()!==fresh.email &&
-            String(r.workflowStage||r.status||'').toLowerCase()==='pending_department_manager' &&
             String(r.platform||'grc').toLowerCase()==='grc';
         });
         result.risk=readQueue(settled[1],'risk').filter(function(r){
