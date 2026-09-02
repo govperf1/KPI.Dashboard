@@ -1207,20 +1207,39 @@ window._selectPortal=async portal=>{
     window._advisorySubscribe=function(callback){
       if(typeof callback!=='function'||!_advEmail()||!db)return function(){};
       if(_advIsDepartmentManager()){
-        let stopped=false,pollTimer=null;
-        const pull=async function(){
-          if(stopped)return;
-          try{
-            const rows=await window._advisoryGetManagerQueue();
-            const dashboardRows=(rows||[]).map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
-            callback({records:rows||[],publicRecords:dashboardRows,errors:{},source:'manager-queue'});
-          }catch(err){
-            callback({records:[],publicRecords:[],errors:{manager:String(err&&err.message||err&&err.code||err)},source:'manager-queue'});
-          }
-          if(!stopped)pollTimer=setTimeout(pull,15000);
+        const dept=_advDepartmentKey(),me=_advEmail(),uid=_advUid();
+        if(!dept){callback({records:[],publicRecords:[],allRecords:[],errors:{manager:'manager-department-missing'},source:'manager-queue'});return function(){};}
+        let stopped=false;
+        const qref=_grcManagerQueueCollection(dept,'review');
+        const ownRef=query(collection(db,ADV_REQUESTS_COLLECTION),where(uid?'requesterUid':'userEmail','==',uid||me));
+        let queueReady=false,ownReady=false,queueAll=[],ownRows=[],queueError='',ownError='';
+        const emit=function(){
+          if(stopped||!queueReady||!ownReady)return;
+          const pending=queueAll.filter(function(r){return String(r.workflowStage||r.status||'').toLowerCase()==='pending_department_manager'&&String(r.platform||'grc').toLowerCase()==='grc';});
+          const byId={};pending.concat(ownRows).forEach(function(r){if(r&&r.id)byId[String(r.id)]=r;});
+          const records=Object.keys(byId).map(function(k){return byId[k];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);});
+          const dashboardRows=records.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
+          const errors={};if(queueError)errors.manager=queueError;if(ownError)errors.own=ownError;
+          callback({records:records,publicRecords:dashboardRows,allRecords:queueAll,errors:errors,source:'manager-queue'});
         };
-        pull();
-        return function(){stopped=true;if(pollTimer)clearTimeout(pollTimer);};
+        const queueLive=onSnapshot(qref,{includeMetadataChanges:true},function(snap){
+          if(stopped)return;
+          if(snap.metadata&&snap.metadata.fromCache)return;
+          queueAll=snap.docs.map(function(d){
+            const item=d.data()||{},raw=item.snapshot||{};
+            const r=_advNormalizeRow(String(item.requestId||d.id),raw,'advisory_requests');
+            r._managerAssigned=true;
+            return r;
+          }).filter(function(r){return String(r.userEmail||'').toLowerCase().trim()!==me;});
+          queueReady=true;queueError='';emit();
+        },function(err){if(stopped)return;queueReady=true;queueError=String(err&&err.message||err&&err.code||err||'listener-failed');emit();});
+        const ownLive=onSnapshot(ownRef,{includeMetadataChanges:true},function(snap){
+          if(stopped)return;
+          if(snap.metadata&&snap.metadata.fromCache)return;
+          ownRows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+          ownReady=true;ownError='';emit();
+        },function(err){if(stopped)return;ownReady=true;ownError=String(err&&err.message||err&&err.code||err||'listener-failed');emit();});
+        return function(){stopped=true;try{queueLive();}catch(_){}try{ownLive();}catch(_){} };
       }
       let closed=false,timer=null,unsubs=[];
       const sources={};
@@ -1894,19 +1913,42 @@ window._selectPortal=async portal=>{
     window._grcRiskRequestsGetAll=async function(){if(!_grcRiskIsAdmin())throw new Error('Access denied.');return _grcRiskRead(collection(db,GRC_RISK_REQUESTS_COLLECTION));};
     window._grcRiskRequestsSubscribe=function(callback){
       if(_grcRiskRequestUnsub){_grcRiskRequestUnsub();_grcRiskRequestUnsub=null;}if(!_grcRiskEmail()||!db)return function(){};if(!_grcRiskCanViewRegister()||['viewer','user'].includes(_grcRiskRole())){callback([]);return function(){};}
-      /* Department Manager must use the explicit email inbox. The old direct
-         departmentKey listener could fail Security Rules and then overwrite a
-         correctly loaded approval queue with an empty array. */
+      /* Department Manager: listen to the canonical department inbox once.
+         The previous implementation polled getDocsFromServer every 4 seconds,
+         which caused a large number of billed reads and could also surface a
+         stale/empty queue after a transient permission error. The inbox is the
+         authoritative routing index, so one snapshot listener is sufficient.
+         `allRecords` is exposed for the Manager profile; `records` remains the
+         actionable subset used by the approval notification. */
       if(_grcRiskIsManager()){
-        let stopped=false,timer=null;
-        const pull=async function(){
-          if(stopped)return;
-          try{callback(await window._grcRiskRequestsGetForManager());}
-          catch(err){console.warn('[GRC Manager Inbox] refresh failed',err&&err.code||err);callback([],err);}
-          if(!stopped)timer=setTimeout(pull,4000);
+        const freshEmail=_grcRiskEmail();
+        const dept=_grcRiskDept();
+        if(!dept){callback([],new Error('manager-department-missing'));return function(){};}
+        const qref=_grcManagerQueueCollection(dept,'risk');
+        let stopped=false;
+        const mapSnapshot=function(snap){
+          const all=snap.docs.map(function(d){
+            const item=d.data()||{},raw=item.snapshot||{};
+            const row=_grcRiskRequestData({id:String(item.requestId||d.id),exists:function(){return true;},data:function(){return raw;}});
+            if(row)row._managerAssigned=true;
+            return row;
+          }).filter(Boolean);
+          const actionableRows=all.filter(function(r){
+            return String(r.submittedByEmail||'').toLowerCase().trim()!==freshEmail &&
+              ['pending_manager','returned_manager'].indexOf(String(r.status||'').toLowerCase())>=0;
+          });
+          return {records:_grcRiskSort(actionableRows),allRecords:_grcRiskSort(all),source:'manager-queue'};
         };
-        pull();
-        _grcRiskRequestUnsub=function(){stopped=true;if(timer)clearTimeout(timer);};
+        const live=onSnapshot(qref,{includeMetadataChanges:true},function(snap){
+          if(stopped)return;
+          if(snap.metadata&&snap.metadata.fromCache)return;
+          callback(mapSnapshot(snap),null);
+        },function(err){
+          if(stopped)return;
+          console.warn('[GRC Manager Risk Inbox] listener failed',err&&err.code||err);
+          callback({records:[],allRecords:[],source:'manager-queue',errors:{manager:String(err&&err.message||err&&err.code||err)}},err);
+        });
+        _grcRiskRequestUnsub=function(){stopped=true;try{live();}catch(_){} };
         return _grcRiskRequestUnsub;
       }
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
