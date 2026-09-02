@@ -581,7 +581,7 @@ service cloud.firestore {
     // v66 is the current approval-sync deployment marker. The v65 marker remains
     // accepted for backward compatibility during rollout.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId in ['v60-grc-department-scope-approval-20260823','v65-grc-superadmin-global-20260824','v66-grc-approval-sync-20260825'];
+      allow get: if approved() && versionId in ['v60-grc-department-scope-approval-20260823','v65-grc-superadmin-global-20260824','v66-grc-approval-sync-20260825','v69-grc-manager-approval-20260902'];
       allow list, create, update, delete: if false;
     }
 
@@ -753,7 +753,7 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status','workflowStage','closureReason',
           'managerDecision','managerComment','managerName','managerEmail',
-          'managerActionAt','managerActionAtIso','closedAt',
+          'managerActionAt','managerActionAtIso','closedAt','returnedAt',
           'managerReturnFields','returnFields','returnNote','returnSource',
           'updatedAt','updatedAtIso','updatedBy'
         ]) &&
@@ -816,10 +816,17 @@ service cloud.firestore {
         (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) ||
         (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
       );
-      // Department Manager opens a single request only when that request is
-      // present in the manager's assigned department queue.
-      allow get: if assignedReviewManager(requestId) &&
-        resource.data.workflowStage == 'pending_department_manager';
+      // Department Manager may open a single request from their own department
+      // to hydrate the approval inbox with the authoritative request details.
+      // The workflow update itself remains restricted by advisoryManagerOwnsResource()
+      // and validAdvisoryManagerChange().
+      allow get: if approved() &&
+        profileRoleFrom(userData()) == 'department_manager' &&
+        profileDepartmentKeyFrom(userData()) != '' &&
+        (
+          canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData()) ||
+          canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData())
+        );
 
       allow list: if admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']);
       allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
@@ -989,8 +996,16 @@ service cloud.firestore {
       allow get: if canReadRiskIncidentWorkflow() && (
         admin() || riskRequestOwner(resource.data) || riskRequestDepartment(resource.data)
       );
-      allow get: if assignedRiskManager(requestId) &&
-        resource.data.status in ['pending_manager','returned_manager'];
+      // Department Manager may open a single request from their own department
+      // so stale approval-inbox snapshots can be hydrated from the authoritative
+      // request document. Update permissions remain restricted below.
+      allow get: if approved() &&
+        profileRoleFrom(userData()) == 'department_manager' &&
+        profileDepartmentKeyFrom(userData()) != '' &&
+        (
+          canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData()) ||
+          canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData())
+        );
       // Managers list the path-scoped approval queue, never this collection directly.
       allow list: if
         admin() ||
