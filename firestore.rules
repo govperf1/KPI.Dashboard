@@ -577,8 +577,11 @@ service cloud.firestore {
       // only for Admin / authorized analytics roles.
       allow list: if approved() &&
         (admin() || permit('view_request_analytics', ['governance_performance_manager']) || ownEmail(resource.data.userEmail));
+      // Requester rating is an owner-only update. Keep it independent from the
+      // broader GRC navigation permission so an approved department manager can
+      // rate a completed request even when their GRC menu permissions are scoped.
       allow update: if admin() ||
-        (canAccessGrc() && ownEmail(resource.data.userEmail) && validGrcRequestRatingChange());
+        (approved() && ownEmail(resource.data.userEmail) && validGrcRequestRatingChange());
       allow delete: if superAdmin();
     }
 
