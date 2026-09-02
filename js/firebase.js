@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
     import { getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,sendPasswordResetEmail,setPersistence,browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-    import { getFirestore,doc,getDoc,getDocFromServer,setDoc,addDoc,collection,serverTimestamp,onSnapshot,updateDoc,arrayUnion,query,where,orderBy,getDocs,getDocsFromServer,collectionGroup,deleteDoc,runTransaction,writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { getFirestore,doc,getDoc,getDocFromServer,setDoc,addDoc,collection,serverTimestamp,onSnapshot,updateDoc,arrayUnion,query,where,orderBy,getDocs,getDocsFromServer,deleteDoc,runTransaction,writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     const firebaseConfig={apiKey:"AIzaSyAlLWZvsu4UbHn-LncFdrSHlbL3bIAG4no",authDomain:"qumc-kpi-dashboard-f10dd.firebaseapp.com",projectId:"qumc-kpi-dashboard-f10dd",storageBucket:"qumc-kpi-dashboard-f10dd.firebasestorage.app",messagingSenderId:"659971973475",appId:"1:659971973475:web:483116a0711008a6a97356"};
     const DPERMS={
@@ -889,49 +889,6 @@ window._selectPortal=async portal=>{
       });
       try{await window._recordAuditDirect('GRC_USER_REQUEST_RESPONSE','GRC user request '+String(status||'updated')+' · '+requestId,before,{requestId:requestId,status:String(status||''),comment:String(comment||'')},{portal:'grc'});}catch(_){}
     };
-    /* v282 ONE-TIME TEST CLEANUP
-       Deletes request documents only. It intentionally does NOT touch KPI/GRC
-       registers, users, roles, audit logs, counters, policies, risks, or incidents.
-       Scope: GRC system requests, Review & Development requests/mirrors,
-       Risk/Incident approval requests, department approval inbox items,
-       and Review & Development attachment chunks. Super Admin only. */
-    window._grcCleanupCurrentRequests=async function(){
-      if(_normalizePortalRole(window._fbRole)!=='super_admin'||!auth.currentUser)throw new Error('Only Super Admin can run the GRC cleanup.');
-      const collections=['grc_requests','advisory_requests','advisory_public','advisory_attachments','grc_risk_requests'];
-      let deleted=0;
-      async function deleteQuery(q){
-        const snap=await getDocsFromServer(q),docs=snap.docs||[];
-        for(let i=0;i<docs.length;i+=450){
-          const b=writeBatch(db),chunk=docs.slice(i,i+450);
-          chunk.forEach(d=>b.delete(d.ref));
-          await b.commit(); deleted+=chunk.length;
-        }
-      }
-      for(const name of collections)await deleteQuery(collection(db,name));
-      // Preserve normal Performance requests; delete only Review & Development fallback rows.
-      try{
-        const snap=await getDocsFromServer(collection(db,'kpi_requests'));
-        const rd=(snap.docs||[]).filter(d=>{const x=d.data()||{};return x.isReviewDevelopmentRequest===true||String(x.requestDomain||'')==='review_development';});
-        for(let i=0;i<rd.length;i+=450){
-          const b=writeBatch(db),chunk=rd.slice(i,i+450);chunk.forEach(d=>b.delete(d.ref));await b.commit();deleted+=chunk.length;
-        }
-      }catch(e){console.warn('[GRC Cleanup] kpi_requests fallback cleanup skipped:',e&&e.message||e);}
-      // Delete nested department approval inbox items. Parent department documents
-      // are not materialized by Firestore when only a subcollection exists, so use
-      // collectionGroup and keep only documents whose path belongs to our v3 inbox.
-      for(const kind of ['review','risk']){
-        try{
-          const snap=await getDocsFromServer(collectionGroup(db,kind));
-          const rows=(snap.docs||[]).filter(d=>String(d.ref.path||'').startsWith('grc_department_approval_inbox_v3/'));
-          for(let i=0;i<rows.length;i+=450){
-            const b=writeBatch(db),chunk=rows.slice(i,i+450);chunk.forEach(d=>b.delete(d.ref));await b.commit();deleted+=chunk.length;
-          }
-        }catch(e){console.warn('[GRC Cleanup] '+kind+' inbox cleanup skipped:',e&&e.message||e);}
-      }
-      try{localStorage.setItem('qumc_grc_requests_cleanup_v282',String(Date.now()));}catch(_){ }
-      console.log('[GRC Cleanup] completed. Deleted request documents:',deleted);
-      return {deleted};
-    };
     window._grcRequestsRate=async function(requestId,rating,comment){
       if(!window._fbUser||!db)throw new Error('not authenticated');
       const ref=doc(db,'grc_requests',requestId),snap=await getDoc(ref);
@@ -1392,6 +1349,17 @@ window._selectPortal=async portal=>{
       return _advMergeRows(primary,fallback,true);
     };
     window._advisoryGetAll=async function(){if(!_advCanAnalyze())throw new Error('Access denied.');const primary=await _advGetSorted(ADV_REQUESTS_COLLECTION);return _advMergeRows(primary,await _advFallbackRows(false),false);};
+    /* Super Admin final-approval inbox: subscribe only to Review & Development requests that have already passed Department Manager approval.  This avoids loading the full advisory collection and keeps the bell/approval notice in sync without a polling loop. */
+    window._advisorySubscribePendingSuperAdmin=function(callback){
+      callback=typeof callback==='function'?callback:function(){};
+      if(!_advCanAnalyze()||!db){callback([],new Error('Access denied.'));return function(){};}
+      const q=query(collection(db,ADV_REQUESTS_COLLECTION),where('workflowStage','==','pending_super_admin'));
+      return onSnapshot(q,function(snap){
+        const rows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');}).filter(function(r){return String(r.workflowStage||r.status||'').toLowerCase()==='pending_super_admin' && String(r.platform||'grc').toLowerCase()==='grc';});
+        rows.sort(function(a,b){return _advTsMs(b.updatedAt||b.updatedAtIso||b.createdAt||b.createdAtIso)-_advTsMs(a.updatedAt||a.updatedAtIso||a.createdAt||a.createdAtIso);});
+        callback(rows,null);
+      },function(err){callback([],err);});
+    };
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
       let primary=[];
