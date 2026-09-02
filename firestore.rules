@@ -557,7 +557,7 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'rating', 'ratingComment', 'ratingAt', 'updatedAt', 'updatedAtIso'
       ]) &&
-      resource.data.status in ['approved', 'rejected'] &&
+      resource.data.status is string && resource.data.status.lower().trim() in ['approved', 'rejected'] &&
       (!('rating' in resource.data) || resource.data.rating == null || resource.data.rating == 0) &&
       request.resource.data.rating is number &&
       request.resource.data.rating >= 1 && request.resource.data.rating <= 5;
@@ -577,9 +577,6 @@ service cloud.firestore {
       // only for Admin / authorized analytics roles.
       allow list: if approved() &&
         (admin() || permit('view_request_analytics', ['governance_performance_manager']) || ownEmail(resource.data.userEmail));
-      // Allow an approved requester to rate only their own completed GRC system request.
-      // Keep this separate from the broader GRC role matrix so profile-role mismatches
-      // cannot block an otherwise valid rating update.
       allow update: if admin() ||
         (canAccessGrc() && ownEmail(resource.data.userEmail) && validGrcRequestRatingChange());
       allow delete: if superAdmin();
@@ -614,7 +611,7 @@ service cloud.firestore {
     match /grc_department_approval_inbox_v3/{departmentKey}/{queueKind}/{requestId} {
       allow get, list: if signedIn() && userData().approved == true &&
         profileRoleFrom(userData()) == 'department_manager' &&
-        profileDepartmentKeyFrom(userData()) == departmentKey &&
+        canonicalDepartment(departmentKey) == profileDepartmentKeyFrom(userData()) &&
         queueKind in ['review','risk'];
 
       allow create, update: if superAdmin() || (
@@ -838,6 +835,11 @@ service cloud.firestore {
         );
 
       allow list: if admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']);
+      allow list: if approved() && profileRoleFrom(userData()) == 'department_manager' &&
+        profileDepartmentKeyFrom(userData()) != '' &&
+        ('departmentKey' in resource.data) &&
+        canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData()) &&
+        ('workflowStage' in resource.data) && resource.data.workflowStage == 'pending_department_manager';
       allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
       allow update: if
@@ -1018,6 +1020,10 @@ service cloud.firestore {
       // Managers list the path-scoped approval queue, never this collection directly.
       allow list: if
         admin() ||
+        (approved() && profileRoleFrom(userData()) == 'department_manager' &&
+          profileDepartmentKeyFrom(userData()) != '' &&
+          ('departmentKey' in resource.data) &&
+          canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
         (canReadRiskIncidentWorkflow() && (
           (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid) ||
           (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail()) ||
