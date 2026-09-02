@@ -570,7 +570,13 @@ service cloud.firestore {
           request.resource.data.department == '' ||
           sameDepartment(request.resource.data.department)
         );
-      allow read: if canAccessGrc() && (admin() || permit('view_request_analytics', ['governance_performance_manager']) || ownEmail(resource.data.userEmail));
+      allow get: if canAccessGrc() &&
+        (admin() || permit('view_request_analytics', ['governance_performance_manager']) || ownEmail(resource.data.userEmail));
+      // My Requests uses a userEmail == authEmail() query. Keep that list path
+      // explicitly authorized for the requester, while retaining global access
+      // only for Admin / authorized analytics roles.
+      allow list: if approved() &&
+        (admin() || permit('view_request_analytics', ['governance_performance_manager']) || ownEmail(resource.data.userEmail));
       allow update: if admin() ||
         (canAccessGrc() && ownEmail(resource.data.userEmail) && validGrcRequestRatingChange());
       allow delete: if superAdmin();
