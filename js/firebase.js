@@ -1208,7 +1208,9 @@ window._selectPortal=async portal=>{
           if(String(row&&row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;
           const dept=String(row&&row.departmentKey||'').trim().toLowerCase();
           if(dept!==String(fresh.departmentKey||'').trim().toLowerCase())return;
-          if(['pending_manager','returned_manager'].indexOf(String(row&&row.status||'').toLowerCase())<0)return;
+          /* The Department Approval Requests profile is a history view for the
+           * responsible Risk/Incident owner. It must include every status.
+           * Pending/returned filtering belongs only to the entry notification. */
           const data=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});
           if(data){data._managerAssigned=true;riskMap[key]=data;}
         }
