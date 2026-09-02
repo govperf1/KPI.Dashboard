@@ -978,9 +978,9 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV65Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v65-grc-manager-scope-20260831'));window.__advRulesV65Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v65 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__advRulesV69Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v69-grc-manager-approval-20260902'));window.__advRulesV69Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Required Firestore GRC manager rules are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     async function _advAssertProfileScope(profile){
       profile=profile||{};
@@ -1207,8 +1207,40 @@ window._selectPortal=async portal=>{
           const item=d.data()||{},snap=item.snapshot||{};
           addRisk(String(item.requestId||d.id),snap);
         });
-        result.review=Object.keys(reviewMap).map(function(k){return reviewMap[k];});
-        result.risk=Object.keys(riskMap).map(function(k){return riskMap[k];});
+        /* Hydrate older inbox snapshots from the authoritative request documents.
+         * Older queue rows can contain only requestCode/status, which caused the
+         * Manager UI to show dashes instead of the actual request details.
+         */
+        const reviewRows=Object.keys(reviewMap).map(function(k){return reviewMap[k];});
+        const riskRows=Object.keys(riskMap).map(function(k){return riskMap[k];});
+        const hydratedReview=await Promise.all(reviewRows.map(async function(row){
+          try{
+            const snap=await getDoc(doc(db,ADV_REQUESTS_COLLECTION,String(row.id||'')));
+            if(snap.exists()){
+              const freshRow=_advNormalizeRow(snap.id,snap.data(),'advisory_requests');
+              if(String(freshRow.workflowStage||freshRow.status||'').toLowerCase()==='pending_department_manager'){
+                freshRow._managerAssigned=true;
+                return Object.assign({},row,freshRow,{_managerAssigned:true});
+              }
+            }
+          }catch(_){ }
+          return row;
+        }));
+        const hydratedRisk=await Promise.all(riskRows.map(async function(row){
+          try{
+            const snap=await getDoc(doc(db,GRC_RISK_REQUESTS_COLLECTION,String(row.id||'')));
+            if(snap.exists()){
+              const data=_grcRiskRequestData(snap);
+              if(data && ['pending_manager','returned_manager'].indexOf(String(data.status||'').toLowerCase())>=0){
+                data._managerAssigned=true;
+                return Object.assign({},row,data,{_managerAssigned:true});
+              }
+            }
+          }catch(_){ }
+          return row;
+        }));
+        result.review=hydratedReview.filter(Boolean);
+        result.risk=hydratedRisk.filter(Boolean);
         result.risk=_grcRiskSort(result.risk);
         result.review.sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
         if(result.errors.length&&!result.review.length&&!result.risk.length)throw new Error(result.errors.join(' · '));
@@ -1319,8 +1351,9 @@ window._selectPortal=async portal=>{
     window._advisoryGetManagerQueue=async function(){
       const bundle=await window._grcGetDepartmentApprovalQueue(true);
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
-      const own=await window._advisoryGetMine().catch(function(){return[];});
-      return _advMergeRows(bundle.review,own,false);
+      // Approval inbox contains only requests assigned to this manager.
+      // The manager's own submissions belong under My Requests instead.
+      return bundle.review||[];
     };
     function stageOfManagerRow(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
@@ -1630,11 +1663,11 @@ window._selectPortal=async portal=>{
     function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();return ['super_admin','admin','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].includes(r)||p.includes('access_grc')||p.includes('view_grc_department')||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('*');}
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
-      if(window.__grcRulesV65Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v65-grc-manager-scope-20260831'));window.__grcRulesV65Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v65 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__grcRulesV69Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v69-grc-manager-approval-20260902'));window.__grcRulesV69Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Required Firestore GRC manager rules are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
-    window._qumcAssertFirestoreRulesV65=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV64=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
+    window._qumcAssertFirestoreRulesV69=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV64=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
     // Compatibility aliases point to the same current probe so old callers cannot
     // silently accept a stale deployed ruleset.
     window._qumcAssertFirestoreRulesV39=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV38=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV36=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV35=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV34=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV33=_grcRiskAssertRulesVersion;
