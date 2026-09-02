@@ -1180,6 +1180,19 @@ window._selectPortal=async portal=>{
         if(settled[0].status==='rejected')result.errors.push('Review queue: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason));
         if(settled[1].status==='rejected')result.errors.push('Risk queue: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
 
+        /* The manager profile needs the complete Risk & Incident request history,
+         * not only the active inbox. Use the authoritative department-scoped query
+         * for the profile list; the approval inbox remains the source for active
+         * Review & Development approvals. */
+        let managerRiskSource=null,managerReviewSource=null;
+        try{
+          managerRiskSource=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));
+        }catch(err){result.errors.push('Risk department requests: '+String(err&&err.message||err));}
+        if(settled[0].status==='rejected'){
+          try{
+            managerReviewSource=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey),where('workflowStage','==','pending_department_manager')));
+          }catch(err){result.errors.push('Review department requests: '+String(err&&err.message||err));}
+        }
         const reviewMap={},riskMap={};
         function addReview(id,row){
           const key=String(id||row&&row.id||'');if(!key)return;
@@ -1206,6 +1219,23 @@ window._selectPortal=async portal=>{
         if(settled[1].status==='fulfilled')settled[1].value.forEach(function(d){
           const item=d.data()||{},snap=item.snapshot||{};
           addRisk(String(item.requestId||d.id),snap);
+        });
+        if(managerReviewSource)managerReviewSource.forEach(function(d){
+          const row=d.data()||{};
+          const normalized=_advNormalizeRow(d.id,row,'advisory_requests');
+          if(String(normalized.userEmail||'').toLowerCase().trim()!==fresh.email &&
+             String(normalized.workflowStage||normalized.status||'').toLowerCase()==='pending_department_manager' &&
+             String(normalized.platform||'grc').toLowerCase()==='grc'){
+            normalized._managerAssigned=true;
+            reviewMap[d.id]=normalized;
+          }
+        });
+        if(managerRiskSource)managerRiskSource.forEach(function(d){
+          const row=d.data()||{};
+          if(String(row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;
+          if(String(row.departmentKey||'').trim().toLowerCase()!==String(fresh.departmentKey||'').trim().toLowerCase())return;
+          const data=_grcRiskRequestData(d);
+          if(data){data._managerAssigned=true;riskMap[d.id]=data;}
         });
         /* Hydrate older inbox snapshots from the authoritative request documents.
          * Older queue rows can contain only requestCode/status, which caused the
@@ -1240,11 +1270,10 @@ window._selectPortal=async portal=>{
               return null;
             }
             const data=_grcRiskRequestData(snap);
-            if(data && ['pending_manager','returned_manager'].indexOf(String(data.status||'').toLowerCase())>=0){
+            if(data){
               data._managerAssigned=true;
               return Object.assign({},row,data,{_managerAssigned:true});
             }
-            try{await deleteDoc(_grcManagerQueueItemRef(fresh.departmentKey,'risk',String(row.id||'')));}catch(_){}
             return null;
           }catch(err){
             /* Never turn a permission/network failure into a false actionable row.

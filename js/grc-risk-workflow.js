@@ -61,13 +61,13 @@
   }
   function historyTimeline(r,compact){var h=Array.isArray(r&&r.history)?r.history.slice():[];if(!h.length)return'';if(compact&&h.length>4)h=h.slice(-4);return'<section class="grc-risk-history '+(compact?'compact':'')+'"><div class="grc-risk-block-title">'+esc(isAr()?'سجل الاعتماد':'Approval History')+'</div><div class="grc-risk-history-list">'+h.map(function(x){var note=String(x&&x.note||'').trim(),actor=String(x&&x.by||'').trim(),rlabel=historyRoleLabel(x&&x.role||''),fields=Array.isArray(x&&x.fields)?x.fields:[];return'<div class="grc-risk-history-item"><i></i><div><div class="grc-risk-history-top"><strong>'+esc(historyStatusLabel(x&&x.status||''))+'</strong><time>'+esc(historyTime(x&&x.at||x&&x.createdAt))+'</time></div><small>'+esc(rlabel+(actor?' · '+actor:''))+'</small>'+(fields.length?'<p><b>'+esc(isAr()?'الحقول: ':'Fields: ')+'</b>'+esc(fields.map(fieldLabel).join(' · '))+'</p>':'')+(note?'<p>'+esc(note)+'</p>':'')+'</div></div>';}).join('')+'</div></section>';}
   function tone(s){if(/^pending/.test(s)||/^returned/.test(s))return'warn';if(s==='published')return'good';if(/^rejected/.test(s)||s==='cancelled')return'bad';return'info';}
-  function actionable(r){var s=String(r.status||'');if(isOwner())return ownRequest(r)&&s==='returned_requester';if(isManager())return !ownRequest(r)&&managerDepartmentRequest(r)&&(s==='pending_manager'||s==='returned_manager');if(isSuper())return s==='pending_super_admin';return false;}
+  function actionable(r){var s=String(r.status||'');if(isOwner())return ownRequest(r)&&s==='returned_requester';if(isManager())return !ownRequest(r)&&managerDepartmentRequest(r)&&s==='pending_manager';if(isSuper())return s==='pending_super_admin';return false;}
   function riskApprovalNoticeRows(){
     return cache.filter(function(r){
       if(isManager()&&!responsibleRiskSubmitter(r))return false;
       var s=String(r&&r.status||'');
       if(isSuper())return s==='pending_super_admin';
-      if(isManager())return !ownRequest(r)&&managerDepartmentRequest(r)&&(s==='pending_manager'||s==='returned_manager');
+      if(isManager())return !ownRequest(r)&&managerDepartmentRequest(r)&&s==='pending_manager';
       if(isNoticeOwner())return ownRequest(r)&&['pending_manager','pending_super_admin','returned_manager','returned_requester'].indexOf(s)>=0;
       return false;
     });
@@ -76,7 +76,7 @@
     /* Entry notification only: show pending items in two independent sections.
        The manager profile queue below is intentionally not status-filtered. */
     var rows=riskApprovalNoticeRows().map(function(r){return{kind:'risk',row:r};});
-    if(isManager())rows=rows.concat(reviewApprovalRows.filter(reviewManagerRequest).map(function(r){return{kind:'review',row:r};}));
+    if(isManager())rows=rows.concat(reviewApprovalRows.filter(function(r){return reviewManagerRequest(r)&&String(r&&r.workflowStage||r&&r.status||'').toLowerCase()==='pending_department_manager';}).map(function(r){return{kind:'review',row:r};}));
     if(isSuper())rows=rows.concat(reviewApprovalRows.filter(function(r){return String(r&&r.workflowStage||r&&r.status||'').toLowerCase()==='pending_super_admin';}).map(function(r){return{kind:'review',row:r};}));
     return rows.sort(function(a,b){var at=a.kind==='review'?reviewRequestTime(a.row):new Date(a.row&&a.row.updatedAtIso||a.row&&a.row.createdAtIso||0).getTime()||0,bt=b.kind==='review'?reviewRequestTime(b.row):new Date(b.row&&b.row.updatedAtIso||b.row&&b.row.createdAtIso||0).getTime()||0;return bt-at;});
   }
