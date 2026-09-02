@@ -581,7 +581,7 @@ service cloud.firestore {
       // Keep this separate from the broader GRC role matrix so profile-role mismatches
       // cannot block an otherwise valid rating update.
       allow update: if admin() ||
-        (approved() && ownEmail(resource.data.userEmail) && validGrcRequestRatingChange());
+        (canAccessGrc() && ownEmail(resource.data.userEmail) && validGrcRequestRatingChange());
       allow delete: if superAdmin();
     }
 
