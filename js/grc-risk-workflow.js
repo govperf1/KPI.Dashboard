@@ -280,7 +280,7 @@
   function inlineDecisionShell(){return '<div class="grc-risk-inline-decision" hidden></div>';}
   function actions(r){var s=String(r.status||''),html='';
     if(isManager()&&!ownRequest(r)&&managerDepartmentRequest(r)&&s==='pending_manager')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_approve\',this)">Approve to Super Admin</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_return\',this)">Return to '+esc(submitterLabel(r))+'</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_reject\',this)">Reject</button>';
-    if(isManager()&&!ownRequest(r)&&managerDepartmentRequest(r)&&s==='returned_manager')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_resend\',this)">Resend to Super Admin</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_return\',this)">Return to '+esc(submitterLabel(r))+'</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_reject\',this)">Reject</button>';
+    if(isManager()&&!ownRequest(r)&&managerDepartmentRequest(r)&&s==='returned_manager')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_approve\',this)">Approve to Super Admin</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_return\',this)">Return to '+esc(submitterLabel(r))+'</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_reject\',this)">Reject</button>';
     if(isSuper()&&s==='pending_super_admin')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_approve\',this)">Approve & Publish</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_return\',this)">Return to Department Manager</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_reject\',this)">Reject</button>';
     if(isOwner()&&ownRequest(r)&&s==='returned_requester')html='<button class="grc-risk-action good" onclick="window._grcRiskEditResubmit(\''+esc(r.id)+'\')">Edit Requested Fields & Resubmit</button>';
     if(isOwner()&&ownRequest(r)&&s==='pending_manager')html='<button class="grc-risk-action bad ghost" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'cancel\',this)">Cancel Request</button>';
@@ -407,6 +407,7 @@
         '<button class="grc-profile-task primary" onclick="window._grcRiskOpenCenterRequest()"><span>＋</span><div><strong>Submit a Request</strong><small>Request GRC access, permission or system support</small></div></button>'+
         '<button class="grc-profile-task" onclick="window._grcRiskOpenCenterRequests()"><span>▤</span><div><strong>My Requests</strong><small>Track GRC system and access requests</small></div></button>'+
         (canAccessRiskIncidentWorkflow()?'<button class="grc-profile-task" onclick="document.getElementById(\'_grcUserProfileMenu\').remove();window._grcRiskOpenProfile()"><span>◇</span><div><strong>'+esc(approvalTaskTitle)+'</strong><small>'+esc(approvalTaskSub)+'</small></div><i id="_grcProfileRiskCount">'+approvalTaskCount+'</i></button>':'')+'</div>'+
+      (role()==='super_admin'?'<button class="grc-profile-task" id="_grcCleanupRequestsBtn" style="border:1px solid #fecaca;background:#fff7f7;color:#991b1b" onclick="if(confirm(\'Delete all current GRC test requests?\')){this.disabled=true;window._grcCleanupCurrentRequests().then(function(x){alert(\'GRC request cleanup completed. Deleted \' + x.deleted + \' request document(s).\');var m=document.getElementById(\'_grcUserProfileMenu\');if(m)m.remove();location.reload();}).catch(function(e){alert(\'Cleanup failed: \' +(e&&e.message||e));this.disabled=false;}.bind(this));}"><span>⌫</span><div><strong>Clear Current GRC Requests</strong><small>One-time cleanup of existing test requests only</small></div></button>':'')+
       '<button class="qumc-logout-btn grc-profile-logout" onclick="document.getElementById(\'_grcUserProfileMenu\').remove();if(window.qumcLogoutToLogin)window.qumcLogoutToLogin(event);else if(window._doLogout)window._doLogout();" type="button"><svg fill="none" height="15" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewBox="0 0 24 24" width="15"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" x2="9" y1="12" y2="12"></line></svg> Logout</button>';
     document.body.appendChild(menu);
   };
@@ -414,13 +415,36 @@
   window._grcRiskOpenCenterRequests=openCenterRequests;
 
   window._grcRiskOpenProfile=function(requestId){if(!canAccessRiskIncidentWorkflow())return;ensureReturnWorkflowStyles();start();var old=document.getElementById('_grcRiskProfileOv');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcRiskProfileOv';ov.className='grc-risk-overlay';var manager=isManager(),title=manager?'GRC Requests Awaiting Your Approval':'Risk & Incident Registers',subtitle=manager?'Review only the active requests assigned to your department. Completed decisions are removed from this queue.':'Additions, updates and deletion requests with the GRC approval workflow.';ov.innerHTML='<div class="grc-risk-dialog wide"><header><div><h2>'+esc(title)+'</h2><p>'+esc(subtitle)+'</p></div><button onclick="document.getElementById(\'_grcRiskProfileOv\').remove()">×</button></header><div class="grc-risk-profile-summary"><span id="_grcRiskProfileCount">0 request(s)</span>'+(manager?'':'<div class="grc-risk-tabs"><button class="active" data-grc-risk-tab="all">All</button><button data-grc-risk-tab="action">Needs Action</button><button data-grc-risk-tab="returned">Returned / Rejected</button><button data-grc-risk-tab="published">Published</button></div>')+'</div><main id="_grcRiskProfileBody"></main></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});if(!manager)ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(btn){btn.onclick=function(){ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(x){x.classList.remove('active');});btn.classList.add('active');renderProfileBody();};});renderProfileBody();if(requestId)setTimeout(function(){window._grcRiskShowDetails(requestId);},50);};
-  window._grcRiskShowDetails=function(id){
+  window._grcRiskShowDetails=async function(id){
     ensureReturnWorkflowStyles();
     var r=cache.find(function(x){return String(x.id)===String(id);});if(!r)return;
+    /* The approval list is an index. Before opening a Manager action dialog,
+       re-read the authoritative request so an old queue snapshot can never
+       produce a false 'Approve' button or blank record details. */
+    if(isManager()&&typeof window._grcRiskRequestGetManagerOne==='function'){
+      try{
+        r=await window._grcRiskRequestGetManagerOne(id);
+        var idx=cache.findIndex(function(x){return String(x.id)===String(id);});
+        if(idx>=0)cache[idx]=r;else cache.push(r);
+        window.__grcRiskRequestCache=cache;
+      }catch(e){
+        cache=cache.filter(function(x){return String(x.id)!==String(id);});
+        window.__grcRiskRequestCache=cache;
+        var profile=document.getElementById('_grcRiskProfileOv');if(profile)renderProfileBody();
+        if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();
+        refreshBadge();
+        var msg=String(e&&e.message||e||'This request is no longer pending.');
+        var existing=document.getElementById('_grcRiskDetailsOv');if(existing)existing.remove();
+        var errOv=document.createElement('div');errOv.id='_grcRiskDetailsOv';errOv.className='grc-risk-overlay inner';
+        errOv.innerHTML='<div class="grc-risk-dialog"><header><div><h2>Request no longer pending</h2><p>Department Manager Approval</p></div><button onclick="document.getElementById(\'_grcRiskDetailsOv\').remove()">×</button></header><main><div class="grc-risk-inline-decision bad" style="display:block"><div class="grc-risk-inline-title">Approval list refreshed</div><div class="grc-risk-inline-copy">'+esc(msg)+'</div></div></main></div>';
+        document.body.appendChild(errOv);
+        return;
+      }
+    }
     var old=document.getElementById('_grcRiskDetailsOv');if(old)old.remove();
     var ov=document.createElement('div');ov.id='_grcRiskDetailsOv';ov.className='grc-risk-overlay inner';
     var content=r.operation==='update'?changedTable(r):'<table class="grc-risk-record-table"><tbody>'+fieldRows(r.operation==='delete'?r.currentRecord:r.proposedRecord,recordType(r))+'</tbody></table>';
-    ov.innerHTML=`<div class="grc-risk-dialog"><header><div><h2>${esc(r.requestCode||r.id)}</h2><p>${esc(operationLabel(r.operation,r))} · ${esc(statusLabel(r.status))}</p></div><button onclick="document.getElementById('_grcRiskDetailsOv').remove()">×</button></header><main>${content}${r.deleteReason?'<div class="grc-risk-note"><b>Deletion reason</b>'+esc(r.deleteReason)+'</div>':''}${requestedFieldsHtml(r)}${historyTimeline(r,false)}${actions(r)}</main></div>`;
+    ov.innerHTML=`<div class="grc-risk-dialog"><header><div><h2>${esc(r.requestCode||r.id)}</h2><p>${esc(operationLabel(r.operation,r))} · ${esc(statusLabel(r.status))}</p></div><button onclick="document.getElementById(\'_grcRiskDetailsOv\').remove()">×</button></header><main>${content}${r.deleteReason?'<div class="grc-risk-note"><b>Deletion reason</b>'+esc(r.deleteReason)+'</div>':''}${requestedFieldsHtml(r)}${historyTimeline(r,false)}${actions(r)}</main></div>`;
     document.body.appendChild(ov);
   };
   function decisionCopy(r,action){
@@ -459,8 +483,12 @@
       else if(action==='super_return')await window._grcRiskRequestSuperAction(id,'return',note,fields);
       else if(action==='super_reject')await window._grcRiskRequestSuperAction(id,'reject',note,[]);
       else if(action==='cancel')await window._grcRiskRequestCancel(id);
-      panel.className='grc-risk-inline-decision success';panel.hidden=false;panel.innerHTML='<div class="grc-risk-inline-title">'+esc(isAr()?'تم تنفيذ الإجراء':'Action completed')+'</div><div class="grc-risk-inline-copy">'+esc(isAr()?'تم حفظ القرار وتحديث حالة الطلب بنجاح.':'The decision was saved and the request status was updated successfully.')+'</div>';
-      setTimeout(function(){var d=document.getElementById('_grcRiskDetailsOv');if(d)d.remove();if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();},650);
+      if(isManager()&&(action==='manager_approve'||action==='manager_return'||action==='manager_reject'||action==='manager_resend')){
+        cache=cache.filter(function(x){return String(x.id)!==String(id);});
+        window.__grcRiskRequestCache=cache;
+      }
+      panel.className='grc-risk-inline-decision success';panel.hidden=false;panel.innerHTML='<div class="grc-risk-inline-title">'+esc(isAr()?'تم تنفيذ الإجراء':'Action completed')+'</div><div class="grc-risk-inline-copy">'+esc(isAr()?'تم حفظ القرار وإزالة الطلب من قائمة الموافقات الحالية.':'The decision was saved and the request was removed from the current approval queue.')+'</div>';
+      setTimeout(function(){var d=document.getElementById('_grcRiskDetailsOv');if(d)d.remove();if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();refreshBadge();},350);
     }catch(err){panel.classList.remove('is-busy');Array.prototype.forEach.call(panel.querySelectorAll('button,textarea,input'),function(el){el.disabled=false;});if(errEl)errEl.textContent=String(err&&err.message||err||'Unable to complete the action.');}
   };
   window._grcRiskEditResubmit=function(id){var r=cache.find(function(x){return String(x.id)===String(id);});if(!r)return;var d=document.getElementById('_grcRiskDetailsOv');if(d)d.remove();var p=document.getElementById('_grcRiskProfileOv');if(p)p.remove();if(typeof window._grcOpenRiskRequestResubmit==='function')window._grcOpenRiskRequestResubmit(r);};
