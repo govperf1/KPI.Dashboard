@@ -1243,40 +1243,60 @@ window._selectPortal=async portal=>{
       }
       return Object.keys(out).map(function(id){return out[id];});
     }
+    /* v301 — Authoritative manager routing.
+       The approval inbox is an optimization/index, not the source of truth.
+       Older requests can legitimately exist without an inbox row, and the
+       deployed rules may deny an inbox path when a historical department alias
+       is involved. Department managers therefore read their own department's
+       authoritative request collections once, with a small alias fallback.
+       This is a one-shot cached read, not a live listener. */
+    async function _grcReadDepartmentAuthoritative(profile,kind){
+      const canonical=String(profile&&profile.departmentKey||'').trim();
+      const raw=String(profile&&profile.rawDepartment||'').trim();
+      if(!canonical)return[];
+      const coll=kind==='risk'?'grc_risk_requests':ADV_REQUESTS_COLLECTION;
+      const variants=[];
+      const add=function(v){v=String(v||'').trim();if(v&&variants.indexOf(v)<0)variants.push(v);};
+      add(canonical); add(raw);
+      const groups=[];
+      for(const value of variants){
+        try{
+          const snap=await getDocsFromServer(query(collection(db,coll),where('departmentKey','==',value)));
+          groups.push(snap.docs.map(function(d){return kind==='risk'?_grcRiskRequestData(d):_advNormalizeRow(d.id,d.data(),'advisory_requests');}));
+        }catch(err){
+          console.warn('[GRC Manager History] departmentKey read failed',kind,value,err&&err.code||err);
+        }
+      }
+      /* Some legacy Review/Risk documents stored department but not departmentKey. */
+      if(!groups.some(function(g){return g&&g.length;})){
+        for(const value of variants){
+          try{
+            const snap=await getDocsFromServer(query(collection(db,coll),where('department','==',value)));
+            groups.push(snap.docs.map(function(d){return kind==='risk'?_grcRiskRequestData(d):_advNormalizeRow(d.id,d.data(),'advisory_requests');}));
+          }catch(err){
+            console.warn('[GRC Manager History] department read failed',kind,value,err&&err.code||err);
+          }
+        }
+      }
+      const byId={};groups.forEach(function(rows){(rows||[]).forEach(function(r){if(r&&r.id){r._managerAssigned=true;byId[String(r.id)]=r;}});});
+      return Object.keys(byId).map(function(id){return byId[id];});
+    }
     window._grcGetDepartmentApprovalQueue=async function(force){
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile()),now=Date.now();
       if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<30000)return _grcManagerQueueCache;
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
-        /* IMPORTANT: Department Managers must use the department-scoped approval
-           inbox, not a broad query against advisory_requests/grc_risk_requests.
-           Firestore Rules intentionally permit the inbox path to the manager's
-           department and do not permit arbitrary collection history queries.
-           Queue rows are retained after manager decisions, so this is also the
-           manager's all-status history source. */
-        const departments=_grcManagerQueueDepartmentVariants(fresh);
-        let [review,risk]=await Promise.all([
-          _grcReadManagerQueueKind(departments,'review',_grcReviewRowsFromQueueSnap),
-          _grcReadManagerQueueKind(departments,'risk',_grcRiskRowsFromQueueSnap)
+        const results=await Promise.all([
+          _grcReadDepartmentAuthoritative(fresh,'review'),
+          _grcReadDepartmentAuthoritative(fresh,'risk')
         ]);
-        review.forEach(function(r){r._managerAssigned=true;});
-        risk.forEach(function(r){r._managerAssigned=true;});
-        const managerEmail=String(fresh.email||'').toLowerCase().trim();
-        const hasReviewAction=review.some(function(r){return String(r&&r.userEmail||'').toLowerCase().trim()!==managerEmail && String(r&&r.workflowStage||r&&r.status||'').toLowerCase()==='pending_department_manager';});
-        const hasRiskAction=risk.some(function(r){return String(r&&r.submittedByEmail||'').toLowerCase().trim()!==managerEmail && ['pending_manager','returned_manager'].indexOf(String(r&&r.status||'').toLowerCase())>=0;});
-        const fallbackResults=await Promise.all([
-          hasReviewAction?Promise.resolve([]):_grcReadLegacyManagerHistory(fresh,'review'),
-          hasRiskAction?Promise.resolve([]):_grcReadLegacyManagerHistory(fresh,'risk')
-        ]);
-        const reviewById={};review.concat(fallbackResults[0]).forEach(function(r){if(r&&r.id)reviewById[String(r.id)]=r;});
-        const riskById={};risk.concat(fallbackResults[1]).forEach(function(r){if(r&&r.id)riskById[String(r.id)]=r;});
-        review=Object.keys(reviewById).map(function(id){return reviewById[id];});
-        risk=Object.keys(riskById).map(function(id){return riskById[id];});
+        const review=results[0]||[],risk=results[1]||[];
         const result={profile:fresh,review:review.sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),risk:_grcRiskSort(risk),errors:[]};
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;
       })().finally(function(){_grcManagerQueueCachePromise=null;});
       return _grcManagerQueueCachePromise;
     };
+
     /* v299 — Restore the authoritative My Requests API.
        Manager pages use this together with the department approval inbox so
        the manager's own submissions never disappear from the page.  Ownership
