@@ -1154,6 +1154,20 @@ window._selectPortal=async portal=>{
       if(!profile.departmentKey)throw new Error('manager-department-missing');
       window.__grcManagerDepartmentKey=profile.departmentKey;return profile;
     }
+    function _grcDepartmentKeyVariants(departmentKey){
+      const key=String(departmentKey||'').toLowerCase().trim();
+      const aliases={
+        safety:['safety','saf','safety management','safety_management','safety-management','safety/management','safety department','safety_department','safety management department','safety_management_department'],
+        maintenance:['maintenance','mnt','maintenance management','maintenance_management','maintenance-management','maintenance/management','maintenance department','maintenance_department','maintenance management department','maintenance_management_department'],
+        housekeeping:['housekeeping','hsk','hk','cleaning','housekeeping management','housekeeping_management','housekeeping-management','housekeeping department','housekeeping_department'],
+        laundry:['laundry','lnd','lund','laundry management','laundry_management','laundry-management','laundry department','laundry_department'],
+        projects:['projects','project','pmd','pm','prj','Project_Management','Project Management','project management','project_management','project-management','project/management','projects management','projects_management','projects-management','project management department','project_management_department','projects management department','projects_management_department','projects department','projects_department','project department','project_department'],
+        governance:['governance','gov','governance & performance','governance and performance','governance performance','governance_performance','governance-performance','governance_and_performance','governance-and-performance'],
+        division:['division','fms','fms division','fms_division','facility management & safety division','facilities management & safety division','facilities & safety division']
+      };
+      return aliases[key]||[key];
+    }
+
     let _grcManagerQueueCache=null,_grcManagerQueueCacheAt=0,_grcManagerQueueCachePromise=null;
     window._grcGetDepartmentApprovalQueue=async function(force){
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile()),now=Date.now();
@@ -1166,8 +1180,16 @@ window._selectPortal=async portal=>{
          * completed/returned requests disappear from the Department Approval
          * table. The notification layer filters pending/returned separately. */
         const result={profile:fresh,review:[],risk:[],errors:[]};
-        const reviewRef=query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey));
-        const riskRef=query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey));
+        const departmentKeys=_grcDepartmentKeyVariants(fresh.departmentKey);
+        /*
+         * Historical R&D rows were written with several spellings
+         * (e.g. Project_Management) while the current profile is normalized
+         * to projects. A single `in` query keeps the read bounded and lets the
+         * manager see the complete department history without relying on the
+         * transient approval-inbox documents.
+         */
+        const reviewRef=query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','in',departmentKeys));
+        const riskRef=query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','in',departmentKeys));
         const settled=await Promise.allSettled([getDocsFromServer(reviewRef),getDocsFromServer(riskRef)]);
         if(settled[0].status==='fulfilled'){
           result.review=settled[0].value.docs.map(function(d){
