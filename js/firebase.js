@@ -1157,48 +1157,34 @@ window._selectPortal=async portal=>{
     let _grcManagerQueueCache=null,_grcManagerQueueCacheAt=0,_grcManagerQueueCachePromise=null;
     window._grcGetDepartmentApprovalQueue=async function(force){
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile()),now=Date.now();
-      if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<1200)return _grcManagerQueueCache;
+      if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<30000)return _grcManagerQueueCache;
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
-        /* Department Manager inbox: use ONLY the canonical, department-scoped
-         * approval inbox. Do not query advisory_requests/grc_risk_requests here.
-         * Those source-collection queries are not needed for the pending inbox
-         * and can be rejected by Firestore Rules, which previously caused the
-         * whole R&D page to show a misleading permission error.
-         */
+        /* One-shot, department-scoped reads from the authoritative collections.
+         * The approval-inbox is intentionally not used for the manager history:
+         * workflow actions may remove inbox entries after approval, which made
+         * completed/returned requests disappear from the Department Approval
+         * table. The notification layer filters pending/returned separately. */
         const result={profile:fresh,review:[],risk:[],errors:[]};
-        const settled=await Promise.allSettled([
-          getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review')),
-          getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'))
-        ]);
-        function readQueue(settledRow,kind){
-          if(settledRow.status==='rejected'){
-            result.errors.push((kind==='review'?'Review & Development':'Risk & Incident')+' approval queue: '+String(settledRow.reason&&settledRow.reason.message||settledRow.reason));
-            return [];
-          }
-          return settledRow.value.docs.map(function(d){
-            const item=d.data()||{},snap=item.snapshot||{};
-            if(kind==='review'){
-              const r=_advNormalizeRow(String(item.requestId||d.id),snap,'advisory_requests');
-              r._managerAssigned=true;
-              return r;
-            }
-            const r=_grcRiskRequestData({id:String(item.requestId||d.id),exists:function(){return true;},data:function(){return snap;}});
-            if(r)r._managerAssigned=true;
-            return r;
-          }).filter(Boolean);
-        }
-        result.review=readQueue(settled[0],'review').filter(function(r){
-          return String(r.userEmail||'').toLowerCase().trim()!==fresh.email &&
-            String(r.platform||'grc').toLowerCase()==='grc';
-        });
-        result.risk=readQueue(settled[1],'risk').filter(function(r){
-          return String(r.submittedByEmail||'').toLowerCase().trim()!==fresh.email &&
-            ['pending_manager','returned_manager'].indexOf(String(r.status||'').toLowerCase())>=0;
-        });
-        _grcManagerQueueCache=result;
-        _grcManagerQueueCacheAt=Date.now();
-        return result;
+        const reviewRef=query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey));
+        const riskRef=query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey));
+        const settled=await Promise.allSettled([getDocsFromServer(reviewRef),getDocsFromServer(riskRef)]);
+        if(settled[0].status==='fulfilled'){
+          result.review=settled[0].value.docs.map(function(d){
+            return _advNormalizeRow(d.id,d.data(),'advisory_requests');
+          }).filter(function(r){
+            return r && String(r.userEmail||'').toLowerCase().trim()!==fresh.email &&
+              String(r.platform||'grc').toLowerCase()==='grc';
+          });
+        }else result.errors.push('Review & Development: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason));
+        if(settled[1].status==='fulfilled'){
+          result.risk=settled[1].value.docs.map(function(d){
+            const r=_grcRiskRequestData(d);if(r)r._managerAssigned=true;return r;
+          }).filter(function(r){
+            return r && String(r.submittedByEmail||'').toLowerCase().trim()!==fresh.email;
+          });
+        }else result.errors.push('Risk & Incident: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
+        _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;
       })().finally(function(){_grcManagerQueueCachePromise=null;});
       return _grcManagerQueueCachePromise;
     };
@@ -1214,39 +1200,29 @@ window._selectPortal=async portal=>{
     window._advisorySubscribe=function(callback){
       if(typeof callback!=='function'||!_advEmail()||!db)return function(){};
       if(_advIsDepartmentManager()){
-        const dept=_advDepartmentKey(),me=_advEmail(),uid=_advUid();
-        if(!dept){callback({records:[],publicRecords:[],allRecords:[],errors:{manager:'manager-department-missing'},source:'manager-queue'});return function(){};}
+        const dept=_advDepartmentKey(),me=_advEmail();
+        if(!dept){callback({records:[],publicRecords:[],allRecords:[],errors:{manager:'manager-department-missing'},source:'manager-department-read'});return function(){};}
         let stopped=false;
-        const qref=_grcManagerQueueCollection(dept,'review');
-        const ownRef=query(collection(db,ADV_REQUESTS_COLLECTION),where(uid?'requesterUid':'userEmail','==',uid||me));
-        let queueReady=false,ownReady=false,queueAll=[],ownRows=[],queueError='',ownError='',ownReadPromise=null;
-        const emit=function(){
-          if(stopped||!queueReady||!ownReady)return;
-          /* The manager queue listener is the only live approval source. Own submitted
-             requests are read once for this page and refreshed explicitly by the UI. */
-          const byId={};queueAll.concat(ownRows).forEach(function(r){if(r&&r.id)byId[String(r.id)]=r;});
-          const records=Object.keys(byId).map(function(k){return byId[k];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);});
-          const dashboardRows=records.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
-          const errors={};if(queueError)errors.manager=queueError;if(ownError)errors.own=ownError;
-          callback({records:records,publicRecords:dashboardRows,allRecords:queueAll,errors:errors,source:'manager-queue'});
+        const emitOnce=async function(){
+          try{
+            const bundle=await window._grcGetDepartmentApprovalQueue(true);
+            if(stopped)return;
+            const own=await window._advisoryGetMine();
+            if(stopped)return;
+            const byId={};
+            (bundle.review||[]).concat(own||[]).forEach(function(r){if(r&&r.id)byId[String(r.id)]=r;});
+            const records=Object.keys(byId).map(function(k){return byId[k];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);});
+            const publicRows=records.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
+            const errors={};
+            if(bundle.errors&&bundle.errors.length)errors.manager=bundle.errors.join(' · ');
+            callback({records:records,publicRecords:publicRows,allRecords:bundle.review||[],errors:errors,source:'manager-department-read'});
+          }catch(err){
+            if(stopped)return;
+            callback({records:[],publicRecords:[],allRecords:[],errors:{manager:String(err&&err.message||err||'manager-read-failed')},source:'manager-department-read'});
+          }
         };
-        const queueLive=onSnapshot(qref,{includeMetadataChanges:true},function(snap){
-          if(stopped)return;
-          if(snap.metadata&&snap.metadata.fromCache)return;
-          queueAll=snap.docs.map(function(d){
-            const item=d.data()||{},raw=item.snapshot||{};
-            const r=_advNormalizeRow(String(item.requestId||d.id),raw,'advisory_requests');
-            r._managerAssigned=true;
-            return r;
-          }).filter(function(r){return String(r.userEmail||'').toLowerCase().trim()!==me;});
-          queueReady=true;queueError='';emit();
-        },function(err){if(stopped)return;queueReady=true;queueError=String(err&&err.message||err&&err.code||err||'listener-failed');emit();});
-        ownReadPromise=getDocs(ownRef).then(function(snap){
-          if(stopped)return;
-          ownRows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
-          ownReady=true;ownError='';emit();
-        }).catch(function(err){if(stopped)return;ownReady=true;ownError=String(err&&err.message||err&&err.code||err||'read-failed');emit();});
-        return function(){stopped=true;try{queueLive();}catch(_){} };
+        emitOnce();
+        return function(){stopped=true;};
       }
       let closed=false,timer=null,unsubs=[];
       const sources={};
