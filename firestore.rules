@@ -563,20 +563,6 @@ service cloud.firestore {
       request.resource.data.rating >= 1 && request.resource.data.rating <= 5;
     }
 
-    // Requesters may rate a completed Review & Development request once.
-    // Keep the write narrowly scoped to rating fields so the requester cannot
-    // alter workflow, ownership, department, or approval state.
-    function validAdvisoryRequestRatingChange() {
-      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        'rating', 'ratingComment', 'ratingAt', 'updatedAt', 'updatedAtIso', 'updatedBy'
-      ]) &&
-      resource.data.status is string && resource.data.status.lower().trim() == 'closed' &&
-      (!('rating' in resource.data) || resource.data.rating == null || resource.data.rating == 0) &&
-      request.resource.data.rating is number &&
-      request.resource.data.rating >= 1 && request.resource.data.rating <= 5 &&
-      ownEmail(resource.data.userEmail);
-    }
-
     match /grc_requests/{requestId} {
       allow create: if canAccessGrc() && ownEmail(request.resource.data.userEmail) &&
         (
@@ -625,13 +611,13 @@ service cloud.firestore {
     match /grc_department_approval_inbox_v3/{departmentKey}/{queueKind}/{requestId} {
       allow get, list: if signedIn() && userData().approved == true &&
         profileRoleFrom(userData()) == 'department_manager' &&
-        canonicalDepartment(departmentKey) == profileDepartmentKeyFrom(userData()) &&
+        canonicalDepartment(departmentKey) == canonicalDepartment(profileDepartmentKeyFrom(userData())) &&
         queueKind in ['review','risk'];
 
       allow create, update: if superAdmin() || (
         signedIn() && userData().approved == true &&
         queueKind in ['review','risk'] &&
-        profileDepartmentKeyFrom(userData()) == departmentKey &&
+        canonicalDepartment(profileDepartmentKeyFrom(userData())) == canonicalDepartment(departmentKey) &&
         request.resource.data.requestId == requestId &&
         request.resource.data.queueKind == queueKind &&
         request.resource.data.departmentKey == departmentKey &&
@@ -642,7 +628,7 @@ service cloud.firestore {
       allow delete: if superAdmin() || (
         signedIn() && userData().approved == true &&
         profileRoleFrom(userData()) == 'department_manager' &&
-        profileDepartmentKeyFrom(userData()) == departmentKey
+        canonicalDepartment(profileDepartmentKeyFrom(userData())) == canonicalDepartment(departmentKey)
       ) || (
         signedIn() && userData().approved == true &&
         resource.data.requesterEmail is string &&
@@ -823,51 +809,6 @@ service cloud.firestore {
         data.managerDecision in ['pending','not_required'];
     }
 
-    function managerDepartmentKeyAllowed(value) {
-      let d = profileDepartmentKeyFrom(userData());
-      return d == 'safety' && value in [
-        'safety','saf','safety management','safety_management','safety-management',
-        'safety/management','safety department','safety_department',
-        'safety management department','safety_management_department'
-      ] ||
-      d == 'maintenance' && value in [
-        'maintenance','mnt','maintenance management','maintenance_management',
-        'maintenance-management','maintenance/management','maintenance department',
-        'maintenance_department','maintenance management department',
-        'maintenance_management_department'
-      ] ||
-      d == 'housekeeping' && value in [
-        'housekeeping','hsk','hk','cleaning','housekeeping management',
-        'housekeeping_management','housekeeping-management','housekeeping department',
-        'housekeeping_department'
-      ] ||
-      d == 'laundry' && value in [
-        'laundry','lnd','lund','laundry management','laundry_management',
-        'laundry-management','laundry department','laundry_department'
-      ] ||
-      d == 'projects' && value in [
-        'projects','project','pmd','pm','prj','Project_Management',
-        'Project Management','project management','project_management',
-        'project-management','project/management','projects management',
-        'projects_management','projects-management','project management department',
-        'project_management_department','projects management department',
-        'projects_management_department','projects department','projects_department',
-        'project department','project_department'
-      ] ||
-      d == 'governance' && value in [
-        'governance','gov','governance & performance',
-        'governance and performance','governance performance',
-        'governance_performance','governance-performance',
-        'governance_and_performance','governance-and-performance'
-      ] ||
-      d == 'division' && value in [
-        'division','fms','fms division','fms_division',
-        'facility management & safety division',
-        'facilities management & safety division',
-        'facilities & safety division'
-      ];
-    }
-
     match /advisory_requests/{requestId} {
       // requesterUid is audit metadata only. Routing is authorized from the
       // authenticated Firestore profile resolved once by validAdvisoryCreate().
@@ -897,18 +838,15 @@ service cloud.firestore {
       // Department Manager may list the complete Review & Development history
       // for their own department. Pending/returned filtering belongs only to
       // the landing notification, not to the Department Approval table.
-      allow list: if approved() &&
-        profileRoleFrom(userData()) == 'department_manager' &&
+      allow list: if approved() && profileRoleFrom(userData()) == 'department_manager' &&
         profileDepartmentKeyFrom(userData()) != '' &&
         ('departmentKey' in resource.data) &&
-        managerDepartmentKeyAllowed(resource.data.departmentKey);
+        canonicalDepartment(resource.data.departmentKey) == canonicalDepartment(profileDepartmentKeyFrom(userData()));
       allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
       allow update: if
         (superAdmin() && validAdvisorySuperAdminDecision()) ||
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
-        (approved() && ownEmail(resource.data.userEmail) &&
-          validAdvisoryRequestRatingChange()) ||
         (approved() && ownEmail(resource.data.userEmail) &&
           validAdvisoryOwnerChange() && advisoryOwnerRoutePreserved()) ||
         (advisoryManagerOwnsResource(resource.data) &&
@@ -1087,7 +1025,7 @@ service cloud.firestore {
         (approved() && profileRoleFrom(userData()) == 'department_manager' &&
           profileDepartmentKeyFrom(userData()) != '' &&
           ('departmentKey' in resource.data) &&
-          resource.data.departmentKey == profileDepartmentKeyFrom(userData())) ||
+          canonicalDepartment(resource.data.departmentKey) == canonicalDepartment(profileDepartmentKeyFrom(userData()))) ||
         (canReadRiskIncidentWorkflow() && (
           (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid) ||
           (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail()) ||
