@@ -809,6 +809,51 @@ service cloud.firestore {
         data.managerDecision in ['pending','not_required'];
     }
 
+    function managerDepartmentKeyAllowed(value) {
+      let d = profileDepartmentKeyFrom(userData());
+      return d == 'safety' && value in [
+        'safety','saf','safety management','safety_management','safety-management',
+        'safety/management','safety department','safety_department',
+        'safety management department','safety_management_department'
+      ] ||
+      d == 'maintenance' && value in [
+        'maintenance','mnt','maintenance management','maintenance_management',
+        'maintenance-management','maintenance/management','maintenance department',
+        'maintenance_department','maintenance management department',
+        'maintenance_management_department'
+      ] ||
+      d == 'housekeeping' && value in [
+        'housekeeping','hsk','hk','cleaning','housekeeping management',
+        'housekeeping_management','housekeeping-management','housekeeping department',
+        'housekeeping_department'
+      ] ||
+      d == 'laundry' && value in [
+        'laundry','lnd','lund','laundry management','laundry_management',
+        'laundry-management','laundry department','laundry_department'
+      ] ||
+      d == 'projects' && value in [
+        'projects','project','pmd','pm','prj','Project_Management',
+        'Project Management','project management','project_management',
+        'project-management','project/management','projects management',
+        'projects_management','projects-management','project management department',
+        'project_management_department','projects management department',
+        'projects_management_department','projects department','projects_department',
+        'project department','project_department'
+      ] ||
+      d == 'governance' && value in [
+        'governance','gov','governance & performance',
+        'governance and performance','governance performance',
+        'governance_performance','governance-performance',
+        'governance_and_performance','governance-and-performance'
+      ] ||
+      d == 'division' && value in [
+        'division','fms','fms division','fms_division',
+        'facility management & safety division',
+        'facilities management & safety division',
+        'facilities & safety division'
+      ];
+    }
+
     match /advisory_requests/{requestId} {
       // requesterUid is audit metadata only. Routing is authorized from the
       // authenticated Firestore profile resolved once by validAdvisoryCreate().
@@ -838,10 +883,11 @@ service cloud.firestore {
       // Department Manager may list the complete Review & Development history
       // for their own department. Pending/returned filtering belongs only to
       // the landing notification, not to the Department Approval table.
-      allow list: if approved() && profileRoleFrom(userData()) == 'department_manager' &&
+      allow list: if approved() &&
+        profileRoleFrom(userData()) == 'department_manager' &&
         profileDepartmentKeyFrom(userData()) != '' &&
         ('departmentKey' in resource.data) &&
-        resource.data.departmentKey == profileDepartmentKeyFrom(userData());
+        managerDepartmentKeyAllowed(resource.data.departmentKey);
       allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
       allow update: if
