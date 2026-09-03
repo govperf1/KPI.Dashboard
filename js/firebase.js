@@ -1243,71 +1243,37 @@ window._selectPortal=async portal=>{
       }
       return Object.keys(out).map(function(id){return out[id];});
     }
-    /* v301 — Authoritative manager routing.
-       The approval inbox is an optimization/index, not the source of truth.
-       Older requests can legitimately exist without an inbox row, and the
-       deployed rules may deny an inbox path when a historical department alias
-       is involved. Department managers therefore read their own department's
-       authoritative request collections once, with a small alias fallback.
-       This is a one-shot cached read, not a live listener. */
-    async function _grcReadDepartmentAuthoritative(profile,kind){
-      const canonical=String(profile&&profile.departmentKey||'').trim();
-      const raw=String(profile&&profile.rawDepartment||'').trim();
-      if(!canonical)return[];
-      const coll=kind==='risk'?'grc_risk_requests':ADV_REQUESTS_COLLECTION;
-      const variants=[];
-      const add=function(v){v=String(v||'').trim();if(v&&variants.indexOf(v)<0)variants.push(v);};
-      add(canonical); add(raw);
-      const groups=[];
-      for(const value of variants){
-        try{
-          const snap=await getDocsFromServer(query(collection(db,coll),where('departmentKey','==',value)));
-          groups.push(snap.docs.map(function(d){return kind==='risk'?_grcRiskRequestData(d):_advNormalizeRow(d.id,d.data(),'advisory_requests');}));
-        }catch(err){
-          console.warn('[GRC Manager History] departmentKey read failed',kind,value,err&&err.code||err);
-        }
-      }
-      /* Some legacy Review/Risk documents stored department but not departmentKey. */
-      if(!groups.some(function(g){return g&&g.length;})){
-        for(const value of variants){
-          try{
-            const snap=await getDocsFromServer(query(collection(db,coll),where('department','==',value)));
-            groups.push(snap.docs.map(function(d){return kind==='risk'?_grcRiskRequestData(d):_advNormalizeRow(d.id,d.data(),'advisory_requests');}));
-          }catch(err){
-            console.warn('[GRC Manager History] department read failed',kind,value,err&&err.code||err);
-          }
-        }
-      }
-      const byId={};groups.forEach(function(rows){(rows||[]).forEach(function(r){if(r&&r.id){r._managerAssigned=true;byId[String(r.id)]=r;}});});
-      return Object.keys(byId).map(function(id){return byId[id];});
+    /* v304 — Manager routing source of truth.
+       IMPORTANT: the department inbox is the intentional lifecycle index for
+       Department Managers. Do not fall back to advisory_requests/grc_risk_requests
+       here. Those authoritative collections contain legacy records that may have
+       been deliberately removed from the manager queue, and reading them also
+       requires broader Rules that are not part of the manager contract.
+       The queue keeps pending + post-decision history that is meant to be visible
+       to the current Department Manager. */
+    async function _grcGetManagerQueueFromInbox(profile){
+      const departments=_grcManagerQueueDepartmentVariants(profile);
+      const queueResults=await Promise.all([
+        _grcReadManagerQueueKind(departments,'review',_grcReviewRowsFromQueueSnap),
+        _grcReadManagerQueueKind(departments,'risk',_grcRiskRowsFromQueueSnap)
+      ]);
+      const reviewById={},riskById={};
+      (queueResults[0]||[]).forEach(function(r){if(r&&r.id)reviewById[String(r.id)]=r;});
+      (queueResults[1]||[]).forEach(function(r){if(r&&r.id)riskById[String(r.id)]=r;});
+      return {
+        profile:profile,
+        review:Object.keys(reviewById).map(function(id){return reviewById[id];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),
+        risk:Object.keys(riskById).map(function(id){return riskById[id];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),
+        errors:[]
+      };
     }
     window._grcGetDepartmentApprovalQueue=async function(force){
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile()),now=Date.now();
       if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<30000)return _grcManagerQueueCache;
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
-      _grcManagerQueueCachePromise=(async function(){
-        const departments=[String(fresh.departmentKey||'').trim()].filter(Boolean);
-        const queueResults=await Promise.all([
-          _grcReadManagerQueueKind(departments,'review',_grcReviewRowsFromQueueSnap),
-          _grcReadManagerQueueKind(departments,'risk',_grcRiskRowsFromQueueSnap)
-        ]);
-        const queueReview=queueResults[0]||[],queueRisk=queueResults[1]||[];
-        let authoritativeReview=[],authoritativeRisk=[],errors=[];
-        try{authoritativeReview=await _grcReadDepartmentAuthoritative(fresh,'review');}
-        catch(err){errors.push('Review & Development: '+String(err&&err.message||err||'permission-denied'));}
-        try{authoritativeRisk=await _grcReadDepartmentAuthoritative(fresh,'risk');}
-        catch(err){errors.push('Risk & Incident: '+String(err&&err.message||err||'permission-denied'));}
-        const reviewById={},riskById={};
-        queueReview.concat(authoritativeReview).forEach(function(r){if(r&&r.id)reviewById[String(r.id)]=r;});
-        queueRisk.concat(authoritativeRisk).forEach(function(r){if(r&&r.id)riskById[String(r.id)]=r;});
-        const result={
-          profile:fresh,
-          review:Object.keys(reviewById).map(function(id){return reviewById[id];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),
-          risk:Object.keys(riskById).map(function(id){return riskById[id];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),
-          errors:errors
-        };
+      _grcManagerQueueCachePromise=_grcGetManagerQueueFromInbox(fresh).then(function(result){
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;
-      })().finally(function(){_grcManagerQueueCachePromise=null;});
+      }).finally(function(){_grcManagerQueueCachePromise=null;});
       return _grcManagerQueueCachePromise;
     };
 
@@ -1409,13 +1375,18 @@ window._selectPortal=async portal=>{
         }catch(err){sources[key]={ready:true,rows:[],error:String(err&&err.message||err||'listener-failed')};emit();}
       };
       if(_advIsDepartmentManager()){
-        if(dept){
-          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)),'advisory_requests');
-          listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
-        }else{
-          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
-        }
-        listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
+        let stopped=false;
+        window._grcGetDepartmentApprovalQueue(true).then(function(bundle){
+          if(stopped)return;
+          const all=Array.isArray(bundle&&bundle.review)?bundle.review:[];
+          const pending=all.filter(function(r){return String(r&&r.workflowStage||r&&r.status||'').toLowerCase()==='pending_department_manager';});
+          const publicRows=all.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
+          callback({records:all,publicRecords:publicRows,allRecords:all.slice(),managerPending:pending,errors:{},source:'manager-inbox'});
+        }).catch(function(err){
+          if(stopped)return;
+          callback({records:[],publicRecords:[],allRecords:[],managerPending:[],errors:{manager:String(err&&err.message||err||'manager-read-failed')},source:'manager-inbox'});
+        });
+        return function(){stopped=true;};
       }else if(_advIsAdmin()){
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
         listen('fallback',collection(db,ADV_FALLBACK_COLLECTION),'kpi_requests');
