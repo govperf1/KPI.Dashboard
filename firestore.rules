@@ -611,8 +611,18 @@ service cloud.firestore {
     match /grc_department_approval_inbox_v3/{departmentKey}/{queueKind}/{requestId} {
       allow get, list: if signedIn() && userData().approved == true &&
         profileRoleFrom(userData()) == 'department_manager' &&
-        canonicalDepartment(departmentKey) == canonicalDepartment(profileDepartmentKeyFrom(userData())) &&
-        queueKind in ['review','risk'];
+        queueKind in ['review','risk'] &&
+        (departmentKey == profileDepartmentKeyFrom(userData()) ||
+         (profileDepartmentKeyFrom(userData()) == 'projects' &&
+          departmentKey in ['Project_Management','Project Management','project_management']) ||
+         (profileDepartmentKeyFrom(userData()) == 'maintenance' &&
+          departmentKey in ['Maintenance','maintenance_management','Maintenance_Management']) ||
+         (profileDepartmentKeyFrom(userData()) == 'safety' &&
+          departmentKey in ['Safety','safety_management','Safety_Management']) ||
+         (profileDepartmentKeyFrom(userData()) == 'housekeeping' &&
+          departmentKey in ['Housekeeping','housekeeping_management','Housekeeping_Management']) ||
+         (profileDepartmentKeyFrom(userData()) == 'laundry' &&
+          departmentKey in ['Laundry','laundry_management','Laundry_Management']));
 
       allow create, update: if superAdmin() || (
         signedIn() && userData().approved == true &&
@@ -841,7 +851,12 @@ service cloud.firestore {
       allow list: if approved() && profileRoleFrom(userData()) == 'department_manager' &&
         profileDepartmentKeyFrom(userData()) != '' &&
         ('departmentKey' in resource.data) &&
-        canonicalDepartment(resource.data.departmentKey) == canonicalDepartment(profileDepartmentKeyFrom(userData()));
+        (resource.data.departmentKey == profileDepartmentKeyFrom(userData()) ||
+         (profileDepartmentKeyFrom(userData()) == 'projects' && resource.data.departmentKey in ['Project_Management','Project Management','project_management']) ||
+         (profileDepartmentKeyFrom(userData()) == 'maintenance' && resource.data.departmentKey in ['Maintenance','maintenance_management','Maintenance_Management']) ||
+         (profileDepartmentKeyFrom(userData()) == 'safety' && resource.data.departmentKey in ['Safety','safety_management','Safety_Management']) ||
+         (profileDepartmentKeyFrom(userData()) == 'housekeeping' && resource.data.departmentKey in ['Housekeeping','housekeeping_management','Housekeeping_Management']) ||
+         (profileDepartmentKeyFrom(userData()) == 'laundry' && resource.data.departmentKey in ['Laundry','laundry_management','Laundry_Management']));
       allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
       allow update: if
@@ -1025,7 +1040,12 @@ service cloud.firestore {
         (approved() && profileRoleFrom(userData()) == 'department_manager' &&
           profileDepartmentKeyFrom(userData()) != '' &&
           ('departmentKey' in resource.data) &&
-          canonicalDepartment(resource.data.departmentKey) == canonicalDepartment(profileDepartmentKeyFrom(userData()))) ||
+          (resource.data.departmentKey == profileDepartmentKeyFrom(userData()) ||
+           (profileDepartmentKeyFrom(userData()) == 'projects' && resource.data.departmentKey in ['Project_Management','Project Management','project_management']) ||
+           (profileDepartmentKeyFrom(userData()) == 'maintenance' && resource.data.departmentKey in ['Maintenance','maintenance_management','Maintenance_Management']) ||
+           (profileDepartmentKeyFrom(userData()) == 'safety' && resource.data.departmentKey in ['Safety','safety_management','Safety_Management']) ||
+           (profileDepartmentKeyFrom(userData()) == 'housekeeping' && resource.data.departmentKey in ['Housekeeping','housekeeping_management','Housekeeping_Management']) ||
+           (profileDepartmentKeyFrom(userData()) == 'laundry' && resource.data.departmentKey in ['Laundry','laundry_management','Laundry_Management']))) ||
         (canReadRiskIncidentWorkflow() && (
           (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid) ||
           (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail()) ||
