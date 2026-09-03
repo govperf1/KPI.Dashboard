@@ -1286,32 +1286,25 @@ window._selectPortal=async portal=>{
       if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<30000)return _grcManagerQueueCache;
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
-        const departments=_grcManagerQueueDepartmentVariants(fresh);
-        /* Pending manager work comes from the department inbox. The inbox is
-           the routing source for approvals; the authoritative collections are
-           used only for history/own submissions. */
+        const departments=[String(fresh.departmentKey||'').trim()].filter(Boolean);
         const queueResults=await Promise.all([
           _grcReadManagerQueueKind(departments,'review',_grcReviewRowsFromQueueSnap),
           _grcReadManagerQueueKind(departments,'risk',_grcRiskRowsFromQueueSnap)
         ]);
         const queueReview=queueResults[0]||[],queueRisk=queueResults[1]||[];
-        let ownReview=[];
-        try{
-          const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',fresh.email)));
-          ownReview=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');}).filter(Boolean);
-        }catch(err){console.warn('[GRC Manager] own Review requests read failed',err&&err.code||err);}
-        let riskHistory=[];
-        try{riskHistory=await _grcReadLegacyManagerHistory(fresh,'risk');}
-        catch(err){console.warn('[GRC Manager] risk history read failed',err&&err.code||err);}
-        const reviewById={};
-        queueReview.concat(ownReview).forEach(function(r){if(r&&r.id)reviewById[String(r.id)]=r;});
-        const riskById={};
-        queueRisk.concat(riskHistory).forEach(function(r){if(r&&r.id)riskById[String(r.id)]=r;});
+        let authoritativeReview=[],authoritativeRisk=[],errors=[];
+        try{authoritativeReview=await _grcReadDepartmentAuthoritative(fresh,'review');}
+        catch(err){errors.push('Review & Development: '+String(err&&err.message||err||'permission-denied'));}
+        try{authoritativeRisk=await _grcReadDepartmentAuthoritative(fresh,'risk');}
+        catch(err){errors.push('Risk & Incident: '+String(err&&err.message||err||'permission-denied'));}
+        const reviewById={},riskById={};
+        queueReview.concat(authoritativeReview).forEach(function(r){if(r&&r.id)reviewById[String(r.id)]=r;});
+        queueRisk.concat(authoritativeRisk).forEach(function(r){if(r&&r.id)riskById[String(r.id)]=r;});
         const result={
           profile:fresh,
           review:Object.keys(reviewById).map(function(id){return reviewById[id];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),
           risk:Object.keys(riskById).map(function(id){return riskById[id];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),
-          errors:[]
+          errors:errors
         };
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;
       })().finally(function(){_grcManagerQueueCachePromise=null;});
@@ -1358,30 +1351,19 @@ window._selectPortal=async portal=>{
     window._advisorySubscribe=function(callback){
       if(typeof callback!=='function'||!_advEmail()||!db)return function(){};
       if(_advIsDepartmentManager()){
-        const dept=_advDepartmentKey(),me=_advEmail();
+        const dept=_advDepartmentKey();
         if(!dept){callback({records:[],publicRecords:[],allRecords:[],errors:{manager:'manager-department-missing'},source:'manager-department-read'});return function(){};}
         let stopped=false;
-        const emitOnce=async function(){
-          try{
-            const bundle=await window._grcGetDepartmentApprovalQueue(true);
-            if(stopped)return;
-            /* The manager inbox already contains the manager's own submissions
-               as well as department submissions. Do not issue a second ownership
-               query here; it was both redundant and prone to requesterUid rule
-               mismatches. The UI separates own rows from approval rows locally. */
-            const byId={};
-            (bundle.review||[]).forEach(function(r){if(r&&r.id)byId[String(r.id)]=r;});
-            const records=Object.keys(byId).map(function(k){return byId[k];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);});
-            const publicRows=records.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
-            const errors={};
-            if(bundle.errors&&bundle.errors.length)errors.manager=bundle.errors.join(' · ');
-            callback({records:records,publicRecords:publicRows,allRecords:bundle.review||[],errors:errors,source:'manager-department-read'});
-          }catch(err){
-            if(stopped)return;
-            callback({records:[],publicRecords:[],allRecords:[],errors:{manager:String(err&&err.message||err||'manager-read-failed')},source:'manager-department-read'});
-          }
-        };
-        emitOnce();
+        window._grcGetDepartmentApprovalQueue(true).then(function(bundle){
+          if(stopped)return;
+          const records=(bundle.review||[]).slice();
+          const publicRows=records.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
+          const errors={};if(bundle.errors&&bundle.errors.length)errors.manager=bundle.errors.join(' · ');
+          callback({records:records,publicRecords:publicRows,allRecords:records.slice(),errors:errors,source:'manager-department-read'});
+        }).catch(function(err){
+          if(stopped)return;
+          callback({records:[],publicRecords:[],allRecords:[],errors:{manager:String(err&&err.message||err||'manager-read-failed')},source:'manager-department-read'});
+        });
         return function(){stopped=true;};
       }
       let closed=false,timer=null,unsubs=[];
