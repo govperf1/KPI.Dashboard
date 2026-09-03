@@ -1240,6 +1240,32 @@ window._selectPortal=async portal=>{
       })().finally(function(){_grcManagerQueueCachePromise=null;});
       return _grcManagerQueueCachePromise;
     };
+    /* v299 — Restore the authoritative My Requests API.
+       Manager pages use this together with the department approval inbox so
+       the manager's own submissions never disappear from the page.  Ownership
+       is checked by requesterUid first, with a legacy userEmail compatibility
+       read.  A denied legacy compatibility query must not break the primary
+       result set. */
+    window._advisoryGetMine=async function(){
+      if(!_advEmail()||!db)return[];
+      let primary=[];
+      if(_advUid()){
+        try{
+          const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid())));
+          primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+        }catch(uidErr){
+          console.warn('[Review Development] requesterUid read unavailable',uidErr&&uidErr.code||uidErr);
+        }
+      }
+      try{
+        const legacy=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
+        primary=_advMergeRows(primary,legacy.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');}),false);
+      }catch(legacyErr){
+        /* Older rules may not allow the compatibility email query. */
+      }
+      const fallback=await _advFallbackRows(true);
+      return _advMergeRows(primary,fallback,false);
+    };
     window._advisoryGetManagerQueue=async function(){
       const bundle=await window._grcGetDepartmentApprovalQueue(true);
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
