@@ -473,7 +473,39 @@
   window._grcRiskOpenCenterRequest=openCenterRequest;
   window._grcRiskOpenCenterRequests=openCenterRequests;
 
-  window._grcRiskOpenProfile=function(requestId){if(!canAccessRiskIncidentWorkflow())return;ensureReturnWorkflowStyles();start();var old=document.getElementById('_grcRiskProfileOv');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcRiskProfileOv';ov.className='grc-risk-overlay';var manager=isManager(),title=manager?'Department Approval Requests':'Risk & Incident Registers',subtitle=manager?'All Risk & Incident and Review & Development requests for your department. Pending/returned items requiring action are shown in the entry notification.':'Additions, updates and deletion requests with the GRC approval workflow.';ov.innerHTML='<div class="grc-risk-dialog wide"><header><div><h2>'+esc(title)+'</h2><p>'+esc(subtitle)+'</p></div><button onclick="document.getElementById(\'_grcRiskProfileOv\').remove()">×</button></header><div class="grc-risk-profile-summary"><span id="_grcRiskProfileCount">0 request(s)</span>'+(manager?'':'<div class="grc-risk-tabs"><button class="active" data-grc-risk-tab="all">All</button><button data-grc-risk-tab="action">Needs Action</button><button data-grc-risk-tab="returned">Returned / Rejected</button><button data-grc-risk-tab="published">Published</button></div>')+'</div><main id="_grcRiskProfileBody"></main></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});if(!manager)ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(btn){btn.onclick=function(){ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(x){x.classList.remove('active');});btn.classList.add('active');renderProfileBody();};});renderProfileBody();if(requestId)setTimeout(function(){window._grcRiskShowDetails(requestId);},50);};
+  window._grcRiskOpenProfile=function(requestId){
+    if(!canAccessRiskIncidentWorkflow())return;
+    ensureReturnWorkflowStyles();
+    start();
+    var old=document.getElementById('_grcRiskProfileOv');if(old)old.remove();
+    var ov=document.createElement('div');ov.id='_grcRiskProfileOv';ov.className='grc-risk-overlay';
+    var manager=isManager(),title=manager?'Department Approval Requests':'Risk & Incident Registers',
+        subtitle=manager?'All Risk & Incident and Review & Development requests for your department. Pending/returned items requiring action are shown in the entry notification.':'Additions, updates and deletion requests with the GRC approval workflow.';
+    ov.innerHTML='<div class="grc-risk-dialog wide"><header><div><h2>'+esc(title)+'</h2><p>'+esc(subtitle)+'</p></div><button onclick="document.getElementById(\'_grcRiskProfileOv\').remove()">×</button></header><div class="grc-risk-profile-summary"><span id="_grcRiskProfileCount">0 request(s)</span>'+(manager?'':'<div class="grc-risk-tabs"><button class="active" data-grc-risk-tab="all">All</button><button data-grc-risk-tab="action">Needs Action</button><button data-grc-risk-tab="returned">Returned / Rejected</button><button data-grc-risk-tab="published">Published</button></div>')+'</div><main id="_grcRiskProfileBody"></main></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});
+    if(!manager)ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(btn){btn.onclick=function(){ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(x){x.classList.remove('active');});btn.classList.add('active');renderProfileBody();};});
+    renderProfileBody();
+
+    /*
+     * Manager profile = history view. The header notification listener is
+     * intentionally limited to pending/returned items to control Firestore
+     * reads. Load the complete department history only when the manager opens
+     * this profile, using the existing 30s cached authoritative query.
+     */
+    if(manager&&typeof window._grcGetDepartmentApprovalQueue==='function'){
+      window._grcGetDepartmentApprovalQueue(true).then(function(bundle){
+        if(!document.getElementById('_grcRiskProfileOv'))return;
+        managerRiskAllRows=Array.isArray(bundle&&bundle.risk)?bundle.risk:[];
+        managerReviewAllRows=Array.isArray(bundle&&bundle.review)?bundle.review:[];
+        if(bundle&&bundle.errors&&bundle.errors.length)window.__grcManagerApprovalError=bundle.errors.join(' · ');
+        renderProfileBody();
+      }).catch(function(err){
+        console.warn('[GRC Manager Profile] history load failed',err&&err.message||err);
+      });
+    }
+    if(requestId)setTimeout(function(){window._grcRiskShowDetails(requestId);},50);
+  };
   window._grcRiskShowDetails=async function(id){
     ensureReturnWorkflowStyles();
     var r=cache.find(function(x){return String(x.id)===String(id);});if(!r)return;

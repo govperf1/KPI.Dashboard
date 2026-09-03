@@ -1938,20 +1938,30 @@ window._selectPortal=async portal=>{
         const freshEmail=_grcRiskEmail();
         const dept=_grcRiskDept();
         if(!dept){callback([],new Error('manager-department-missing'));return function(){};}
-        const qref=_grcManagerQueueCollection(dept,'risk');
+        /*
+         * The live listener is for the ENTRY notification only. It must never
+         * subscribe to the manager's complete historical queue: that queue can
+         * grow indefinitely and every document in the listener becomes a billed
+         * read on the initial snapshot/reconnect.
+         *
+         * Full all-status history is loaded on demand by the Manager profile
+         * through _grcGetDepartmentApprovalQueue(), which is cached for 30s.
+         */
+        const qref=query(
+          _grcManagerQueueCollection(dept,'risk'),
+          where('status','in',['pending_manager','returned_manager'])
+        );
         let stopped=false;
         const mapSnapshot=function(snap){
-          const all=snap.docs.map(function(d){
+          const actionableRows=snap.docs.map(function(d){
             const item=d.data()||{},raw=item.snapshot||{};
             const row=_grcRiskRequestData({id:String(item.requestId||d.id),exists:function(){return true;},data:function(){return raw;}});
             if(row)row._managerAssigned=true;
             return row;
-          }).filter(Boolean);
-          const actionableRows=all.filter(function(r){
-            return String(r.submittedByEmail||'').toLowerCase().trim()!==freshEmail &&
-              ['pending_manager','returned_manager'].indexOf(String(r.status||'').toLowerCase())>=0;
+          }).filter(function(r){
+            return String(r.submittedByEmail||'').toLowerCase().trim()!==freshEmail;
           });
-          return {records:_grcRiskSort(actionableRows),allRecords:_grcRiskSort(all),source:'manager-queue'};
+          return {records:_grcRiskSort(actionableRows),allRecords:_grcRiskSort(actionableRows),source:'manager-queue-actionable'};
         };
         const live=onSnapshot(qref,{includeMetadataChanges:true},function(snap){
           if(stopped)return;
@@ -1960,7 +1970,7 @@ window._selectPortal=async portal=>{
         },function(err){
           if(stopped)return;
           console.warn('[GRC Manager Risk Inbox] listener failed',err&&err.code||err);
-          callback({records:[],allRecords:[],source:'manager-queue',errors:{manager:String(err&&err.message||err&&err.code||err)}},err);
+          callback({records:[],allRecords:[],source:'manager-queue-actionable',errors:{manager:String(err&&err.message||err&&err.code||err)}},err);
         });
         _grcRiskRequestUnsub=function(){stopped=true;try{live();}catch(_){} };
         return _grcRiskRequestUnsub;
