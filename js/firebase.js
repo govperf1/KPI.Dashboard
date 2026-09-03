@@ -1286,12 +1286,33 @@ window._selectPortal=async portal=>{
       if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<30000)return _grcManagerQueueCache;
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
-        const results=await Promise.all([
-          _grcReadDepartmentAuthoritative(fresh,'review'),
-          _grcReadDepartmentAuthoritative(fresh,'risk')
+        const departments=_grcManagerQueueDepartmentVariants(fresh);
+        /* Pending manager work comes from the department inbox. The inbox is
+           the routing source for approvals; the authoritative collections are
+           used only for history/own submissions. */
+        const queueResults=await Promise.all([
+          _grcReadManagerQueueKind(departments,'review',_grcReviewRowsFromQueueSnap),
+          _grcReadManagerQueueKind(departments,'risk',_grcRiskRowsFromQueueSnap)
         ]);
-        const review=results[0]||[],risk=results[1]||[];
-        const result={profile:fresh,review:review.sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),risk:_grcRiskSort(risk),errors:[]};
+        const queueReview=queueResults[0]||[],queueRisk=queueResults[1]||[];
+        let ownReview=[];
+        try{
+          const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',fresh.email)));
+          ownReview=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');}).filter(Boolean);
+        }catch(err){console.warn('[GRC Manager] own Review requests read failed',err&&err.code||err);}
+        let riskHistory=[];
+        try{riskHistory=await _grcReadLegacyManagerHistory(fresh,'risk');}
+        catch(err){console.warn('[GRC Manager] risk history read failed',err&&err.code||err);}
+        const reviewById={};
+        queueReview.concat(ownReview).forEach(function(r){if(r&&r.id)reviewById[String(r.id)]=r;});
+        const riskById={};
+        queueRisk.concat(riskHistory).forEach(function(r){if(r&&r.id)riskById[String(r.id)]=r;});
+        const result={
+          profile:fresh,
+          review:Object.keys(reviewById).map(function(id){return reviewById[id];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),
+          risk:Object.keys(riskById).map(function(id){return riskById[id];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),
+          errors:[]
+        };
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;
       })().finally(function(){_grcManagerQueueCachePromise=null;});
       return _grcManagerQueueCachePromise;
@@ -1326,9 +1347,11 @@ window._selectPortal=async portal=>{
     window._advisoryGetManagerQueue=async function(){
       const bundle=await window._grcGetDepartmentApprovalQueue(true);
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
-      // Approval inbox contains only requests assigned to this manager.
-      // The manager's own submissions belong under My Requests instead.
-      return bundle.review||[];
+      /* Return the Review rows for the R&D page, while carrying the Risk/Incident
+         rows as a non-enumerated side channel for the separate GRC manager panel. */
+      const rows=(bundle.review||[]).slice();
+      Object.defineProperty(rows,'_grcRiskRecords',{value:(bundle.risk||[]),enumerable:false,configurable:true});
+      return rows;
     };
     function stageOfManagerRow(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
