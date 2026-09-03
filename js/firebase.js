@@ -1169,81 +1169,73 @@ window._selectPortal=async portal=>{
     }
 
     let _grcManagerQueueCache=null,_grcManagerQueueCacheAt=0,_grcManagerQueueCachePromise=null;
+    function _grcManagerQueueDepartmentVariants(profile){
+      profile=profile||{};
+      const canonical=String(profile.departmentKey||'').trim();
+      const raw=String(profile.rawDepartment||'').trim();
+      const variants=[];
+      const add=function(v){v=String(v||'').trim();if(v&&variants.indexOf(v)<0)variants.push(v);};
+      add(canonical); add(raw);
+      /* Only the legacy spellings that have actually existed in this project.
+         Keep this list small: each queue path is a separate Firestore read. */
+      if(canonical==='projects'){
+        add('Project_Management'); add('Project Management'); add('project_management');
+      }
+      return variants;
+    }
+    function _grcReviewRowsFromQueueSnap(snap){
+      const rows=[];
+      snap.forEach(function(d){
+        const item=d.data()||{},raw=item.snapshot||{};
+        const row=_advNormalizeRow(String(item.requestId||d.id),raw,'grc_department_approval_inbox_v3/review');
+        if(row){row._managerAssigned=true;rows.push(row);}
+      });
+      return rows;
+    }
+    function _grcRiskRowsFromQueueSnap(snap){
+      const rows=[];
+      snap.forEach(function(d){
+        const item=d.data()||{},raw=item.snapshot||{};
+        const row=_grcRiskRequestData({id:String(item.requestId||d.id),exists:function(){return true;},data:function(){return raw;}});
+        if(row){row._managerAssigned=true;rows.push(row);}
+      });
+      return rows;
+    }
+    async function _grcReadManagerQueueKind(departments,kind,mapper){
+      const groups=await Promise.all((departments||[]).map(async function(dept){
+        try{
+          return mapper(await getDocsFromServer(_grcManagerQueueCollection(dept,kind)));
+        }catch(err){
+          /* A legacy department path may not exist; do not fail the whole
+             manager screen because one historical path is unavailable. */
+          const code=String(err&&err.code||'').toLowerCase();
+          if(code==='permission-denied')console.warn('[GRC Manager Queue] denied path',dept,kind);
+          else console.warn('[GRC Manager Queue] read failed',dept,kind,err&&err.message||err);
+          return [];
+        }
+      }));
+      const byId={};groups.forEach(function(rows){(rows||[]).forEach(function(r){if(r&&r.id)byId[String(r.id)]=r;});});
+      return Object.keys(byId).map(function(id){return byId[id];});
+    }
     window._grcGetDepartmentApprovalQueue=async function(force){
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile()),now=Date.now();
-      if(_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<30000)return _grcManagerQueueCache;
+      if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<30000)return _grcManagerQueueCache;
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
-        /* Manager data has two responsibilities:
-         *  1) the small approval inbox is the reliable source for pending work;
-         *  2) the authoritative collections preserve all historical statuses.
-         *
-         * Never make the entire manager page fail because the history query is
-         * temporarily denied/unavailable. Pending inbox rows must still appear.
-         */
-        const result={profile:fresh,review:[],risk:[],errors:[]};
-        const departmentKeys=_grcDepartmentKeyVariants(fresh.departmentKey);
-        const reviewMap={},riskMap={};
-        const addReview=function(id,row){
-          const key=String(id||row&&row.id||'');if(!key)return;
-          const normalized=_advNormalizeRow(key,row||{},'advisory_requests');
-          if(String(normalized.userEmail||'').toLowerCase().trim()===fresh.email)return;
-          if(String(normalized.platform||'grc').toLowerCase()!=='grc')return;
-          const dept=_advCanonicalDepartment(normalized.departmentKey||normalized.department);
-          if(dept!==fresh.departmentKey)return;
-          normalized._managerAssigned=true;reviewMap[key]=normalized;
-        };
-        const addRisk=function(id,row){
-          const key=String(id||row&&row.id||'');if(!key)return;
-          if(String(row&&row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;
-          const dept=_grcCanonicalDepartment(row&& (row.departmentKey||row.department||row.responsibleDept||row.responsibleDepartment));
-          if(dept!==fresh.departmentKey)return;
-          const data=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});
-          if(data){data._managerAssigned=true;riskMap[key]=data;}
-        };
-        /* First read the department approval inbox. It is intentionally small and
-           contains requests that must reach the current manager. */
-        const queueSettled=await Promise.allSettled([
-          getDocs(_grcManagerQueueCollection(fresh.departmentKey,'review')),
-          getDocs(_grcManagerQueueCollection(fresh.departmentKey,'risk'))
+        /* IMPORTANT: Department Managers must use the department-scoped approval
+           inbox, not a broad query against advisory_requests/grc_risk_requests.
+           Firestore Rules intentionally permit the inbox path to the manager's
+           department and do not permit arbitrary collection history queries.
+           Queue rows are retained after manager decisions, so this is also the
+           manager's all-status history source. */
+        const departments=_grcManagerQueueDepartmentVariants(fresh);
+        const [review,risk]=await Promise.all([
+          _grcReadManagerQueueKind(departments,'review',_grcReviewRowsFromQueueSnap),
+          _grcReadManagerQueueKind(departments,'risk',_grcRiskRowsFromQueueSnap)
         ]);
-        if(queueSettled[0].status==='fulfilled')queueSettled[0].value.forEach(function(d){
-          const item=d.data()||{};addReview(String(item.requestId||d.id),item.snapshot||{});
-        });
-        else result.errors.push('Review queue: '+String(queueSettled[0].reason&&queueSettled[0].reason.message||queueSettled[0].reason));
-        if(queueSettled[1].status==='fulfilled')queueSettled[1].value.forEach(function(d){
-          const item=d.data()||{};addRisk(String(item.requestId||d.id),item.snapshot||{});
-        });
-        else result.errors.push('Risk queue: '+String(queueSettled[1].reason&&queueSettled[1].reason.message||queueSettled[1].reason));
-
-        /* Then try the authoritative history. This is one bounded department
-           query per collection, not a listener. If it fails, keep the inbox data
-           above so the manager can still act on pending requests. */
-        const reviewRef=query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','in',departmentKeys));
-        const riskRef=query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','in',departmentKeys));
-        const historySettled=await Promise.allSettled([getDocs(reviewRef),getDocs(riskRef)]);
-        if(historySettled[0].status==='fulfilled')historySettled[0].value.forEach(function(d){addReview(d.id,d.data()||{});});
-        else result.errors.push('Review history: '+String(historySettled[0].reason&&historySettled[0].reason.message||historySettled[0].reason));
-        if(historySettled[1].status==='fulfilled')historySettled[1].value.forEach(function(d){addRisk(d.id,d.data()||{});});
-        else result.errors.push('Risk history: '+String(historySettled[1].reason&&historySettled[1].reason.message||historySettled[1].reason));
-
-        /* For the notification/action layer expose only requests that actually
-           require this manager's action. The UI history receives all statuses. */
-        const allReview=Object.keys(reviewMap).map(function(k){return reviewMap[k];});
-        const allRisk=Object.keys(riskMap).map(function(k){return riskMap[k];});
-        result.review=allReview.sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);});
-        result.risk=_grcRiskSort(allRisk);
-        /* Only surface an error when neither the inbox nor the authoritative
-           history could provide anything. A single failed history branch must
-           not blank a working manager queue. */
-        if(result.review.length||result.risk.length){
-          /* A partial source failure must not turn a working manager queue into
-             a red 'service unavailable' banner. The successful source remains
-             authoritative for the data it returned. */
-          result.errors=[];
-        }else if(result.errors.length){
-          throw new Error(result.errors.join(' · '));
-        }
+        review.forEach(function(r){r._managerAssigned=true;});
+        risk.forEach(function(r){r._managerAssigned=true;});
+        const result={profile:fresh,review:review.sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),risk:_grcRiskSort(risk),errors:[]};
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;
       })().finally(function(){_grcManagerQueueCachePromise=null;});
       return _grcManagerQueueCachePromise;
