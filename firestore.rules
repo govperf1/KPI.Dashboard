@@ -587,7 +587,7 @@ service cloud.firestore {
     // v66 is the current approval-sync deployment marker. The v65 marker remains
     // accepted for backward compatibility during rollout.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId in ['v60-grc-department-scope-approval-20260823','v65-grc-superadmin-global-20260824','v66-grc-approval-sync-20260825','v69-grc-manager-approval-20260902'];
+      allow get: if approved() && versionId in ['v60-grc-department-scope-approval-20260823','v65-grc-superadmin-global-20260824','v66-grc-approval-sync-20260825','v70-grc-manager-department-query-20260903'];
       allow list, create, update, delete: if false;
     }
 
@@ -851,12 +851,7 @@ service cloud.firestore {
       allow list: if approved() && profileRoleFrom(userData()) == 'department_manager' &&
         profileDepartmentKeyFrom(userData()) != '' &&
         ('departmentKey' in resource.data) &&
-        (resource.data.departmentKey == profileDepartmentKeyFrom(userData()) ||
-         (profileDepartmentKeyFrom(userData()) == 'projects' && resource.data.departmentKey in ['Project_Management','Project Management','project_management']) ||
-         (profileDepartmentKeyFrom(userData()) == 'maintenance' && resource.data.departmentKey in ['Maintenance','maintenance_management','Maintenance_Management']) ||
-         (profileDepartmentKeyFrom(userData()) == 'safety' && resource.data.departmentKey in ['Safety','safety_management','Safety_Management']) ||
-         (profileDepartmentKeyFrom(userData()) == 'housekeeping' && resource.data.departmentKey in ['Housekeeping','housekeeping_management','Housekeeping_Management']) ||
-         (profileDepartmentKeyFrom(userData()) == 'laundry' && resource.data.departmentKey in ['Laundry','laundry_management','Laundry_Management']));
+        resource.data.departmentKey == profileDepartmentKeyFrom(userData());
       allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
       allow update: if
@@ -1035,17 +1030,11 @@ service cloud.firestore {
           canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData())
         );
       // Managers list the path-scoped approval queue, never this collection directly.
-      allow list: if
-        admin() ||
+      allow list: if admin() ||
         (approved() && profileRoleFrom(userData()) == 'department_manager' &&
           profileDepartmentKeyFrom(userData()) != '' &&
           ('departmentKey' in resource.data) &&
-          (resource.data.departmentKey == profileDepartmentKeyFrom(userData()) ||
-           (profileDepartmentKeyFrom(userData()) == 'projects' && resource.data.departmentKey in ['Project_Management','Project Management','project_management']) ||
-           (profileDepartmentKeyFrom(userData()) == 'maintenance' && resource.data.departmentKey in ['Maintenance','maintenance_management','Maintenance_Management']) ||
-           (profileDepartmentKeyFrom(userData()) == 'safety' && resource.data.departmentKey in ['Safety','safety_management','Safety_Management']) ||
-           (profileDepartmentKeyFrom(userData()) == 'housekeeping' && resource.data.departmentKey in ['Housekeeping','housekeeping_management','Housekeeping_Management']) ||
-           (profileDepartmentKeyFrom(userData()) == 'laundry' && resource.data.departmentKey in ['Laundry','laundry_management','Laundry_Management']))) ||
+          resource.data.departmentKey == profileDepartmentKeyFrom(userData())) ||
         (canReadRiskIncidentWorkflow() && (
           (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid) ||
           (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail()) ||
