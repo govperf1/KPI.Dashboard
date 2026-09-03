@@ -563,6 +563,20 @@ service cloud.firestore {
       request.resource.data.rating >= 1 && request.resource.data.rating <= 5;
     }
 
+    // Requesters may rate a completed Review & Development request once.
+    // Keep the write narrowly scoped to rating fields so the requester cannot
+    // alter workflow, ownership, department, or approval state.
+    function validAdvisoryRequestRatingChange() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'rating', 'ratingComment', 'ratingAt', 'updatedAt', 'updatedAtIso', 'updatedBy'
+      ]) &&
+      resource.data.status is string && resource.data.status.lower().trim() == 'closed' &&
+      (!('rating' in resource.data) || resource.data.rating == null || resource.data.rating == 0) &&
+      request.resource.data.rating is number &&
+      request.resource.data.rating >= 1 && request.resource.data.rating <= 5 &&
+      ownEmail(resource.data.userEmail);
+    }
+
     match /grc_requests/{requestId} {
       allow create: if canAccessGrc() && ownEmail(request.resource.data.userEmail) &&
         (
@@ -893,6 +907,8 @@ service cloud.firestore {
       allow update: if
         (superAdmin() && validAdvisorySuperAdminDecision()) ||
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
+        (approved() && ownEmail(resource.data.userEmail) &&
+          validAdvisoryRequestRatingChange()) ||
         (approved() && ownEmail(resource.data.userEmail) &&
           validAdvisoryOwnerChange() && advisoryOwnerRoutePreserved()) ||
         (advisoryManagerOwnsResource(resource.data) &&
