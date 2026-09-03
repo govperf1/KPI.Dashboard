@@ -189,7 +189,7 @@
     /* This table is the Review & Development approval/history table only.
        Risk & Incident requests are handled in the separate GRC Department
        Approval profile/notification. */
-    var review=records.filter(isManagerApprovalRecord);
+    var review=records.filter(function(r){return isManagerApprovalRecord(r)&&String(r&&r.workflowStage||r&&r.status||'').toLowerCase()==='pending_department_manager';});
     var combined=review.map(function(r){return{kind:'review',id:r.id,code:r.code||r.id,requester:r.userName||r.userEmail||'—',label:typeLabel(r),stage:workflowLabel(r),time:timeMs(r.createdAt),date:formatDate(r.createdAt,true),actionable:String(r.workflowStage||r.status||'').toLowerCase()==='pending_department_manager'};}).sort(function(a,b){return b.time-a.time;});
     var error=lastLoadError?'<div class="adv-card" style="margin-bottom:12px;border-color:#f1b6b6;background:#fff7f7;color:#991b1b"><strong>Department approval sync warning:</strong> '+esc(lastLoadError)+'</div>':'';
     var table='<div class="adv-card" style="margin-bottom:14px"><div class="adv-register-toolbar"><div><h3>Department Approval Requests</h3><p>All Review & Development requests for your department. Pending/returned items requiring action are shown in the entry notification.</p></div><div class="adv-filter-note"><b>'+combined.length+'</b> Requests</div></div><div class="adv-table-wrap"><table class="adv-table" style="min-width:1120px"><thead><tr><th>Request Code</th><th>Request Area</th><th>Requester</th><th>Approval Stage</th><th>Submitted</th><th>Decision</th></tr></thead><tbody>'+(combined.length?combined.map(function(x){

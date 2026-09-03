@@ -1206,8 +1206,6 @@ window._selectPortal=async portal=>{
         try{
           return mapper(await getDocsFromServer(_grcManagerQueueCollection(dept,kind)));
         }catch(err){
-          /* A legacy department path may not exist; do not fail the whole
-             manager screen because one historical path is unavailable. */
           const code=String(err&&err.code||'').toLowerCase();
           if(code==='permission-denied')console.warn('[GRC Manager Queue] denied path',dept,kind);
           else console.warn('[GRC Manager Queue] read failed',dept,kind,err&&err.message||err);
@@ -1216,6 +1214,34 @@ window._selectPortal=async portal=>{
       }));
       const byId={};groups.forEach(function(rows){(rows||[]).forEach(function(r){if(r&&r.id)byId[String(r.id)]=r;});});
       return Object.keys(byId).map(function(id){return byId[id];});
+    }
+    async function _grcReadLegacyManagerHistory(profile,kind){
+      /* Compatibility path for requests created before the department inbox
+         was introduced. It runs only when the inbox has no non-own item that
+         requires manager action, so normal traffic stays queue-only and cheap. */
+      const dept=String(profile&&profile.departmentKey||'').trim();
+      const raw=String(profile&&profile.rawDepartment||'').trim();
+      if(!dept)return [];
+      const fields=['departmentKey'];
+      const values=[dept];
+      if(raw&&raw!==dept)values.push(raw);
+      const out={};
+      for(const value of values){
+        try{
+          const coll=kind==='risk'?'grc_risk_requests':ADV_REQUESTS_COLLECTION;
+          const snap=await getDocs(query(collection(db,coll),where(fields[0],'==',value)));
+          snap.forEach(function(d){
+            const row=kind==='risk'
+              ? _grcRiskRequestData(d)
+              : _advNormalizeRow(d.id,d.data(),'advisory_requests');
+            if(row&&row.id){row._managerAssigned=true;out[String(row.id)]=row;}
+          });
+          if(Object.keys(out).length)break;
+        }catch(err){
+          console.warn('[GRC Manager History] fallback unavailable',kind,value,err&&err.code||err&&err.message||err);
+        }
+      }
+      return Object.keys(out).map(function(id){return out[id];});
     }
     window._grcGetDepartmentApprovalQueue=async function(force){
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile()),now=Date.now();
@@ -1229,12 +1255,23 @@ window._selectPortal=async portal=>{
            Queue rows are retained after manager decisions, so this is also the
            manager's all-status history source. */
         const departments=_grcManagerQueueDepartmentVariants(fresh);
-        const [review,risk]=await Promise.all([
+        let [review,risk]=await Promise.all([
           _grcReadManagerQueueKind(departments,'review',_grcReviewRowsFromQueueSnap),
           _grcReadManagerQueueKind(departments,'risk',_grcRiskRowsFromQueueSnap)
         ]);
         review.forEach(function(r){r._managerAssigned=true;});
         risk.forEach(function(r){r._managerAssigned=true;});
+        const managerEmail=String(fresh.email||'').toLowerCase().trim();
+        const hasReviewAction=review.some(function(r){return String(r&&r.userEmail||'').toLowerCase().trim()!==managerEmail && String(r&&r.workflowStage||r&&r.status||'').toLowerCase()==='pending_department_manager';});
+        const hasRiskAction=risk.some(function(r){return String(r&&r.submittedByEmail||'').toLowerCase().trim()!==managerEmail && ['pending_manager','returned_manager'].indexOf(String(r&&r.status||'').toLowerCase())>=0;});
+        const fallbackResults=await Promise.all([
+          hasReviewAction?Promise.resolve([]):_grcReadLegacyManagerHistory(fresh,'review'),
+          hasRiskAction?Promise.resolve([]):_grcReadLegacyManagerHistory(fresh,'risk')
+        ]);
+        const reviewById={};review.concat(fallbackResults[0]).forEach(function(r){if(r&&r.id)reviewById[String(r.id)]=r;});
+        const riskById={};risk.concat(fallbackResults[1]).forEach(function(r){if(r&&r.id)riskById[String(r.id)]=r;});
+        review=Object.keys(reviewById).map(function(id){return reviewById[id];});
+        risk=Object.keys(riskById).map(function(id){return riskById[id];});
         const result={profile:fresh,review:review.sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),risk:_grcRiskSort(risk),errors:[]};
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;
       })().finally(function(){_grcManagerQueueCachePromise=null;});
@@ -1285,10 +1322,12 @@ window._selectPortal=async portal=>{
           try{
             const bundle=await window._grcGetDepartmentApprovalQueue(true);
             if(stopped)return;
-            const own=await window._advisoryGetMine();
-            if(stopped)return;
+            /* The manager inbox already contains the manager's own submissions
+               as well as department submissions. Do not issue a second ownership
+               query here; it was both redundant and prone to requesterUid rule
+               mismatches. The UI separates own rows from approval rows locally. */
             const byId={};
-            (bundle.review||[]).concat(own||[]).forEach(function(r){if(r&&r.id)byId[String(r.id)]=r;});
+            (bundle.review||[]).forEach(function(r){if(r&&r.id)byId[String(r.id)]=r;});
             const records=Object.keys(byId).map(function(k){return byId[k];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);});
             const publicRows=records.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
             const errors={};
