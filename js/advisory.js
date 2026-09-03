@@ -177,7 +177,21 @@
   window._grcAdvisoryMount=function(){mount('grc','advRootGrc');};
   window._performanceAdvisoryMount=function(){var h=document.getElementById('performanceAdvisoryRoot');if(!h)return;if(!h.querySelector('#advRootPerformance'))h.innerHTML=pageSkeleton('performance','advRootPerformance');mount('performance','advRootPerformance');};
   function applyLivePayload(payload){if(!payload||!root())return;livePayload=payload;var next=currentView==='dashboard'?payload.publicRecords:payload.records;if(!Array.isArray(next))return;var incoming=next.filter(isRelevantRecord),errs=payload.errors||{},keys=currentView==='dashboard'?['primary']:((isDepartmentManager()?['primary','own']:['primary'])),messages=keys.filter(function(k){return !!errs[k];}).map(function(k){return k+': '+String(errs[k]);});if(errs.fallback)console.warn('[Review Development] legacy fallback sync skipped',errs.fallback);if(messages.length)console.warn('[Review Development] live sync warning',messages.join(' · '));/* Keep the last verified rows on a transient listener denial instead of replacing the page with an empty/error state. */if(!messages.length||incoming.length||!records.length)records=incoming;lastLoadError='';loading=false;renderView();if(currentView==='requests'&&!isAdmin())showRatingNotification();}
-  function mount(platform,rootId){if(liveUnsub){try{liveUnsub();}catch(_){}liveUnsub=null;}livePayload=null;currentPlatform=platform;currentRootId=rootId;/* Action queues are the operational landing view for Admin/Super Admin. The analytics dashboard remains available as a separate card. */currentView='requests';dashboardFilter='all';departmentFilter='';loading=true;lastLoadError='';renderView();if(apiReady('_advisorySubscribe')){liveUnsub=window._advisorySubscribe(applyLivePayload);}else{loading=false;loadRecords();}}
+  function mount(platform,rootId){
+    if(liveUnsub){try{liveUnsub();}catch(_){}liveUnsub=null;}
+    livePayload=null;currentPlatform=platform;currentRootId=rootId;currentView='requests';dashboardFilter='all';departmentFilter='';loading=true;lastLoadError='';renderView();
+    if(isDepartmentManager()){
+      /* grc-risk-workflow owns the single manager approval listener. Do not open
+         another live listener from this page. The page consumes its shared payload. */
+      var onManagerQueue=function(e){if(!e||!e.detail)return;livePayload=e.detail;applyLivePayload(e.detail);};
+      window.addEventListener('grc:managerReviewQueueUpdated',onManagerQueue);
+      liveUnsub=function(){window.removeEventListener('grc:managerReviewQueueUpdated',onManagerQueue);};
+      if(window.__grcManagerReviewPayload)onManagerQueue({detail:window.__grcManagerReviewPayload});
+      loadRecords(false);
+      return;
+    }
+    if(apiReady('_advisorySubscribe'))liveUnsub=window._advisorySubscribe(applyLivePayload);else{loading=false;loadRecords();}
+  }
   window._advSwitchView=function(view){if(view==='management')view='requests';if(view==='dashboard'&&!canViewDashboard())view='requests';currentView=view;dashboardSearch='';dashboardStatus='';adminSearch='';adminStatus='';adminDepartment='';var r=root();if(r)r.querySelectorAll('.adv-module-card').forEach(function(x){x.classList.toggle('is-active',x.getAttribute('data-adv-view')===view);});if(livePayload)applyLivePayload(livePayload);else loadRecords();};
 
   async function loadRecords(){

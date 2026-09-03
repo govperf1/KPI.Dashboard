@@ -1219,11 +1219,12 @@ window._selectPortal=async portal=>{
         let stopped=false;
         const qref=_grcManagerQueueCollection(dept,'review');
         const ownRef=query(collection(db,ADV_REQUESTS_COLLECTION),where(uid?'requesterUid':'userEmail','==',uid||me));
-        let queueReady=false,ownReady=false,queueAll=[],ownRows=[],queueError='',ownError='';
+        let queueReady=false,ownReady=false,queueAll=[],ownRows=[],queueError='',ownError='',ownReadPromise=null;
         const emit=function(){
           if(stopped||!queueReady||!ownReady)return;
-          const pending=queueAll.filter(function(r){return String(r.workflowStage||r.status||'').toLowerCase()==='pending_department_manager'&&String(r.platform||'grc').toLowerCase()==='grc';});
-          const byId={};pending.concat(ownRows).forEach(function(r){if(r&&r.id)byId[String(r.id)]=r;});
+          /* The manager queue listener is the only live approval source. Own submitted
+             requests are read once for this page and refreshed explicitly by the UI. */
+          const byId={};queueAll.concat(ownRows).forEach(function(r){if(r&&r.id)byId[String(r.id)]=r;});
           const records=Object.keys(byId).map(function(k){return byId[k];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);});
           const dashboardRows=records.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
           const errors={};if(queueError)errors.manager=queueError;if(ownError)errors.own=ownError;
@@ -1240,13 +1241,12 @@ window._selectPortal=async portal=>{
           }).filter(function(r){return String(r.userEmail||'').toLowerCase().trim()!==me;});
           queueReady=true;queueError='';emit();
         },function(err){if(stopped)return;queueReady=true;queueError=String(err&&err.message||err&&err.code||err||'listener-failed');emit();});
-        const ownLive=onSnapshot(ownRef,{includeMetadataChanges:true},function(snap){
+        ownReadPromise=getDocs(ownRef).then(function(snap){
           if(stopped)return;
-          if(snap.metadata&&snap.metadata.fromCache)return;
           ownRows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
           ownReady=true;ownError='';emit();
-        },function(err){if(stopped)return;ownReady=true;ownError=String(err&&err.message||err&&err.code||err||'listener-failed');emit();});
-        return function(){stopped=true;try{queueLive();}catch(_){}try{ownLive();}catch(_){} };
+        }).catch(function(err){if(stopped)return;ownReady=true;ownError=String(err&&err.message||err&&err.code||err||'read-failed');emit();});
+        return function(){stopped=true;try{queueLive();}catch(_){} };
       }
       let closed=false,timer=null,unsubs=[];
       const sources={};

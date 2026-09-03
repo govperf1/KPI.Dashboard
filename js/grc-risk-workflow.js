@@ -293,6 +293,8 @@
           var reviewPayload=payload||{};
           reviewApprovalRows=(Array.isArray(reviewPayload.records)?reviewPayload.records:[]).filter(reviewManagerRequest);
           managerReviewAllRows=Array.isArray(reviewPayload.allRecords)?reviewPayload.allRecords:reviewApprovalRows.slice();
+          window.__grcManagerReviewPayload=reviewPayload;
+          try{document.dispatchEvent(new CustomEvent('grc:managerReviewQueueUpdated',{detail:reviewPayload}));}catch(_e){}
           if(reviewPayload.errors&&reviewPayload.errors.manager)window.__grcManagerApprovalError='Review & Development: '+reviewPayload.errors.manager;
           else window.__grcManagerApprovalError='';
           refreshBadge();
@@ -561,5 +563,5 @@
   };
 
   document.addEventListener('click',function(e){var p=document.getElementById('_grcRiskNotifPanel'),b=document.getElementById('grcRiskNotifBtn');if(p&&(!b||!b.contains(e.target))&&!p.contains(e.target))p.remove();var m=document.getElementById('_grcUserProfileMenu'),u=document.querySelector('.grc-profile-trigger');if(m&&(!u||!u.contains(e.target))&&!m.contains(e.target))m.remove();},true);
-  setInterval(start,1000);setInterval(refreshBadge,3000);document.addEventListener('DOMContentLoaded',start);
+  document.addEventListener('DOMContentLoaded',start);document.addEventListener('grc:portalChanged',start);document.addEventListener('grc:authReady',start);setInterval(refreshBadge,5000);
 })();
