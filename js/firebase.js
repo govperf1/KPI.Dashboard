@@ -1169,10 +1169,37 @@ window._selectPortal=async portal=>{
     }
 
     let _grcManagerQueueCache=null,_grcManagerQueueCacheAt=0,_grcManagerQueueCachePromise=null;
-    window._grcGetDepartmentApprovalQueue=async function(force){
+    let _grcManagerReviewHistoryCache=null,_grcManagerReviewHistoryCacheAt=0;
+    let _grcManagerRiskHistoryCache=null,_grcManagerRiskHistoryCacheAt=0;
+    const GRC_MANAGER_HISTORY_CACHE_MS=120000;
+    window._grcGetDepartmentApprovalQueue=async function(force,onlyKind){
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile()),now=Date.now();
-      if(_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<30000)return _grcManagerQueueCache;
-      if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
+      onlyKind=String(onlyKind||'').toLowerCase();
+      if(onlyKind==='review'&&_grcManagerReviewHistoryCache&&now-_grcManagerReviewHistoryCacheAt<GRC_MANAGER_HISTORY_CACHE_MS)return {profile:fresh,review:_grcManagerReviewHistoryCache,risk:[],errors:[]};
+      if(onlyKind==='risk'&&_grcManagerRiskHistoryCache&&now-_grcManagerRiskHistoryCacheAt<GRC_MANAGER_HISTORY_CACHE_MS)return {profile:fresh,review:[],risk:_grcManagerRiskHistoryCache,errors:[]};
+      if(!onlyKind&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<GRC_MANAGER_HISTORY_CACHE_MS)return _grcManagerQueueCache;
+      if(!onlyKind&&_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
+      if(onlyKind){
+        /* Narrow history reads have their own cache so Review and Risk cannot
+           accidentally trigger duplicate full-department reads. */
+        const narrow=await (async function(){
+          const result={profile:fresh,review:[],risk:[],errors:[]};
+          const departmentKeys=_grcDepartmentKeyVariants(fresh.departmentKey);
+          try{
+            if(onlyKind==='review'){
+              const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','in',departmentKeys)));
+              result.review=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');}).filter(function(r){return r&&String(r.userEmail||'').toLowerCase().trim()!==fresh.email&&String(r.platform||'grc').toLowerCase()==='grc';});
+              _grcManagerReviewHistoryCache=result.review;_grcManagerReviewHistoryCacheAt=Date.now();
+            }else{
+              const snap=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','in',departmentKeys)));
+              result.risk=snap.docs.map(function(d){const r=_grcRiskRequestData(d);if(r)r._managerAssigned=true;return r;}).filter(function(r){return r&&String(r.submittedByEmail||'').toLowerCase().trim()!==fresh.email;});
+              _grcManagerRiskHistoryCache=result.risk;_grcManagerRiskHistoryCacheAt=Date.now();
+            }
+          }catch(err){result.errors.push((onlyKind==='review'?'Review & Development: ':'Risk & Incident: ')+String(err&&err.message||err));}
+          return result;
+        })();
+        return narrow;
+      }
       _grcManagerQueueCachePromise=(async function(){
         /* One-shot, department-scoped reads from the authoritative collections.
          * The approval-inbox is intentionally not used for the manager history:
@@ -1188,30 +1215,38 @@ window._selectPortal=async portal=>{
          * manager see the complete department history without relying on the
          * transient approval-inbox documents.
          */
-        const reviewRef=query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','in',departmentKeys));
-        const riskRef=query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','in',departmentKeys));
-        const settled=await Promise.allSettled([getDocsFromServer(reviewRef),getDocsFromServer(riskRef)]);
-        if(settled[0].status==='fulfilled'){
-          result.review=settled[0].value.docs.map(function(d){
-            return _advNormalizeRow(d.id,d.data(),'advisory_requests');
-          }).filter(function(r){
-            return r && String(r.userEmail||'').toLowerCase().trim()!==fresh.email &&
-              String(r.platform||'grc').toLowerCase()==='grc';
-          });
-        }else result.errors.push('Review & Development: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason));
-        if(settled[1].status==='fulfilled'){
-          result.risk=settled[1].value.docs.map(function(d){
-            const r=_grcRiskRequestData(d);if(r)r._managerAssigned=true;return r;
-          }).filter(function(r){
-            return r && String(r.submittedByEmail||'').toLowerCase().trim()!==fresh.email;
-          });
-        }else result.errors.push('Risk & Incident: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
-        _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;
+        const reads=[];
+        if(!onlyKind||onlyKind==='review')reads.push(getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','in',departmentKeys))));
+        if(!onlyKind||onlyKind==='risk')reads.push(getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','in',departmentKeys))));
+        const settled=await Promise.allSettled(reads);let si=0;
+        if(!onlyKind||onlyKind==='review'){
+          const reviewResult=settled[si++];
+          if(reviewResult.status==='fulfilled'){
+            result.review=reviewResult.value.docs.map(function(d){
+              return _advNormalizeRow(d.id,d.data(),'advisory_requests');
+            }).filter(function(r){
+              return r && String(r.userEmail||'').toLowerCase().trim()!==fresh.email &&
+                String(r.platform||'grc').toLowerCase()==='grc';
+            });
+          }else result.errors.push('Review & Development: '+String(reviewResult.reason&&reviewResult.reason.message||reviewResult.reason));
+        }
+        if(!onlyKind||onlyKind==='risk'){
+          const riskResult=settled[si++];
+          if(riskResult.status==='fulfilled'){
+            result.risk=riskResult.value.docs.map(function(d){
+              const r=_grcRiskRequestData(d);if(r)r._managerAssigned=true;return r;
+            }).filter(function(r){
+              return r && String(r.submittedByEmail||'').toLowerCase().trim()!==fresh.email;
+            });
+          }else result.errors.push('Risk & Incident: '+String(riskResult.reason&&riskResult.reason.message||riskResult.reason));
+        }
+        if(!onlyKind){_grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();}
+        return result;
       })().finally(function(){_grcManagerQueueCachePromise=null;});
       return _grcManagerQueueCachePromise;
     };
     window._advisoryGetManagerQueue=async function(){
-      const bundle=await window._grcGetDepartmentApprovalQueue(true);
+      const bundle=await window._grcGetDepartmentApprovalQueue(true,'review');
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
       // Approval inbox contains only requests assigned to this manager.
       // The manager's own submissions belong under My Requests instead.
@@ -1227,7 +1262,7 @@ window._selectPortal=async portal=>{
         let stopped=false;
         const emitOnce=async function(){
           try{
-            const bundle=await window._grcGetDepartmentApprovalQueue(true);
+            const bundle=await window._grcGetDepartmentApprovalQueue(true,'review');
             if(stopped)return;
             const own=await window._advisoryGetMine();
             if(stopped)return;
@@ -1354,7 +1389,7 @@ window._selectPortal=async portal=>{
         }),requestId);
         await setDoc(queueRef,_grcQueueItem('review',requestId,dept,String(current.userEmail||''),queueSnapshot),{merge:true});
       }catch(queueErr){console.warn('[Review Development Manager Queue] history sync skipped after successful decision',queueErr);}
-      _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
+      _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;_grcManagerReviewHistoryCache=null;_grcManagerReviewHistoryCacheAt=0;_grcManagerRiskHistoryCache=null;_grcManagerRiskHistoryCacheAt=0;
       try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':action==='return'?'Returned for update ':'Rejected ')+String(current.code||requestId),{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:decision,comment:managerComment},{portal:String(current.platform||'grc')});}catch(_){}
       return true;
     };
@@ -1730,7 +1765,7 @@ window._selectPortal=async portal=>{
       batch.update(ref,updates);
       batch.set(_grcManagerQueueItemRef(dept,'risk',requestId),_grcQueueItem('risk',requestId,dept,String(r.submittedByEmail||_grcRiskEmail()),snapshot),{merge:false});
       await batch.commit();
-      _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
+      _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;_grcManagerReviewHistoryCache=null;_grcManagerReviewHistoryCacheAt=0;_grcManagerRiskHistoryCache=null;_grcManagerRiskHistoryCacheAt=0;
       try{await window._recordAuditDirect('GRC_REGISTER_REQUEST_RESUBMIT','Resubmitted '+String(r.recordType||'risk')+' request '+String(r.requestCode||requestId),r.proposedRecord,proposed,{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
       return true;
     };
@@ -1739,7 +1774,7 @@ window._selectPortal=async portal=>{
       const updates={status:'cancelled',updatedAt:serverTimestamp(),updatedAtIso:now,history},dept=String(r.departmentKey||r.department||''),batch=writeBatch(db);
       batch.update(ref,updates);if(dept)batch.delete(_grcManagerQueueItemRef(dept,'risk',requestId));
       await batch.commit();
-      _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
+      _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;_grcManagerReviewHistoryCache=null;_grcManagerReviewHistoryCacheAt=0;_grcManagerRiskHistoryCache=null;_grcManagerRiskHistoryCacheAt=0;
       try{await window._recordAuditDirect('GRC_REGISTER_REQUEST_CANCEL','Cancelled '+String(r.recordType||'risk')+' request '+String(r.requestCode||requestId),{status:r.status},{status:'cancelled'},{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
       return true;
     };
@@ -1836,7 +1871,7 @@ window._selectPortal=async portal=>{
           _grcQueueItem('risk',requestId,dept,String(r.submittedByEmail||''),queueSnapshot),
           {merge:true});
       }catch(queueErr){console.warn('[GRC Risk Manager Queue] history sync skipped after successful decision',queueErr);}
-      _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
+      _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;_grcManagerReviewHistoryCache=null;_grcManagerReviewHistoryCacheAt=0;_grcManagerRiskHistoryCache=null;_grcManagerRiskHistoryCacheAt=0;
       try{await window._recordAuditDirect('GRC_MANAGER_APPROVAL_'+action.toUpperCase(),'Department Manager '+action+' · '+String(r.requestCode||requestId),{status:r.status},{status:status,note:note,returnFields:fields},{portal:'grc',dept:fresh.departmentKey,recordType:r.recordType||'risk'});}catch(_){}
       return true;
     };
@@ -1891,7 +1926,7 @@ window._selectPortal=async portal=>{
           await setDoc(_grcManagerQueueItemRef(dept,'risk',requestId),_grcQueueItem('risk',requestId,dept,String(r.submittedByEmail||''),snapshot),{merge:true});
         }catch(queueErr){console.warn('[GRC Risk Super Admin Queue] history sync skipped',queueErr);}
       }
-      _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
+      _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;_grcManagerReviewHistoryCache=null;_grcManagerReviewHistoryCacheAt=0;_grcManagerRiskHistoryCache=null;_grcManagerRiskHistoryCacheAt=0;
       try{await window._recordAuditDirect('GRC_SUPER_ADMIN_APPROVAL_'+String(action||'action').toUpperCase(),'Super Admin '+String(action||'action')+' · '+String(r.requestCode||requestId),{status:r.status},{status:status,note:String(note||'')},{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
       return true;
     };
@@ -1920,7 +1955,7 @@ window._selectPortal=async portal=>{
       return data;
     };
     window._grcRiskRequestsGetForManager=async function(){
-      const bundle=await window._grcGetDepartmentApprovalQueue(true);
+      const bundle=await window._grcGetDepartmentApprovalQueue(true,'risk');
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
       return bundle.risk||[];
     };

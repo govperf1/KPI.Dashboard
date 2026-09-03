@@ -1740,7 +1740,11 @@
           grcConfigureCollectionScopes(key,[]);state[key]=[];return;
         }
         if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){
-          grcConfigureCollectionScopes(key,['all']);grcListen(b,key,'all',col);
+          /* Reference/global collections do not need permanent listeners. A
+             reconnect re-reads every document in the collection and can burn
+             through the Spark read quota. Load them once for this GRC session. */
+          grcConfigureCollectionScopes(key,['all']);
+          grcLoadScopeOnce(b,key,'all',col);
         }else{
           /* v195 canonical single-source sync. Every scoped register uses one
              provable departmentKey query. Legacy department labels are repaired
@@ -3239,13 +3243,16 @@
   function stopAssessmentCloudSync(){assessmentCloudUnsubs.splice(0).forEach(function(u){try{u&&u();}catch(_){}});Object.keys(assessmentCloudRetryTimers).forEach(function(k){if(assessmentCloudRetryTimers[k])clearTimeout(assessmentCloudRetryTimers[k]);});assessmentCloudRetryTimers={};assessmentCloudStarted=false;assessmentCloudReady={cbahi:false,jci:false};}
   function startAssessmentCloudSync(){
     if(assessmentCloudStarted||!window._fbUser)return;assessmentCloudStarted=true;
+    /* Assessment payloads are small reference documents. Do not keep two
+       listeners open for every GRC user; a server read is enough for the
+       session, while admin edits continue to save through persistAssessmentKind. */
     ensureReportBackend().then(async function(b){await waitForReportAuth(b);for(const kind of ['cbahi','jci']){
       var ref=assessmentCloudRef(b,kind),getServer=typeof b.fs.getDocFromServer==='function'?b.fs.getDocFromServer:b.fs.getDoc,snap;
       try{snap=await getServer(ref);if(snap.exists())assessmentApplyCloud(kind,snap.data());else if(normalizedRole()==='super_admin'&&assessmentKindHasEdits(kind)){await persistAssessmentKind(kind);}else{assessmentEdits[kind]={};assessmentCloudReady[kind]=true;assessmentSaveLocalCache();}}
       catch(err){assessmentCloudError=kind+': '+String(err&&err.message||err);assessmentCloudReady[kind]=false;}
-      try{var unsub=b.fs.onSnapshot(ref,function(live){if(live.metadata&&live.metadata.fromCache&&!assessmentCloudReady[kind])return;if(live.exists())assessmentApplyCloud(kind,live.data());else if(assessmentCloudReady[kind]){assessmentEdits[kind]={};assessmentSaveLocalCache();if(app&&app.classList.contains('grc-visible')&&activeTab==='compliance')render();}},function(err){assessmentCloudError=kind+': '+String(err&&err.message||err);});assessmentCloudUnsubs.push(unsub);}catch(listenErr){assessmentCloudError=kind+': '+String(listenErr&&listenErr.message||listenErr);}
     }}).catch(function(err){assessmentCloudStarted=false;assessmentCloudError='Assessment sync initialization: '+String(err&&err.message||err);});
   }
+
   function assessmentRows(kind,rows){var base=rows.slice(),added=(assessmentEdits[kind]&&assessmentEdits[kind]._added)||[],deleted=(assessmentEdits[kind]&&assessmentEdits[kind]._deleted)||{};base=base.concat(added);return base.map(function(source,rowIndex){var r=source.slice(),edit=assessmentEdits[kind]&&assessmentEdits[kind][rowIndex];if(edit)Object.keys(edit).forEach(function(col){if(col!=='_added'&&col!=='_deleted')r[Number(col)]=edit[col];});r=cleanAssessmentRowCodes(r);r._sourceIndex=rowIndex;return r;}).filter(function(r){return !deleted[r._sourceIndex];});}
   function saveAssessmentEdit(kind,rowIndex,col,value){if(!isGrcAdmin())return;if(!assessmentEdits[kind])assessmentEdits[kind]={};if(!assessmentEdits[kind][rowIndex])assessmentEdits[kind][rowIndex]={};assessmentEdits[kind][rowIndex][col]=value;if(Number(col)===8)assessmentEdits[kind][rowIndex][9]=value==='Fully Met'?2:(value==='Partially Met'?1:0);_grcAssessmentPersist(kind);render();}
   function cleanAssessmentCode(value){
