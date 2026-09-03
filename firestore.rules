@@ -835,11 +835,13 @@ service cloud.firestore {
         );
 
       allow list: if admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']);
+      // Department Manager may list the complete Review & Development history
+      // for their own department. Pending/returned filtering belongs only to
+      // the landing notification, not to the Department Approval table.
       allow list: if approved() && profileRoleFrom(userData()) == 'department_manager' &&
         profileDepartmentKeyFrom(userData()) != '' &&
         ('departmentKey' in resource.data) &&
-        resource.data.departmentKey == profileDepartmentKeyFrom(userData()) &&
-        ('workflowStage' in resource.data) && resource.data.workflowStage == 'pending_department_manager';
+        resource.data.departmentKey == profileDepartmentKeyFrom(userData());
       allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
       allow update: if
