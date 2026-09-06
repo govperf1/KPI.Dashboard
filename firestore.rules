@@ -878,9 +878,18 @@ service cloud.firestore {
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
         (approved() && ownEmail(resource.data.userEmail) &&
           validAdvisoryOwnerChange() && advisoryOwnerRoutePreserved()) ||
-        ((advisoryManagerOwnsResource(resource.data) || advisoryManagerQueueAssigned(requestId)) &&
+        (
+          approved() && profileRoleFrom(userData()) == 'department_manager' &&
+          profileDepartmentKeyFrom(userData()) != '' &&
           resource.data.workflowStage == 'pending_department_manager' &&
-          validAdvisoryManagerChange());
+          (
+            advisoryManagerOwnsResource(resource.data) ||
+            advisoryManagerQueueAssigned(requestId) ||
+            (('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
+            (('department' in resource.data) && canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))
+          ) &&
+          validAdvisoryManagerChange()
+        );
       allow delete: if superAdmin();
     }
 
