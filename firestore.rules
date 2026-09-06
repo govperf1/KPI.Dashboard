@@ -1053,8 +1053,10 @@ service cloud.firestore {
       allow list: if admin() ||
         (approved() && profileRoleFrom(userData()) == 'department_manager' &&
           profileDepartmentKeyFrom(userData()) != '' &&
-          ('departmentKey' in resource.data) &&
-          resource.data.departmentKey == profileDepartmentKeyFrom(userData())) ||
+          (
+            (('departmentKey' in resource.data) && resource.data.departmentKey == profileDepartmentKeyFrom(userData())) ||
+            (profileDepartmentKeyFrom(userData()) == 'projects' && ('departmentKey' in resource.data) && resource.data.departmentKey in ['Project_Management','Project Management','project_management'])
+          )) ||
         (canReadRiskIncidentWorkflow() && (
           (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid) ||
           (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail()) ||
