@@ -361,7 +361,7 @@
     return '<div class="grc-risk-inline-fields"><div class="grc-risk-inline-label">Fields to be corrected *</div><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px">'+fs.map(function(f){return '<label style="display:flex;align-items:center;gap:6px;padding:7px 8px;border:1px solid #dce7eb;border-radius:8px;background:#fff;font-size:9px;color:#405a6a"><input type="checkbox" data-review-return-field="'+esc(f[0])+'"><span>'+esc(f[1])+'</span></label>';}).join('')+'</div></div>';
   }
   function reviewManagerActionPanel(id,action,btn){
-    var cardEl=btn&&btn.closest?btn.closest('.grc-risk-request-card'):null;if(!cardEl)return;
+    var cardEl=btn&&btn.closest?btn.closest('.grc-apn-card, .grc-risk-request-card'):null;if(!cardEl)return;
     var panel=cardEl.querySelector('.grc-review-manager-panel');if(!panel)return;
     var needNote=action!=='approve',fields=action==='return'?reviewReturnFieldsHtml(id):'';
     panel.hidden=false;
