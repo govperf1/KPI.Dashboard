@@ -890,6 +890,7 @@ service cloud.firestore {
           profileDepartmentKeyFrom(userData()) != '' &&
           resource.data.workflowStage == 'pending_department_manager' &&
           (
+            assignedReviewManager(requestId) ||
             advisoryManagerOwnsResource(resource.data) ||
             advisoryManagerQueueAssigned(requestId) ||
             (('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
@@ -1162,10 +1163,21 @@ service cloud.firestore {
     }
 
     match /grc_risk_request_counters/{counterId} {
-      allow read: if approved();
-      allow create: if canSubmitRiskRequest() && request.resource.data.next == 1;
+      // Counter documents are internal workflow metadata. Restrict writes to the
+      // approved Risk/GRC/Platform owner roles, but tolerate an older malformed
+      // counter value so an existing legacy counter cannot permanently block new
+      // requests for the department. The client still allocates the sequence in
+      // one Firestore transaction.
+      allow read: if canSubmitRiskRequest() || superAdmin();
+      allow create: if canSubmitRiskRequest() &&
+        request.resource.data.next is number && request.resource.data.next == 1 &&
+        request.resource.data.recordType is string;
       allow update: if canSubmitRiskRequest() &&
-        request.resource.data.next == resource.data.next + 1 &&
+        request.resource.data.next is number &&
+        (
+          !(resource.data.next is number) ||
+          request.resource.data.next == resource.data.next + 1
+        ) &&
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['next', 'recordType', 'updatedAt', 'updatedBy']);
       allow delete: if superAdmin();
