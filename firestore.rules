@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v69 — Compact Manager Approval Rules · v282 package
+// FIRESTORE SECURITY RULES v70 — Final manager queue + Super Admin history fix
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -646,6 +646,24 @@ service cloud.firestore {
       );
     }
 
+    // Exact department inbox ownership is the canonical fallback for legacy
+    // source requests whose department fields were saved with an older alias.
+    // The inbox path is created from the authenticated profile's canonical
+    // department, so this remains department-scoped and does not widen access.
+    function advisoryManagerQueueAssigned(requestId) {
+      let d = profileDepartmentKeyFrom(userData());
+      return signedIn() && userData().approved == true &&
+        profileRoleFrom(userData()) == 'department_manager' && d != '' &&
+        exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/$(d)/review/$(requestId));
+    }
+
+    function riskManagerQueueAssigned(requestId) {
+      let d = profileDepartmentKeyFrom(userData());
+      return signedIn() && userData().approved == true &&
+        profileRoleFrom(userData()) == 'department_manager' && d != '' &&
+        exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/$(d)/risk/$(requestId));
+    }
+
     function assignedReviewManager(requestId) {
       let d = profileDepartmentKeyFrom(userData());
       let r = get(/databases/$(database)/documents/advisory_requests/$(requestId)).data;
@@ -841,7 +859,8 @@ service cloud.firestore {
         profileDepartmentKeyFrom(userData()) != '' &&
         (
           canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData()) ||
-          canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData())
+          canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()) ||
+          advisoryManagerQueueAssigned(requestId)
         );
 
       allow list: if admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']);
@@ -859,7 +878,7 @@ service cloud.firestore {
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
         (approved() && ownEmail(resource.data.userEmail) &&
           validAdvisoryOwnerChange() && advisoryOwnerRoutePreserved()) ||
-        (advisoryManagerOwnsResource(resource.data) &&
+        ((advisoryManagerOwnsResource(resource.data) || advisoryManagerQueueAssigned(requestId)) &&
           resource.data.workflowStage == 'pending_department_manager' &&
           validAdvisoryManagerChange());
       allow delete: if superAdmin();
@@ -1027,7 +1046,8 @@ service cloud.firestore {
         profileDepartmentKeyFrom(userData()) != '' &&
         (
           canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData()) ||
-          canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData())
+          canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()) ||
+          riskManagerQueueAssigned(requestId)
         );
       // Managers list the path-scoped approval queue, never this collection directly.
       allow list: if admin() ||
@@ -1050,7 +1070,7 @@ service cloud.firestore {
           riskRequesterChange() && riskRequesterProposedRecordAllowed() && validRequesterRiskTransition()
         ) ||
         (
-          riskManagerOwnsResource(resource.data) &&
+          (riskManagerOwnsResource(resource.data) || riskManagerQueueAssigned(requestId)) &&
           riskManagerChange() && validManagerRiskTransition()
         );
 
