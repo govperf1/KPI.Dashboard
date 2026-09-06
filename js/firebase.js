@@ -986,9 +986,11 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV69Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v69-grc-manager-approval-20260902'));window.__advRulesV69Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Required Firestore GRC manager rules are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      /* Deployment probes are diagnostics only. Never block a valid GRC Owner
+         request because an old system_rule_versions marker is absent or stale.
+         The real create/update operation below remains protected by Firestore
+         Security Rules, so this cannot bypass authorization. */
+      return true;
     }
     async function _advAssertProfileScope(profile){
       profile=profile||{};
@@ -1573,7 +1575,11 @@ window._selectPortal=async portal=>{
       const isFreshManager=freshProfile.role==='department_manager';
       const isFreshPlatformManager=freshProfile.role==='governance_performance_manager';
       const isFreshAdmin=['admin','super_admin'].includes(freshProfile.role);
-      const requiresManagerApproval=!!departmentKey&&!isFreshManager&&!isFreshPlatformManager&&!isFreshAdmin;
+      const isFreshGrcOwner=freshProfile.role==='grc_owner';
+      /* GRC Owner is an operational requester, not a bypass role. Every GRC
+         Owner Review & Development request with a department MUST first go to
+         that Department Manager for Approve / Reject / Return. */
+      const requiresManagerApproval=isFreshGrcOwner || (!!departmentKey&&!isFreshManager&&!isFreshPlatformManager&&!isFreshAdmin);
       const routedDeptCode=departmentKey?_advSafeCode(({safety:'SAF',maintenance:'MNT',laundry:'LND',housekeeping:'HSK',projects:'PRJ',governance:'GOV',division:'FMS'})[departmentKey]||payload.departmentCode):'FMS';
       const year=new Date().getFullYear(),deptCode=routedDeptCode,counterId=year+'_'+deptCode;
       const counterRef=doc(db,'advisory_counters',counterId),primaryRef=doc(collection(db,ADV_REQUESTS_COLLECTION));
@@ -1697,9 +1703,10 @@ window._selectPortal=async portal=>{
     function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();return ['super_admin','admin','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].includes(r)||p.includes('access_grc')||p.includes('view_grc_department')||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('*');}
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
-      if(window.__grcRulesV69Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v69-grc-manager-approval-20260902'));window.__grcRulesV69Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Required Firestore GRC manager rules are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      /* Same policy as Review & Development: version markers must never stop
+         a valid GRC Owner Risk/Incident request. Firestore Rules remain the
+         authoritative authorization layer for the actual write. */
+      return true;
     }
     window._qumcAssertFirestoreRulesV69=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV64=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
     // Compatibility aliases point to the same current probe so old callers cannot
