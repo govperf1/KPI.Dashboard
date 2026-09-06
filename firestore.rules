@@ -660,39 +660,9 @@ service cloud.firestore {
     // department, so this remains department-scoped and does not widen access.
     function advisoryManagerQueueAssigned(requestId) {
       let d = profileDepartmentKeyFrom(userData());
-      // The inbox has historical path aliases (for example Project_Management
-      // while the authenticated profile canonicalizes to projects). A queue item
-      // is the explicit routing grant, so accept every canonical alias here.
       return signedIn() && userData().approved == true &&
         profileRoleFrom(userData()) == 'department_manager' && d != '' &&
-        (
-          exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/$(d)/review/$(requestId)) ||
-          (d == 'projects' && (
-            exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/Project_Management/review/$(requestId)) ||
-            exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/Project Management/review/$(requestId)) ||
-            exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/project_management/review/$(requestId))
-          )) ||
-          (d == 'maintenance' && (
-            exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/Maintenance/review/$(requestId)) ||
-            exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/maintenance_management/review/$(requestId)) ||
-            exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/Maintenance_Management/review/$(requestId))
-          )) ||
-          (d == 'safety' && (
-            exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/Safety/review/$(requestId)) ||
-            exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/safety_management/review/$(requestId)) ||
-            exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/Safety_Management/review/$(requestId))
-          )) ||
-          (d == 'housekeeping' && (
-            exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/Housekeeping/review/$(requestId)) ||
-            exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/housekeeping_management/review/$(requestId)) ||
-            exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/Housekeeping_Management/review/$(requestId))
-          )) ||
-          (d == 'laundry' && (
-            exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/Laundry/review/$(requestId)) ||
-            exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/laundry_management/review/$(requestId)) ||
-            exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/Laundry_Management/review/$(requestId))
-          ))
-        );
+        exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/$(d)/review/$(requestId));
     }
 
     function riskManagerQueueAssigned(requestId) {
