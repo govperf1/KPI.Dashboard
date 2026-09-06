@@ -1,10 +1,10 @@
-TARGETED FIX ONLY
+TARGETED FIX ONLY — GRC Owner Risk/Incident Edit & Resubmit
 
-Updated: firestore.rules
+Fixes only the Firestore permission check for a requester-owned Risk/Incident
+request that is already in status: returned_requester.
 
-Fixes Department Manager Review & Development decisions (Approve / Return / Reject)
-being denied when the manager profile email/display identity does not exactly match
-the normalized auth email. Authorization remains restricted by the existing approved
-Department Manager + department ownership checks and exact workflow transitions.
+No other workflow routing or permissions were changed.
 
-No other application files were changed.
+The fix allows the returned GRC Owner request to update proposedRecord and
+resubmit to pending_manager even when legacy returnFields are empty or contain
+UI labels that do not match Firestore field keys.
