@@ -316,7 +316,12 @@
         refreshBadge();
         if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
         if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();
-        scheduleApprovalNotice(false);
+        // On a fresh Super Admin GRC entry, always open the pending approval
+        // page once after both queues begin loading. Later live updates only
+        // refresh the existing notice and never repeatedly reopen it.
+        var entryKey='qumc_grc_super_approval_entry_v309::'+email();
+        var firstEntry=false;try{firstEntry=sessionStorage.getItem(entryKey)!=='1';if(firstEntry)sessionStorage.setItem(entryKey,'1');}catch(_e){firstEntry=false;}
+        scheduleApprovalNotice(firstEntry);
       });
     }
     if(typeof window._grcRiskRequestsSubscribe!=='function'){cache=[];window.__grcRiskRequestCache=[];refreshBadge();return;}

@@ -1461,7 +1461,7 @@ window._selectPortal=async portal=>{
       /* Same account may legitimately hold GRC Owner and Department Manager roles in the test workflow. Do not block a GRC Owner submission solely because the current manager email is the same. */
       const sameEmail=String(current.userEmail||'').toLowerCase().trim()===managerEmail;
       const grcOwnerSubmission=['grc_owner','risk_owner','platform_owner'].includes(String(current.requesterRole||'').toLowerCase());
-      if(sameEmail&&!grcOwnerSubmission)throw new Error('A Department Manager cannot approve their own request. Your request must be reviewed by Super Admin.');
+      if(action==='approve'&&sameEmail&&!grcOwnerSubmission)throw new Error('A Department Manager cannot approve their own request. Your request must be reviewed by Super Admin.');
       if(current._storage!=='advisory_requests')throw new Error('Legacy requests cannot use the Department Manager approval workflow.');
       if(String(current.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
       if(!['approve','return','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
@@ -1475,7 +1475,7 @@ window._selectPortal=async portal=>{
       if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
       const liveSameEmail=String(live.userEmail||'').toLowerCase().trim()===managerEmail;
       const liveGrcOwner=['grc_owner','risk_owner','platform_owner'].includes(String(live.requesterRole||'').toLowerCase());
-      if(liveSameEmail&&!liveGrcOwner)throw new Error('A Department Manager cannot approve their own request.');
+      if(action==='approve'&&liveSameEmail&&!liveGrcOwner)throw new Error('A Department Manager cannot approve their own request.');
       if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
       else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='returned_by_department_manager';}
       else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
@@ -1911,7 +1911,16 @@ window._selectPortal=async portal=>{
          as the same sequence and break the approval audit. Firestore transactions
          serialize concurrent counter updates. */
       let requestCode='',requestSequence=0;
-      requestCode=await runTransaction(db,async tx=>{const cs=await tx.get(counterRef),next=Number(cs.exists()&&cs.data().next||0)+1,code=kindCode+'-REQ-'+deptCode+'-'+year+'-'+String(next).padStart(3,'0');tx.set(counterRef,{next,recordType,updatedAt:serverTimestamp(),updatedBy:_grcRiskEmail()},{merge:true});requestSequence=next;return code;});
+      requestCode=await runTransaction(db,async tx=>{
+        const cs=await tx.get(counterRef);
+        const stored=cs.exists()?Number((cs.data()||{}).next):0;
+        const base=Number.isFinite(stored)&&stored>=0?stored:0;
+        const next=base+1;
+        const code=kindCode+'-REQ-'+deptCode+'-'+year+'-'+String(next).padStart(3,'0');
+        const counterData={next:next,recordType:recordType,updatedAt:serverTimestamp(),updatedBy:_grcRiskEmail()};
+        if(cs.exists())tx.update(counterRef,counterData);else tx.set(counterRef,counterData);
+        requestSequence=next;return code;
+      });
       const requestData={requestCode,requestSequence,recordType,operation,department,departmentKey:department,departmentRaw:departmentRaw,assignedManagerEmail:'',targetRiskId:String(payload.targetRiskId||payload.targetRecordId||current&&current.id||current&&current.code||proposed&&proposed.id||''),targetRecordId:String(payload.targetRecordId||payload.targetRiskId||current&&current.id||current&&current.code||proposed&&proposed.id||''),currentRecord:current,proposedRecord:proposed,changedFields:_grcRiskChangedFields(current,proposed),deleteReason:String(payload.deleteReason||''),requesterNote:String(payload.note||''),returnFields:[],returnNote:'',returnSource:'',status:'pending_manager',submittedByName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]),submittedByEmail:freshProfile.email,submittedByUid:freshProfile.uid,submittedByRole:freshProfile.role,managerName:'',managerEmail:'',managerNote:'',superAdminName:'',superAdminEmail:'',superAdminNote:'',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:nowIso,updatedAtIso:nowIso,history:[{status:'pending_manager',by:freshProfile.email,role:freshProfile.role,at:nowIso,note:String(payload.note||'')}]};
       try{
         const batch=writeBatch(db),snapshot=_grcRiskQueueSnapshot(requestData,requestRef.id);
