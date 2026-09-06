@@ -791,15 +791,21 @@ service cloud.firestore {
     }
 
     function validAdvisoryManagerChange() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
       return resource.data.workflowStage == 'pending_department_manager' &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        changed.hasOnly([
           'status','workflowStage','closureReason',
           'managerDecision','managerComment','managerName','managerEmail',
           'managerActionAt','managerActionAtIso','closedAt','returnedAt',
           'managerReturnFields','returnFields','returnNote','returnSource',
           'updatedAt','updatedAtIso','updatedBy'
         ]) &&
+        // The Department Manager identity is stamped by the action handler.
+        // Keep routing tied to the authenticated account, while allowing legacy
+        // requests that did not previously contain every optional manager field.
+        request.resource.data.managerEmail is string &&
         request.resource.data.managerEmail == authEmail() &&
+        request.resource.data.updatedBy is string &&
         request.resource.data.updatedBy == authEmail() &&
         request.resource.data.managerComment is string &&
         (
@@ -1007,16 +1013,18 @@ service cloud.firestore {
 
     function riskRequesterProposedRecordAllowed() {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
+      // Returned requests are allowed to change only the fields selected by the
+      // manager. The requester is then allowed to clear the return instructions
+      // as part of the same resubmission. The previous version accidentally
+      // checked the *new* (cleared) returnFields list, making every legitimate
+      // edit+resubmit fail with permission-denied.
       return !changed.hasAny(['proposedRecord','changedFields']) ||
         (resource.data.proposedRecord is map &&
          request.resource.data.proposedRecord is map &&
-         request.resource.data.returnFields is list &&
-         request.resource.data.returnFields.size() > 0 &&
+         resource.data.returnFields is list &&
+         resource.data.returnFields.size() > 0 &&
          request.resource.data.proposedRecord.diff(resource.data.proposedRecord).affectedKeys()
-           .hasOnly(request.resource.data.returnFields) &&
-         (!('returnFields' in resource.data) || request.resource.data.returnFields == resource.data.returnFields) &&
-         (!('returnNote' in resource.data) || request.resource.data.returnNote == resource.data.returnNote) &&
-         (!('returnSource' in resource.data) || request.resource.data.returnSource == resource.data.returnSource));
+           .hasOnly(resource.data.returnFields));
     }
 
     function riskManagerOwnsResource(data) {
