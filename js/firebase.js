@@ -1266,6 +1266,16 @@ window._selectPortal=async portal=>{
       const reviewById={},riskById={};
       (queueResults[0]||[]).forEach(function(r){if(r&&r.id)reviewById[String(r.id)]=r;});
       (queueResults[1]||[]).forEach(function(r){if(r&&r.id)riskById[String(r.id)]=r;});
+      /* Repair compatibility: older pending Risk/Incident requests may predate the
+         inbox document. Only when the inbox is empty, read the department's
+         authoritative history and restore pending manager items to the UI. */
+      if(!Object.keys(riskById).length){
+        try{
+          const legacyRisk=await _grcReadLegacyManagerHistory(profile,'risk');
+          (legacyRisk||[]).filter(function(r){return ['pending_manager','returned_manager'].includes(String(r&&r.status||'').toLowerCase());})
+            .forEach(function(r){if(r&&r.id)riskById[String(r.id)]=r;});
+        }catch(err){console.warn('[GRC Manager Risk] legacy pending fallback unavailable',err&&err.code||err);}
+      }
       return {
         profile:profile,
         review:Object.keys(reviewById).map(function(id){return reviewById[id];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),
@@ -1418,7 +1428,10 @@ window._selectPortal=async portal=>{
       await _advAssertProfileScope(freshProfile);
       const dept=freshProfile.departmentKey,managerEmail=freshProfile.email,managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim(),returnFields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
       const loc=await _advLocateRequest(requestId),current=Object.assign(loc.record,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
-      if(String(current.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request. Your request must be reviewed by Super Admin.');
+      /* Same account may legitimately hold GRC Owner and Department Manager roles in the test workflow. Do not block a GRC Owner submission solely because the current manager email is the same. */
+      const sameEmail=String(current.userEmail||'').toLowerCase().trim()===managerEmail;
+      const grcOwnerSubmission=['grc_owner','risk_owner','platform_owner'].includes(String(current.requesterRole||'').toLowerCase());
+      if(sameEmail&&!grcOwnerSubmission)throw new Error('A Department Manager cannot approve their own request. Your request must be reviewed by Super Admin.');
       if(current._storage!=='advisory_requests')throw new Error('Legacy requests cannot use the Department Manager approval workflow.');
       if(String(current.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
       if(!['approve','return','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
@@ -1428,7 +1441,9 @@ window._selectPortal=async portal=>{
       await runTransaction(db,async tx=>{
         const snap=await tx.get(requestRef);if(!snap.exists())throw new Error('Request not found.');const live=snap.data()||{};
         if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
-        if(String(live.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request.');
+        const liveSameEmail=String(live.userEmail||'').toLowerCase().trim()===managerEmail;
+        const liveGrcOwner=['grc_owner','risk_owner','platform_owner'].includes(String(live.requesterRole||'').toLowerCase());
+        if(liveSameEmail&&!liveGrcOwner)throw new Error('A Department Manager cannot approve their own request.');
         if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
         else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='';}
         else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
@@ -2111,9 +2126,11 @@ window._selectPortal=async portal=>{
         window._grcGetDepartmentApprovalQueue(true).then(function(bundle){
           if(stopped)return;
           const all=Array.isArray(bundle&&bundle.risk)?bundle.risk:[];
+          /* A GRC Owner can also be the current Department Manager on the same test account.
+             Do not hide same-email workflow items: role/stage authorization is enforced by
+             Firestore and the manager action itself. */
           const actionable=all.filter(function(r){
-            return String(r&&r.submittedByEmail||'').toLowerCase().trim()!==_grcRiskEmail() &&
-              ['pending_manager','returned_manager'].indexOf(String(r&&r.status||'').toLowerCase())>=0;
+            return ['pending_manager','returned_manager'].indexOf(String(r&&r.status||'').toLowerCase())>=0;
           });
           window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
           callback({records:_grcRiskSort(actionable),allRecords:_grcRiskSort(all),source:'manager-department-read',errors:bundle.errors&&bundle.errors.length?{manager:bundle.errors.join(' · ')}:{}} ,null);
