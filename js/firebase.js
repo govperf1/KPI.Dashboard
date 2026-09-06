@@ -1278,25 +1278,10 @@ window._selectPortal=async portal=>{
             .forEach(function(r){if(r&&r.id)riskById[String(r.id)]=r;});
         }catch(err){console.warn('[GRC Manager Risk] legacy pending fallback unavailable',err&&err.code||err);}
       }
-      /* Never place the manager's own submissions in the approval inbox.
-         This prevents old requests created by the same account from appearing
-         as if the manager has to approve them. */
-      const managerEmail=String(profile&&profile.email||'').toLowerCase().trim();
-      const managerUid=String(profile&&profile.uid||'').trim();
-      const isOwnManagerRequest=function(r){
-        return !!r&&(
-          (managerUid&&String(r.requesterUid||'').trim()===managerUid) ||
-          (managerEmail&&String(r.userEmail||r.requesterEmail||'').toLowerCase().trim()===managerEmail)
-        );
-      };
-      const reviewRows=Object.keys(reviewById).map(function(id){return reviewById[id];})
-        .filter(function(r){return String(r&&r.workflowStage||r&&r.status||'').toLowerCase().trim()==='pending_department_manager'&&r.requiresManagerApproval!==false&&!isOwnManagerRequest(r);});
-      const riskRows=Object.keys(riskById).map(function(id){return riskById[id];})
-        .filter(function(r){return String(r&&r.status||r&&r.workflowStage||'').toLowerCase().trim()==='pending_manager'&&!isOwnManagerRequest(r);});
       return {
         profile:profile,
-        review:reviewRows.sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),
-        risk:riskRows.sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),
+        review:Object.keys(reviewById).map(function(id){return reviewById[id];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),
+        risk:Object.keys(riskById).map(function(id){return riskById[id];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),
         errors:[]
       };
     }
@@ -1317,28 +1302,20 @@ window._selectPortal=async portal=>{
           const live=kind==='risk'
             ? _grcRiskRequestData(snap)
             : _advNormalizeRow(snap.id,snap.data(),collectionName);
-          if(live){
-            /* The department inbox must contain actionable requests only.
-               Old queue documents are indexes, not history. If the source
-               request has already moved beyond the manager stage, remove the
-               stale index so it cannot keep reappearing to the manager. */
-            const stage=String(live.workflowStage||live.status||'').toLowerCase().trim();
-            const actionable=kind==='review'
-              ? (stage==='pending_department_manager'&&live.requiresManagerApproval!==false)
-              : (stage==='pending_manager');
-            if(!actionable){
-              const qDept=String(row._queueDepartmentKey||profile.departmentKey||'');
-              if(qDept)try{await deleteDoc(_grcManagerQueueItemRef(qDept,kind,String(row.id)));}catch(_){}
-              return null;
-            }
-            live._managerAssigned=true;
-            live._queueDepartmentKey=String(row._queueDepartmentKey||profile.departmentKey||'');
-            live._queueKind=kind;
-          }
+          if(live){live._managerAssigned=true;live._queueDepartmentKey=String(row._queueDepartmentKey||profile.departmentKey||'');live._queueKind=kind;}
           return live;
         }catch(err){
-          /* A queue row is never trusted when its source cannot be opened. */
-          console.warn('[GRC Manager Queue] authoritative hydrate failed',kind,row.id,err&&err.code||err&&err.message||err);
+          /* The Department Manager Rules can deny direct reads of the authoritative
+             source while still allowing the department inbox itself. In that case,
+             keep the queue snapshot instead of hiding every request. Only explicit
+             non-pending snapshots are excluded; we never delete a queue item here. */
+          const code=String(err&&err.code||'').toLowerCase();
+          const snapshotStage=String(row.workflowStage||row.status||'').trim().toLowerCase();
+          const pending=kind==='review'
+            ? snapshotStage==='pending_department_manager'
+            : (snapshotStage==='pending_manager'||snapshotStage==='returned_manager');
+          console.warn('[GRC Manager Queue] authoritative hydrate failed; using permitted inbox snapshot',kind,row.id,code||err&&err.message||err);
+          if(code==='permission-denied'&&pending)return row;
           return null;
         }
       }));
@@ -1364,15 +1341,19 @@ window._selectPortal=async portal=>{
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
       let primary=[];
-      /* The deployed Rules authorize the owner's userEmail query. Do not issue a
-         requesterUid collection query first: older request documents/rules can
-         reject that query even though the same owner is allowed to read their
-         requests, which caused the recurring permission-denied console error. */
+      if(_advUid()){
+        try{
+          const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid())));
+          primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+        }catch(uidErr){
+          console.warn('[Review Development] requesterUid read unavailable',uidErr&&uidErr.code||uidErr);
+        }
+      }
       try{
-        const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
-        primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
-      }catch(ownerErr){
-        console.warn('[Review Development] own-request read unavailable',ownerErr&&ownerErr.code||ownerErr);
+        const legacy=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
+        primary=_advMergeRows(primary,legacy.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');}),false);
+      }catch(legacyErr){
+        /* Older rules may not allow the compatibility email query. */
       }
       const fallback=await _advFallbackRows(true);
       return _advMergeRows(primary,fallback,false);
