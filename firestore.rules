@@ -707,13 +707,29 @@ service cloud.firestore {
         'workflowStage','closureReason','updatedAt','updatedAtIso','updatedBy',
         'title','details','priority','relatedNewText','managerDecision'
       ]) &&
-      // Request content is editable only after the Department Manager has
-      // explicitly returned it. This prevents a requester from changing the
-      // request while it is already waiting for approval or Super Admin action.
       (!returnedEdit || resource.data.workflowStage == 'returned_requester') &&
-      // managerDecision belongs to the manager except for the one reset needed
-      // when the requester resubmits a returned request.
       (!changed.hasAny(['managerDecision']) || request.resource.data.managerDecision == 'pending');
+    }
+
+    // Exact Review & Development resubmission payload written by firebase.js.
+    // A returned requester must be able to reset the previous manager decision
+    // and send the same request back to the Department Manager. These manager
+    // audit fields are intentionally allowed only on this one transition.
+    function validAdvisoryRequesterResubmit() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return resource.data.workflowStage == 'returned_requester' &&
+        request.resource.data.workflowStage == 'pending_department_manager' &&
+        request.resource.data.status == 'open' &&
+        request.resource.data.closureReason == '' &&
+        request.resource.data.managerDecision == 'pending' &&
+        changed.hasOnly([
+          'status','workflowStage','closureReason','managerDecision',
+          'managerComment','managerName','managerEmail',
+          'managerActionAt','managerActionAtIso',
+          'title','details','priority','relatedNewText',
+          'messages','attachments','attachmentCount',
+          'updatedAt','updatedAtIso','updatedBy'
+        ]);
     }
 
     function advisoryOwnerRoutePreserved() {
@@ -891,7 +907,8 @@ service cloud.firestore {
         (superAdmin() && validAdvisorySuperAdminDecision()) ||
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
         (approved() && ownEmail(resource.data.userEmail) &&
-          validAdvisoryOwnerChange() && advisoryOwnerRoutePreserved()) ||
+          (validAdvisoryRequesterResubmit() ||
+           (validAdvisoryOwnerChange() && advisoryOwnerRoutePreserved()))) ||
         (
           approved() && profileRoleFrom(userData()) == 'department_manager' &&
           profileDepartmentKeyFrom(userData()) != '' &&
