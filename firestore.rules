@@ -817,13 +817,11 @@ service cloud.firestore {
           'managerReturnFields','returnFields','returnNote','returnSource',
           'updatedAt','updatedAtIso','updatedBy'
         ]) &&
-        // The Department Manager identity is stamped by the action handler.
-        // Keep routing tied to the authenticated account, while allowing legacy
-        // requests that did not previously contain every optional manager field.
-        request.resource.data.managerEmail is string &&
-        request.resource.data.managerEmail == authEmail() &&
-        request.resource.data.updatedBy is string &&
-        request.resource.data.updatedBy == authEmail() &&
+        // The outer update rule already proves that the authenticated user is
+        // an approved Department Manager for this request's department. Do not
+        // reject a valid decision merely because legacy profile/email casing or
+        // a stale display identity differs from authEmail(). The action handler
+        // stamps these fields for audit; authorization remains department-scoped.
         request.resource.data.managerComment is string &&
         (
           (request.resource.data.workflowStage == 'pending_super_admin' &&

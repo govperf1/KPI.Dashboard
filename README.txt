@@ -1,8 +1,10 @@
-UPDATED FILE ONLY
+TARGETED FIX ONLY
 
-Replace your existing firestore.rules with this file and publish it in Firebase Firestore Rules.
+Updated: firestore.rules
 
-This targeted fix changes only the Review & Development returned-request resubmission permission:
-- GRC Owner / requester can edit a request returned by Department Manager.
-- The same request can reset the previous manager decision and resubmit to Pending Department Manager.
-- No other workflow routes or UI behavior were changed.
+Fixes Department Manager Review & Development decisions (Approve / Return / Reject)
+being denied when the manager profile email/display identity does not exactly match
+the normalized auth email. Authorization remains restricted by the existing approved
+Department Manager + department ownership checks and exact workflow transitions.
+
+No other application files were changed.
