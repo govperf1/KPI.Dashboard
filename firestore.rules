@@ -633,6 +633,14 @@ service cloud.firestore {
         request.resource.data.departmentKey == departmentKey &&
         request.resource.data.requesterEmail is string &&
         request.resource.data.requesterEmail.lower().trim() == authEmail()
+      ) || (
+        signedIn() && userData().approved == true &&
+        profileRoleFrom(userData()) == 'department_manager' &&
+        queueKind in ['review','risk'] &&
+        canonicalDepartment(profileDepartmentKeyFrom(userData())) == canonicalDepartment(departmentKey) &&
+        request.resource.data.requestId == requestId &&
+        request.resource.data.queueKind == queueKind &&
+        request.resource.data.departmentKey == departmentKey
       );
 
       allow delete: if superAdmin() || (
@@ -804,8 +812,7 @@ service cloud.firestore {
             request.resource.data.status == 'open' &&
             request.resource.data.closureReason == 'returned_by_department_manager' &&
             request.resource.data.managerComment.size() > 0 &&
-            request.resource.data.returnFields is list &&
-            request.resource.data.returnFields.size() > 0) ||
+            request.resource.data.returnFields is list) ||
           (request.resource.data.workflowStage == 'rejected_manager' &&
             request.resource.data.managerDecision == 'rejected' &&
             request.resource.data.status == 'closed' &&
