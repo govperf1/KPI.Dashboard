@@ -1068,12 +1068,16 @@ window._selectPortal=async portal=>{
       r.id=id;r._storage=storage;return r;
     }
     async function _advLocateRequest(requestId){
+      let primaryError=null;
       try{
         const primary=await getDoc(doc(db,ADV_REQUESTS_COLLECTION,requestId));
         if(primary.exists())return {record:_advNormalizeRow(primary.id,primary.data(),'advisory_requests'),requestRef:primary.ref,publicRef:doc(db,ADV_PUBLIC_COLLECTION,primary.id),storage:'advisory_requests'};
-      }catch(_){ }
+      }catch(err){ primaryError=err; }
       const fallback=await getDoc(doc(db,ADV_FALLBACK_COLLECTION,requestId));
-      if(!fallback.exists()||!_advIsFallbackRow(fallback.data()))throw new Error('Request not found.');
+      if(!fallback.exists()||!_advIsFallbackRow(fallback.data())){
+        if(primaryError)throw primaryError;
+        throw new Error('Request not found.');
+      }
       return {record:_advNormalizeRow(fallback.id,fallback.data(),'kpi_requests'),requestRef:fallback.ref,publicRef:null,storage:'kpi_requests'};
     }
     async function _advAuthorizedRequest(requestId,adminAllowed,managerAllowed){
@@ -2071,8 +2075,10 @@ window._selectPortal=async portal=>{
       const snap=await getDoc(ref);
       if(!snap.exists()){try{await deleteDoc(_grcManagerQueueItemRef(fresh.departmentKey,'risk',String(requestId||'')));}catch(_){};throw new Error('This request no longer exists. The approval list has been refreshed.');}
       const data=_grcRiskRequestData(snap);
-      const dept=String(data&&data.departmentKey||data&&data.department||'').trim().toLowerCase();
-      const myDept=String(fresh.departmentKey||'').trim().toLowerCase();
+      // Compare canonical keys so Project Management / Project_Management /
+      // projects cannot invalidate a request that was correctly routed in the inbox.
+      const dept=_advCanonicalDepartment(data&&data.departmentKey||data&&data.department||'');
+      const myDept=_advCanonicalDepartment(fresh.departmentKey||fresh.rawDepartment||'');
       if(dept!==myDept || !data || ['pending_manager','returned_manager'].indexOf(String(data.status||'').toLowerCase())<0){
         try{await deleteDoc(_grcManagerQueueItemRef(fresh.departmentKey,'risk',String(requestId||'')));}catch(_){}
         throw new Error('This request has already been processed. The approval list has been refreshed.');
@@ -2119,6 +2125,9 @@ window._selectPortal=async portal=>{
         return _grcRiskRequestUnsub;
       }
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
+      // Super Admin/Admin history is always the authoritative collection.
+      // Use one unrestricted collection listener; do not mix it with stale
+      // department filters that can make the table look empty.
       if(_grcRiskIsAdmin())qrefs.push(col);
       else{
         const raw=_grcRiskRawDept(),key=_grcRiskDept();
