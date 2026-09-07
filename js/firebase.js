@@ -1342,22 +1342,16 @@ window._selectPortal=async portal=>{
        read.  A denied legacy compatibility query must not break the primary
        result set. */
     window._advisoryGetMine=async function(){
+      /* Use the stable email ownership index. Some legacy requests do not have
+         requesterUid, and a requesterUid query is rejected by Firestore Rules
+         for those historical documents. Do not let that denied compatibility
+         query affect My Requests or the manager approval screen. */
       if(!_advEmail()||!db)return[];
       let primary=[];
-      if(_advUid()){
-        try{
-          const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid())));
-          primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
-        }catch(uidErr){
-          console.warn('[Review Development] requesterUid read unavailable',uidErr&&uidErr.code||uidErr);
-        }
-      }
       try{
-        const legacy=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
-        primary=_advMergeRows(primary,legacy.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');}),false);
-      }catch(legacyErr){
-        /* Older rules may not allow the compatibility email query. */
-      }
+        const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
+        primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+      }catch(err){console.warn('[Review Development] own-request read unavailable',err&&err.code||err);}
       const fallback=await _advFallbackRows(true);
       return _advMergeRows(primary,fallback,false);
     };
@@ -1461,88 +1455,56 @@ window._selectPortal=async portal=>{
     };
 
     window._advisoryManagerAction=async function(requestId,action,comment,fields){
-      // Re-read the manager profile from the Firestore server immediately before
-      // the decision. This keeps the client department/role exactly aligned with
-      // the values Security Rules evaluate and avoids stale-device permission
-      // failures after a profile change.
-      await _advAssertRulesVersion();
+      /* Manager decisions are authorized by the exact department approval inbox.
+         Do not perform a second broad/legacy request read before the decision:
+         that read was the source of permission-denied even though the manager
+         already had the request in the approved department queue. */
       const freshProfile=await _grcResolveManagerProfile(await _advFreshProfile());
-      await _advAssertProfileScope(freshProfile);
-      const dept=freshProfile.departmentKey,managerEmail=freshProfile.email,managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim(),returnFields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
-      let loc,current;
-      try{
-        loc=await _advLocateRequest(requestId);
-        current=Object.assign(loc.record,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
-      }catch(locateErr){
-        /* Legacy rows can be correctly routed in the manager inbox while an
-           old/missing department field makes the authoritative get() fail.
-           Use the department-scoped queue snapshot only as a compatibility
-           read; the subsequent update is still evaluated by Firestore Rules. */
-        const code=String(locateErr&&locateErr.code||'').toLowerCase();
-        if(code!=='permission-denied')throw locateErr;
-        const bundle=await window._grcGetDepartmentApprovalQueue();
-        const queued=(bundle.review||[]).find(function(r){return String(r&&r.id||'')===String(requestId);});
-        if(!queued)throw locateErr;
-        current=Object.assign({},queued,{
-          id:String(requestId),_storage:'advisory_requests',
-          _requestRef:doc(db,ADV_REQUESTS_COLLECTION,String(requestId)),
-          _publicRef:doc(db,ADV_PUBLIC_COLLECTION,String(requestId)),
-          _fromManagerQueueFallback:true
-        });
-      }
-      /* Same account may legitimately hold GRC Owner and Department Manager roles in the test workflow. Do not block a GRC Owner submission solely because the current manager email is the same. */
-      const sameEmail=String(current.userEmail||'').toLowerCase().trim()===managerEmail;
-      const grcOwnerSubmission=['grc_owner','risk_owner','platform_owner'].includes(String(current.requesterRole||'').toLowerCase());
-      if(action==='approve'&&sameEmail&&!grcOwnerSubmission)throw new Error('A Department Manager cannot approve their own request. Your request must be reviewed by Super Admin.');
-      if(current._storage!=='advisory_requests')throw new Error('Legacy requests cannot use the Department Manager approval workflow.');
-      if(String(current.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
-      if(!['approve','return','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
+      const dept=freshProfile.departmentKey;
+      const managerEmail=freshProfile.email;
+      const managerName=String(window._fbName||window.currentUserName||managerEmail);
+      const managerComment=String(comment||'').trim();
+      const returnFields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
+      action=String(action||'').toLowerCase();
+      if(!['approve','return','reject'].includes(action))throw new Error('Unsupported action.');
       if((action==='return'||action==='reject')&&!managerComment)throw new Error(action==='return'?'A return note is required.':'A rejection reason is required.');
-      const requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso(),queueRef=_grcManagerQueueItemRef(String(current.departmentKey||''),'review',requestId);
+
+      const bundle=await window._grcGetDepartmentApprovalQueue(true);
+      const current=(bundle.review||[]).find(function(r){return String(r&&r.id||'')===String(requestId);});
+      if(!current)throw new Error('This request is not in your Department Approval Requests.');
+      if(String(current.workflowStage||'').toLowerCase()!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
+
+      const requestRef=doc(db,ADV_REQUESTS_COLLECTION,String(requestId));
+      const queueRef=_grcManagerQueueItemRef(dept,'review',requestId);
+      const nowIso=_advIso();
       let finalStage='',finalStatus='',closureReason='';
-      /* The request was already server-read and scope-validated above. Use one
-         direct update for the decision; transactions caused Firestore to reject
-         otherwise valid manager decisions on this route during REST Commit. */
-      let live=Object.assign({},current);
-      try{
-        const liveSnap=await getDoc(requestRef);
-        if(!liveSnap.exists())throw new Error('Request not found.');
-        live=liveSnap.data()||{};
-      }catch(liveErr){
-        const code=String(liveErr&&liveErr.code||'').toLowerCase();
-        if(code!=='permission-denied'||!current._fromManagerQueueFallback)throw liveErr;
-        console.warn('[Review Development] using manager inbox snapshot for legacy action',requestId);
-      }
-      if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
-      const liveSameEmail=String(live.userEmail||'').toLowerCase().trim()===managerEmail;
-      const liveGrcOwner=['grc_owner','risk_owner','platform_owner'].includes(String(live.requesterRole||'').toLowerCase());
-      if(action==='approve'&&liveSameEmail&&!liveGrcOwner)throw new Error('A Department Manager cannot approve their own request.');
       if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
       else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='returned_by_department_manager';}
       else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
       const decision=action==='approve'?'approved':action==='return'?'returned':'rejected';
-      const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:decision,managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
-      if(action==='return'){updates.returnNote=managerComment;updates.returnSource='department_manager';updates.returnFields=returnFields;updates.returnedAt=serverTimestamp();}
-      else{updates.returnNote='';updates.returnSource='';updates.returnFields=[];}
+      const updates={
+        status:finalStatus,workflowStage:finalStage,closureReason:closureReason,
+        managerDecision:decision,managerComment:managerComment,
+        managerName:managerName,managerEmail:managerEmail,
+        managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,
+        updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail
+      };
+      if(action==='return'){
+        updates.returnNote=managerComment;updates.returnSource='department_manager';
+        updates.returnFields=returnFields;updates.returnedAt=serverTimestamp();
+      }else{updates.returnNote='';updates.returnSource='';updates.returnFields=[];}
       if(action==='reject')updates.closedAt=serverTimestamp();
-      await updateDoc(requestRef,updates);
-      /* Keep the index document after the decision.  The authoritative request
-         remains the source of truth and the manager tabs can therefore show
-         Returned / Rejected / Published history instead of dropping the item
-         immediately after Approve / Return / Reject. */
-      try{
-        const queueSnapshot=_grcReviewQueueSnapshot(Object.assign({},current,{
-          status:finalStatus,workflowStage:finalStage,managerDecision:decision,
-          managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,
-          updatedAtIso:nowIso
-        }),requestId);
-        await setDoc(queueRef,_grcQueueItem('review',requestId,dept,String(current.userEmail||''),queueSnapshot),{merge:true});
-      }catch(queueErr){console.warn('[Review Development Manager Queue] history sync skipped after successful decision',queueErr);}
+
+      /* One authoritative request update. The queue document is deleted in the
+         same batch so old pending requests cannot reappear after a refresh. */
+      const batch=writeBatch(db);
+      batch.update(requestRef,updates);
+      batch.delete(queueRef);
+      await batch.commit();
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':action==='return'?'Returned for update ':'Rejected ')+String(current.code||requestId),{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:decision,comment:managerComment},{portal:String(current.platform||'grc')});}catch(_){}
       return true;
     };
-
     window._advisoryAdminAction=async function(requestId,action,data,file){
       if(!_advIsSuperAdmin())throw new Error('Super Admin approval is required.');
       data=data||{};const current=await _advAuthorizedRequest(requestId,true,false),requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso();
