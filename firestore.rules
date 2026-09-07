@@ -821,9 +821,9 @@ service cloud.firestore {
         // Keep routing tied to the authenticated account, while allowing legacy
         // requests that did not previously contain every optional manager field.
         request.resource.data.managerEmail is string &&
-        request.resource.data.managerEmail.lower().trim() == authEmail() &&
+        request.resource.data.managerEmail == authEmail() &&
         request.resource.data.updatedBy is string &&
-        request.resource.data.updatedBy.lower().trim() == authEmail() &&
+        request.resource.data.updatedBy == authEmail() &&
         request.resource.data.managerComment is string &&
         (
           (request.resource.data.workflowStage == 'pending_super_admin' &&
@@ -894,19 +894,19 @@ service cloud.firestore {
         );
 
       allow list: if admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']);
-      // Department Manager may list the complete Review & Development history
-      // for their own department. Pending/returned filtering belongs only to
-      // the landing notification, not to the Department Approval table.
+      // Department Manager may list Review & Development requests only for
+      // the manager's canonical department. Historical aliases such as
+      // Project_Management and Project Management remain supported.
       allow list: if approved() && profileRoleFrom(userData()) == 'department_manager' &&
         profileDepartmentKeyFrom(userData()) != '' &&
-        ('departmentKey' in resource.data) &&
-        resource.data.departmentKey == profileDepartmentKeyFrom(userData());
+        (
+          (('departmentKey' in resource.data) &&
+            canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
+          (('department' in resource.data) &&
+            canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))
+        );
       allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
-      // Department Manager decisions are authorized directly from the
-      // authenticated profile and the authoritative request department.  Do not
-      // require the inbox document to exist: older requests may predate the
-      // inbox, and a missing index must never block Approve / Return / Reject.
       allow update: if
         (superAdmin() && validAdvisorySuperAdminDecision()) ||
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
@@ -917,11 +917,13 @@ service cloud.firestore {
           approved() && profileRoleFrom(userData()) == 'department_manager' &&
           profileDepartmentKeyFrom(userData()) != '' &&
           resource.data.workflowStage == 'pending_department_manager' &&
+          // Authorize the decision directly from the authoritative request's
+          // department. Do not require a second get()/exists() queue lookup
+          // during the write; that lookup was the source of manager-side
+          // permission-denied errors even when the request was already visible.
           (
-            (('departmentKey' in resource.data) &&
-              canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
-            (('department' in resource.data) &&
-              canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))
+            (('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
+            (('department' in resource.data) && canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))
           ) &&
           validAdvisoryManagerChange()
         );
