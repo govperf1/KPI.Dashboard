@@ -609,7 +609,7 @@ service cloud.firestore {
     // No stored manager email or directory is involved, so a stale/old manager
     // assignment cannot hide a pending request from the current manager.
     match /grc_department_approval_inbox_v3/{departmentKey}/{queueKind}/{requestId} {
-      allow get, list: if signedIn() && userData().approved == true &&
+      allow get, list: if superAdmin() || (signedIn() && userData().approved == true &&
         profileRoleFrom(userData()) == 'department_manager' &&
         queueKind in ['review','risk'] &&
         (departmentKey == profileDepartmentKeyFrom(userData()) ||
@@ -622,7 +622,7 @@ service cloud.firestore {
          (profileDepartmentKeyFrom(userData()) == 'housekeeping' &&
           departmentKey in ['Housekeeping','housekeeping_management','Housekeeping_Management']) ||
          (profileDepartmentKeyFrom(userData()) == 'laundry' &&
-          departmentKey in ['Laundry','laundry_management','Laundry_Management']));
+          departmentKey in ['Laundry','laundry_management','Laundry_Management'])));
 
       allow create, update: if superAdmin() || (
         signedIn() && userData().approved == true &&
@@ -898,11 +898,13 @@ service cloud.firestore {
           profileDepartmentKeyFrom(userData()) != '' &&
           ('workflowStage' in resource.data) &&
           resource.data.workflowStage == 'pending_department_manager' &&
-          /* Exact department inbox assignment is the authorization source for
-             a manager decision. Do not re-read advisory_requests inside the
-             rule via assignedReviewManager(); that recursive compatibility read
-             was denying valid Approve / Return / Reject operations. */
-          advisoryManagerQueueAssigned(requestId) &&
+          (
+            advisoryManagerQueueAssigned(requestId) ||
+            assignedReviewManager(requestId) ||
+            advisoryManagerOwnsResource(resource.data) ||
+            (('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
+            (('department' in resource.data) && canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))
+          ) &&
           validAdvisoryManagerChange()
         );
       allow delete: if superAdmin();
