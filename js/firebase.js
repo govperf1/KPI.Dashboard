@@ -1195,26 +1195,17 @@ window._selectPortal=async portal=>{
         });
         else result.errors.push('Risk queue: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
 
-        /* Compatibility recovery for requests created before queue indexing.
-           These reads are optional and may fail under older Rules; failures are
-           recorded but NEVER clear or throw away queue data. */
-        if(!result.review.length){
-          try{
-            const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));
-            snap.forEach(function(d){addReview(d.id,d.data()||{});});
-          }catch(err){result.errors.push('Review source: '+String(err&&err.message||err));}
-        }
-        if(!result.risk.length){
-          try{
-            const snap=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));
-            snap.forEach(function(d){addRisk(d.id,d.data()||{});});
-          }catch(err){result.errors.push('Risk source: '+String(err&&err.message||err));}
-        }
+        /* v317 — The canonical department inbox is the only Manager source.
+           Do not fall back to advisory_requests / grc_risk_requests when the
+           queue is empty: those legacy collection queries can be rejected by
+           Firestore Rules and were producing repeated permission warnings.
+           New requests are indexed into inbox_v3 and Super Admin backfill
+           handles historical pending requests. */
         result.review=Object.keys(reviewMap).map(function(k){return reviewMap[k];});
         result.risk=_grcRiskSort(Object.keys(riskMap).map(function(k){return riskMap[k];}));
         result.review.sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();
-        if(result.errors.length)console.warn('[GRC Manager Inbox] partial read warnings',result.errors);
+        if(result.errors.length)console.warn('[GRC Manager Inbox] queue read warning',result.errors);
         return result;
       })();
       try{return await _grcManagerQueueCachePromise;}finally{_grcManagerQueueCachePromise=null;}
