@@ -1305,17 +1305,20 @@ window._selectPortal=async portal=>{
           if(live){live._managerAssigned=true;live._queueDepartmentKey=String(row._queueDepartmentKey||profile.departmentKey||'');live._queueKind=kind;}
           return live;
         }catch(err){
-          /* The Department Manager Rules can deny direct reads of the authoritative
-             source while still allowing the department inbox itself. In that case,
-             keep the queue snapshot instead of hiding every request. Only explicit
-             non-pending snapshots are excluded; we never delete a queue item here. */
+          /* Permission on an old authoritative row must not erase a valid,
+             department-scoped inbox item. Keep the queue snapshot so the
+             manager can still see and act on the routed request. */
           const code=String(err&&err.code||'').toLowerCase();
-          const snapshotStage=String(row.workflowStage||row.status||'').trim().toLowerCase();
-          const pending=kind==='review'
-            ? snapshotStage==='pending_department_manager'
-            : (snapshotStage==='pending_manager'||snapshotStage==='returned_manager');
-          console.warn('[GRC Manager Queue] authoritative hydrate failed; using permitted inbox snapshot',kind,row.id,code||err&&err.message||err);
-          if(code==='permission-denied'&&pending)return row;
+          console.warn('[GRC Manager Queue] authoritative hydrate failed',kind,row.id,err&&err.code||err&&err.message||err);
+          if(code==='permission-denied'){
+            const fallback=Object.assign({},row);
+            fallback._managerAssigned=true;
+            fallback._queueDepartmentKey=String(row._queueDepartmentKey||profile.departmentKey||'');
+            fallback._queueKind=kind;
+            fallback._storage=kind==='risk'?GRC_RISK_REQUESTS_COLLECTION:ADV_REQUESTS_COLLECTION;
+            fallback._authoritativeUnavailable=true;
+            return fallback;
+          }
           return null;
         }
       }));
@@ -1341,13 +1344,7 @@ window._selectPortal=async portal=>{
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
       let primary=[];
-      // Department Managers use the department inbox for approvals. Their own
-      // submitted requests are loaded through userEmail below. Avoid the legacy
-      // requesterUid collection query for this role because older documents may
-      // not expose that indexed field to the manager and Firestore rejects the
-      // entire query with permission-denied.
-      const isDepartmentManager=_advIsDepartmentManager();
-      if(_advUid()&&!isDepartmentManager){
+      if(_advUid()){
         try{
           const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid())));
           primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
@@ -1472,7 +1469,27 @@ window._selectPortal=async portal=>{
       const freshProfile=await _grcResolveManagerProfile(await _advFreshProfile());
       await _advAssertProfileScope(freshProfile);
       const dept=freshProfile.departmentKey,managerEmail=freshProfile.email,managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim(),returnFields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
-      const loc=await _advLocateRequest(requestId),current=Object.assign(loc.record,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
+      let loc,current;
+      try{
+        loc=await _advLocateRequest(requestId);
+        current=Object.assign(loc.record,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
+      }catch(locateErr){
+        /* Legacy rows can be correctly routed in the manager inbox while an
+           old/missing department field makes the authoritative get() fail.
+           Use the department-scoped queue snapshot only as a compatibility
+           read; the subsequent update is still evaluated by Firestore Rules. */
+        const code=String(locateErr&&locateErr.code||'').toLowerCase();
+        if(code!=='permission-denied')throw locateErr;
+        const bundle=await window._grcGetDepartmentApprovalQueue(true);
+        const queued=(bundle.review||[]).find(function(r){return String(r&&r.id||'')===String(requestId);});
+        if(!queued)throw locateErr;
+        current=Object.assign({},queued,{
+          id:String(requestId),_storage:'advisory_requests',
+          _requestRef:doc(db,ADV_REQUESTS_COLLECTION,String(requestId)),
+          _publicRef:doc(db,ADV_PUBLIC_COLLECTION,String(requestId)),
+          _fromManagerQueueFallback:true
+        });
+      }
       /* Same account may legitimately hold GRC Owner and Department Manager roles in the test workflow. Do not block a GRC Owner submission solely because the current manager email is the same. */
       const sameEmail=String(current.userEmail||'').toLowerCase().trim()===managerEmail;
       const grcOwnerSubmission=['grc_owner','risk_owner','platform_owner'].includes(String(current.requesterRole||'').toLowerCase());
@@ -1486,7 +1503,16 @@ window._selectPortal=async portal=>{
       /* The request was already server-read and scope-validated above. Use one
          direct update for the decision; transactions caused Firestore to reject
          otherwise valid manager decisions on this route during REST Commit. */
-      const liveSnap=await getDoc(requestRef);if(!liveSnap.exists())throw new Error('Request not found.');const live=liveSnap.data()||{};
+      let live=Object.assign({},current);
+      try{
+        const liveSnap=await getDoc(requestRef);
+        if(!liveSnap.exists())throw new Error('Request not found.');
+        live=liveSnap.data()||{};
+      }catch(liveErr){
+        const code=String(liveErr&&liveErr.code||'').toLowerCase();
+        if(code!=='permission-denied'||!current._fromManagerQueueFallback)throw liveErr;
+        console.warn('[Review Development] using manager inbox snapshot for legacy action',requestId);
+      }
       if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
       const liveSameEmail=String(live.userEmail||'').toLowerCase().trim()===managerEmail;
       const liveGrcOwner=['grc_owner','risk_owner','platform_owner'].includes(String(live.requesterRole||'').toLowerCase());
