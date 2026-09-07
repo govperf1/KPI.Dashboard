@@ -1006,12 +1006,18 @@ service cloud.firestore {
       allow get: if canReadRiskIncidentWorkflow() && (
         admin() || riskRequestOwner(resource.data) || riskRequestDepartment(resource.data)
       );
-      allow get: if departmentManager() && ('departmentKey' in resource.data) &&
-        resource.data.departmentKey == userDepartmentKey();
-      // Department Manager approval queues are direct departmentKey queries on
-      // this authoritative collection. No secondary inbox document is required.
+      allow get: if departmentManager() && riskRequestDepartment(resource.data);
+      // Department Manager approval queues are normally keyed by departmentKey.
+      // Historical requests can contain only department or departmentRaw, so
+      // exact profile-scoped queries are also permitted without widening access.
       allow list: if departmentManager() && ('departmentKey' in resource.data) &&
         resource.data.departmentKey == userDepartmentKey();
+      allow list: if departmentManager() && ('department' in resource.data) &&
+        resource.data.department == userDepartmentKey();
+      allow list: if departmentManager() && ('department' in resource.data) &&
+        resource.data.department == profileDepartmentValueFrom(userData());
+      allow list: if departmentManager() && ('departmentRaw' in resource.data) &&
+        resource.data.departmentRaw == profileDepartmentValueFrom(userData());
       allow list: if
         admin() ||
         (canReadRiskIncidentWorkflow() && (
