@@ -1,6 +1,6 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
     import { getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,sendPasswordResetEmail,setPersistence,browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
-    import { getFirestore,doc,getDoc,getDocFromServer,setDoc,addDoc,collection,serverTimestamp,onSnapshot,updateDoc,arrayUnion,query,where,orderBy,getDocs,getDocsFromServer,deleteDoc,runTransaction,writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+    import { getFirestore,doc,getDoc,getDocFromServer,setDoc,addDoc,collection,serverTimestamp,onSnapshot,updateDoc,arrayUnion,query,where,orderBy,limit,getDocs,getDocsFromServer,deleteDoc,runTransaction,writeBatch } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
     const firebaseConfig={apiKey:"AIzaSyAlLWZvsu4UbHn-LncFdrSHlbL3bIAG4no",authDomain:"qumc-kpi-dashboard-f10dd.firebaseapp.com",projectId:"qumc-kpi-dashboard-f10dd",storageBucket:"qumc-kpi-dashboard-f10dd.firebasestorage.app",messagingSenderId:"659971973475",appId:"1:659971973475:web:483116a0711008a6a97356"};
     const DPERMS={
@@ -312,7 +312,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     window._startAuditListener=function(){
       if((_auditListenerUnsub||_auditLegacyListenerUnsub)||!auth.currentUser||!_auditCanView())return;
       try{
-        _auditListenerUnsub=onSnapshot(query(collection(db,AUDIT_COLLECTION),orderBy('ts','desc')),function(snap){
+        _auditListenerUnsub=onSnapshot(query(collection(db,AUDIT_COLLECTION),orderBy('ts','desc'),limit(200)),function(snap){
           window.__qumcAuditCollectionLog=snap.docs.map(function(d){return Object.assign({id:d.id},d.data()||{});});
           _refreshAuditMergedView();
         },function(err){console.warn('[AUDIT] collection listener failed:',err&&err.code||err&&err.message||err);});
@@ -974,17 +974,29 @@ window._selectPortal=async portal=>{
       for(i=0;i<fields.length;i++){if(!Object.prototype.hasOwnProperty.call(data,fields[i]))continue;value=data[fields[i]];if(_advMeaningfulDepartment(value))return value;}
       return null;
     }
-    async function _advFreshProfile(){
+    /* Profile reads are shared because the GRC manager queue can be requested by
+       several widgets during the same page render. Previously every widget forced
+       a server getDoc(users/{email}), multiplying billed reads. */
+    let _advProfileCache=null,_advProfileCacheAt=0,_advProfileCachePromise=null;
+    async function _advFreshProfile(hardRefresh){
       const u=auth.currentUser;if(!u||!u.email)throw new Error('Not authenticated.');
+      const now=Date.now(),ttl=60000;
+      if(!hardRefresh&&_advProfileCache&&now-_advProfileCacheAt<ttl)return _advProfileCache;
+      if(_advProfileCachePromise)return _advProfileCachePromise;
       const profileEmail=String(u.email||'').toLowerCase().trim();
-      const snap=await _getServerDoc(doc(db,'users',profileEmail));
-      if(!snap.exists())throw new Error('Your user profile could not be found in Firestore.');
-      const d=snap.data()||{};if(d.approved!==true)throw new Error('Your account is not approved.');
-      const raw=_advProfileDepartmentValue(d);
-      const meaningful=_advMeaningfulDepartment(raw),role=_advNormalizeRoleValue(d.role||'viewer'),parsedKey=_advCanonicalDepartment(raw),key=role==='governance_performance_manager'?'':parsedKey;
-      if(role!=='governance_performance_manager'&&meaningful&&!parsedKey)throw new Error('profile-department-unrecognized:'+String(raw));
-      return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
+      _advProfileCachePromise=(async function(){
+        const snap=await _getServerDoc(doc(db,'users',profileEmail));
+        if(!snap.exists())throw new Error('Your user profile could not be found in Firestore.');
+        const d=snap.data()||{};if(d.approved!==true)throw new Error('Your account is not approved.');
+        const raw=_advProfileDepartmentValue(d);
+        const meaningful=_advMeaningfulDepartment(raw),role=_advNormalizeRoleValue(d.role||'viewer'),parsedKey=_advCanonicalDepartment(raw),key=role==='governance_performance_manager'?'':parsedKey;
+        if(role!=='governance_performance_manager'&&meaningful&&!parsedKey)throw new Error('profile-department-unrecognized:'+String(raw));
+        const profile={email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
+        _advProfileCache=profile;_advProfileCacheAt=Date.now();return profile;
+      })();
+      try{return await _advProfileCachePromise;}finally{_advProfileCachePromise=null;}
     }
+    window._clearGrcProfileCache=function(){_advProfileCache=null;_advProfileCacheAt=0;};
     async function _advAssertRulesVersion(){
       /* Deployment probes are diagnostics only. Never block a valid GRC Owner
          request because an old system_rule_versions marker is absent or stale.
@@ -1325,14 +1337,22 @@ window._selectPortal=async portal=>{
       return hydrated.filter(Boolean);
     }
 
+    /* All manager widgets share one department bundle. `true` used to bypass the
+       cache, so opening Review + Risk + Pending Requests could re-read every queue
+       document and then hydrate every request again. Only the explicit string
+       'hard' bypasses the cache; normal UI calls share a 60-second server result. */
     window._grcGetDepartmentApprovalQueue=async function(force){
-      const fresh=await _grcResolveManagerProfile(await _advFreshProfile()),now=Date.now();
-      if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<30000)return _grcManagerQueueCache;
+      const hardRefresh=force==='hard',now=Date.now(),ttl=60000;
+      const fresh=await _grcResolveManagerProfile(await _advFreshProfile(hardRefresh));
+      if(!hardRefresh&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<ttl)return _grcManagerQueueCache;
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=_grcGetManagerQueueFromInbox(fresh).then(function(result){
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;
       }).finally(function(){_grcManagerQueueCachePromise=null;});
       return _grcManagerQueueCachePromise;
+    };
+    window._invalidateGrcManagerQueueCache=function(){
+      _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
     };
 
     /* v299 — Restore the authoritative My Requests API.
