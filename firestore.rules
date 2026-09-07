@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v70 — Final manager queue + Super Admin history fix
+// FIRESTORE SECURITY RULES v71 — Manager approval permission + legacy field guard fix
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -587,7 +587,7 @@ service cloud.firestore {
     // v66 is the current approval-sync deployment marker. The v65 marker remains
     // accepted for backward compatibility during rollout.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId in ['v60-grc-department-scope-approval-20260823','v65-grc-superadmin-global-20260824','v66-grc-approval-sync-20260825','v70-grc-manager-department-query-20260903','v71-grc-owner-manager-route-20260906'];
+      allow get: if approved() && versionId in ['v60-grc-department-scope-approval-20260823','v65-grc-superadmin-global-20260824','v66-grc-approval-sync-20260825','v70-grc-manager-department-query-20260903','v71-grc-owner-manager-route-20260906','v72-grc-manager-action-legacy-guard-20260907'];
       allow list, create, update, delete: if false;
     }
 
@@ -675,14 +675,14 @@ service cloud.firestore {
     function assignedReviewManager(requestId) {
       let d = profileDepartmentKeyFrom(userData());
       let r = get(/databases/$(database)/documents/advisory_requests/$(requestId)).data;
-      // Do not depend on the queue document or on the historical spelling of
-      // departmentKey. The authoritative request + authenticated profile define
-      // the manager scope. Older requests may contain values such as
-      // `Project Management` instead of `projects`.
+      // Guard every legacy field access. Some older requests only contain
+      // `department`, and reading a missing Rules field would deny the whole get.
       return signedIn() && userData().approved == true &&
         profileRoleFrom(userData()) == 'department_manager' && d != '' &&
-        (canonicalDepartment(r.departmentKey) == d || canonicalDepartment(r.department) == d) &&
-        r.workflowStage == 'pending_department_manager';
+        (advisoryManagerQueueAssigned(requestId) ||
+          (('departmentKey' in r) && canonicalDepartment(r.departmentKey) == d) ||
+          (('department' in r) && canonicalDepartment(r.department) == d)) &&
+        (('workflowStage' in r) && r.workflowStage == 'pending_department_manager');
     }
 
     function assignedRiskManager(requestId) {
@@ -707,29 +707,13 @@ service cloud.firestore {
         'workflowStage','closureReason','updatedAt','updatedAtIso','updatedBy',
         'title','details','priority','relatedNewText','managerDecision'
       ]) &&
+      // Request content is editable only after the Department Manager has
+      // explicitly returned it. This prevents a requester from changing the
+      // request while it is already waiting for approval or Super Admin action.
       (!returnedEdit || resource.data.workflowStage == 'returned_requester') &&
+      // managerDecision belongs to the manager except for the one reset needed
+      // when the requester resubmits a returned request.
       (!changed.hasAny(['managerDecision']) || request.resource.data.managerDecision == 'pending');
-    }
-
-    // Exact Review & Development resubmission payload written by firebase.js.
-    // A returned requester must be able to reset the previous manager decision
-    // and send the same request back to the Department Manager. These manager
-    // audit fields are intentionally allowed only on this one transition.
-    function validAdvisoryRequesterResubmit() {
-      let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return resource.data.workflowStage == 'returned_requester' &&
-        request.resource.data.workflowStage == 'pending_department_manager' &&
-        request.resource.data.status == 'open' &&
-        request.resource.data.closureReason == '' &&
-        request.resource.data.managerDecision == 'pending' &&
-        changed.hasOnly([
-          'status','workflowStage','closureReason','managerDecision',
-          'managerComment','managerName','managerEmail',
-          'managerActionAt','managerActionAtIso',
-          'title','details','priority','relatedNewText',
-          'messages','attachments','attachmentCount',
-          'updatedAt','updatedAtIso','updatedBy'
-        ]);
     }
 
     function advisoryOwnerRoutePreserved() {
@@ -803,7 +787,8 @@ service cloud.firestore {
     function advisoryManagerOwnsResource(data) {
       let d = profileDepartmentKeyFrom(userData());
       return approved() && profileRoleFrom(userData()) == 'department_manager' && d != '' &&
-        ((('departmentKey' in data) && canonicalDepartment(data.departmentKey) == d) ||
+        ((('departmentKey' in data) && data.departmentKey == d) ||
+         (('departmentKey' in data) && canonicalDepartment(data.departmentKey) == d) ||
          (('department' in data) && canonicalDepartment(data.department) == d));
     }
 
@@ -894,34 +879,29 @@ service cloud.firestore {
         );
 
       allow list: if admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']);
-      // Department Manager may list Review & Development requests only for
-      // the manager's canonical department. Historical aliases such as
-      // Project_Management and Project Management remain supported.
+      // Department Manager may list the complete Review & Development history
+      // for their own department. Pending/returned filtering belongs only to
+      // the landing notification, not to the Department Approval table.
       allow list: if approved() && profileRoleFrom(userData()) == 'department_manager' &&
         profileDepartmentKeyFrom(userData()) != '' &&
-        (
-          (('departmentKey' in resource.data) &&
-            canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
-          (('department' in resource.data) &&
-            canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))
-        );
+        ('departmentKey' in resource.data) &&
+        resource.data.departmentKey == profileDepartmentKeyFrom(userData());
       allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
       allow update: if
         (superAdmin() && validAdvisorySuperAdminDecision()) ||
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
         (approved() && ownEmail(resource.data.userEmail) &&
-          (validAdvisoryRequesterResubmit() ||
-           (validAdvisoryOwnerChange() && advisoryOwnerRoutePreserved()))) ||
+          validAdvisoryOwnerChange() && advisoryOwnerRoutePreserved()) ||
         (
           approved() && profileRoleFrom(userData()) == 'department_manager' &&
           profileDepartmentKeyFrom(userData()) != '' &&
+          ('workflowStage' in resource.data) &&
           resource.data.workflowStage == 'pending_department_manager' &&
-          // Authorize the decision directly from the authoritative request's
-          // department. Do not require a second get()/exists() queue lookup
-          // during the write; that lookup was the source of manager-side
-          // permission-denied errors even when the request was already visible.
           (
+            advisoryManagerQueueAssigned(requestId) ||
+            assignedReviewManager(requestId) ||
+            advisoryManagerOwnsResource(resource.data) ||
             (('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
             (('department' in resource.data) && canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))
           ) &&
@@ -1034,21 +1014,20 @@ service cloud.firestore {
       ]);
     }
 
-    // Exact Risk/Incident requester resubmission support.
-    // The GRC Owner can edit and resubmit ONLY a request that was already
-    // returned to the requester. Some legacy returned requests have an empty
-    // or UI-label-based returnFields list, which made a valid resubmission fail
-    // even though the status transition and requester identity were correct.
-    // The caller is still constrained by riskRequesterChange(),
-    // riskRequestOwner(), and validRequesterRiskTransition().
     function riskRequesterProposedRecordAllowed() {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
+      // Returned requests are allowed to change only the fields selected by the
+      // manager. The requester is then allowed to clear the return instructions
+      // as part of the same resubmission. The previous version accidentally
+      // checked the *new* (cleared) returnFields list, making every legitimate
+      // edit+resubmit fail with permission-denied.
       return !changed.hasAny(['proposedRecord','changedFields']) ||
-        (
-          resource.data.status == 'returned_requester' &&
-          resource.data.proposedRecord is map &&
-          request.resource.data.proposedRecord is map
-        );
+        (resource.data.proposedRecord is map &&
+         request.resource.data.proposedRecord is map &&
+         resource.data.returnFields is list &&
+         resource.data.returnFields.size() > 0 &&
+         request.resource.data.proposedRecord.diff(resource.data.proposedRecord).affectedKeys()
+           .hasOnly(resource.data.returnFields));
     }
 
     function riskManagerOwnsResource(data) {
