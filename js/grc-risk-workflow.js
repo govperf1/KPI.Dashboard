@@ -293,12 +293,15 @@
       }
       if(typeof window._advisorySubscribe==='function'){
         reviewApprovalUnsub=window._advisorySubscribe(function(payload){
-          var reviewPayload=payload||{};
-          reviewApprovalRows=(Array.isArray(reviewPayload.records)?reviewPayload.records:[]).filter(reviewManagerRequest);
-          managerReviewAllRows=Array.isArray(reviewPayload.allRecords)?reviewPayload.allRecords:reviewApprovalRows.slice();
+          var reviewPayload=payload||{},hasError=!!(reviewPayload.errors&&reviewPayload.errors.manager),incoming=Array.isArray(reviewPayload.records)?reviewPayload.records:null;
+          /* Never convert a transient permission/network poll failure into an
+             empty approval list. Replace the UI only with a verified payload. */
+          if(incoming&&(!hasError||incoming.length||!reviewApprovalRows.length))reviewApprovalRows=incoming.filter(reviewManagerRequest);
+          if(Array.isArray(reviewPayload.allRecords)&&(!hasError||reviewPayload.allRecords.length||!managerReviewAllRows.length))managerReviewAllRows=reviewPayload.allRecords;
+          else if(!managerReviewAllRows.length)managerReviewAllRows=reviewApprovalRows.slice();
           window.__grcManagerReviewPayload=reviewPayload;
           try{document.dispatchEvent(new CustomEvent('grc:managerReviewQueueUpdated',{detail:reviewPayload}));}catch(_e){}
-          if(reviewPayload.errors&&reviewPayload.errors.manager)window.__grcManagerApprovalError='Review & Development: '+reviewPayload.errors.manager;
+          if(hasError)window.__grcManagerApprovalError='Review & Development: '+reviewPayload.errors.manager;
           else window.__grcManagerApprovalError='';
           refreshBadge();
           if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
