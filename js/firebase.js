@@ -1184,10 +1184,25 @@ window._selectPortal=async portal=>{
          * not only the active inbox. Use the authoritative department-scoped query
          * for the profile list; the approval inbox remains the source for active
          * Review & Development approvals. */
-        let managerRiskSource=null,managerReviewSource=null;
-        try{
-          managerRiskSource=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));
-        }catch(err){result.errors.push('Risk department requests: '+String(err&&err.message||err));}
+        let managerRiskSource=[],managerReviewSource=null;
+        /* Risk & Incident requests exist in more than one historical schema.
+           New rows use departmentKey, while older rows may only have department
+           or departmentRaw. Read each exact profile-scoped value separately and
+           merge the results; do not use a broad collection read. */
+        const riskQueries=[
+          query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)),
+          query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('department','==',fresh.departmentKey))
+        ];
+        const rawDepartment=String(fresh.rawDepartment==null?'':fresh.rawDepartment).trim();
+        if(rawDepartment&&rawDepartment.toLowerCase()!==String(fresh.departmentKey||'').toLowerCase()){
+          riskQueries.push(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('department','==',rawDepartment)));
+          riskQueries.push(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentRaw','==',rawDepartment)));
+        }
+        const riskSettled=await Promise.allSettled(riskQueries.map(function(q){return getDocsFromServer(q);}));
+        riskSettled.forEach(function(entry,i){
+          if(entry.status==='fulfilled')managerRiskSource.push(entry.value);
+          else result.errors.push('Risk department source '+String(i+1)+': '+String(entry.reason&&entry.reason.message||entry.reason));
+        });
         /*
          * Always read the authoritative Review & Development source as an
          * exact department + pending-stage query, even when the inbox itself
@@ -1216,7 +1231,7 @@ window._selectPortal=async portal=>{
         function addRisk(id,row){
           const key=String(id||row&&row.id||'');if(!key)return;
           if(String(row&&row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;
-          const dept=String(row&&row.departmentKey||'').trim().toLowerCase();
+          const dept=_advCanonicalDepartment(row&& (row.departmentKey||row.department||row.departmentRaw)||'');
           if(dept!==String(fresh.departmentKey||'').trim().toLowerCase())return;
           /* The Department Approval Requests profile is a history view for the
            * responsible Risk/Incident owner. It must include every status.
@@ -1242,13 +1257,14 @@ window._selectPortal=async portal=>{
             reviewMap[d.id]=normalized;
           }
         });
-        if(managerRiskSource)managerRiskSource.forEach(function(d){
+        managerRiskSource.forEach(function(sourceSnap){sourceSnap.forEach(function(d){
           const row=d.data()||{};
           if(String(row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;
-          if(String(row.departmentKey||'').trim().toLowerCase()!==String(fresh.departmentKey||'').trim().toLowerCase())return;
+          const rowDepartmentKey=_advCanonicalDepartment(row.departmentKey||row.department||row.departmentRaw||'');
+          if(rowDepartmentKey!==String(fresh.departmentKey||'').trim().toLowerCase())return;
           const data=_grcRiskRequestData(d);
           if(data){data._managerAssigned=true;riskMap[d.id]=data;}
-        });
+        });});
         /* Hydrate older inbox snapshots from the authoritative request documents.
          * Older queue rows can contain only requestCode/status, which caused the
          * Manager UI to show dashes instead of the actual request details.
@@ -1331,7 +1347,7 @@ window._selectPortal=async portal=>{
       try{
         const [reviewSnap,riskSnap]=await Promise.all([getDocs(collection(db,ADV_REQUESTS_COLLECTION)),getDocs(collection(db,GRC_RISK_REQUESTS_COLLECTION))]);
         for(const d of reviewSnap.docs){const r=d.data()||{},dept=String(r.departmentKey||'');if(!dept||String(r.workflowStage||'')!=='pending_department_manager')continue;const snapshot=_grcReviewQueueSnapshot(r,d.id);await setDoc(_grcManagerQueueItemRef(dept,'review',d.id),_grcQueueItem('review',d.id,dept,String(r.userEmail||''),snapshot),{merge:false});count++;}
-        for(const d of riskSnap.docs){const r=d.data()||{},dept=String(r.departmentKey||r.department||''),status=String(r.status||'');if(!dept||!['pending_manager','returned_manager'].includes(status))continue;const snapshot=_grcRiskQueueSnapshot(r,d.id);await setDoc(_grcManagerQueueItemRef(dept,'risk',d.id),_grcQueueItem('risk',d.id,dept,String(r.submittedByEmail||''),snapshot),{merge:false});count++;}
+        for(const d of riskSnap.docs){const r=d.data()||{},dept=_advCanonicalDepartment(r.departmentKey||r.department||r.departmentRaw||''),status=String(r.status||'');if(!dept||!['pending_manager','returned_manager'].includes(status))continue;const snapshot=_grcRiskQueueSnapshot(Object.assign({},r,{departmentKey:dept}),d.id);await setDoc(_grcManagerQueueItemRef(dept,'risk',d.id),_grcQueueItem('risk',d.id,dept,String(r.submittedByEmail||''),snapshot),{merge:false});count++;}
       }catch(e){console.warn('[GRC Department Inbox Backfill]',e&&e.code||e);}return count;
     };
 
