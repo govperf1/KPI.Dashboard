@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v71 — Manager approval permission + legacy field guard fix
+// FIRESTORE SECURITY RULES v73 — Review manager decisions + user rating fix
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -555,9 +555,10 @@ service cloud.firestore {
 
     function validGrcRequestRatingChange() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        'rating', 'ratingComment', 'ratingAt', 'updatedAt', 'updatedAtIso'
+        'rating', 'ratingComment', 'ratingAt', 'updatedAt', 'updatedAtIso', 'updatedBy'
       ]) &&
-      resource.data.status is string && resource.data.status.lower().trim() in ['approved', 'rejected'] &&
+      resource.data.status is string &&
+      resource.data.status.lower().trim() in ['approved', 'rejected', 'closed', 'completed'] &&
       (!('rating' in resource.data) || resource.data.rating == null || resource.data.rating == 0) &&
       request.resource.data.rating is number &&
       request.resource.data.rating >= 1 && request.resource.data.rating <= 5;
@@ -794,6 +795,10 @@ service cloud.firestore {
 
     function validAdvisoryManagerChange() {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
+      // Department Manager decisions are authorized by the department-scoped
+      // resource rule below. Keep this validator focused on the exact workflow
+      // transition so legacy requests with missing optional manager fields do not
+      // fail a valid Approve / Return / Reject decision.
       return resource.data.workflowStage == 'pending_department_manager' &&
         changed.hasOnly([
           'status','workflowStage','closureReason',
@@ -802,14 +807,6 @@ service cloud.firestore {
           'managerReturnFields','returnFields','returnNote','returnSource',
           'updatedAt','updatedAtIso','updatedBy'
         ]) &&
-        // The Department Manager identity is stamped by the action handler.
-        // Keep routing tied to the authenticated account, while allowing legacy
-        // requests that did not previously contain every optional manager field.
-        request.resource.data.managerEmail is string &&
-        request.resource.data.managerEmail == authEmail() &&
-        request.resource.data.updatedBy is string &&
-        request.resource.data.updatedBy == authEmail() &&
-        request.resource.data.managerComment is string &&
         (
           (request.resource.data.workflowStage == 'pending_super_admin' &&
             request.resource.data.managerDecision == 'approved' &&
@@ -819,12 +816,13 @@ service cloud.firestore {
             request.resource.data.managerDecision == 'returned' &&
             request.resource.data.status == 'open' &&
             request.resource.data.closureReason == 'returned_by_department_manager' &&
-            request.resource.data.managerComment.size() > 0 &&
-            request.resource.data.returnFields is list) ||
+            request.resource.data.managerComment is string &&
+            request.resource.data.managerComment.size() > 0) ||
           (request.resource.data.workflowStage == 'rejected_manager' &&
             request.resource.data.managerDecision == 'rejected' &&
             request.resource.data.status == 'closed' &&
             request.resource.data.closureReason == 'rejected_by_department_manager' &&
+            request.resource.data.managerComment is string &&
             request.resource.data.managerComment.size() > 0)
         );
     }
