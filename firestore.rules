@@ -821,9 +821,9 @@ service cloud.firestore {
         // Keep routing tied to the authenticated account, while allowing legacy
         // requests that did not previously contain every optional manager field.
         request.resource.data.managerEmail is string &&
-        request.resource.data.managerEmail == authEmail() &&
+        request.resource.data.managerEmail.lower().trim() == authEmail() &&
         request.resource.data.updatedBy is string &&
-        request.resource.data.updatedBy == authEmail() &&
+        request.resource.data.updatedBy.lower().trim() == authEmail() &&
         request.resource.data.managerComment is string &&
         (
           (request.resource.data.workflowStage == 'pending_super_admin' &&
@@ -903,6 +903,10 @@ service cloud.firestore {
         resource.data.departmentKey == profileDepartmentKeyFrom(userData());
       allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
+      // Department Manager decisions are authorized directly from the
+      // authenticated profile and the authoritative request department.  Do not
+      // require the inbox document to exist: older requests may predate the
+      // inbox, and a missing index must never block Approve / Return / Reject.
       allow update: if
         (superAdmin() && validAdvisorySuperAdminDecision()) ||
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
@@ -914,11 +918,10 @@ service cloud.firestore {
           profileDepartmentKeyFrom(userData()) != '' &&
           resource.data.workflowStage == 'pending_department_manager' &&
           (
-            assignedReviewManager(requestId) ||
-            advisoryManagerOwnsResource(resource.data) ||
-            advisoryManagerQueueAssigned(requestId) ||
-            (('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
-            (('department' in resource.data) && canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))
+            (('departmentKey' in resource.data) &&
+              canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
+            (('department' in resource.data) &&
+              canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))
           ) &&
           validAdvisoryManagerChange()
         );
