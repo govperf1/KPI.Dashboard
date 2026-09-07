@@ -978,8 +978,8 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV69Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v69-grc-manager-approval-20260902'));window.__advRulesV69Verified=true;return true;}
+      if(window.__advRulesV70Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v70-grc-manager-source-recovery-20260907'));window.__advRulesV70Verified=true;return true;}
       catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Required Firestore GRC manager rules are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     async function _advAssertProfileScope(profile){
@@ -1188,11 +1188,21 @@ window._selectPortal=async portal=>{
         try{
           managerRiskSource=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));
         }catch(err){result.errors.push('Risk department requests: '+String(err&&err.message||err));}
-        if(settled[0].status==='rejected'){
-          try{
-            managerReviewSource=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey),where('workflowStage','==','pending_department_manager')));
-          }catch(err){result.errors.push('Review department requests: '+String(err&&err.message||err));}
-        }
+        /*
+         * Always read the authoritative Review & Development source as an
+         * exact department + pending-stage query, even when the inbox itself
+         * is readable. Older pending requests can exist before their inbox row
+         * was written or backfilled; treating an empty inbox as complete was
+         * the reason Super Admin could see a pending request while the current
+         * Department Manager saw 0 requests.
+         */
+        try{
+          managerReviewSource=await getDocsFromServer(query(
+            collection(db,ADV_REQUESTS_COLLECTION),
+            where('departmentKey','==',fresh.departmentKey),
+            where('workflowStage','==','pending_department_manager')
+          ));
+        }catch(err){result.errors.push('Review department requests: '+String(err&&err.message||err));}
         const reviewMap={},riskMap={};
         function addReview(id,row){
           const key=String(id||row&&row.id||'');if(!key)return;
@@ -1744,8 +1754,8 @@ window._selectPortal=async portal=>{
     function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();return ['super_admin','admin','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].includes(r)||p.includes('access_grc')||p.includes('view_grc_department')||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('*');}
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
-      if(window.__grcRulesV69Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v69-grc-manager-approval-20260902'));window.__grcRulesV69Verified=true;return true;}
+      if(window.__grcRulesV70Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v70-grc-manager-source-recovery-20260907'));window.__grcRulesV70Verified=true;return true;}
       catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Required Firestore GRC manager rules are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     window._qumcAssertFirestoreRulesV69=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV64=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
