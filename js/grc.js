@@ -270,20 +270,17 @@
   }
   function refreshManualsNavCount(){try{var n=countFor('manuals');Array.prototype.forEach.call(document.querySelectorAll('#grcApp .grc-page-tab'),function(tab){var action=String(tab.getAttribute('onclick')||'');if(action.indexOf("'manuals'")<0)return;var badge=tab.querySelector('.tab-badge');if(badge)badge.textContent=String(n);});}catch(_e){}}
   function ensureReportIndexListener(b){
-    /* Reports are a shared, low-frequency library. Use a server-confirmed
-       one-shot read instead of a permanent listener. This avoids the old
-       secondary live-listener permission loop while preserving fresh data on
-       page entry and explicit Refresh. */
     if(reportIndexUnsub)return;
-    var read=(b.fs.getDocFromServer?b.fs.getDocFromServer(reportIndexRef(b)):b.fs.getDoc(reportIndexRef(b)));
-    reportIndexUnsub=true;
-    read.then(function(snap){
+    reportIndexUnsub=b.fs.onSnapshot(reportIndexRef(b),function(snap){
       applyReportIndex(snap.exists()?snap.data():{reports:[]});refreshManualsNavCount();
       if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
-    }).catch(function(err){
-      console.warn('[GRC Reports] server sync failed',err&&err.code||err&&err.message||err);
-      reportLibraryError=String(err&&err.code||err&&err.message||err||'sync-failed');reportLibraryLoading=false;
-      if(!REPORT_LIBRARY.length)restoreReportLibraryCache();reportLibraryLoaded=REPORT_LIBRARY.length>0;
+    },function(err){
+      const code=String(err&&err.code||'').toLowerCase();
+      console.error('[GRC Reports] live sync failed',err);reportLibraryError=String(err&&err.code||err&&err.message||err||'sync-failed');reportLibraryLoading=false;if(!REPORT_LIBRARY.length)restoreReportLibraryCache();reportLibraryLoaded=REPORT_LIBRARY.length>0;
+      /* A permission denial is a Rules deployment problem. Do not retry forever;
+         keep the last known report library until Rules are corrected or the user
+         explicitly presses Refresh. */
+      if(!code.includes('permission-denied'))scheduleReportRetry();
       if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
     });
   }
@@ -293,7 +290,7 @@
     reportLibraryLoading=true;reportLibraryError='';
     if(!REPORT_LIBRARY.length)restoreReportLibraryCache();
     return ensureReportBackend().then(function(b){
-      return waitForReportAuth(b).then(function(){if(force)reportIndexUnsub=null;ensureReportIndexListener(b);return b.fs.getDoc(reportIndexRef(b));});
+      return waitForReportAuth(b).then(function(){ensureReportIndexListener(b);return b.fs.getDoc(reportIndexRef(b));});
     }).then(function(snap){
       applyReportIndex(snap.exists()?snap.data():{reports:[]});refreshManualsNavCount();
       if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
@@ -1672,13 +1669,6 @@
   function startRiskStatusOverrideSync(b){
     if(grcRiskStatusUnsub){try{grcRiskStatusUnsub();}catch(_){}grcRiskStatusUnsub=null;}
     if(!canAccessRiskIncidentRegisters()){grcRiskStatusOverrides={};return;}
-    /* Department Manager status overrides are intentionally skipped here. The V65
-       Rules authorize grc_risk_status using canonicalDepartment(resource.data),
-       which is not query-provable from a broad/department equality listener. The
-       authoritative Risk Register sync already supplies the manager's department
-       data; skipping this optional mirror prevents a false permission-denied sync
-       from poisoning the GRC page. */
-    if(normalizedRole()==='department_manager'||normalizedRole()==='dept_manager'){grcRiskStatusOverrides={};return;}
     var col=b.fs.collection(b.db,'grc_risk_status'),qref=col,dept=currentGrcDept();
     /* Subscribe by canonical department so every user assigned to the same
        department receives the same direct Open/Closed status, even if their
@@ -1740,11 +1730,7 @@
           grcConfigureCollectionScopes(key,[]);state[key]=[];return;
         }
         if(canAll||GRC_GLOBAL_READ_COLLECTIONS[key]){
-          /* Reference/global collections do not need permanent listeners. A
-             reconnect re-reads every document in the collection and can burn
-             through the Spark read quota. Load them once for this GRC session. */
-          grcConfigureCollectionScopes(key,['all']);
-          grcLoadScopeOnce(b,key,'all',col);
+          grcConfigureCollectionScopes(key,['all']);grcListen(b,key,'all',col);
         }else{
           /* v195 canonical single-source sync. Every scoped register uses one
              provable departmentKey query. Legacy department labels are repaired
@@ -3243,16 +3229,13 @@
   function stopAssessmentCloudSync(){assessmentCloudUnsubs.splice(0).forEach(function(u){try{u&&u();}catch(_){}});Object.keys(assessmentCloudRetryTimers).forEach(function(k){if(assessmentCloudRetryTimers[k])clearTimeout(assessmentCloudRetryTimers[k]);});assessmentCloudRetryTimers={};assessmentCloudStarted=false;assessmentCloudReady={cbahi:false,jci:false};}
   function startAssessmentCloudSync(){
     if(assessmentCloudStarted||!window._fbUser)return;assessmentCloudStarted=true;
-    /* Assessment payloads are small reference documents. Do not keep two
-       listeners open for every GRC user; a server read is enough for the
-       session, while admin edits continue to save through persistAssessmentKind. */
     ensureReportBackend().then(async function(b){await waitForReportAuth(b);for(const kind of ['cbahi','jci']){
       var ref=assessmentCloudRef(b,kind),getServer=typeof b.fs.getDocFromServer==='function'?b.fs.getDocFromServer:b.fs.getDoc,snap;
       try{snap=await getServer(ref);if(snap.exists())assessmentApplyCloud(kind,snap.data());else if(normalizedRole()==='super_admin'&&assessmentKindHasEdits(kind)){await persistAssessmentKind(kind);}else{assessmentEdits[kind]={};assessmentCloudReady[kind]=true;assessmentSaveLocalCache();}}
       catch(err){assessmentCloudError=kind+': '+String(err&&err.message||err);assessmentCloudReady[kind]=false;}
+      try{var unsub=b.fs.onSnapshot(ref,function(live){if(live.metadata&&live.metadata.fromCache&&!assessmentCloudReady[kind])return;if(live.exists())assessmentApplyCloud(kind,live.data());else if(assessmentCloudReady[kind]){assessmentEdits[kind]={};assessmentSaveLocalCache();if(app&&app.classList.contains('grc-visible')&&activeTab==='compliance')render();}},function(err){assessmentCloudError=kind+': '+String(err&&err.message||err);});assessmentCloudUnsubs.push(unsub);}catch(listenErr){assessmentCloudError=kind+': '+String(listenErr&&listenErr.message||listenErr);}
     }}).catch(function(err){assessmentCloudStarted=false;assessmentCloudError='Assessment sync initialization: '+String(err&&err.message||err);});
   }
-
   function assessmentRows(kind,rows){var base=rows.slice(),added=(assessmentEdits[kind]&&assessmentEdits[kind]._added)||[],deleted=(assessmentEdits[kind]&&assessmentEdits[kind]._deleted)||{};base=base.concat(added);return base.map(function(source,rowIndex){var r=source.slice(),edit=assessmentEdits[kind]&&assessmentEdits[kind][rowIndex];if(edit)Object.keys(edit).forEach(function(col){if(col!=='_added'&&col!=='_deleted')r[Number(col)]=edit[col];});r=cleanAssessmentRowCodes(r);r._sourceIndex=rowIndex;return r;}).filter(function(r){return !deleted[r._sourceIndex];});}
   function saveAssessmentEdit(kind,rowIndex,col,value){if(!isGrcAdmin())return;if(!assessmentEdits[kind])assessmentEdits[kind]={};if(!assessmentEdits[kind][rowIndex])assessmentEdits[kind][rowIndex]={};assessmentEdits[kind][rowIndex][col]=value;if(Number(col)===8)assessmentEdits[kind][rowIndex][9]=value==='Fully Met'?2:(value==='Partially Met'?1:0);_grcAssessmentPersist(kind);render();}
   function cleanAssessmentCode(value){
@@ -4702,12 +4685,7 @@
     if(window._grcRiskRefreshUi)try{window._grcRiskRefreshUi();}catch(_){}
     return grcFirstShellReady();
   };
-  window._enterGRC=function(){if(!canEnterGrc()){if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied('grc');else window._showGrcComingSoon();return;}window.__qumcActivePortal='grc';activeTab=activeTab||'executive';closePerformanceUiForGrc();['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.remove('dashboard-mode','auth-mode','portal-mode','performance-advisory-mode');document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');try{grcResetLocalCacheForProfile();}catch(cacheErr){console.warn('[GRC Cache] profile reset skipped',cacheErr);}render();if(typeof window._grcRiskRefreshUi==='function'&&['department_manager','dept_manager'].indexOf(String(window._fbRole||window.currentUserRole||'').toLowerCase().replace(/[\s-]+/g,'_'))>=0){try{window._grcRiskRefreshUi();}catch(_managerRefresh){}}window._grcEnsureFirstRender();
-    // Super Admin User Requests notice belongs to GRC entry only.
-    if(typeof window._grcCheckSuperAdminUserRequestsOnEntry==='function'){
-      setTimeout(function(){try{window._grcCheckSuperAdminUserRequestsOnEntry();}catch(_){ }},450);
-    }
-  };
+  window._enterGRC=function(){if(!canEnterGrc()){if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied('grc');else window._showGrcComingSoon();return;}window.__qumcActivePortal='grc';activeTab=activeTab||'executive';closePerformanceUiForGrc();['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.remove('dashboard-mode','auth-mode','portal-mode','performance-advisory-mode');document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');try{grcResetLocalCacheForProfile();}catch(cacheErr){console.warn('[GRC Cache] profile reset skipped',cacheErr);}render();window._grcEnsureFirstRender();};
   window._closeGrcComingSoon=function(){var ov=document.getElementById('_grcComingSoon');if(ov)ov.remove();document.body.classList.remove('grc-coming-open');};
   window._showGrcComingSoon=function(){
     window._closeGrcComingSoon();document.body.classList.add('grc-coming-open');
@@ -4852,7 +4830,6 @@
     window._clearGrcAuditFromFS().then(function(){window._grcAdminRenderAudit();if(window.toast)window.toast('GRC audit log cleared.');}).catch(function(err){window.alert(String(err&&err.message||err));});
   };
 
-  document.addEventListener('grc:managerApprovalQueueUpdated',function(){try{if(typeof window._advRefreshAfterManagerQueue==='function')window._advRefreshAfterManagerQueue();}catch(_){}});
   document.addEventListener('DOMContentLoaded',function(){ensureApp();startSharedStateSync();startAssessmentCloudSync();setTimeout(function(){if(Array.isArray(window.__grcRiskRequestCache)&&window.__grcRiskRequestCache.length)grcSetPublishedWorkflowRequests(window.__grcRiskRequestCache);},0);});
 })();
 
