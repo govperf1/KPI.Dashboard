@@ -4702,7 +4702,12 @@
     if(window._grcRiskRefreshUi)try{window._grcRiskRefreshUi();}catch(_){}
     return grcFirstShellReady();
   };
-  window._enterGRC=function(){if(!canEnterGrc()){if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied('grc');else window._showGrcComingSoon();return;}window.__qumcActivePortal='grc';activeTab=activeTab||'executive';closePerformanceUiForGrc();['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.remove('dashboard-mode','auth-mode','portal-mode','performance-advisory-mode');document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');try{grcResetLocalCacheForProfile();}catch(cacheErr){console.warn('[GRC Cache] profile reset skipped',cacheErr);}render();if(typeof window._grcRiskRefreshUi==='function'&&['department_manager','dept_manager'].indexOf(String(window._fbRole||window.currentUserRole||'').toLowerCase().replace(/[\s-]+/g,'_'))>=0){try{window._grcRiskRefreshUi();}catch(_managerRefresh){}}window._grcEnsureFirstRender();};
+  window._enterGRC=function(){if(!canEnterGrc()){if(typeof window._showPortalAccessDenied==='function')window._showPortalAccessDenied('grc');else window._showGrcComingSoon();return;}window.__qumcActivePortal='grc';activeTab=activeTab||'executive';closePerformanceUiForGrc();['_bgLayer','_authOverlay','_portalOverlay','_forgotOverlay'].forEach(function(id){var e=document.getElementById(id);if(e)e.style.display='none';});ensureApp();document.body.classList.remove('dashboard-mode','auth-mode','portal-mode','performance-advisory-mode');document.body.classList.add('grc-mode');app.classList.add('grc-visible');app.setAttribute('aria-hidden','false');try{grcResetLocalCacheForProfile();}catch(cacheErr){console.warn('[GRC Cache] profile reset skipped',cacheErr);}render();if(typeof window._grcRiskRefreshUi==='function'&&['department_manager','dept_manager'].indexOf(String(window._fbRole||window.currentUserRole||'').toLowerCase().replace(/[\s-]+/g,'_'))>=0){try{window._grcRiskRefreshUi();}catch(_managerRefresh){}}window._grcEnsureFirstRender();
+    // Super Admin User Requests notice belongs to GRC entry only.
+    if(typeof window._grcCheckSuperAdminUserRequestsOnEntry==='function'){
+      setTimeout(function(){try{window._grcCheckSuperAdminUserRequestsOnEntry();}catch(_){ }},450);
+    }
+  };
   window._closeGrcComingSoon=function(){var ov=document.getElementById('_grcComingSoon');if(ov)ov.remove();document.body.classList.remove('grc-coming-open');};
   window._showGrcComingSoon=function(){
     window._closeGrcComingSoon();document.body.classList.add('grc-coming-open');

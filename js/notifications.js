@@ -782,7 +782,10 @@ function updateExecTrend(yr){
     var c=n.level==='red'?'#C42B2B':(n.level==='orange'?'#D97706':'#0195af');
     var ov=document.createElement('div'); ov.id='_notifModal'; ov.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(8,18,35,.36);backdrop-filter:blur(9px);display:flex;align-items:center;justify-content:center;padding:18px;';
     var box=document.createElement('div'); box.style.cssText='width:min(460px,94vw);background:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.72);box-shadow:0 26px 80px rgba(2,8,23,.24);border-radius:22px;padding:0;overflow:hidden;direction:'+(isAr()?'rtl':'ltr');
-    box.innerHTML='<div style="padding:18px 20px;border-bottom:1px solid rgba(15,23,42,.08);display:flex;gap:12px;align-items:flex-start"><div style="width:10px;height:10px;margin-top:5px;border-radius:50%;background:'+c+';box-shadow:0 0 0 5px '+c+'22"></div><div style="flex:1"><div style="font-size:13px;font-weight:900;color:#152538;margin-bottom:5px">'+esc(n.title||'Notification')+'</div><div style="font-size:11px;color:#64748B;line-height:1.6">'+esc(n.meta||'')+'</div></div><button onclick="window._closeNotifModal()" style="border:none;background:rgba(15,23,42,.06);color:#475569;border-radius:10px;width:30px;height:30px;cursor:pointer;font-weight:900">×</button></div><div style="padding:18px 20px"><div style="font-size:12px;color:#334155;line-height:1.85;background:rgba(248,250,252,.78);border:1px solid rgba(226,232,240,.75);border-radius:14px;padding:14px">'+esc(n.body||n.meta||'')+'</div><button onclick="window._closeNotifModal()" style="margin-top:14px;width:100%;padding:10px;border:none;border-radius:12px;background:#0195af;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">'+(isAr()?'تم':'Done')+'</button></div>';
+    var actions=(n.type==='grc_user_request'
+      ?'<div style="display:flex;gap:10px;margin-top:14px"><button onclick="window._closeNotifModal()" style="flex:1;padding:10px;border:none;border-radius:12px;background:#eef3f5;color:#475569;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">'+(isAr()?'تم':'Done')+'</button><button onclick="window._openGrcUserRequestsFromEntry()" style="flex:1;padding:10px;border:none;border-radius:12px;background:#0195af;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">'+(isAr()?'فتح الطلبات':'Open Requests')+'</button></div>'
+      :'<button onclick="window._closeNotifModal()" style="margin-top:14px;width:100%;padding:10px;border:none;border-radius:12px;background:#0195af;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">'+(isAr()?'تم':'Done')+'</button>');
+    box.innerHTML='<div style="padding:18px 20px;border-bottom:1px solid rgba(15,23,42,.08);display:flex;gap:12px;align-items:flex-start"><div style="width:10px;height:10px;margin-top:5px;border-radius:50%;background:'+c+';box-shadow:0 0 0 5px '+c+'22"></div><div style="flex:1"><div style="font-size:13px;font-weight:900;color:#152538;margin-bottom:5px">'+esc(n.title||'Notification')+'</div><div style="font-size:11px;color:#64748B;line-height:1.6">'+esc(n.meta||'')+'</div></div><button onclick="window._closeNotifModal()" style="border:none;background:rgba(15,23,42,.06);color:#475569;border-radius:10px;width:30px;height:30px;cursor:pointer;font-weight:900">×</button></div><div style="padding:18px 20px"><div style="font-size:12px;color:#334155;line-height:1.85;background:rgba(248,250,252,.78);border:1px solid rgba(226,232,240,.75);border-radius:14px;padding:14px">'+esc(n.body||n.meta||'')+'</div>'+actions+'</div>';
     ov.appendChild(box); ov.onclick=function(e){ if(e.target===ov) ov.remove(); }; document.body.appendChild(ov);
   }
   function handleNotificationOpen(n){
@@ -830,7 +833,7 @@ function updateExecTrend(yr){
   }
   function bind(){
     refreshProfile(); renderNotifications();
-    refreshSuperAdminUserRequests(true);
+    refreshSuperAdminUserRequests(false);
     var ab=$('userAlertBtn'), ub=$('topUserBadge'), lo=$('profileLogoutBtn');
     if(ab && ab.dataset.qumcNotifV12 !== '1'){
       ab.dataset.qumcNotifV12='1'; ab.onclick=null; ab.addEventListener('click', toggleUserAlerts, true);
@@ -844,6 +847,13 @@ function updateExecTrend(yr){
     try{ var wrap=$('userNotifyWidget'); if(wrap) wrap.classList.add('qumc-user-widget-modern'); var badge=$('topUserBadge'); if(badge) badge.classList.add('qumc-user-badge-modern'); var alert=$('userAlertBtn'); if(alert) alert.classList.add('qumc-alert-btn-modern'); var drop=$('userProfileDrop'); if(drop) drop.classList.add('qumc-profile-glass'); }catch(_){ }
   }
 
+  // Called only after the Super Admin actually enters the GRC portal.
+  // This prevents the User Requests modal from appearing outside GRC.
+  window._grcCheckSuperAdminUserRequestsOnEntry=function(){
+    if(role()!=='super_admin')return Promise.resolve([]);
+    return refreshSuperAdminUserRequests(true);
+  };
+
   window.renderNotifications = renderNotifications;
   window.updateAlertUI = renderNotifications;
   window.buildUserAlerts = rowsForList;
@@ -855,6 +865,10 @@ function updateExecTrend(yr){
   window.toggleUserProfile = toggleUserProfile;
   window._showNotifModal = handleNotificationOpen;
   window._closeNotifModal = function(){ var m=$('_notifModal'); if(m) m.remove(); };
+  window._openGrcUserRequestsFromEntry=function(){
+    window._closeNotifModal();
+    try{ if(typeof window._grcOpenAdminCenter==='function')window._grcOpenAdminCenter('requests'); }catch(_){}
+  };
   if(!window.__qumcOriginalDoLogout && window._doLogout && window._doLogout !== logout) window.__qumcOriginalDoLogout = window._doLogout;
   window.qumcLogoutToLogin = logout;
   window._doLogout = logout;
