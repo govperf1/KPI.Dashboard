@@ -1341,7 +1341,13 @@ window._selectPortal=async portal=>{
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
       let primary=[];
-      if(_advUid()){
+      // Department Managers use the department inbox for approvals. Their own
+      // submitted requests are loaded through userEmail below. Avoid the legacy
+      // requesterUid collection query for this role because older documents may
+      // not expose that indexed field to the manager and Firestore rejects the
+      // entire query with permission-denied.
+      const isDepartmentManager=_advIsDepartmentManager();
+      if(_advUid()&&!isDepartmentManager){
         try{
           const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid())));
           primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
