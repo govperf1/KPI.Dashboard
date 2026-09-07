@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v65 — Canonical GRC Profile + Department Workflow
+// FIRESTORE SECURITY RULES v69 — Canonical GRC Profile + Department Workflow
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -9,7 +9,7 @@ service cloud.firestore {
     }
 
     function authEmail() {
-      return signedIn() ? request.auth.token.email.lower().trim() : '';
+      return signedIn() ? request.auth.token.email.lower() : '';
     }
 
     function userPath() {
@@ -29,7 +29,7 @@ service cloud.firestore {
     }
 
     function normalizedRoleValue(value) {
-      return value is string ? value.lower().trim().replace('[ _-]+', '_') : 'viewer';
+      return value is string ? value.lower() : 'viewer';
     }
 
     function rolePath() {
@@ -113,22 +113,22 @@ service cloud.firestore {
     }
 
     function ownEmail(value) {
-      return signedIn() && value is string && value.lower().trim() == authEmail();
+      return signedIn() && value is string && value.lower() == authEmail();
     }
 
     
     function meaningfulDepartmentValue(value) {
       return value is string &&
-        value.trim() != '' &&
-        !(value.lower().trim() in ['null','none','undefined','n/a','na','unassigned','not assigned']) &&
-        !(value.trim() in ['-','—']);
+        value != '' &&
+        !(value.lower() in ['null','none','undefined','n/a','na','unassigned','not assigned']) &&
+        !(value in ['-','—']);
     }
 
     // Keep department normalization deliberately small and deterministic.
     // Firestore profiles in this project use values such as Project_Management;
     // aliases are matched directly instead of repeatedly expanding regex helpers.
     function normalizedDepartment(value) {
-      return value is string ? value.lower().trim() : '';
+      return value is string ? value.lower() : '';
     }
 
     function canonicalDepartment(value) {
@@ -175,13 +175,13 @@ service cloud.firestore {
 
     function profileRoleFrom(data) {
       let r = ('role' in data) ? normalizedRoleValue(data.role) : 'viewer';
-      return r == 'superadmin' ? 'super_admin' :
-             (r in ['departmentmanager', 'dept_manager', 'deptmanager', 'manager']) ? 'department_manager' :
-             r == 'riskowner' ? 'risk_owner' :
-             r == 'grcowner' ? 'grc_owner' :
-             r == 'platformowner' ? 'platform_owner' :
-             r == 'kpiowner' ? 'kpi_owner' :
-             r == 'governanceperformancemanager' ? 'governance_performance_manager' :
+      return r in ['superadmin','super admin','super-admin'] ? 'super_admin' :
+             (r in ['departmentmanager','department manager','department-manager','dept_manager','dept manager','dept-manager','deptmanager','manager']) ? 'department_manager' :
+             r in ['riskowner','risk owner','risk-owner'] ? 'risk_owner' :
+             r in ['grcowner','grc owner','grc-owner'] ? 'grc_owner' :
+             r in ['platformowner','platform owner','platform-owner'] ? 'platform_owner' :
+             r in ['kpiowner','kpi owner','kpi-owner'] ? 'kpi_owner' :
+             r in ['governanceperformancemanager','governance performance manager','governance-performance-manager','governance_performance_manager'] ? 'governance_performance_manager' :
              r == 'view' ? 'viewer' : r;
     }
 
@@ -607,7 +607,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // a unique v64 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v65-grc-manager-scope-20260831';
+      allow get: if approved() && versionId == 'v69-grc-manager-approval-20260902';
       allow list, create, update, delete: if false;
     }
 
@@ -742,10 +742,10 @@ service cloud.firestore {
 
     function advisoryRequesterNeedsManager(data) {
       return data.userEmail is string &&
-        exists(/databases/$(database)/documents/users/$(data.userEmail.lower().trim())) &&
-        get(/databases/$(database)/documents/users/$(data.userEmail.lower().trim())).data.approved == true &&
-        profileDepartmentKeyFrom(get(/databases/$(database)/documents/users/$(data.userEmail.lower().trim())).data) != '' &&
-        !(profileRoleFrom(get(/databases/$(database)/documents/users/$(data.userEmail.lower().trim())).data) in
+        exists(/databases/$(database)/documents/users/$(data.userEmail.lower())) &&
+        get(/databases/$(database)/documents/users/$(data.userEmail.lower())).data.approved == true &&
+        profileDepartmentKeyFrom(get(/databases/$(database)/documents/users/$(data.userEmail.lower())).data) != '' &&
+        !(profileRoleFrom(get(/databases/$(database)/documents/users/$(data.userEmail.lower())).data) in
           ['department_manager','governance_performance_manager','admin','super_admin']);
     }
 
@@ -1056,7 +1056,7 @@ service cloud.firestore {
       return signedIn() && u.approved == true &&
         r in ['risk_owner','grc_owner','platform_owner'] && d != '' &&
         validRiskStatusOverride(data) && data.department == d &&
-        data.updatedByEmail is string && data.updatedByEmail.lower().trim() == authEmail();
+        data.updatedByEmail is string && data.updatedByEmail.lower() == authEmail();
     }
 
     // Direct Open/Closed state for approved baseline risks that pre-date the
