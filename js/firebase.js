@@ -1147,53 +1147,75 @@ window._selectPortal=async portal=>{
       window.__grcManagerDepartmentKey=profile.departmentKey;return profile;
     }
     let _grcManagerQueueCache=null,_grcManagerQueueCacheAt=0,_grcManagerQueueCachePromise=null;
-    /* Stable Department Manager queue.
-       The inbox documents are the canonical, atomic projection created with each
-       request. Do not re-query the source collections during every refresh: a
-       temporary source permission/network failure must never turn a valid inbox
-       into an empty UI or trigger cleanup deletes. */
+    /* v316 — Manager inbox reads only the department-scoped queue.
+       Never let an optional source/history read erase a valid queue result. */
     window._grcGetDepartmentApprovalQueue=async function(force){
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile()),now=Date.now();
-      if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<2500)return _grcManagerQueueCache;
+      if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<1200)return _grcManagerQueueCache;
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
-        const result={profile:fresh,review:[],risk:[],errors:[],source:'department-inbox-v3'};
+        const result={profile:fresh,review:[],risk:[],errors:[]};
         const settled=await Promise.allSettled([
           getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review')),
           getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'))
         ]);
         const reviewMap={},riskMap={};
-        if(settled[0].status==='fulfilled'){
-          settled[0].value.forEach(function(d){
-            const item=d.data()||{},snap=item.snapshot||{};
-            const row=_advNormalizeRow(String(item.requestId||d.id),snap,'advisory_requests');
-            if(!row.id)row.id=String(item.requestId||d.id);
-            if(String(row.userEmail||'').toLowerCase().trim()===fresh.email)return;
-            row._managerAssigned=true;row._queueFallback=true;reviewMap[String(row.id)]=row;
-          });
-        }else result.errors.push('Review inbox: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason));
-        if(settled[1].status==='fulfilled'){
-          settled[1].value.forEach(function(d){
-            const item=d.data()||{},snap=item.snapshot||{};
-            if(String(snap.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;
-            const row=_grcRiskRequestData({id:String(item.requestId||d.id),exists:function(){return true;},data:function(){return snap;}});
-            if(row){row._managerAssigned=true;row._queueFallback=true;riskMap[String(row.id)]=row;}
-          });
-        }else result.errors.push('Risk inbox: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
+        function addReview(id,row){
+          const key=String(id||row&&row.id||'');if(!key)return;
+          const normalized=_advNormalizeRow(key,row||{},'advisory_requests');
+          normalized.id=key;
+          if(!normalized.departmentKey)normalized.departmentKey=fresh.departmentKey;
+          if(String(normalized.userEmail||'').toLowerCase().trim()===fresh.email)return;
+          if(String(normalized.workflowStage||normalized.status||'').toLowerCase()!=='pending_department_manager')return;
+          if(String(normalized.departmentKey||'').trim().toLowerCase()!==String(fresh.departmentKey||'').trim().toLowerCase())return;
+          normalized._managerAssigned=true;normalized._queueFallback=true;reviewMap[key]=normalized;
+        }
+        function addRisk(id,row){
+          const key=String(id||row&&row.id||'');if(!key)return;
+          if(String(row&&row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;
+          const normalized=Object.assign({},row||{});
+          if(!normalized.departmentKey)normalized.departmentKey=fresh.departmentKey;
+          const dept=_advCanonicalDepartment(normalized.departmentKey||normalized.department||normalized.departmentRaw||'');
+          if(dept!==String(fresh.departmentKey||'').trim().toLowerCase())return;
+          const status=String(normalized.status||'').toLowerCase();
+          if(!['pending_manager','returned_manager'].includes(status))return;
+          const data=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return normalized;}});
+          if(data){data._managerAssigned=true;data._queueFallback=true;riskMap[key]=data;}
+        }
+        if(settled[0].status==='fulfilled')settled[0].value.forEach(function(d){
+          const item=d.data()||{},snap=Object.assign({},item.snapshot||{});
+          if(!snap.departmentKey)snap.departmentKey=String(item.departmentKey||fresh.departmentKey);
+          addReview(String(item.requestId||d.id),snap);
+        });
+        else result.errors.push('Review queue: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason));
+        if(settled[1].status==='fulfilled')settled[1].value.forEach(function(d){
+          const item=d.data()||{},snap=Object.assign({},item.snapshot||{});
+          if(!snap.departmentKey)snap.departmentKey=String(item.departmentKey||fresh.departmentKey);
+          addRisk(String(item.requestId||d.id),snap);
+        });
+        else result.errors.push('Risk queue: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
+
+        /* Compatibility recovery for requests created before queue indexing.
+           These reads are optional and may fail under older Rules; failures are
+           recorded but NEVER clear or throw away queue data. */
+        if(!result.review.length){
+          try{
+            const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));
+            snap.forEach(function(d){addReview(d.id,d.data()||{});});
+          }catch(err){result.errors.push('Review source: '+String(err&&err.message||err));}
+        }
+        if(!result.risk.length){
+          try{
+            const snap=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));
+            snap.forEach(function(d){addRisk(d.id,d.data()||{});});
+          }catch(err){result.errors.push('Risk source: '+String(err&&err.message||err));}
+        }
         result.review=Object.keys(reviewMap).map(function(k){return reviewMap[k];});
         result.risk=_grcRiskSort(Object.keys(riskMap).map(function(k){return riskMap[k];}));
-        result.review.sort((a,b)=>_advTsMs(b.updatedAt||b.updatedAtIso||b.createdAt||b.createdAtIso)-_advTsMs(a.updatedAt||a.updatedAtIso||a.createdAt||a.createdAtIso));
-        /* If a transient server read fails, preserve the last verified queue.
-           Never replace existing manager data with [] merely because one poll failed. */
-        if(result.errors.length&&_grcManagerQueueCache){
-          const cached=_grcManagerQueueCache;
-          result.review=settled[0].status==='fulfilled'?result.review:(cached.review||[]);
-          result.risk=settled[1].status==='fulfilled'?result.risk:(cached.risk||[]);
-        }
-        if(result.errors.length&&!result.review.length&&!result.risk.length&&_grcManagerQueueCache){
-          result.review=_grcManagerQueueCache.review||[];result.risk=_grcManagerQueueCache.risk||[];
-        }
-        _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;
+        result.review.sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
+        _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();
+        if(result.errors.length)console.warn('[GRC Manager Inbox] partial read warnings',result.errors);
+        return result;
       })();
       try{return await _grcManagerQueueCachePromise;}finally{_grcManagerQueueCachePromise=null;}
     };
@@ -1313,32 +1335,24 @@ window._selectPortal=async portal=>{
     window._advisoryGetManagerQueue=async function(){
       const bundle=await window._grcGetDepartmentApprovalQueue(true);
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
-      const rows=(bundle.review||[]).slice();
-      /* Keep the historical array API while carrying Risk rows for the shared
-         GRC approval screen. This avoids a second competing refresh path. */
-      rows._grcRiskRecords=(bundle.risk||[]).slice();
-      rows.risk=rows._grcRiskRecords;rows.review=rows;rows.allRecords=rows.slice();
-      rows.errors=(bundle.errors||[]).slice();
-      return rows;
+      // Approval inbox contains only requests assigned to this manager.
+      // The manager's own submissions belong under My Requests instead.
+      return bundle.review||[];
     };
     function stageOfManagerRow(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
     window._advisorySubscribe=function(callback){
       if(typeof callback!=='function'||!_advEmail()||!db)return function(){};
       if(_advIsDepartmentManager()){
-        let stopped=false,pollTimer=null,lastRows=null;
+        let stopped=false,pollTimer=null;
         const pull=async function(){
           if(stopped)return;
           try{
             const rows=await window._advisoryGetManagerQueue();
-            lastRows=Array.isArray(rows)?rows.slice():[];
-            const dashboardRows=lastRows.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
-            callback({records:lastRows,publicRecords:dashboardRows,managerRiskRecords:rows&&rows._grcRiskRecords||[],errors:{},source:'manager-queue'});
+            const dashboardRows=(rows||[]).map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
+            callback({records:rows||[],publicRecords:dashboardRows,errors:{},source:'manager-queue'});
           }catch(err){
-            /* A failed poll is not an empty queue. Keep the last verified rows. */
-            const kept=Array.isArray(lastRows)?lastRows:[];
-            const dashboardRows=kept.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
-            callback({records:kept,publicRecords:dashboardRows,errors:{manager:String(err&&err.message||err&&err.code||err)},source:'manager-queue'});
+            callback({records:[],publicRecords:[],errors:{manager:String(err&&err.message||err&&err.code||err)},source:'manager-queue'});
           }
           if(!stopped)pollTimer=setTimeout(pull,15000);
         };
@@ -1998,11 +2012,12 @@ window._selectPortal=async portal=>{
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
       const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,String(requestId||''));
       const snap=await getDoc(ref);
-      if(!snap.exists()){throw new Error('This request no longer exists. The approval list has been refreshed.');}
+      if(!snap.exists()){try{await deleteDoc(_grcManagerQueueItemRef(fresh.departmentKey,'risk',String(requestId||'')));}catch(_){};throw new Error('This request no longer exists. The approval list has been refreshed.');}
       const data=_grcRiskRequestData(snap);
       const dept=String(data&&data.departmentKey||data&&data.department||'').trim().toLowerCase();
       const myDept=String(fresh.departmentKey||'').trim().toLowerCase();
       if(dept!==myDept || !data || ['pending_manager','returned_manager'].indexOf(String(data.status||'').toLowerCase())<0){
+        try{await deleteDoc(_grcManagerQueueItemRef(fresh.departmentKey,'risk',String(requestId||'')));}catch(_){}
         throw new Error('This request has already been processed. The approval list has been refreshed.');
       }
       data._managerAssigned=true;
