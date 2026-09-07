@@ -600,7 +600,19 @@ service cloud.firestore {
           request.resource.data.department == '' ||
           sameDepartment(request.resource.data.department)
         );
-      allow read: if canAccessGrc() && (admin() || permit('view_request_analytics', ['governance_performance_manager']) || ownEmail(resource.data.userEmail));
+
+      allow get: if canAccessGrc() &&
+        (admin() || permit('view_request_analytics', ['governance_performance_manager']) ||
+         ownEmail(resource.data.userEmail));
+
+      // _grcRequestsGetMine() queries exactly by the authenticated lowercase email.
+      // This explicit list branch makes the query authorization provable.
+      allow list: if canAccessGrc() && (
+        admin() ||
+        permit('view_request_analytics', ['governance_performance_manager']) ||
+        (resource.data.userEmail is string && resource.data.userEmail == authEmail())
+      );
+
       allow update: if admin() ||
         (canAccessGrc() && ownEmail(resource.data.userEmail) && validGrcRequestRatingChange());
       allow delete: if superAdmin();
