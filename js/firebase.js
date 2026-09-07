@@ -680,6 +680,23 @@ window._selectPortal=async portal=>{
         setTimeout(async function(){
           try{
             if(_normalizePortalRole(role)==='super_admin'){
+              /* IMPORTANT: run release cleanup before any mirror/queue repair.
+                 The previous build repaired stale test requests back into queues
+                 because its cleanup function was defined but never invoked. */
+              try{
+                if(typeof window._grcRunPreLaunchCleanupOnce==='function'){
+                  const cleanup=await window._grcRunPreLaunchCleanupOnce();
+                  if(cleanup&&cleanup.ran){
+                    console.log('[GRC Pre-launch Cleanup] completed:',cleanup.result||{});
+                    /* Canonical listeners may already hold the old rows in memory.
+                       Rebuild them after deletion; do not reload before the marker
+                       is committed, otherwise the one-time cleanup could repeat. */
+                    try{window._grcRestartSecureSync&&window._grcRestartSecureSync(true);}catch(_){}
+                  }
+                }
+              }catch(cleanupErr){
+                console.error('[GRC Pre-launch Cleanup] FAILED — stale requests were not ignored:',cleanupErr&&cleanupErr.message||cleanupErr);
+              }
               try{await _ensureOwnerRoleDefinitions();}catch(re){console.warn('[Roles] Owner role installation skipped:',re&&re.message||re);}
               try{await _repairAdvisoryPublicMirrorV172();}catch(repairErr){console.warn('[Review Development] public mirror integrity repair skipped:',repairErr&&repairErr.message||repairErr);}
               try{await window._grcRepairDepartmentApprovalInboxV200(true);}catch(queueRepairErr){console.warn('[GRC Manager Queue] backfill skipped:',queueRepairErr&&queueRepairErr.message||queueRepairErr);}
@@ -1764,24 +1781,106 @@ window._selectPortal=async portal=>{
       if(count)await batch.commit();return deleted;
     }
     async function _grcDeleteQueueDocs(){
-      const variants=['safety','maintenance','housekeeping','laundry','projects','governance','division','Project_Management','Project Management','project_management','Maintenance','maintenance_management','Maintenance_Management','Safety','safety_management','Safety_Management','Housekeeping','housekeeping_management','Housekeeping_Management','Laundry','laundry_management','Laundry_Management'];let total=0;
-      for(const dept of variants){for(const kind of ['review','risk']){try{total+=await _grcDeleteCollectionDocsAt(_grcManagerQueueCollection(dept,kind));}catch(e){const code=String(e&&e.code||e&&e.message||'');if(!code.toLowerCase().includes('permission'))throw e;}}}return total;
+      /* Delete every known legacy/canonical department queue variant. Do NOT
+         swallow permission errors here: a partial cleanup must fail visibly
+         instead of reporting success while stale inbox rows remain. */
+      const variants=[
+        'safety','maintenance','housekeeping','laundry','projects','governance','division',
+        'Project_Management','Project Management','project_management','ProjectManagement',
+        'Maintenance','maintenance_management','Maintenance_Management',
+        'Safety','safety_management','Safety_Management',
+        'Housekeeping','housekeeping_management','Housekeeping_Management',
+        'Laundry','laundry_management','Laundry_Management',
+        'Governance','Governance_Performance','governance_performance'
+      ];
+      let total=0;
+      for(const dept of [...new Set(variants)]){
+        for(const kind of ['review','risk']){
+          total+=await _grcDeleteCollectionDocsAt(_grcManagerQueueCollection(dept,kind));
+        }
+      }
+      return total;
     }
     async function _grcDeleteCollectionDocsAt(ref){const snap=await getDocs(ref);let deleted=0,batch=writeBatch(db),count=0;for(const d of snap.docs){batch.delete(d.ref);count++;deleted++;if(count===400){await batch.commit();batch=writeBatch(db);count=0;}}if(count)await batch.commit();return deleted;}
     function _grcClearRequestMemory(){try{Object.keys(localStorage||{}).forEach(function(k){if(/(advisory|review.*request|grc.*request|risk.*request|manager.*queue|approval.*inbox)/i.test(k))localStorage.removeItem(k);});}catch(_){}try{Object.keys(sessionStorage||{}).forEach(function(k){if(/(advisory|review.*request|grc.*request|risk.*request|manager.*queue|approval.*inbox)/i.test(k))sessionStorage.removeItem(k);});}catch(_){}window._grcManagerQueueCache=null;window.__grcRiskRequestCache=[];}
     window._grcPreLaunchCleanupRequests=async function(){
       const profile=await _advFreshProfile();
       if(profile.role!=='super_admin')throw new Error('Only Super Admin can run the pre-launch request cleanup.');
-      const result={reviewRequests:0,reviewPublic:0,reviewAttachments:0,riskIncidentRequests:0,legacyReviewFallback:0,departmentInbox:0};
+
+      /* Only workflow/request documents are deleted. Published Risk and Incident
+         register documents (grc_risks / grc_incidents) are deliberately untouched. */
+      const result={
+        reviewRequests:0,reviewPublic:0,reviewAttachments:0,
+        legacyGrcRequests:0,riskIncidentRequests:0,
+        legacyReviewFallback:0,departmentInbox:0
+      };
       result.reviewRequests=await _grcDeleteCollectionDocs(ADV_REQUESTS_COLLECTION);
       result.reviewPublic=await _grcDeleteCollectionDocs(ADV_PUBLIC_COLLECTION);
       result.reviewAttachments=await _grcDeleteCollectionDocs('advisory_attachments');
+      result.legacyGrcRequests=await _grcDeleteCollectionDocs('grc_requests');
       result.riskIncidentRequests=await _grcDeleteCollectionDocs('grc_risk_requests');
-      result.legacyReviewFallback=await _grcDeleteCollectionDocs('kpi_requests',function(r){return r.isReviewDevelopmentRequest===true||String(r.requestDomain||'').toLowerCase()==='review_development';});
+      result.legacyReviewFallback=await _grcDeleteCollectionDocs('kpi_requests',function(r){
+        return r.isReviewDevelopmentRequest===true||
+          String(r.requestDomain||'').toLowerCase()==='review_development';
+      });
       result.departmentInbox=await _grcDeleteQueueDocs();
       _grcClearRequestMemory();
-      try{await window._recordAuditDirect('GRC_PRE_LAUNCH_REQUEST_CLEANUP','Deleted pre-launch Review & Development and Risk/Incident request workflow data only',null,result,{portal:'grc'});}catch(_){}
+      try{
+        await window._recordAuditDirect(
+          'GRC_PRE_LAUNCH_REQUEST_CLEANUP',
+          'Deleted pre-launch Review & Development and Risk/Incident request workflow data only',
+          null,result,{portal:'grc'}
+        );
+      }catch(_){}
       return result;
+    };
+
+    /* v313 RELEASE CLEANUP.
+       The old v282 cleanup existed but was never called by the active client,
+       so the Firestore request documents remained and were loaded again after
+       refresh. Run the cleanup exactly once, only for Super Admin, and persist
+       a completion marker so real requests created after launch are never
+       deleted by this code. */
+    const GRC_PRELAUNCH_CLEANUP_MARKER='prelaunch_request_cleanup_v313';
+    window._grcRunPreLaunchCleanupOnce=async function(){
+      const profile=await _advFreshProfile();
+      if(!profile||profile.role!=='super_admin')return {ran:false,reason:'not-super-admin'};
+      const markerRef=doc(db,'grc_meta',GRC_PRELAUNCH_CLEANUP_MARKER);
+      const markerSnap=await getDoc(markerRef);
+      const marker=markerSnap.exists()?(markerSnap.data()||{}):{};
+      if(marker.status==='completed')return {ran:false,reason:'already-completed',result:marker.result||{}};
+
+      await setDoc(markerRef,{
+        status:'running',
+        build:'v313-prelaunch-cleanup',
+        startedAt:serverTimestamp(),
+        startedBy:String(profile.email||_advEmail()||'')
+      },{merge:true});
+
+      try{
+        const result=await window._grcPreLaunchCleanupRequests();
+        await setDoc(markerRef,{
+          status:'completed',
+          build:'v313-prelaunch-cleanup',
+          completedAt:serverTimestamp(),
+          completedBy:String(profile.email||_advEmail()||''),
+          result:result
+        },{merge:true});
+        _grcClearRequestMemory();
+        try{window._grcManagerQueueCache=null;window.__grcRiskRequestCache=[];}catch(_){}
+        return {ran:true,result:result};
+      }catch(err){
+        try{
+          await setDoc(markerRef,{
+            status:'failed',
+            build:'v313-prelaunch-cleanup',
+            failedAt:serverTimestamp(),
+            failedBy:String(profile.email||_advEmail()||''),
+            error:String(err&&err.message||err).slice(0,500)
+          },{merge:true});
+        }catch(_){}
+        throw err;
+      }
     };
 
     /* ── GRC Risk Management Approval Workflow ────────────────────────
