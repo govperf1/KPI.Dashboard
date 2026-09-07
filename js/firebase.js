@@ -917,7 +917,7 @@ window._selectPortal=async portal=>{
       if(Number(row.rating||0))throw new Error('This request has already been rated.');
       const n=Math.max(1,Math.min(5,Number(rating||0))),nowIso=new Date().toISOString();
       try{
-        await updateDoc(ref,{rating:n,ratingComment:String(comment||'').trim(),ratingAt:serverTimestamp()});
+        await updateDoc(ref,{rating:n,ratingComment:String(comment||'').trim(),ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:me});
       }catch(e){
         const msg=String(e&&e.message||e||'');
         if(/permission-denied|missing or insufficient permissions/i.test(msg)){

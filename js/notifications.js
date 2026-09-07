@@ -322,7 +322,10 @@ function updateExecTrend(yr){
   'use strict';
   if(window.__QUMC_NOTIF_SINGLE_ENGINE_V12__) return;
   window.__QUMC_NOTIF_SINGLE_ENGINE_V12__ = true;
-  window.__QUMC_NOTIF_ENGINE_VERSION__ = 'v12.1-single-canonical-role-scoped';
+  window.__QUMC_NOTIF_ENGINE_VERSION__ = 'v13-superadmin-user-requests';
+  var superUserRequestRows = [];
+  var superUserRequestFetchBusy = false;
+  var superUserRequestLastFetch = 0;
 
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -510,9 +513,50 @@ function updateExecTrend(yr){
     return false;
   }
 
+  function refreshSuperAdminUserRequests(showEntryMessage){
+    if(role() !== 'super_admin' || typeof window._grcRequestsGetAll !== 'function'){
+      superUserRequestRows=[]; return Promise.resolve([]);
+    }
+    if(superUserRequestFetchBusy)return Promise.resolve(superUserRequestRows);
+    superUserRequestFetchBusy=true;
+    return Promise.resolve(window._grcRequestsGetAll()).then(function(rows){
+      var pending=(rows||[]).filter(function(r){
+        var s=String(r&&r.status||'pending').toLowerCase().trim();
+        return s==='pending' || s==='open';
+      });
+      superUserRequestRows=pending.map(function(r){return {
+        id:String(r.id||''), title:String(r.requestType||'User Request'),
+        userName:String(r.userName||r.userEmail||'User'), department:String(r.department||''),
+        createdAt:r.createdAt||null, updatedAt:r.updatedAt||null, message:String(r.message||'')
+      };}).filter(function(r){return r.id;});
+      superUserRequestLastFetch=Date.now();
+      try{window.dispatchEvent(new CustomEvent('grc:notifications-updated'));}catch(_){}
+      if(showEntryMessage && superUserRequestRows.length){
+        var key='qumc_super_user_requests_entry_'+String(rawEmail()||'').replace(/[^a-z0-9]/g,'_');
+        if(!sessionStorage.getItem(key)){
+          sessionStorage.setItem(key,'1');
+          var n=superUserRequestRows.length;
+          setTimeout(function(){
+            showModal({type:'grc_user_request',level:'orange',title:n+' New User Request'+(n===1?'':'s'),
+              meta:'Action required · User Requests are waiting for Super Admin review',
+              body:n+' pending User Request'+(n===1?' is':'s are')+' waiting for your review. Open the notification to go to User Requests.'});
+          },250);
+        }
+      }
+      return superUserRequestRows;
+    }).catch(function(){ return superUserRequestRows; }).finally(function(){superUserRequestFetchBusy=false;});
+  }
+
   function collectActive(){
     if(!scopeReady()) return null;
     var ks = allKpis(), st = state(), out = [];
+    if(role()==='super_admin'){
+      (superUserRequestRows||[]).forEach(function(r){
+        out.push({id:'grc-user-request:'+r.id,type:'grc_user_request',level:'orange',dept:r.department,
+          title:r.title||'User Request',meta:'New User Request · '+(r.userName||'User'),body:r.message||'A User Request is waiting for Super Admin review.',active:true,
+          ts:Date.now()});
+      });
+    }
 
     /* GRC approval inbox: the authoritative live queue is supplied by the
        Review & Development / Risk workflow hub. It is intentionally read-only
@@ -750,6 +794,10 @@ function updateExecTrend(yr){
       }catch(_grcOpen){ }
       return;
     }
+    if(n && n.type === 'grc_user_request'){
+      try{ if(typeof window._grcOpenAdminCenter==='function')window._grcOpenAdminCenter('requests'); }catch(_grcUserReqOpen){}
+      return;
+    }
     if(n && n.type === 'gap_approval'){
       if(typeof window._showGapApprovalDetails === 'function'){ window._showGapApprovalDetails(n.approvalId); return; }
       if(typeof window._showGapApprovals === 'function'){ window._showGapApprovals(); return; }
@@ -782,6 +830,7 @@ function updateExecTrend(yr){
   }
   function bind(){
     refreshProfile(); renderNotifications();
+    refreshSuperAdminUserRequests(true);
     var ab=$('userAlertBtn'), ub=$('topUserBadge'), lo=$('profileLogoutBtn');
     if(ab && ab.dataset.qumcNotifV12 !== '1'){
       ab.dataset.qumcNotifV12='1'; ab.onclick=null; ab.addEventListener('click', toggleUserAlerts, true);
@@ -820,7 +869,10 @@ function updateExecTrend(yr){
 
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind); else bind();
   setTimeout(bind,300); setTimeout(bind,1200); setTimeout(bind,3000);
-  setInterval(function(){ try{ renderNotifications(); refreshProfile(); }catch(_){ } }, 30000);
+  setInterval(function(){ try{
+     if(role()==='super_admin' && Date.now()-superUserRequestLastFetch>25000)refreshSuperAdminUserRequests(false);
+     renderNotifications(); refreshProfile();
+   }catch(_){ } }, 30000);
 })();
 
 /* ── User Requests: Submit form + My Requests view (user-facing) ──
