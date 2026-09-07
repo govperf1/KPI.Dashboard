@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v71 — Manager approval permission + legacy field guard fix
+// FIRESTORE SECURITY RULES v72 — query-safe requester reads + queue-first manager fix — Manager approval permission + legacy field guard fix
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -540,7 +540,7 @@ service cloud.firestore {
       // List/query authorization must be provable from the actual query field.
       allow list: if approved() && (
         admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']) ||
-        (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
+        resource.data.userEmail == authEmail()
       );
       // Generic Performance User Requests are admin-controlled after submit.
       // Requester-side workflow updates remain only for historical Review &
@@ -587,7 +587,7 @@ service cloud.firestore {
     // v66 is the current approval-sync deployment marker. The v65 marker remains
     // accepted for backward compatibility during rollout.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId in ['v60-grc-department-scope-approval-20260823','v65-grc-superadmin-global-20260824','v66-grc-approval-sync-20260825','v70-grc-manager-department-query-20260903','v71-grc-owner-manager-route-20260906','v72-grc-manager-action-legacy-guard-20260907'];
+      allow get: if approved() && versionId in ['v60-grc-department-scope-approval-20260823','v65-grc-superadmin-global-20260824','v66-grc-approval-sync-20260825','v70-grc-manager-department-query-20260903','v71-grc-owner-manager-route-20260906','v72-grc-manager-action-legacy-guard-20260907','v73-grc-query-safe-manager-queue-20260907'];
       allow list, create, update, delete: if false;
     }
 
@@ -863,7 +863,7 @@ service cloud.firestore {
       allow get: if admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']);
       allow get: if approved() && (
         (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) ||
-        (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
+        resource.data.userEmail == authEmail()
       );
       // Department Manager may open a single request from their own department
       // to hydrate the approval inbox with the authoritative request details.
@@ -886,8 +886,11 @@ service cloud.firestore {
         profileDepartmentKeyFrom(userData()) != '' &&
         ('departmentKey' in resource.data) &&
         resource.data.departmentKey == profileDepartmentKeyFrom(userData());
-      allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
-      allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
+      // Query-safe equality branches: do not guard queried fields with `in`,
+      // because Firestore cannot prove that extra existence predicate for every
+      // candidate document and may reject a valid requesterUid/userEmail query.
+      allow list: if approved() && resource.data.requesterUid == request.auth.uid;
+      allow list: if approved() && resource.data.userEmail == authEmail();
       allow update: if
         (superAdmin() && validAdvisorySuperAdminDecision()) ||
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
