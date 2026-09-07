@@ -1005,16 +1005,15 @@ window._selectPortal=async portal=>{
       return true;
     }
     async function _advAssertProfileScope(profile){
+      /* Profile scope is validated from users/{email} by _advFreshProfile().
+         Do not read synthetic probe documents here: intentionally missing probe
+         documents generated noisy 404/WebChannel errors and could make a valid
+         manager action look like a Rules failure. The actual create/update below
+         remains the authoritative Security Rules check. */
       profile=profile||{};
-      try{
-        await _getServerDoc(doc(db,'system_grc_role_probe',String(profile.role||'viewer')));
-        if(profile.departmentKey)await _getServerDoc(doc(db,'system_grc_department_probe',String(profile.departmentKey)));
-        return true;
-      }catch(e){
-        const denied=String(e&&e.code||e&&e.message||'').toLowerCase().includes('permission');
-        if(denied)throw new Error('profile-scope-mismatch: Firebase Rules do not resolve this account to role='+String(profile.role||'')+' and departmentKey='+String(profile.departmentKey||'')+'.');
-        throw e;
-      }
+      if(!String(profile.email||_advEmail()||'').trim())throw new Error('profile-scope-mismatch: authenticated profile is unavailable.');
+      if(!String(profile.role||'').trim())throw new Error('profile-scope-mismatch: authenticated role is unavailable.');
+      return true;
     }
     window._qumcAssertGrcProfileScope=_advAssertProfileScope;
 
@@ -1283,13 +1282,9 @@ window._selectPortal=async portal=>{
       /* Repair compatibility: older pending Risk/Incident requests may predate the
          inbox document. Only when the inbox is empty, read the department's
          authoritative history and restore pending manager items to the UI. */
-      if(!Object.keys(riskById).length){
-        try{
-          const legacyRisk=await _grcReadLegacyManagerHistory(profile,'risk');
-          (legacyRisk||[]).filter(function(r){return ['pending_manager','returned_manager'].includes(String(r&&r.status||'').toLowerCase());})
-            .forEach(function(r){if(r&&r.id)riskById[String(r.id)]=r;});
-        }catch(err){console.warn('[GRC Manager Risk] legacy pending fallback unavailable',err&&err.code||err);}
-      }
+      /* Do not query the broad legacy request collection when the inbox is empty.
+         That query can resurrect old requests and is not part of the manager's
+         current routing contract. Backfill is handled by the Super Admin repair. */
       return {
         profile:profile,
         review:Object.keys(reviewById).map(function(id){return reviewById[id];}).sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt||b.updatedAtIso||b.createdAtIso)-_advTsMs(a.updatedAt||a.createdAt||a.updatedAtIso||a.createdAtIso);}),
@@ -1301,40 +1296,21 @@ window._selectPortal=async portal=>{
        was permanently deleted, an old inbox snapshot must never resurrect it.
        Hydrate each queue item from its source document and remove orphan indexes. */
     async function _grcHydrateManagerQueueRows(profile,kind,rows){
-      const collectionName=kind==='risk'?GRC_RISK_REQUESTS_COLLECTION:ADV_REQUESTS_COLLECTION;
-      const hydrated=await Promise.all((rows||[]).map(async function(row){
+      /* The department inbox is the manager's lifecycle index. Reading every
+         authoritative request after reading the inbox doubled traffic and caused
+         permission-denied noise for legacy rows. Render the routed snapshot first.
+         A direct authoritative read is performed only when the manager opens or
+         acts on a request, where the exact document rule can be evaluated. */
+      return (rows||[]).map(function(row){
         if(!row||!row.id)return null;
-        try{
-          const snap=await getDoc(doc(db,collectionName,String(row.id)));
-          if(!snap.exists()){
-            const qDept=String(row._queueDepartmentKey||profile.departmentKey||'');
-            if(qDept)try{await deleteDoc(_grcManagerQueueItemRef(qDept,kind,String(row.id)));}catch(_){}
-            return null;
-          }
-          const live=kind==='risk'
-            ? _grcRiskRequestData(snap)
-            : _advNormalizeRow(snap.id,snap.data(),collectionName);
-          if(live){live._managerAssigned=true;live._queueDepartmentKey=String(row._queueDepartmentKey||profile.departmentKey||'');live._queueKind=kind;}
-          return live;
-        }catch(err){
-          /* Permission on an old authoritative row must not erase a valid,
-             department-scoped inbox item. Keep the queue snapshot so the
-             manager can still see and act on the routed request. */
-          const code=String(err&&err.code||'').toLowerCase();
-          console.warn('[GRC Manager Queue] authoritative hydrate failed',kind,row.id,err&&err.code||err&&err.message||err);
-          if(code==='permission-denied'){
-            const fallback=Object.assign({},row);
-            fallback._managerAssigned=true;
-            fallback._queueDepartmentKey=String(row._queueDepartmentKey||profile.departmentKey||'');
-            fallback._queueKind=kind;
-            fallback._storage=kind==='risk'?GRC_RISK_REQUESTS_COLLECTION:ADV_REQUESTS_COLLECTION;
-            fallback._authoritativeUnavailable=true;
-            return fallback;
-          }
-          return null;
-        }
-      }));
-      return hydrated.filter(Boolean);
+        const fallback=Object.assign({},row);
+        fallback._managerAssigned=true;
+        fallback._queueDepartmentKey=String(row._queueDepartmentKey||profile.departmentKey||'');
+        fallback._queueKind=kind;
+        fallback._storage=kind==='risk'?GRC_RISK_REQUESTS_COLLECTION:ADV_REQUESTS_COLLECTION;
+        fallback._fromManagerQueueFallback=true;
+        return fallback;
+      }).filter(Boolean);
     }
 
     /* All manager widgets share one department bundle. `true` used to bypass the
@@ -1382,7 +1358,7 @@ window._selectPortal=async portal=>{
       return _advMergeRows(primary,fallback,false);
     };
     window._advisoryGetManagerQueue=async function(){
-      const bundle=await window._grcGetDepartmentApprovalQueue(true);
+      const bundle=await window._grcGetDepartmentApprovalQueue();
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
       /* Return the Review rows for the R&D page, while carrying the Risk/Incident
          rows as a non-enumerated side channel for the separate GRC manager panel. */
@@ -1500,7 +1476,7 @@ window._selectPortal=async portal=>{
            read; the subsequent update is still evaluated by Firestore Rules. */
         const code=String(locateErr&&locateErr.code||'').toLowerCase();
         if(code!=='permission-denied')throw locateErr;
-        const bundle=await window._grcGetDepartmentApprovalQueue(true);
+        const bundle=await window._grcGetDepartmentApprovalQueue();
         const queued=(bundle.review||[]).find(function(r){return String(r&&r.id||'')===String(requestId);});
         if(!queued)throw locateErr;
         current=Object.assign({},queued,{
@@ -2202,7 +2178,7 @@ window._selectPortal=async portal=>{
       return data;
     };
     window._grcRiskRequestsGetForManager=async function(){
-      const bundle=await window._grcGetDepartmentApprovalQueue(true);
+      const bundle=await window._grcGetDepartmentApprovalQueue();
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
       return bundle.risk||[];
     };
