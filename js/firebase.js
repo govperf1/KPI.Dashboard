@@ -586,9 +586,10 @@ window._selectPortal=async portal=>{
         if(typeof window._enterGRC==='function'){
           if(typeof window._grcRiskApprovalEntryNoticeReset==='function')window._grcRiskApprovalEntryNoticeReset();
           window._enterGRC();
-          if(_normalizePortalRole(window._fbRole)==='super_admin'&&typeof window._grcRepairDepartmentApprovalInboxV200==='function'){
-            setTimeout(()=>{try{window._grcRepairDepartmentApprovalInboxV200(true);}catch(e){console.warn('[GRC Manager Queue Backfill]',e);}},450);
-          }
+          /* IMPORTANT v313: Do not auto-repair/backfill on every GRC entry.
+             The repair routine can write many queue documents repeatedly and was
+             increasing Firestore writes. Repairs remain available as an explicit
+             Super Admin maintenance action only. */
           /* Verify the first shell instead of requiring a manual refresh. These
              checks are no-ops when Header/Tabs/Page already rendered correctly. */
           if(typeof window._grcEnsureFirstRender==='function'){
@@ -680,9 +681,12 @@ window._selectPortal=async portal=>{
         setTimeout(async function(){
           try{
             if(_normalizePortalRole(role)==='super_admin'){
-              try{await _ensureOwnerRoleDefinitions();}catch(re){console.warn('[Roles] Owner role installation skipped:',re&&re.message||re);}
-              try{await _repairAdvisoryPublicMirrorV172();}catch(repairErr){console.warn('[Review Development] public mirror integrity repair skipped:',repairErr&&repairErr.message||repairErr);}
-              try{await window._grcRepairDepartmentApprovalInboxV200(true);}catch(queueRepairErr){console.warn('[GRC Manager Queue] backfill skipped:',queueRepairErr&&queueRepairErr.message||queueRepairErr);}
+              /* IMPORTANT v313: Login must be read-only. Previous builds ran
+                 role installation, public-mirror repair and queue backfill after
+                 every Super Admin login. Those maintenance jobs perform writes
+                 even when the user has not changed anything, and a denied marker
+                 read can cause the mirror repair to repeat. Keep all three jobs
+                 manual-only through their existing explicit functions. */
             }else if(_normalizePortalRole(role)==='department_manager'){
             }
             try{await _flushPendingAudit();}catch(ae){console.warn('[AUDIT] pending audit flush failed',ae&&ae.message||ae);}
