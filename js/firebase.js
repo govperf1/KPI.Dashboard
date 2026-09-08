@@ -310,20 +310,9 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       return true;
     };
     window._startAuditListener=function(){
-      if((_auditListenerUnsub||_auditLegacyListenerUnsub)||!auth.currentUser||!_auditCanView())return;
-      try{
-        _auditListenerUnsub=onSnapshot(query(collection(db,AUDIT_COLLECTION),orderBy('ts','desc')),function(snap){
-          window.__qumcAuditCollectionLog=snap.docs.map(function(d){return Object.assign({id:d.id},d.data()||{});});
-          _refreshAuditMergedView();
-        },function(err){console.warn('[AUDIT] collection listener failed:',err&&err.code||err&&err.message||err);});
-      }catch(e){console.warn('[AUDIT] collection listener could not start:',e&&e.message||e);}
-      _auditLegacyListenerUnsub=onSnapshot(AUDIT_DOC_REF,function(snap){
-        const data=snap.exists()?snap.data():{};
-        window.__qumcAuditLegacyLog=Array.isArray(data.log)?data.log.slice():[];
-        _refreshAuditMergedView();
-      },function(err){console.warn('[AUDIT] legacy listener failed:',err&&err.code||err&&err.message||err);});
-      setTimeout(function(){_migrateLegacyAuditToCollection();},250);
-      console.log('[AUDIT] Append-only shared Audit Trail listeners active');
+      if(!auth.currentUser||!_auditCanView())return;
+      try{(typeof getDocsFromServer==='function'?getDocsFromServer(query(collection(db,AUDIT_COLLECTION),orderBy('ts','desc'))):getDocs(query(collection(db,AUDIT_COLLECTION),orderBy('ts','desc')))).then(function(snap){window.__qumcAuditCollectionLog=snap.docs.map(function(d){return Object.assign({id:d.id},d.data()||{});});_refreshAuditMergedView();}).catch(function(err){console.warn('[AUDIT] one-time collection read failed:',err&&err.code||err&&err.message||err);});}catch(e){console.warn('[AUDIT] collection read could not start:',e&&e.message||e);}
+      getDoc(AUDIT_DOC_REF).then(function(snap){var data=snap.exists()?snap.data():{};window.__qumcAuditLegacyLog=Array.isArray(data.log)?data.log.slice():[];_refreshAuditMergedView();}).catch(function(err){console.warn('[AUDIT] one-time legacy read failed:',err&&err.code||err&&err.message||err);});
     };
     window._stopAuditListener=function(){
       if(_auditListenerUnsub){_auditListenerUnsub();_auditListenerUnsub=null;}
@@ -1151,93 +1140,23 @@ window._selectPortal=async portal=>{
        Never let an optional source/history read erase a valid queue result. */
     window._grcGetDepartmentApprovalQueue=async function(force){
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile()),now=Date.now();
-      if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<5000)return _grcManagerQueueCache;
+      if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<30000)return _grcManagerQueueCache;
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
-
       _grcManagerQueueCachePromise=(async function(){
-        const result={profile:fresh,review:[],risk:[],errors:[]};
-        const reviewMap={},riskMap={};
-
-        function addReview(id,row){
-          const key=String(id||row&&row.id||''); if(!key)return;
-          const normalized=_advNormalizeRow(key,row||{},'advisory_requests');
-          normalized.id=key;
-          if(!normalized.departmentKey)normalized.departmentKey=fresh.departmentKey;
-          if(String(normalized.userEmail||'').toLowerCase().trim()===fresh.email)return;
-          if(String(normalized.departmentKey||'').trim().toLowerCase()!==String(fresh.departmentKey||'').trim().toLowerCase())return;
-          if(String(normalized.workflowStage||'').toLowerCase()!=='pending_department_manager')return;
-          normalized._managerAssigned=true; reviewMap[key]=normalized;
-        }
-        function addRisk(id,row){
-          const key=String(id||row&&row.id||''); if(!key)return;
-          const normalized=Object.assign({},row||{});
-          if(!normalized.departmentKey)normalized.departmentKey=fresh.departmentKey;
-          if(String(normalized.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;
-          const dept=_advCanonicalDepartment(normalized.departmentKey||normalized.department||normalized.departmentRaw||'');
-          if(dept!==String(fresh.departmentKey||'').trim().toLowerCase())return;
-          if(!['pending_manager','returned_manager'].includes(String(normalized.status||'').toLowerCase()))return;
-          const data=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return normalized;}});
-          if(data){data._managerAssigned=true;riskMap[key]=data;}
-        }
-
-        // Primary path: canonical department queue (cheap and directly scoped).
-        const queueReads=await Promise.allSettled([
-          getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review')),
-          getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'))
-        ]);
-        if(queueReads[0].status==='fulfilled'){
-          queueReads[0].value.forEach(function(d){
-            const item=d.data()||{},snap=Object.assign({},item.snapshot||{});
-            if(!snap.departmentKey)snap.departmentKey=String(item.departmentKey||fresh.departmentKey);
-            addReview(String(item.requestId||d.id),snap);
-          });
-        }
-        if(queueReads[1].status==='fulfilled'){
-          queueReads[1].value.forEach(function(d){
-            const item=d.data()||{},snap=Object.assign({},item.snapshot||{});
-            if(!snap.departmentKey)snap.departmentKey=String(item.departmentKey||fresh.departmentKey);
-            addRisk(String(item.requestId||d.id),snap);
-          });
-        }
-
-        // Recovery path: authoritative request collections. This guarantees that
-        // a request is never invisible merely because a historical queue row is
-        // missing, stale, or the inbox index was created by an older build.
-        const needReviewRecovery=queueReads[0].status!=='fulfilled'||Object.keys(reviewMap).length===0;
-        const needRiskRecovery=queueReads[1].status!=='fulfilled'||Object.keys(riskMap).length===0;
-        const recover=[];
-        if(needReviewRecovery){
-          recover.push(
-            getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)))
-              .then(function(snap){snap.forEach(function(d){addReview(d.id,d.data()||{});});})
-              .catch(function(err){result.errors.push('Review source: '+String(err&&err.message||err));})
-          );
-        }
-        if(needRiskRecovery){
-          recover.push(
-            getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)))
-              .then(function(snap){snap.forEach(function(d){addRisk(d.id,d.data()||{});});})
-              .catch(function(err){result.errors.push('Risk source: '+String(err&&err.message||err));})
-          );
-        }
-        if(recover.length)await Promise.all(recover);
-
-        if(Object.keys(reviewMap).length===0&&queueReads[0].status==='rejected'){
-          result.errors.push('Review queue: '+String(queueReads[0].reason&&queueReads[0].reason.message||queueReads[0].reason));
-        }
-        if(Object.keys(riskMap).length===0&&queueReads[1].status==='rejected'){
-          result.errors.push('Risk queue: '+String(queueReads[1].reason&&queueReads[1].reason.message||queueReads[1].reason));
-        }
-
-        result.review=Object.keys(reviewMap).map(function(k){return reviewMap[k];});
-        result.risk=_grcRiskSort(Object.keys(riskMap).map(function(k){return riskMap[k];}));
-        result.review.sort(function(a,b){return _advTsMs(b.updatedAt||b.updatedAtIso||b.createdAt||b.createdAtIso)-_advTsMs(a.updatedAt||a.updatedAtIso||a.createdAt||a.createdAtIso);});
-        _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();
-        if(result.errors.length)console.warn('[GRC Manager Inbox] recovery warnings',result.errors);
-        return result;
-      })();
-      try{return await _grcManagerQueueCachePromise;}
-      finally{_grcManagerQueueCachePromise=null;}
+        const result={profile:fresh,review:[],risk:[],errors:[]},reviewMap={},riskMap={};
+        function addReview(id,row){const key=String(id||row&&row.id||'');if(!key)return;const normalized=_advNormalizeRow(key,row||{},'advisory_requests');normalized.id=key;if(!normalized.departmentKey)normalized.departmentKey=fresh.departmentKey;if(String(normalized.userEmail||'').toLowerCase().trim()===fresh.email)return;if(String(normalized.workflowStage||normalized.status||'').toLowerCase()!=='pending_department_manager')return;if(String(normalized.departmentKey||'').trim().toLowerCase()!==String(fresh.departmentKey||'').trim().toLowerCase())return;normalized._managerAssigned=true;reviewMap[key]=normalized;}
+        function addRisk(id,row){const key=String(id||row&&row.id||'');if(!key)return;if(String(row&&row.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;const normalized=Object.assign({},row||{});if(!normalized.departmentKey)normalized.departmentKey=fresh.departmentKey;const dept=_advCanonicalDepartment(normalized.departmentKey||normalized.department||normalized.departmentRaw||'');if(dept!==String(fresh.departmentKey||'').trim().toLowerCase())return;const status=String(normalized.status||'').toLowerCase();if(!['pending_manager','returned_manager'].includes(status))return;const data=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return normalized;}});if(data){data._managerAssigned=true;riskMap[key]=data;}}
+        const settled=await Promise.allSettled([getDocs(_grcManagerQueueCollection(fresh.departmentKey,'review')),getDocs(_grcManagerQueueCollection(fresh.departmentKey,'risk'))]);
+        if(settled[0].status==='fulfilled')settled[0].value.forEach(function(d){var item=d.data()||{},snap=Object.assign({},item.snapshot||{});snap.departmentKey=snap.departmentKey||item.departmentKey||fresh.departmentKey;addReview(item.requestId||d.id,snap);});else result.errors.push('Review queue: '+String(settled[0].reason&&settled[0].reason.code||settled[0].reason));
+        if(settled[1].status==='fulfilled')settled[1].value.forEach(function(d){var item=d.data()||{},snap=Object.assign({},item.snapshot||{});snap.departmentKey=snap.departmentKey||item.departmentKey||fresh.departmentKey;addRisk(item.requestId||d.id,snap);});else result.errors.push('Risk queue: '+String(settled[1].reason&&settled[1].reason.code||settled[1].reason));
+        /* Recovery is only used when queue data is missing/denied and runs once per
+           explicit refresh. Both queries are the exact departmentKey shape allowed
+           by the Rules; no broad collection read and no polling. */
+        if(!Object.keys(reviewMap).length){try{var rs=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));rs.forEach(function(d){addReview(d.id,d.data()||{});});}catch(e){result.errors.push('Review source: '+String(e&&e.code||e));}}
+        if(!Object.keys(riskMap).length){try{var ks=await getDocs(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));ks.forEach(function(d){addRisk(d.id,d.data()||{});});}catch(e){result.errors.push('Risk source: '+String(e&&e.code||e));}}
+        result.review=Object.keys(reviewMap).map(function(k){return reviewMap[k];});result.risk=_grcRiskSort(Object.keys(riskMap).map(function(k){return riskMap[k];}));result.review.sort(function(a,b){return _advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso);});
+        _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();if(result.errors.length)console.warn('[GRC Manager Inbox] recovery warnings',result.errors);return result;
+      })();try{return await _grcManagerQueueCachePromise;}finally{_grcManagerQueueCachePromise=null;}
     };
     window._grcRepairDepartmentApprovalInboxV200=async function(force){
       if(!_advIsSuperAdmin()||!db)return 0;const guard='__grcDeptInboxBackfillV215';if(!force&&window[guard])return 0;window[guard]=true;let count=0;
@@ -1330,11 +1249,7 @@ window._selectPortal=async portal=>{
       callback=typeof callback==='function'?callback:function(){};
       if(!_advCanAnalyze()||!db){callback([],new Error('Access denied.'));return function(){};}
       const q=query(collection(db,ADV_REQUESTS_COLLECTION),where('workflowStage','==','pending_super_admin'));
-      return onSnapshot(q,function(snap){
-        const rows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');}).filter(function(r){return String(r.workflowStage||r.status||'').toLowerCase()==='pending_super_admin' && String(r.platform||'grc').toLowerCase()==='grc';});
-        rows.sort(function(a,b){return _advTsMs(b.updatedAt||b.updatedAtIso||b.createdAt||b.createdAtIso)-_advTsMs(a.updatedAt||a.updatedAtIso||a.createdAt||a.createdAtIso);});
-        callback(rows,null);
-      },function(err){callback([],err);});
+      (typeof getDocsFromServer==='function'?getDocsFromServer(q):getDocs(q)).then(function(snap){var rows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');}).filter(function(r){return String(r.platform||'grc').toLowerCase()==='grc';});rows.sort(function(a,b){return _advTsMs(b.updatedAt||b.updatedAtIso||b.createdAt||b.createdAtIso)-_advTsMs(a.updatedAt||a.updatedAtIso||a.createdAt||a.createdAtIso);});callback(rows,null);}).catch(function(err){callback([],err);});return function(){};
     };
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
@@ -1363,85 +1278,12 @@ window._selectPortal=async portal=>{
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
     window._advisorySubscribe=function(callback){
       if(typeof callback!=='function'||!_advEmail()||!db)return function(){};
-      if(_advIsDepartmentManager()){
-        let stopped=false,pollTimer=null;
-        const pull=async function(){
-          if(stopped)return;
-          try{
-            const rows=await window._advisoryGetManagerQueue();
-            const dashboardRows=(rows||[]).map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
-            callback({records:rows||[],publicRecords:dashboardRows,errors:{},source:'manager-queue'});
-          }catch(err){
-            callback({records:[],publicRecords:[],errors:{manager:String(err&&err.message||err&&err.code||err)},source:'manager-queue'});
-          }
-          if(!stopped)pollTimer=setTimeout(pull,60000);
-        };
-        pull();
-        return function(){stopped=true;if(pollTimer)clearTimeout(pollTimer);};
-      }
-      let closed=false,timer=null,unsubs=[];
-      const sources={};
-      const required=[];
-      const me=_advEmail();
-      const dept=_advDepartmentKey();
-      const stageOf=function(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();};
-      const rowsFromSnap=function(snap,storage){return snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),storage);});};
-      const emit=function(){
-        if(closed)return;
-        if(required.some(function(k){return !sources[k]||!sources[k].ready;}))return;
-        clearTimeout(timer);
-        timer=setTimeout(function(){
-          if(closed)return;
-          let primary=(sources.primary&&sources.primary.rows)||[];
-          const fallback=(sources.fallback&&sources.fallback.rows)||[];
-          /* Manager privacy and query correctness use two narrow listeners while
-             this page is open: one exact pending queue for the manager's department
-             and one exact own-request query. This prevents cross-department reads
-             and avoids a broad department listener that Firestore can reject. */
-          if(_advIsDepartmentManager()){
-            primary=primary.filter(function(r){return stageOf(r)==='pending_department_manager';})
-              .concat((sources.own&&sources.own.rows)||[]);
-          }
-          const merged=_advMergeRows(primary,fallback,false);
-          const dashboardRows=merged.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
-          callback({
-            records:merged,
-            publicRecords:dashboardRows,
-            errors:Object.keys(sources).reduce(function(out,k){if(sources[k]&&sources[k].error)out[k]=sources[k].error;return out;},{}),
-            source:'snapshot'
-          });
-        },90);
-      };
-      const listen=function(key,qref,storage){
-        required.push(key);sources[key]={ready:false,rows:[]};
-        try{
-          unsubs.push(onSnapshot(qref,function(snap){sources[key]={ready:true,rows:rowsFromSnap(snap,storage)};emit();},function(err){
-            console.warn('[Review Development] live listener failed',key,err&&err.code||err);
-            sources[key]={ready:true,rows:[],error:String(err&&err.message||err&&err.code||err||'listener-failed')};emit();
-          }));
-        }catch(err){sources[key]={ready:true,rows:[],error:String(err&&err.message||err||'listener-failed')};emit();}
-      };
-      if(_advIsDepartmentManager()){
-        if(dept){
-          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)),'advisory_requests');
-          listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
-        }else{
-          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
-        }
-        listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
-      }else if(_advIsAdmin()){
-        listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
-        listen('fallback',collection(db,ADV_FALLBACK_COLLECTION),'kpi_requests');
-      }else if(_advCanAnalyze()){
-        /* Analytics roles read all authoritative requests. The dashboard is
-           sanitized in memory, so no secondary mirror can break synchronization. */
-        listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
-        listen('fallback',collection(db,ADV_FALLBACK_COLLECTION),'kpi_requests');
-      }else{
-        listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
-        listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
-      }
-      return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
+      var closed=false;
+      (async function(){try{
+        if(_advIsDepartmentManager()){var rows=await window._advisoryGetManagerQueue();if(closed)return;var pub=rows.map(function(r){var x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});callback({records:rows,publicRecords:pub,errors:{},source:'manager-one-time'});return;}
+        var rows=await _advisoryGetPublic();if(closed)return;var pub=rows.map(function(r){var x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});callback({records:rows,publicRecords:pub,errors:{},source:'one-time'});
+      }catch(err){if(!closed)callback({records:[],publicRecords:[],errors:{read:String(err&&err.message||err&&err.code||err)},source:'one-time'});}})();
+      return function(){closed=true;};
     };
 
     window._advisoryManagerAction=async function(requestId,action,comment,fields){
@@ -2049,61 +1891,11 @@ window._selectPortal=async portal=>{
       return bundle.risk||[];
     };
     window._grcRiskRequestsGetAll=async function(){if(!_grcRiskIsAdmin())throw new Error('Access denied.');return _grcRiskRead(collection(db,GRC_RISK_REQUESTS_COLLECTION));};
-    // Unified workflow audit feed for Super Admin: Review & Development +
-    // Risk/Incident requests, including pending, returned, rejected and final states.
-    window._grcWorkflowGetAllStatuses=async function(){
-      if(!_advIsAdmin())throw new Error('Access denied.');
-      const settled=await Promise.allSettled([
-        window._advisoryGetAll(),
-        window._grcRiskRequestsGetAll()
-      ]);
-      return {
-        review:settled[0].status==='fulfilled'?settled[0].value:[],
-        risk:settled[1].status==='fulfilled'?settled[1].value:[],
-        errors:[
-          settled[0].status==='rejected'?String(settled[0].reason&&settled[0].reason.message||settled[0].reason):'',
-          settled[1].status==='rejected'?String(settled[1].reason&&settled[1].reason.message||settled[1].reason):''
-        ].filter(Boolean)
-      };
-    };
     window._grcRiskRequestsSubscribe=function(callback){
       if(_grcRiskRequestUnsub){_grcRiskRequestUnsub();_grcRiskRequestUnsub=null;}if(!_grcRiskEmail()||!db)return function(){};if(!_grcRiskCanViewRegister()||['viewer','user'].includes(_grcRiskRole())){callback([]);return function(){};}
-      /* Department Manager must use the explicit email inbox. The old direct
-         departmentKey listener could fail Security Rules and then overwrite a
-         correctly loaded approval queue with an empty array. */
-      if(_grcRiskIsManager()){
-        let stopped=false,timer=null;
-        const pull=async function(){
-          if(stopped)return;
-          try{callback(await window._grcRiskRequestsGetForManager());}
-          catch(err){console.warn('[GRC Manager Inbox] refresh failed',err&&err.code||err);callback([],err);}
-          if(!stopped)timer=setTimeout(pull,60000);
-        };
-        pull();
-        _grcRiskRequestUnsub=function(){stopped=true;if(timer)clearTimeout(timer);};
-        return _grcRiskRequestUnsub;
-      }
-      const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
-      if(_grcRiskIsAdmin())qrefs.push(col);
-      else{
-        const raw=_grcRiskRawDept(),key=_grcRiskDept();
-        /* Other GRC roles keep department activity plus own-request fallback
-           for compatibility with older workflow documents. */
-        if(raw)qrefs.push(query(col,where('departmentRaw','==',raw)));
-        if(key){qrefs.push(query(col,where('departmentKey','==',key)));qrefs.push(query(col,where('department','==',key)));}
-        if(_grcRiskUid())qrefs.push(query(col,where('submittedByUid','==',_grcRiskUid())));
-        qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
-      }
-      const sources={},unsubs=[],failed={};let successCount=0;
-      function emit(){
-        let rows=_grcRiskMergeRows(Object.keys(sources).map(k=>sources[k]));
-        if(_grcRiskIsManager())rows=rows.filter(function(r){return ['pending_manager','returned_manager'].includes(String(r&&r.status||'').toLowerCase());});
-        callback(rows);
-      }
-      qrefs.forEach((qref,i)=>{unsubs.push(onSnapshot(qref,{includeMetadataChanges:true},snap=>{
-        const rows=[];snap.forEach(d=>{if(d.metadata&&d.metadata.hasPendingWrites)return;const row=_grcRiskRequestData(d);if(row)rows.push(row);});sources[i]=rows;delete failed[i];successCount++;emit();
-      },err=>{failed[i]=err;console.warn('[GRC Risk Requests] listener '+i+' failed',err&&err.code||err);if(Object.keys(failed).length===qrefs.length&&successCount===0)callback([],err);}));});
-      _grcRiskRequestUnsub=function(){unsubs.forEach(u=>{try{u();}catch(_){}});};return _grcRiskRequestUnsub;
+      let stopped=false;
+      (async function(){try{let rows;if(_grcRiskIsManager())rows=await window._grcRiskRequestsGetForManager();else if(_grcRiskIsAdmin())rows=await window._grcRiskRequestsGetAll();else rows=await window._grcRiskRequestsGetMine();if(!stopped)callback(rows,null);}catch(err){if(!stopped)callback([],err);}})();
+      _grcRiskRequestUnsub=function(){stopped=true;};return _grcRiskRequestUnsub;
     };
     window._grcRiskRequestsStop=function(){if(_grcRiskRequestUnsub){_grcRiskRequestUnsub();_grcRiskRequestUnsub=null;}};
 
@@ -2150,44 +1942,8 @@ window._selectPortal=async portal=>{
 
     let _fsListenerUnsub = null;
     window._startReadListener = function(){
-      if(_fsListenerUnsub || !db || !window._fbUser) return;
-      _fsListenerUnsub = onSnapshot(
-        doc(db,'kpi_dashboard','state'),
-        {includeMetadataChanges:true},
-        function(snap){
-          if(!snap.exists()) return;
-          /* Ignore browser/memory-cache snapshots. A server-confirmed snapshot
-             is the only source allowed to change shared KPI/chart data. */
-          if(snap.metadata&&snap.metadata.fromCache){
-            window.__qumcPerformanceCloudSource='cache-waiting-for-server';
-            console.log('[FS READ] cached snapshot ignored — waiting for server');
-            return;
-          }
-          window.__qumcPerformanceCloudSource='server-live';
-          const fsData = snap.data();
-          if(!fsData) return;
-          /* Echo suppression: our local state already contains the write. */
-          const msSince = Date.now() - (window._lastCloudSaveTime||0);
-          if(msSince < 2000){
-            console.log('[FS READ] onSnapshot: own echo suppressed ('+Math.round(msSince)+'ms)');
-            return;
-          }
-          console.log('[FS READ] server change — replacing shared client state + updating UI');
-          const changed=_applyPerformanceCloudState(fsData,true);
-          if(typeof _reconcileDeletedVsAdded==='function')_reconcileDeletedVsAdded(ST);
-          if(!changed) return;
-          try{ localStorage.setItem('kpi_v3',JSON.stringify({...ST,_v:3})); }catch(_){}
-          const savedPage = window.curPage || 'exec';
-          try{ if(typeof renderYearFilter==='function') renderYearFilter(); }catch(_){}
-          try{ if(typeof renderCurrent==='function') renderCurrent(); }catch(_){}
-          window.curPage = savedPage;
-          document.querySelectorAll('.tabnav .tab').forEach(function(t){
-            t.classList.toggle('on',(t.getAttribute('onclick')||'').indexOf("'"+savedPage+"'")>=0);
-          });
-        },
-        function(err){ console.warn('[FS READ] listener error:',err.code||err.message); }
-      );
-      console.log('[FS] Server-authoritative read listener active — NEVER writes back to Firestore');
+      if(!db || !window._fbUser) return;
+      (async function(){try{const snap=await _getServerDoc(doc(db,'kpi_dashboard','state'));if(!snap.exists())return;const changed=_applyPerformanceCloudState(snap.data(),true);if(changed){try{localStorage.setItem('kpi_v3',JSON.stringify({...ST,_v:3}));}catch(_){}try{if(typeof renderCurrent==='function')renderCurrent();}catch(_){}}}catch(err){console.warn('[FS READ] one-time load error:',err.code||err.message);}})();
     };
     window._stopReadListener = function(){
       if(_fsListenerUnsub){ _fsListenerUnsub(); _fsListenerUnsub=null; console.log('[FS] Listener stopped'); }

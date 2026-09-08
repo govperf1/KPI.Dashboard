@@ -271,18 +271,8 @@
   function refreshManualsNavCount(){try{var n=countFor('manuals');Array.prototype.forEach.call(document.querySelectorAll('#grcApp .grc-page-tab'),function(tab){var action=String(tab.getAttribute('onclick')||'');if(action.indexOf("'manuals'")<0)return;var badge=tab.querySelector('.tab-badge');if(badge)badge.textContent=String(n);});}catch(_e){}}
   function ensureReportIndexListener(b){
     if(reportIndexUnsub)return;
-    reportIndexUnsub=b.fs.onSnapshot(reportIndexRef(b),function(snap){
-      applyReportIndex(snap.exists()?snap.data():{reports:[]});refreshManualsNavCount();
-      if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
-    },function(err){
-      const code=String(err&&err.code||'').toLowerCase();
-      console.error('[GRC Reports] live sync failed',err);reportLibraryError=String(err&&err.code||err&&err.message||err||'sync-failed');reportLibraryLoading=false;if(!REPORT_LIBRARY.length)restoreReportLibraryCache();reportLibraryLoaded=REPORT_LIBRARY.length>0;
-      /* A permission denial is a Rules deployment problem. Do not retry forever;
-         keep the last known report library until Rules are corrected or the user
-         explicitly presses Refresh. */
-      if(!code.includes('permission-denied'))scheduleReportRetry();
-      if(activeTab==='reports'||activeTab==='manuals'||activeTab==='executive')render();
-    });
+    /* Index is loaded explicitly by loadReportLibrary; no background listener. */
+    reportIndexUnsub=function(){};
   }
   function loadReportLibrary(force){
     if(reportLibraryLoading)return Promise.resolve(REPORT_LIBRARY);
@@ -317,7 +307,8 @@
   }
   function ensureComplianceIndexListener(b){
     if(complianceIndexUnsub)return;
-    complianceIndexUnsub=b.fs.onSnapshot(complianceIndexRef(b),function(snap){applyComplianceIndex(snap.exists()?snap.data():{documents:[]});if(activeTab==='compliance')render();},function(err){console.error('[GRC Compliance] live sync failed',err);complianceLibraryError=String(err&&err.code||err&&err.message||err||'sync-failed');complianceLibraryLoaded=true;complianceLibraryLoading=false;if(activeTab==='compliance')render();});
+    /* Compliance is loaded explicitly by loadComplianceLibrary. */
+    complianceIndexUnsub=function(){};
   }
   function loadComplianceLibrary(force){
     if(complianceLibraryLoading)return Promise.resolve(COMPLIANCE_DOC_LIBRARY);
@@ -333,7 +324,11 @@
   function opPlanIndexRef(b){return b.fs.doc(b.db,'kpi_dashboard',OP_PLAN_INDEX_DOC);}
   function opPlanRecord(d){d=d||{};var year=Number(d.year||0),chunkCount=Number(d.chunkCount||0),scope=String(d.scope||'');if(!d.id||!year||!scope||chunkCount<1)return null;return{id:String(d.id),scope:scope,year:year,department:String(d.department||''),titleEn:String(d.titleEn||''),titleAr:String(d.titleAr||''),pages:Number(d.pages||0),fileName:String(d.fileName||''),fileSize:Number(d.fileSize||0),contentType:'application/pdf',chunkCount:chunkCount,chunkKey:String(d.chunkKey||d.id),version:Number(d.version||0),uploadedBy:String(d.uploadedBy||'')};}
   function applyOpPlanIndex(raw){OP_PLAN_LIBRARY=(raw&&Array.isArray(raw.plans)?raw.plans:[]).map(opPlanRecord).filter(Boolean);OP_PLAN_LIBRARY.sort(function(a,b){return b.year-a.year||String(a.scope).localeCompare(String(b.scope))||String(a.department).localeCompare(String(b.department));});opPlanLibraryLoaded=true;opPlanLibraryLoading=false;opPlanLibraryError='';}
-  function ensureOpPlanIndexListener(b){if(opPlanIndexUnsub)return;opPlanIndexUnsub=b.fs.onSnapshot(opPlanIndexRef(b),function(snap){applyOpPlanIndex(snap.exists()?snap.data():{plans:[]});if(document.getElementById('_grcOperationalPlanModal'))renderOperationalPlanModal();},function(err){console.error('[GRC Operational Plan] live sync failed',err);opPlanLibraryError=String(err&&err.code||err&&err.message||err||'sync-failed');opPlanLibraryLoaded=true;opPlanLibraryLoading=false;if(document.getElementById('_grcOperationalPlanModal'))renderOperationalPlanModal();});}
+  function ensureOpPlanIndexListener(b){
+    if(opPlanIndexUnsub)return;
+    /* Operational plans are loaded explicitly by loadOpPlanLibrary. */
+    opPlanIndexUnsub=function(){};
+  }
   function loadOpPlanLibrary(force){if(opPlanLibraryLoading)return Promise.resolve(OP_PLAN_LIBRARY);if(opPlanLibraryLoaded&&!force)return Promise.resolve(OP_PLAN_LIBRARY);opPlanLibraryLoading=true;opPlanLibraryError='';return ensureReportBackend().then(function(b){if(!b.auth.currentUser)throw new Error('not-authenticated');ensureOpPlanIndexListener(b);return b.fs.getDoc(opPlanIndexRef(b));}).then(function(snap){applyOpPlanIndex(snap.exists()?snap.data():{plans:[]});if(document.getElementById('_grcOperationalPlanModal'))renderOperationalPlanModal();return OP_PLAN_LIBRARY;}).catch(function(err){console.error('[GRC Operational Plan] load failed',err);opPlanLibraryLoading=false;opPlanLibraryLoaded=true;opPlanLibraryError=String(err&&err.code||err&&err.message||err||'load-failed');if(document.getElementById('_grcOperationalPlanModal'))renderOperationalPlanModal();return OP_PLAN_LIBRARY;});}
   async function updateOpPlanIndex(b,record,removeId){await b.fs.runTransaction(b.db,async function(tx){var ref=opPlanIndexRef(b),snap=await tx.get(ref),data=snap.exists()?snap.data():{},list=Array.isArray(data.plans)?data.plans.slice():[];if(removeId)list=list.filter(function(x){return String(x&&x.id)!==String(removeId);});if(record){list=list.filter(function(x){return String(x&&x.id)!==String(record.id);});list.push(record);}tx.set(ref,{plans:list,updatedAt:b.fs.serverTimestamp(),updatedBy:window._fbUser||b.auth.currentUser&&b.auth.currentUser.email||''},{merge:false});});}
   function opPlanId(scope,year,department){return'opplan_'+scope+'_'+Number(year)+(scope==='department'?'_'+String(department||''):'');}
@@ -1479,8 +1474,9 @@
     grcStampLocalCacheOwner();
   }
   function grcListen(b,collectionKey,scope,qref){
-    /* v319 quota-safe: load each register scope once instead of holding a
-       permanent listener for every collection/scope. */
+    /* v320 ROOT-CAUSE FIX: the old code opened one permanent Firestore listener
+       for every register collection/scope. With the catalogue this was the main
+       source of the 52 active listeners and runaway reads. */
     grcLoadScopeOnce(b,collectionKey,scope,qref);
   }
   function grcLoadScopeOnce(b,collectionKey,scope,qref){
@@ -1665,17 +1661,10 @@
     var col=b.fs.collection(b.db,'grc_risk_status'),qref=col,dept=currentGrcDept();
     if(activeTab!=='register'&&!canViewAllExecutiveDepartments()&&dept)qref=b.fs.query(col,b.fs.where('department','==',dept));
     var read=(typeof b.fs.getDocsFromServer==='function')?b.fs.getDocsFromServer(qref):b.fs.getDocs(qref);
-    read.then(function(snap){
-      var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});
-      grcRiskStatusOverrides=next;
-      if(grcCloudParts.risks){
-        grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();
-        grcScheduleLocalCachePersist(140);grcApplyingRemote=false;
-        grcScheduleRemoteRender(grcViewportPosition(),80);
-      }
-    }).catch(function(err){console.warn('[GRC Risk Status] one-time read failed',err);});
+    read.then(function(snap){var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});grcRiskStatusOverrides=next;if(grcCloudParts.risks){grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();grcScheduleLocalCachePersist(140);grcApplyingRemote=false;grcScheduleRemoteRender(grcViewportPosition(),80);}}).catch(function(err){console.warn('[GRC Risk Status] one-time read failed',err);});
   }
   function startSharedStateSync(){
+    if(document.hidden)return;
     var grcActive=window.__qumcActivePortal==='grc'||!!(document.body&&document.body.classList.contains('grc-mode'));
     if(!grcActive)return;
     var profileEmail=String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();
@@ -3232,7 +3221,6 @@
       var ref=assessmentCloudRef(b,kind),getServer=typeof b.fs.getDocFromServer==='function'?b.fs.getDocFromServer:b.fs.getDoc,snap;
       try{snap=await getServer(ref);if(snap.exists())assessmentApplyCloud(kind,snap.data());else if(normalizedRole()==='super_admin'&&assessmentKindHasEdits(kind)){await persistAssessmentKind(kind);}else{assessmentEdits[kind]={};assessmentCloudReady[kind]=true;assessmentSaveLocalCache();}}
       catch(err){assessmentCloudError=kind+': '+String(err&&err.message||err);assessmentCloudReady[kind]=false;}
-      try{var unsub=b.fs.onSnapshot(ref,function(live){if(live.metadata&&live.metadata.fromCache&&!assessmentCloudReady[kind])return;if(live.exists())assessmentApplyCloud(kind,live.data());else if(assessmentCloudReady[kind]){assessmentEdits[kind]={};assessmentSaveLocalCache();if(app&&app.classList.contains('grc-visible')&&activeTab==='compliance')render();}},function(err){assessmentCloudError=kind+': '+String(err&&err.message||err);});assessmentCloudUnsubs.push(unsub);}catch(listenErr){assessmentCloudError=kind+': '+String(listenErr&&listenErr.message||listenErr);}
     }}).catch(function(err){assessmentCloudStarted=false;assessmentCloudError='Assessment sync initialization: '+String(err&&err.message||err);});
   }
   function assessmentRows(kind,rows){var base=rows.slice(),added=(assessmentEdits[kind]&&assessmentEdits[kind]._added)||[],deleted=(assessmentEdits[kind]&&assessmentEdits[kind]._deleted)||{};base=base.concat(added);return base.map(function(source,rowIndex){var r=source.slice(),edit=assessmentEdits[kind]&&assessmentEdits[kind][rowIndex];if(edit)Object.keys(edit).forEach(function(col){if(col!=='_added'&&col!=='_deleted')r[Number(col)]=edit[col];});r=cleanAssessmentRowCodes(r);r._sourceIndex=rowIndex;return r;}).filter(function(r){return !deleted[r._sourceIndex];});}
