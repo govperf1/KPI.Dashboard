@@ -553,14 +553,19 @@ service cloud.firestore {
       allow delete: if admin();
     }
 
+    // Requester feedback is intentionally isolated from the main workflow.
+    // Do not depend on role-specific GRC write permissions here: the requester
+    // may rate only their own completed request, and only the feedback fields.
     function validGrcRequestRatingChange() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        'rating', 'ratingComment', 'ratingAt', 'updatedAt', 'updatedAtIso'
+        'rating', 'ratingComment', 'ratingAt'
       ]) &&
-      resource.data.status is string && resource.data.status.lower().trim() in ['approved', 'rejected'] &&
+      resource.data.status is string &&
+      resource.data.status in ['approved', 'Approved', 'rejected', 'Rejected'] &&
       (!('rating' in resource.data) || resource.data.rating == null || resource.data.rating == 0) &&
       request.resource.data.rating is number &&
-      request.resource.data.rating >= 1 && request.resource.data.rating <= 5;
+      request.resource.data.rating >= 1 && request.resource.data.rating <= 5 &&
+      request.resource.data.ratingComment is string;
     }
 
     match /grc_requests/{requestId} {
@@ -581,7 +586,9 @@ service cloud.firestore {
          (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) ||
          (('userEmail' in resource.data) && ownEmail(resource.data.userEmail)));
       allow update: if admin() ||
-        (canAccessGrc() && ownEmail(resource.data.userEmail) && validGrcRequestRatingChange());
+        (signedIn() && approved() && validGrcRequestRatingChange() &&
+          ((('userEmail' in resource.data) && ownEmail(resource.data.userEmail)) ||
+           (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid)));
       allow delete: if superAdmin();
     }
 
