@@ -1175,7 +1175,7 @@ window._selectPortal=async portal=>{
       window.__grcManagerDepartmentKey=profile.departmentKey;return profile;
     }
     let _grcManagerQueueCache=null,_grcManagerQueueCacheAt=0,_grcManagerQueueCachePromise=null;
-    /* v326 — Manager inbox with historical source recovery.
+    /* v316 — Manager inbox reads only the department-scoped queue.
        Never let an optional source/history read erase a valid queue result. */
     window._grcGetDepartmentApprovalQueue=async function(force){
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile()),now=Date.now();
@@ -1183,47 +1183,20 @@ window._selectPortal=async portal=>{
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         const result={profile:fresh,review:[],risk:[],errors:[]},reviewMap={},riskMap={};
-        const addReview=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;if(String(x.userEmail||'').toLowerCase().trim()===fresh.email)return;if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');x._managerAssigned=true;reviewMap[key]=x;};
-        const addRisk=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});if(!x||String(x.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;if(_advCanonicalDepartment(x.departmentKey||x.department||x.departmentRaw||'')!==fresh.departmentKey)return;if(!['pending_manager','returned_manager'].includes(String(x.status||'').toLowerCase()))return;x._managerAssigned=true;riskMap[key]=x;};
+        const addReview=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;/* Do NOT drop a routed request merely because the current manager account has the same email. Historical test accounts can submit as User/Owner and later be promoted to Department Manager; routing is determined by the queue path and the role stamped on the request. */if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');x._managerAssigned=true;reviewMap[key]=x;};
+        const addRisk=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});if(!x)return;/* Same-email requests must remain visible. The action layer blocks a true self-manager request, but hiding here made a valid department queue appear as 0 requests. */if(_advCanonicalDepartment(x.departmentKey||x.department||x.departmentRaw||'')!==fresh.departmentKey)return;if(!['pending_manager','returned_manager'].includes(String(x.status||'').toLowerCase()))return;x._managerAssigned=true;riskMap[key]=x;};
         /* The department queue path is the manager's authoritative read model.
            Do not probe source collections here: historical rows can lack the
            canonical fields required for a Firestore query, causing permission-
            denied warnings even while the manager's queue is valid. */
         try{const q=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review'));q.forEach(function(d){const v=d.data()||{},x=Object.assign({},v.snapshot||{});x.departmentKey=x.departmentKey||v.departmentKey;addReview(v.requestId||d.id,x);});}catch(e){result.errors.push('Review queue: '+String(e&&e.code||e&&e.message||e));}
         try{const q=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'));q.forEach(function(d){const v=d.data()||{},x=Object.assign({},v.snapshot||{});x.departmentKey=x.departmentKey||v.departmentKey;addRisk(v.requestId||d.id,x);});}catch(e){result.errors.push('Risk queue: '+String(e&&e.code||e&&e.message||e));}
-
-        /* v326 — Existing requests may pre-date the department inbox. Recover
-           historical rows with narrow exact-department queries, then repair the
-           inbox snapshot. Never issue a broad source collection read here. */
-        if(Object.keys(reviewMap).length===0){
-          try{
-            const source=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));
-            source.forEach(function(d){
-              const row=_advNormalizeRow(d.id,d.data()||{},'advisory_requests');
-              if(String(row.workflowStage||row.status||'').toLowerCase()==='pending_department_manager'){
-                addReview(d.id,row);
-                try{const snap=_grcReviewQueueSnapshot(Object.assign({},row,{departmentKey:fresh.departmentKey}),d.id);setDoc(_grcManagerQueueItemRef(fresh.departmentKey,'review',d.id),_grcQueueItem('review',d.id,fresh.departmentKey,String(row.userEmail||''),snap),{merge:true}).catch(function(){});}catch(_){}
-              }
-            });
-          }catch(e){result.errors.push('Review source recovery: '+String(e&&e.code||e&&e.message||e));}
-        }
-        if(Object.keys(riskMap).length===0){
-          const aliases=(function(d){if(d==='projects')return ['projects','Project_Management','Project Management','project_management'];return [d];})(fresh.departmentKey);
-          for(let ai=0;ai<aliases.length;ai++){
-            try{
-              const source=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',aliases[ai])));
-              source.forEach(function(d){
-                const row=_grcRiskRequestData(d);
-                if(row&&['pending_manager','returned_manager'].includes(String(row.status||'').toLowerCase())){
-                  row.departmentKey=fresh.departmentKey;addRisk(d.id,row);
-                  try{const snap=_grcRiskQueueSnapshot(row,d.id);setDoc(_grcManagerQueueItemRef(fresh.departmentKey,'risk',d.id),_grcQueueItem('risk',d.id,fresh.departmentKey,String(row.submittedByEmail||''),snap),{merge:true}).catch(function(){});}catch(_){}
-                }
-              });
-            }catch(e){result.errors.push('Risk source '+aliases[ai]+': '+String(e&&e.code||e&&e.message||e));}
-          }
-        }
-        /* Queue remains the normal manager read model. Source recovery above is
-           only for historical requests that were created before queue indexing. */
+        /* Manager reads are intentionally limited to the department inbox.
+           Do not fall back to grc_risk_requests here: Firestore evaluates a
+           collection query before returning rows and older source documents can
+           make the whole department query fail with permission-denied. Existing
+           pending rows are backfilled into this inbox by Super Admin, while all
+           new submissions write the inbox snapshot at submit/resubmit time. */
         result.review=Object.keys(reviewMap).map(k=>reviewMap[k]).sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
         result.risk=_grcRiskSort(Object.keys(riskMap).map(k=>riskMap[k]));
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();
@@ -1354,15 +1327,11 @@ window._selectPortal=async portal=>{
     window._advisoryGetManagerQueue=async function(){
       const bundle=await window._grcGetDepartmentApprovalQueue(true);
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
-      /* Keep same-department approvals in the upper table and the manager's own
-         submissions in the lower table. v326 also preserves Risk/Incident rows
-         instead of silently discarding them when returning the Review array. */
+      /* Keep both datasets in the manager page: other users' same-department
+         approval queue is rendered in the upper table, while the manager's
+         own submissions are rendered separately in the lower table. */
       const own=await window._advisoryGetMine().catch(function(err){console.warn('[Review Development] manager own requests failed',err&&err.code||err);return[];});
-      const rows=_advMergeRows(bundle.review||[],own||[],false);
-      rows._grcRiskRecords=Array.isArray(bundle.risk)?bundle.risk:[];
-      rows._grcReviewRecords=Array.isArray(bundle.review)?bundle.review:[];
-      rows._grcManagerErrors=Array.isArray(bundle.errors)?bundle.errors:[];
-      return rows;
+      return _advMergeRows(bundle.review||[],own||[],false);
     };
     function stageOfManagerRow(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
