@@ -1324,14 +1324,24 @@ window._selectPortal=async portal=>{
       groups.forEach(function(rows){(rows||[]).forEach(function(r){primary.push(r);});});
       return _advMergeRows(primary,[],false);
     };
+    let _advisoryManagerLastQueue=[],_advisoryManagerLastOwn=[],_advisoryManagerLastRisk=[];
     window._advisoryGetManagerQueue=async function(){
-      const bundle=await window._grcGetDepartmentApprovalQueue(true);
-      window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
-      /* Keep both datasets in the manager page: other users' same-department
-         approval queue is rendered in the upper table, while the manager's
-         own submissions are rendered separately in the lower table. */
-      const own=await window._advisoryGetMine().catch(function(err){console.warn('[Review Development] manager own requests failed',err&&err.code||err);return[];});
-      return _advMergeRows(bundle.review||[],own||[],false);
+      /* One stable manager snapshot: do not force a fresh server read every UI refresh.
+         A transient permission/network failure must never replace visible rows with []. */
+      let bundle;
+      try{bundle=await window._grcGetDepartmentApprovalQueue(false);}
+      catch(err){console.warn('[Review Development] manager inbox refresh failed; keeping last verified queue',err&&err.code||err);bundle={profile:{departmentKey:window.__grcManagerDepartmentKey||''},review:_advisoryManagerLastQueue,risk:_advisoryManagerLastRisk,errors:[String(err&&err.message||err)]};}
+      if(bundle&&bundle.profile&&bundle.profile.departmentKey)window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
+      const review=Array.isArray(bundle&&bundle.review)?bundle.review:_advisoryManagerLastQueue;
+      const risk=Array.isArray(bundle&&bundle.risk)?bundle.risk:_advisoryManagerLastRisk;
+      if(review.length||!_advisoryManagerLastQueue.length)_advisoryManagerLastQueue=review.slice();
+      if(risk.length||!_advisoryManagerLastRisk.length)_advisoryManagerLastRisk=risk.slice();
+      let own;try{own=await window._advisoryGetMine();if(Array.isArray(own))_advisoryManagerLastOwn=own.slice();else own=_advisoryManagerLastOwn;}catch(err){console.warn('[Review Development] manager own requests refresh failed; keeping last verified rows',err&&err.code||err);own=_advisoryManagerLastOwn;}
+      const merged=_advMergeRows(_advisoryManagerLastQueue||[],own||[],false);
+      /* Arrays can carry metadata without changing legacy callers. This gives the
+         Review page and the GRC approval panel the exact same Risk queue. */
+      merged.review=_advisoryManagerLastQueue.slice();merged.risk=_advisoryManagerLastRisk.slice();merged._grcRiskRecords=_advisoryManagerLastRisk.slice();merged._managerQueueErrors=(bundle&&bundle.errors)||[];
+      return merged;
     };
     function stageOfManagerRow(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
@@ -1344,7 +1354,7 @@ window._selectPortal=async portal=>{
           try{
             const rows=await window._advisoryGetManagerQueue();
             const dashboardRows=(rows||[]).map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
-            callback({records:rows||[],publicRecords:dashboardRows,errors:{},source:'manager-queue'});
+            callback({records:rows||[],publicRecords:dashboardRows,managerRiskRecords:Array.isArray(rows&&rows._grcRiskRecords)?rows._grcRiskRecords:(Array.isArray(rows&&rows.risk)?rows.risk:[]),errors:{},source:'manager-queue'});
           }catch(err){
             callback({records:[],publicRecords:[],errors:{manager:String(err&&err.message||err&&err.code||err)},source:'manager-queue'});
           }
