@@ -578,7 +578,7 @@ service cloud.firestore {
       // Keep both UID and canonical-email branches for current and historical rows.
       allow list: if approved() &&
         (admin() || permit('view_request_analytics', ['governance_performance_manager']) ||
-         (('requesterUid' in resource.data) && resource.data.resource.data.requesterUid == request.auth.uid) ||
+         (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) ||
          (('userEmail' in resource.data) && ownEmail(resource.data.userEmail)));
       allow update: if admin() ||
         (canAccessGrc() && ownEmail(resource.data.userEmail) && validGrcRequestRatingChange());
@@ -694,9 +694,9 @@ service cloud.firestore {
       return signedIn() && userData().approved == true &&
         profileRoleFrom(userData()) == 'department_manager' && d != '' &&
         (
-          canonicalDepartment(r.departmentKey) == d ||
-          canonicalDepartment(r.department) == d
-        ) && r.status in ['pending_manager','returned_manager'];
+          (('departmentKey' in r) && canonicalDepartment(r.departmentKey) == d) ||
+          (('department' in r) && canonicalDepartment(r.department) == d)
+        ) && ('status' in r) && r.status in ['pending_manager','returned_manager'];
     }
 
     // ── Review & Development Center ──────────────────────────────────
