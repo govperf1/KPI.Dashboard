@@ -256,9 +256,17 @@
   }
   window._grcRiskInjectManagerQueue=function(riskRows,reviewRows){
     if(!isManager())return;
+    /* Keep every manager view on the same injected queue. Previously this
+       function updated only `cache`, while the Department Approval Requests
+       profile rendered `managerRiskAllRows`; after a successful inbox refresh
+       the notification could show a count but the profile still said there were
+       no requests. */
     cache=(Array.isArray(riskRows)?riskRows:[]).filter(managerDepartmentRequest);
     reviewApprovalRows=(Array.isArray(reviewRows)?reviewRows:[]).filter(reviewManagerRequest);
+    managerRiskAllRows=cache.slice();
+    managerReviewAllRows=reviewApprovalRows.slice();
     window.__grcRiskRequestCache=cache;
+    window.__grcManagerReviewPayload={records:reviewApprovalRows,allRecords:reviewApprovalRows,risk:cache};
     refreshBadge();
     if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
     if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();

@@ -1191,25 +1191,12 @@ window._selectPortal=async portal=>{
            denied warnings even while the manager's queue is valid. */
         try{const q=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review'));q.forEach(function(d){const v=d.data()||{},x=Object.assign({},v.snapshot||{});x.departmentKey=x.departmentKey||v.departmentKey;addReview(v.requestId||d.id,x);});}catch(e){result.errors.push('Review queue: '+String(e&&e.code||e&&e.message||e));}
         try{const q=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'));q.forEach(function(d){const v=d.data()||{},x=Object.assign({},v.snapshot||{});x.departmentKey=x.departmentKey||v.departmentKey;addRisk(v.requestId||d.id,x);});}catch(e){result.errors.push('Risk queue: '+String(e&&e.code||e&&e.message||e));}
-        /* v324 — Source recovery for legacy requests whose queue-index write was
-           denied or skipped. The Department Manager is still restricted to an
-           exact department query and pending workflow states. This makes old
-           requests visible without waiting for a Super Admin backfill. */
-        if(!Object.keys(riskMap).length){
-          const sourceDepartments=[fresh.departmentKey];
-          if(fresh.departmentKey==='projects')sourceDepartments.push('Project_Management','Project Management','project_management');
-          if(fresh.departmentKey==='maintenance')sourceDepartments.push('Maintenance','Maintenance_Management','maintenance_management');
-          if(fresh.departmentKey==='safety')sourceDepartments.push('Safety','Safety_Management','safety_management');
-          if(fresh.departmentKey==='housekeeping')sourceDepartments.push('Housekeeping','Housekeeping_Management','housekeeping_management');
-          if(fresh.departmentKey==='laundry')sourceDepartments.push('Laundry','Laundry_Management','laundry_management');
-          for(const sourceDept of sourceDepartments){
-            try{
-              const q=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',sourceDept)));
-              q.forEach(function(d){addRisk(d.id,d.data()||{});});
-            }catch(e){result.errors.push('Risk source '+sourceDept+': '+String(e&&e.code||e&&e.message||e));}
-            if(Object.keys(riskMap).length)break;
-          }
-        }
+        /* Manager reads are intentionally limited to the department inbox.
+           Do not fall back to grc_risk_requests here: Firestore evaluates a
+           collection query before returning rows and older source documents can
+           make the whole department query fail with permission-denied. Existing
+           pending rows are backfilled into this inbox by Super Admin, while all
+           new submissions write the inbox snapshot at submit/resubmit time. */
         result.review=Object.keys(reviewMap).map(k=>reviewMap[k]).sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
         result.risk=_grcRiskSort(Object.keys(riskMap).map(k=>riskMap[k]));
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();
