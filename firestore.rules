@@ -1,5 +1,5 @@
-// FIRESTORE SECURITY RULES v70 — Canonical GRC Profile + Department Workflow
-// v70: Department Manager source queries and inbox reads remain query-safe;
+// FIRESTORE SECURITY RULES v71 — Canonical GRC Profile + Department Workflow
+// v71: Department Manager queue recovery and source queries remain query-safe;
 // pending Review & Development requests may be recovered directly by exact
 // departmentKey + workflowStage queries when an older inbox row is missing.
 // Production rules for Performance + GRC. Keep this file as the single rules source.
