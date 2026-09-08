@@ -1479,10 +1479,8 @@
     grcStampLocalCacheOwner();
   }
   function grcListen(b,collectionKey,scope,qref){
-    /* v319 QUOTA ROOT FIX
-       Registers are loaded once from Firestore instead of keeping a permanent
-       listener for every collection and department scope. The old implementation
-       was the source of the 52 active Snapshot Listeners / massive read growth. */
+    /* v319 quota-safe: load each register scope once instead of holding a
+       permanent listener for every collection/scope. */
     grcLoadScopeOnce(b,collectionKey,scope,qref);
   }
   function grcLoadScopeOnce(b,collectionKey,scope,qref){
@@ -1665,31 +1663,19 @@
     if(grcRiskStatusUnsub){try{grcRiskStatusUnsub();}catch(_){}grcRiskStatusUnsub=null;}
     if(!canAccessRiskIncidentRegisters()){grcRiskStatusOverrides={};return;}
     var col=b.fs.collection(b.db,'grc_risk_status'),qref=col,dept=currentGrcDept();
-    if(activeTab!=='register'&&!canViewAllExecutiveDepartments()&&dept){
-      qref=b.fs.query(col,b.fs.where('department','==',dept));
-    }
+    if(activeTab!=='register'&&!canViewAllExecutiveDepartments()&&dept)qref=b.fs.query(col,b.fs.where('department','==',dept));
     var read=(typeof b.fs.getDocsFromServer==='function')?b.fs.getDocsFromServer(qref):b.fs.getDocs(qref);
     read.then(function(snap){
-      var next={};
-      snap.forEach(function(d){
-        var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;
-      });
+      var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});
       grcRiskStatusOverrides=next;
       if(grcCloudParts.risks){
-        grcApplyingRemote=true;
-        grcApplyCloudCollection('risks');
-        enforceLocalGrcScope();
-        grcScheduleLocalCachePersist(140);
-        grcApplyingRemote=false;
+        grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();
+        grcScheduleLocalCachePersist(140);grcApplyingRemote=false;
         grcScheduleRemoteRender(grcViewportPosition(),80);
       }
-    }).catch(function(err){
-      console.warn('[GRC Risk Status] one-time read failed',err);
-    });
+    }).catch(function(err){console.warn('[GRC Risk Status] one-time read failed',err);});
   }
   function startSharedStateSync(){
-    /* Do not open reads/listeners for a hidden portal. */
-    if(document.hidden)return;
     var grcActive=window.__qumcActivePortal==='grc'||!!(document.body&&document.body.classList.contains('grc-mode'));
     if(!grcActive)return;
     var profileEmail=String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();
