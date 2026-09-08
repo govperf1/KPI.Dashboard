@@ -1345,7 +1345,7 @@ window._selectPortal=async portal=>{
           }catch(err){
             callback({records:[],publicRecords:[],errors:{manager:String(err&&err.message||err&&err.code||err)},source:'manager-queue'});
           }
-          if(!stopped)pollTimer=setTimeout(pull,15000);
+          if(!stopped)pollTimer=setTimeout(pull,60000);
         };
         pull();
         return function(){stopped=true;if(pollTimer)clearTimeout(pollTimer);};
@@ -1385,12 +1385,14 @@ window._selectPortal=async portal=>{
       };
       const listen=function(key,qref,storage){
         required.push(key);sources[key]={ready:false,rows:[]};
-        try{
-          unsubs.push(onSnapshot(qref,function(snap){sources[key]={ready:true,rows:rowsFromSnap(snap,storage)};emit();},function(err){
-            console.warn('[Review Development] live listener failed',key,err&&err.code||err);
-            sources[key]={ready:true,rows:[],error:String(err&&err.message||err&&err.code||err||'listener-failed')};emit();
-          }));
-        }catch(err){sources[key]={ready:true,rows:[],error:String(err&&err.message||err||'listener-failed')};emit();}
+        const pull=function(){
+          const read=getDocs(qref);
+          return read.then(function(snap){sources[key]={ready:true,rows:rowsFromSnap(snap,storage)};emit();}).catch(function(err){
+            console.warn('[Review Development] on-demand read failed',key,err&&err.code||err);
+            sources[key]={ready:true,rows:[],error:String(err&&err.message||err&&err.code||err||'read-failed')};emit();
+          });
+        };
+        sources[key]._pull=pull;pull();
       };
       if(_advIsDepartmentManager()){
         if(dept){
@@ -1412,7 +1414,10 @@ window._selectPortal=async portal=>{
         listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
         listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
       }
-      return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
+      /* v318 quota guard: refresh mounted request data every 60s instead of
+         holding multiple real-time query listeners open. */
+      var refreshTimer=setInterval(function(){if(closed||document.hidden)return;Object.keys(sources).forEach(function(k){try{if(sources[k]._pull)sources[k]._pull();}catch(_){}});},60000);
+      return function(){closed=true;clearTimeout(timer);clearInterval(refreshTimer);unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
 
     window._advisoryManagerAction=async function(requestId,action,comment,fields){
@@ -2031,7 +2036,7 @@ window._selectPortal=async portal=>{
           if(stopped)return;
           try{callback(await window._grcRiskRequestsGetForManager());}
           catch(err){console.warn('[GRC Manager Inbox] refresh failed',err&&err.code||err);callback([],err);}
-          if(!stopped)timer=setTimeout(pull,4000);
+          if(!stopped)timer=setTimeout(pull,60000);
         };
         pull();
         _grcRiskRequestUnsub=function(){stopped=true;if(timer)clearTimeout(timer);};
