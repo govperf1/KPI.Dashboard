@@ -322,10 +322,7 @@ function updateExecTrend(yr){
   'use strict';
   if(window.__QUMC_NOTIF_SINGLE_ENGINE_V12__) return;
   window.__QUMC_NOTIF_SINGLE_ENGINE_V12__ = true;
-  window.__QUMC_NOTIF_ENGINE_VERSION__ = 'v13-superadmin-user-requests';
-  var superUserRequestRows = [];
-  var superUserRequestFetchBusy = false;
-  var superUserRequestLastFetch = 0;
+  window.__QUMC_NOTIF_ENGINE_VERSION__ = 'v12.1-single-canonical-role-scoped';
 
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -513,50 +510,9 @@ function updateExecTrend(yr){
     return false;
   }
 
-  function refreshSuperAdminUserRequests(showEntryMessage){
-    if(role() !== 'super_admin' || typeof window._grcRequestsGetAll !== 'function'){
-      superUserRequestRows=[]; return Promise.resolve([]);
-    }
-    if(superUserRequestFetchBusy)return Promise.resolve(superUserRequestRows);
-    superUserRequestFetchBusy=true;
-    return Promise.resolve(window._grcRequestsGetAll()).then(function(rows){
-      var pending=(rows||[]).filter(function(r){
-        var s=String(r&&r.status||'pending').toLowerCase().trim();
-        return s==='pending' || s==='open';
-      });
-      superUserRequestRows=pending.map(function(r){return {
-        id:String(r.id||''), title:String(r.requestType||'User Request'),
-        userName:String(r.userName||r.userEmail||'User'), department:String(r.department||''),
-        createdAt:r.createdAt||null, updatedAt:r.updatedAt||null, message:String(r.message||'')
-      };}).filter(function(r){return r.id;});
-      superUserRequestLastFetch=Date.now();
-      try{window.dispatchEvent(new CustomEvent('grc:notifications-updated'));}catch(_){}
-      if(showEntryMessage && superUserRequestRows.length){
-        var key='qumc_super_user_requests_entry_'+String(rawEmail()||'').replace(/[^a-z0-9]/g,'_');
-        if(!sessionStorage.getItem(key)){
-          sessionStorage.setItem(key,'1');
-          var n=superUserRequestRows.length;
-          setTimeout(function(){
-            showModal({type:'grc_user_request',level:'orange',title:n+' New User Request'+(n===1?'':'s'),
-              meta:'Action required · User Requests are waiting for Super Admin review',
-              body:n+' pending User Request'+(n===1?' is':'s are')+' waiting for your review. Open the notification to go to User Requests.'});
-          },250);
-        }
-      }
-      return superUserRequestRows;
-    }).catch(function(){ return superUserRequestRows; }).finally(function(){superUserRequestFetchBusy=false;});
-  }
-
   function collectActive(){
     if(!scopeReady()) return null;
     var ks = allKpis(), st = state(), out = [];
-    if(role()==='super_admin'){
-      (superUserRequestRows||[]).forEach(function(r){
-        out.push({id:'grc-user-request:'+r.id,type:'grc_user_request',level:'orange',dept:r.department,
-          title:r.title||'User Request',meta:'New User Request · '+(r.userName||'User'),body:r.message||'A User Request is waiting for Super Admin review.',active:true,
-          ts:Date.now()});
-      });
-    }
 
     /* GRC approval inbox: the authoritative live queue is supplied by the
        Review & Development / Risk workflow hub. It is intentionally read-only
@@ -782,10 +738,7 @@ function updateExecTrend(yr){
     var c=n.level==='red'?'#C42B2B':(n.level==='orange'?'#D97706':'#0195af');
     var ov=document.createElement('div'); ov.id='_notifModal'; ov.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(8,18,35,.36);backdrop-filter:blur(9px);display:flex;align-items:center;justify-content:center;padding:18px;';
     var box=document.createElement('div'); box.style.cssText='width:min(460px,94vw);background:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.72);box-shadow:0 26px 80px rgba(2,8,23,.24);border-radius:22px;padding:0;overflow:hidden;direction:'+(isAr()?'rtl':'ltr');
-    var actions=(n.type==='grc_user_request'
-      ?'<div style="display:flex;gap:10px;margin-top:14px"><button onclick="window._closeNotifModal()" style="flex:1;padding:10px;border:none;border-radius:12px;background:#eef3f5;color:#475569;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">'+(isAr()?'تم':'Done')+'</button><button onclick="window._openGrcUserRequestsFromEntry()" style="flex:1;padding:10px;border:none;border-radius:12px;background:#0195af;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">'+(isAr()?'فتح الطلبات':'Open Requests')+'</button></div>'
-      :'<button onclick="window._closeNotifModal()" style="margin-top:14px;width:100%;padding:10px;border:none;border-radius:12px;background:#0195af;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">'+(isAr()?'تم':'Done')+'</button>');
-    box.innerHTML='<div style="padding:18px 20px;border-bottom:1px solid rgba(15,23,42,.08);display:flex;gap:12px;align-items:flex-start"><div style="width:10px;height:10px;margin-top:5px;border-radius:50%;background:'+c+';box-shadow:0 0 0 5px '+c+'22"></div><div style="flex:1"><div style="font-size:13px;font-weight:900;color:#152538;margin-bottom:5px">'+esc(n.title||'Notification')+'</div><div style="font-size:11px;color:#64748B;line-height:1.6">'+esc(n.meta||'')+'</div></div><button onclick="window._closeNotifModal()" style="border:none;background:rgba(15,23,42,.06);color:#475569;border-radius:10px;width:30px;height:30px;cursor:pointer;font-weight:900">×</button></div><div style="padding:18px 20px"><div style="font-size:12px;color:#334155;line-height:1.85;background:rgba(248,250,252,.78);border:1px solid rgba(226,232,240,.75);border-radius:14px;padding:14px">'+esc(n.body||n.meta||'')+'</div>'+actions+'</div>';
+    box.innerHTML='<div style="padding:18px 20px;border-bottom:1px solid rgba(15,23,42,.08);display:flex;gap:12px;align-items:flex-start"><div style="width:10px;height:10px;margin-top:5px;border-radius:50%;background:'+c+';box-shadow:0 0 0 5px '+c+'22"></div><div style="flex:1"><div style="font-size:13px;font-weight:900;color:#152538;margin-bottom:5px">'+esc(n.title||'Notification')+'</div><div style="font-size:11px;color:#64748B;line-height:1.6">'+esc(n.meta||'')+'</div></div><button onclick="window._closeNotifModal()" style="border:none;background:rgba(15,23,42,.06);color:#475569;border-radius:10px;width:30px;height:30px;cursor:pointer;font-weight:900">×</button></div><div style="padding:18px 20px"><div style="font-size:12px;color:#334155;line-height:1.85;background:rgba(248,250,252,.78);border:1px solid rgba(226,232,240,.75);border-radius:14px;padding:14px">'+esc(n.body||n.meta||'')+'</div><button onclick="window._closeNotifModal()" style="margin-top:14px;width:100%;padding:10px;border:none;border-radius:12px;background:#0195af;color:#fff;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit">'+(isAr()?'تم':'Done')+'</button></div>';
     ov.appendChild(box); ov.onclick=function(e){ if(e.target===ov) ov.remove(); }; document.body.appendChild(ov);
   }
   function handleNotificationOpen(n){
@@ -795,10 +748,6 @@ function updateExecTrend(yr){
         if(nav&&typeof nav.click==='function')nav.click();
         if(typeof window._advSwitchView==='function')window._advSwitchView('requests');
       }catch(_grcOpen){ }
-      return;
-    }
-    if(n && n.type === 'grc_user_request'){
-      try{ if(typeof window._grcOpenAdminCenter==='function')window._grcOpenAdminCenter('requests'); }catch(_grcUserReqOpen){}
       return;
     }
     if(n && n.type === 'gap_approval'){
@@ -833,7 +782,6 @@ function updateExecTrend(yr){
   }
   function bind(){
     refreshProfile(); renderNotifications();
-    refreshSuperAdminUserRequests(false);
     var ab=$('userAlertBtn'), ub=$('topUserBadge'), lo=$('profileLogoutBtn');
     if(ab && ab.dataset.qumcNotifV12 !== '1'){
       ab.dataset.qumcNotifV12='1'; ab.onclick=null; ab.addEventListener('click', toggleUserAlerts, true);
@@ -847,13 +795,6 @@ function updateExecTrend(yr){
     try{ var wrap=$('userNotifyWidget'); if(wrap) wrap.classList.add('qumc-user-widget-modern'); var badge=$('topUserBadge'); if(badge) badge.classList.add('qumc-user-badge-modern'); var alert=$('userAlertBtn'); if(alert) alert.classList.add('qumc-alert-btn-modern'); var drop=$('userProfileDrop'); if(drop) drop.classList.add('qumc-profile-glass'); }catch(_){ }
   }
 
-  // Called only after the Super Admin actually enters the GRC portal.
-  // This prevents the User Requests modal from appearing outside GRC.
-  window._grcCheckSuperAdminUserRequestsOnEntry=function(){
-    if(role()!=='super_admin')return Promise.resolve([]);
-    return refreshSuperAdminUserRequests(true);
-  };
-
   window.renderNotifications = renderNotifications;
   window.updateAlertUI = renderNotifications;
   window.buildUserAlerts = rowsForList;
@@ -865,10 +806,6 @@ function updateExecTrend(yr){
   window.toggleUserProfile = toggleUserProfile;
   window._showNotifModal = handleNotificationOpen;
   window._closeNotifModal = function(){ var m=$('_notifModal'); if(m) m.remove(); };
-  window._openGrcUserRequestsFromEntry=function(){
-    window._closeNotifModal();
-    try{ if(typeof window._grcOpenAdminCenter==='function')window._grcOpenAdminCenter('requests'); }catch(_){}
-  };
   if(!window.__qumcOriginalDoLogout && window._doLogout && window._doLogout !== logout) window.__qumcOriginalDoLogout = window._doLogout;
   window.qumcLogoutToLogin = logout;
   window._doLogout = logout;
@@ -883,10 +820,7 @@ function updateExecTrend(yr){
 
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind); else bind();
   setTimeout(bind,300); setTimeout(bind,1200); setTimeout(bind,3000);
-  setInterval(function(){ try{
-     if(role()==='super_admin' && Date.now()-superUserRequestLastFetch>25000)refreshSuperAdminUserRequests(false);
-     renderNotifications(); refreshProfile();
-   }catch(_){ } }, 30000);
+  setInterval(function(){ try{ renderNotifications(); refreshProfile(); }catch(_){ } }, 30000);
 })();
 
 /* ── User Requests: Submit form + My Requests view (user-facing) ──

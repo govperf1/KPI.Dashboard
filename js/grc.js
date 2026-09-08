@@ -1669,14 +1669,13 @@
   function startRiskStatusOverrideSync(b){
     if(grcRiskStatusUnsub){try{grcRiskStatusUnsub();}catch(_){}grcRiskStatusUnsub=null;}
     if(!canAccessRiskIncidentRegisters()){grcRiskStatusOverrides={};return;}
-    var col=b.fs.collection(b.db,'grc_risk_status'),dept=currentGrcDept(),canAll=canViewAllExecutiveDepartments();
-    // Department users must never query the whole collection; Firestore rules require an exact department scope.
-    if(!canAll&&!dept){grcRiskStatusOverrides={};return;}
-    var qref=canAll?col:b.fs.query(col,b.fs.where('department','==',dept));
-    var read=(typeof b.fs.getDocsFromServer==='function')?b.fs.getDocsFromServer(qref):b.fs.getDocs(qref);
-    read.then(function(snap){var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});grcRiskStatusOverrides=next;if(grcCloudParts.risks){grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();grcScheduleLocalCachePersist(140);grcApplyingRemote=false;grcScheduleRemoteRender(grcViewportPosition(),80);}}).catch(function(err){console.warn('[GRC Risk Status] scoped read failed',err);});
+    var col=b.fs.collection(b.db,'grc_risk_status'),qref=col,dept=currentGrcDept();
+    /* Subscribe by canonical department so every user assigned to the same
+       department receives the same direct Open/Closed status, even if their
+       user profile uses a different display label such as Project Management. */
+    if(activeTab!=='register'&&!canViewAllExecutiveDepartments()&&dept)qref=b.fs.query(col,b.fs.where('department','==',dept));
+    grcRiskStatusUnsub=b.fs.onSnapshot(qref,function(snap){var next={};snap.forEach(function(d){var x=grcSerializable(d.data()||{});x._cloudId=d.id;next[d.id]=x;});grcRiskStatusOverrides=next;if(grcCloudParts.risks){grcApplyingRemote=true;grcApplyCloudCollection('risks');enforceLocalGrcScope();grcScheduleLocalCachePersist(140);grcApplyingRemote=false;grcScheduleRemoteRender(grcViewportPosition(),80);}},function(err){console.warn('[GRC Risk Status] sync failed',err);});
   }
-
   function startSharedStateSync(){
     var grcActive=window.__qumcActivePortal==='grc'||!!(document.body&&document.body.classList.contains('grc-mode'));
     if(!grcActive)return;

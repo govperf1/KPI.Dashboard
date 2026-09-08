@@ -293,15 +293,12 @@
       }
       if(typeof window._advisorySubscribe==='function'){
         reviewApprovalUnsub=window._advisorySubscribe(function(payload){
-          var reviewPayload=payload||{},hasError=!!(reviewPayload.errors&&reviewPayload.errors.manager),incoming=Array.isArray(reviewPayload.records)?reviewPayload.records:null;
-          /* Never convert a transient permission/network poll failure into an
-             empty approval list. Replace the UI only with a verified payload. */
-          if(incoming&&(!hasError||incoming.length||!reviewApprovalRows.length))reviewApprovalRows=incoming.filter(reviewManagerRequest);
-          if(Array.isArray(reviewPayload.allRecords)&&(!hasError||reviewPayload.allRecords.length||!managerReviewAllRows.length))managerReviewAllRows=reviewPayload.allRecords;
-          else if(!managerReviewAllRows.length)managerReviewAllRows=reviewApprovalRows.slice();
+          var reviewPayload=payload||{};
+          reviewApprovalRows=(Array.isArray(reviewPayload.records)?reviewPayload.records:[]).filter(reviewManagerRequest);
+          managerReviewAllRows=Array.isArray(reviewPayload.allRecords)?reviewPayload.allRecords:reviewApprovalRows.slice();
           window.__grcManagerReviewPayload=reviewPayload;
           try{document.dispatchEvent(new CustomEvent('grc:managerReviewQueueUpdated',{detail:reviewPayload}));}catch(_e){}
-          if(hasError)window.__grcManagerApprovalError='Review & Development: '+reviewPayload.errors.manager;
+          if(reviewPayload.errors&&reviewPayload.errors.manager)window.__grcManagerApprovalError='Review & Development: '+reviewPayload.errors.manager;
           else window.__grcManagerApprovalError='';
           refreshBadge();
           if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
@@ -311,10 +308,9 @@
       }
       return;
     }
-    if(isSuper()&&typeof window._advisoryGetAll==='function'){
+    if(isSuper()&&typeof window._advisorySubscribePendingSuperAdmin==='function'){
       if(reviewApprovalUnsub)try{reviewApprovalUnsub();}catch(_){}
-      var stoppedReview=false;reviewApprovalUnsub=function(){stoppedReview=true;};
-      window._advisoryGetAll().then(function(rows){if(stoppedReview)return;var err=null;
+      reviewApprovalUnsub=window._advisorySubscribePendingSuperAdmin(function(rows,err){
         if(err){console.warn('[GRC Super Admin Review Queue]',err&&err.message||err);return;}
         reviewApprovalRows=Array.isArray(rows)?rows:[];
         refreshBadge();
@@ -326,7 +322,7 @@
         var entryKey='qumc_grc_super_approval_entry_v309::'+email();
         var firstEntry=false;try{firstEntry=sessionStorage.getItem(entryKey)!=='1';if(firstEntry)sessionStorage.setItem(entryKey,'1');}catch(_e){firstEntry=false;}
         scheduleApprovalNotice(firstEntry);
-      }).catch(function(err){console.warn('[GRC Super Admin Review Queue]',err&&err.message||err);});
+      });
     }
     if(typeof window._grcRiskRequestsSubscribe!=='function'){cache=[];window.__grcRiskRequestCache=[];refreshBadge();return;}
     if(startedFor===key&&unsub)return;
@@ -575,5 +571,5 @@
   };
 
   document.addEventListener('click',function(e){var p=document.getElementById('_grcRiskNotifPanel'),b=document.getElementById('grcRiskNotifBtn');if(p&&(!b||!b.contains(e.target))&&!p.contains(e.target))p.remove();var m=document.getElementById('_grcUserProfileMenu'),u=document.querySelector('.grc-profile-trigger');if(m&&(!u||!u.contains(e.target))&&!m.contains(e.target))m.remove();},true);
-  document.addEventListener('DOMContentLoaded',start);document.addEventListener('grc:portalChanged',start);document.addEventListener('grc:authReady',start);document.addEventListener('visibilitychange',function(){if(!document.hidden&&document.body.classList.contains('grc-mode'))start();});
+  document.addEventListener('DOMContentLoaded',start);document.addEventListener('grc:portalChanged',start);document.addEventListener('grc:authReady',start);setInterval(refreshBadge,5000);
 })();
