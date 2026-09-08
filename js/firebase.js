@@ -1325,7 +1325,17 @@ window._selectPortal=async portal=>{
          approval queue is rendered in the upper table, while the manager's
          own submissions are rendered separately in the lower table. */
       const own=await window._advisoryGetMine().catch(function(err){console.warn('[Review Development] manager own requests failed',err&&err.code||err);return[];});
-      return _advMergeRows(bundle.review||[],own||[],false);
+      /* v317 — Preserve the Risk & Incident manager queue together with the
+         review rows. The previous version returned only an Array of review/own
+         requests, so advisory.js had no way to receive bundle.risk and the
+         Department Approval Requests table incorrectly showed 0 Risk/Incident
+         requests even when they were visible in the Risk & Incident workflow. */
+      const merged=_advMergeRows(bundle.review||[],own||[],false);
+      merged._grcRiskRecords=Array.isArray(bundle.risk)?bundle.risk:[];
+      merged.review=Array.isArray(bundle.review)?bundle.review:[];
+      merged.risk=merged._grcRiskRecords;
+      merged._grcManagerProfile=bundle.profile||null;
+      return merged;
     };
     function stageOfManagerRow(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
@@ -1338,7 +1348,7 @@ window._selectPortal=async portal=>{
           try{
             const rows=await window._advisoryGetManagerQueue();
             const dashboardRows=(rows||[]).map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
-            callback({records:rows||[],publicRecords:dashboardRows,errors:{},source:'manager-queue'});
+            callback({records:rows||[],publicRecords:dashboardRows,managerRiskRecords:Array.isArray(rows&&rows._grcRiskRecords)?rows._grcRiskRecords:[],errors:{},source:'manager-queue'});
           }catch(err){
             callback({records:[],publicRecords:[],errors:{manager:String(err&&err.message||err&&err.code||err)},source:'manager-queue'});
           }
