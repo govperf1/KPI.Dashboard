@@ -142,3 +142,12 @@ html[lang="ar"] .grc-risk-notif-panel,html[lang="ar"] .grc-risk-notif-panel *{fo
 #_grcRiskProfileOv .grc-rd-only-section .grc-risk-request-card>div[style*="Request Details"]{background:#fbfdfe!important;border-color:#e0eaee!important}
 #_grcRiskProfileOv .grc-rd-only-section .grc-risk-action{border-radius:9px;padding:9px 14px}
 @media(max-width:720px){#_grcRiskProfileOv .grc-risk-dialog.wide{width:96vw}#_grcRiskProfileOv .grc-rd-only-section .grc-risk-card-grid{grid-template-columns:100px 1fr}}
+
+/* Build v322: Risk & Incident profile dialogs must remain scrollable, including
+   the Super Admin all-requests view. Keep the header visible and scroll only
+   the request body instead of clipping cards after the viewport height. */
+#_grcRiskProfileOv{overflow-y:auto!important;align-items:flex-start!important;padding:20px!important;box-sizing:border-box!important}
+#_grcRiskProfileOv .grc-risk-dialog.wide{max-height:calc(100vh - 40px)!important;height:auto!important;display:flex!important;flex-direction:column!important;overflow:hidden!important}
+#_grcRiskProfileOv .grc-risk-profile-summary{flex:0 0 auto!important}
+#_grcRiskProfileOv .grc-risk-dialog>main{flex:1 1 auto!important;min-height:0!important;overflow-y:auto!important;overscroll-behavior:contain!important;padding-bottom:28px!important}
+@media(max-width:720px){#_grcRiskProfileOv{padding:8px!important}#_grcRiskProfileOv .grc-risk-dialog.wide{max-height:calc(100vh - 16px)!important}}
