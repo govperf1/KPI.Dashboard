@@ -597,7 +597,7 @@ service cloud.firestore {
     // v66 is the current approval-sync deployment marker. The v65 marker remains
     // accepted for backward compatibility during rollout.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId in ['v60-grc-department-scope-approval-20260823','v65-grc-superadmin-global-20260824','v66-grc-approval-sync-20260825','v70-grc-manager-department-query-20260903','v71-grc-owner-manager-route-20260906','v72-grc-manager-action-legacy-guard-20260907'];
+      allow get: if approved() && versionId in ['v60-grc-department-scope-approval-20260823','v65-grc-superadmin-global-20260824','v66-grc-approval-sync-20260825','v70-grc-manager-department-query-20260903','v71-grc-owner-manager-route-20260906','v72-grc-manager-action-legacy-guard-20260907','v71-canonical-exact-request-reads-20260908'];
       allow list, create, update, delete: if false;
     }
 
