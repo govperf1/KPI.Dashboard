@@ -839,6 +839,9 @@ window._selectPortal=async portal=>{
         platform:'grc',
         userName: window._fbName||window._fbUser.split('@')[0],
         userEmail: (window._fbUser||'').toLowerCase().trim(),
+        // Keep ownership fields aligned with the authenticated user. Email is
+        // the canonical read key; UID is retained for immutable auditing.
+        requesterUid: String(window._fbUid||window._fbUserUid||window._fbAuthUid||auth.currentUser&&auth.currentUser.uid||''),
         department: String(window._fbDept||window.currentUserDept||'').trim(),
         requestType: String(requestType||'General GRC Request').trim(),
         message: String(message||'').trim(),
@@ -857,15 +860,19 @@ window._selectPortal=async portal=>{
     };
     window._grcRequestsGetMine=async function(){
       if(!window._fbUser||!db) return [];
-      const col=collection(db,'grc_requests'),rows=[],seen={};
-      const add=function(snap){snap.forEach(function(d){if(!seen[d.id]){seen[d.id]=true;rows.push(Object.assign({id:d.id},d.data()||{}));}});};
-      const uid=String(window._fbUid||window._fbUserUid||window._fbAuthUid||'').trim();
-      // Current requests use immutable Auth UID. Email remains only for legacy rows.
-      if(uid){try{add(await getDocs(query(col,where('requesterUid','==',uid))));}catch(e){console.warn('[GRC Requests] UID getMine:',e&&e.code||e&&e.message||e);}}
-      try{add(await getDocs(query(col,where('userEmail','==',String(window._fbUser||'').toLowerCase().trim()))));}
-      catch(e){console.warn('[GRC Requests] legacy email getMine:',e&&e.code||e&&e.message||e);}
-      rows.sort(function(a,b){return ((b.createdAt&&b.createdAt.seconds)||0)-((a.createdAt&&a.createdAt.seconds)||0);});
-      return rows;
+      const email=String(window._fbUser||'').toLowerCase().trim();
+      try{
+        // One canonical exact query. Do not fan out to UID/legacy queries:
+        // a denied compatibility query previously produced noisy failures and
+        // made valid request lists look empty in the UI.
+        const snap=await getDocs(query(collection(db,'grc_requests'),where('userEmail','==',email)));
+        const rows=snap.docs.map(function(d){return Object.assign({id:d.id},d.data()||{});});
+        rows.sort(function(a,b){return ((b.createdAt&&b.createdAt.seconds)||0)-((a.createdAt&&a.createdAt.seconds)||0);});
+        return rows;
+      }catch(e){
+        console.warn('[GRC Requests] getMine canonical email failed:',e&&e.code||e&&e.message||e);
+        throw e;
+      }
     };
     window._grcRequestsGetAll=async function(){
       if(!window._fbUser||!db) return [];
@@ -981,8 +988,8 @@ window._selectPortal=async portal=>{
       return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
     }
     async function _advAssertRulesVersion(){
-      if(window.__advRulesV70Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v70-grc-manager-source-recovery-20260907'));window.__advRulesV70Verified=true;return true;}
+      if(window.__advRulesV71Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v71-canonical-exact-request-reads-20260908'));window.__advRulesV71Verified=true;return true;}
       catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Required Firestore GRC manager rules are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     async function _advAssertProfileScope(profile){
@@ -1273,18 +1280,16 @@ window._selectPortal=async portal=>{
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
       let primary=[];
-      /* requesterUid is the canonical ownership key for current requests. Keep
-         the email query as a silent compatibility read for older documents; a
-         legacy permission failure must never break the current request list. */
-      if(_advUid()){
-        const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid())));
-        primary=snap.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));
-      }
       try{
-        const legacy=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
-        primary=_advMergeRows(primary,legacy.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests')),false);
-      }catch(_legacyOwnRead){}
-      return _advMergeRows(primary,await _advFallbackRows(true),false);
+        // Canonical exact email query works for both current and historical rows.
+        // Keep a UID read only as a non-blocking supplement for future rows.
+        const own=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
+        primary=own.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));
+      }catch(err){
+        console.warn('[Review Development] getMine canonical email failed',err&&err.code||err);
+        throw err;
+      }
+      return _advMergeRows(primary,[],false);
     };
     window._advisoryGetManagerQueue=async function(){
       const bundle=await window._grcGetDepartmentApprovalQueue(true);
@@ -1358,22 +1363,17 @@ window._selectPortal=async portal=>{
       if(_advIsDepartmentManager()){
         if(dept){
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)),'advisory_requests');
-          listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
+          listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
         }else{
-          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
+          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
         }
-        listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
-      }else if(_advIsAdmin()){
+      }else if(_advIsAdmin()||_advCanAnalyze()){
+        // Authorized analytics roles read only the authoritative collection.
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
-        listen('fallback',collection(db,ADV_FALLBACK_COLLECTION),'kpi_requests');
-      }else if(_advCanAnalyze()){
-        /* Analytics roles read all authoritative requests. The dashboard is
-           sanitized in memory, so no secondary mirror can break synchronization. */
-        listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
-        listen('fallback',collection(db,ADV_FALLBACK_COLLECTION),'kpi_requests');
       }else{
-        listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
-        listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
+        // One exact ownership listener. Compatibility fallbacks were causing
+        // permission-denied noise and could overwrite a valid empty/loaded view.
+        listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
       }
       return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
@@ -1601,8 +1601,8 @@ window._selectPortal=async portal=>{
     function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();return ['super_admin','admin','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].includes(r)||p.includes('access_grc')||p.includes('view_grc_department')||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('*');}
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
-      if(window.__grcRulesV70Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v70-grc-manager-source-recovery-20260907'));window.__grcRulesV70Verified=true;return true;}
+      if(window.__grcRulesV71Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v71-canonical-exact-request-reads-20260908'));window.__grcRulesV71Verified=true;return true;}
       catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Required Firestore GRC manager rules are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     window._qumcAssertFirestoreRulesV69=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV64=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
@@ -1957,10 +1957,15 @@ window._selectPortal=async portal=>{
     function _grcRiskMergeRows(groups){const map={};(groups||[]).forEach(rows=>(rows||[]).forEach(r=>{if(r&&r.id)map[r.id]=r;}));return _grcRiskSort(Object.keys(map).map(id=>map[id]));}
     async function _grcRiskReadMany(qrefs){const groups=await Promise.all((qrefs||[]).map(async qref=>{try{return await _grcRiskRead(qref);}catch(err){console.warn('[GRC Risk Requests] scoped read failed',err&&err.code||err);return[];}}));return _grcRiskMergeRows(groups);}
     window._grcRiskRequestsGetMine=async function(){
-      if(!_grcRiskEmail())return[];const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
-      if(_grcRiskUid())qrefs.push(query(col,where('submittedByUid','==',_grcRiskUid())));
-      qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
-      return _grcRiskReadMany(qrefs);
+      if(!_grcRiskEmail())return[];
+      const col=collection(db,GRC_RISK_REQUESTS_COLLECTION);
+      try{
+        // Canonical exact email query; remove UID/department compatibility fan-out.
+        return await _grcRiskRead(query(col,where('submittedByEmail','==',_grcRiskEmail())));
+      }catch(err){
+        console.warn('[GRC Risk Requests] getMine canonical email failed',err&&err.code||err);
+        throw err;
+      }
     };
     window._grcRiskRequestGetManagerOne=async function(requestId){
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
@@ -2003,12 +2008,8 @@ window._selectPortal=async portal=>{
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
       if(_grcRiskIsAdmin())qrefs.push(col);
       else{
-        const raw=_grcRiskRawDept(),key=_grcRiskDept();
-        /* Other GRC roles keep department activity plus own-request fallback
-           for compatibility with older workflow documents. */
-        if(raw)qrefs.push(query(col,where('departmentRaw','==',raw)));
-        if(key){qrefs.push(query(col,where('departmentKey','==',key)));qrefs.push(query(col,where('department','==',key)));}
-        if(_grcRiskUid())qrefs.push(query(col,where('submittedByUid','==',_grcRiskUid())));
+        // Operational users subscribe only to their own exact canonical request set.
+        // Department-wide approval routing is handled through the manager inbox.
         qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
       }
       const sources={},unsubs=[],failed={};let successCount=0;
