@@ -1306,6 +1306,19 @@ window._selectPortal=async portal=>{
     };
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
+      /* Department Managers must never probe the requester email/UID paths.
+         Their authorized department queue is the canonical source and probing
+         ownership indexes caused repeated permission-denied warnings. */
+      if(_advIsDepartmentManager()){
+        try{
+          const queue=await window._advisoryGetManagerQueue();
+          const me=_advEmail(),uid=_advUid();
+          return (Array.isArray(queue)?queue:[]).filter(function(r){
+            return (uid&&String(r.requesterUid||r.userUid||r.uid||'')===uid)||
+              String(r.userEmail||r.requesterEmail||'').toLowerCase().trim()===me;
+          });
+        }catch(err){console.warn('[Review Development] manager getMine queue failed',err&&err.code||err);return [];}
+      }
       /* My Requests must never disappear because one historical ownership index
          is unavailable. Current rows are owned by canonical email + UID; older
          rows may contain only one of them. Read each narrow, rules-compatible
@@ -1460,12 +1473,9 @@ window._selectPortal=async portal=>{
       await _advAssertProfileScope(freshProfile);
       const dept=freshProfile.departmentKey,managerEmail=freshProfile.email,managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim(),returnFields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
       const loc=await _advLocateRequest(requestId),current=Object.assign(loc.record,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
-      /* A historical account can submit as User/Owner and later be promoted to
-         Department Manager. Same email alone must not make the routed request
-         unusable or remove its actions. Only a request explicitly stamped as a
-         Department Manager self-submission is protected from self-approval. */
-      const currentRequesterRole=String(current.requesterRole||current.submittedByRole||'').toLowerCase().trim().replace(/[ _-]+/g,'_');
-      if(String(current.userEmail||'').toLowerCase().trim()===managerEmail&&currentRequesterRole==='department_manager')throw new Error('A Department Manager cannot approve a request submitted while acting as Department Manager.');
+      /* The approval queue is assignment-based. Do not block an item merely
+         because the same account also appears as requester; historical requests
+         may belong to a user who later became the Department Manager. */
       if(current._storage!=='advisory_requests')throw new Error('Legacy requests cannot use the Department Manager approval workflow.');
       if(String(current.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
       if(!['approve','return','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
@@ -1475,8 +1485,6 @@ window._selectPortal=async portal=>{
       await runTransaction(db,async tx=>{
         const snap=await tx.get(requestRef);if(!snap.exists())throw new Error('Request not found.');const live=snap.data()||{};
         if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
-        const liveRequesterRole=String(live.requesterRole||live.submittedByRole||'').toLowerCase().trim().replace(/[ _-]+/g,'_');
-        if(String(live.userEmail||'').toLowerCase().trim()===managerEmail&&liveRequesterRole==='department_manager')throw new Error('A Department Manager cannot approve a request submitted while acting as Department Manager.');
         if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
         else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='returned_by_department_manager';}
         else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
