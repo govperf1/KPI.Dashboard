@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v71 — Canonical GRC Approval Workflow + Manager Source Recovery
+// FIRESTORE SECURITY RULES v70 — Canonical GRC Profile + Department Workflow
 // v70: Department Manager source queries and inbox reads remain query-safe;
 // pending Review & Development requests may be recovered directly by exact
 // departmentKey + workflowStage queries when an older inbox row is missing.
@@ -622,7 +622,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // a unique v64 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v71-grc-workflow-manager-superadmin-20260908';
+      allow get: if approved() && versionId == 'v70-grc-manager-source-recovery-20260907';
       allow list, create, update, delete: if false;
     }
 
@@ -647,8 +647,7 @@ service cloud.firestore {
     // and split by workflow kind so manager queries are directly provable.
     match /grc_department_approval_inbox_v3/{departmentKey}/{kind}/{itemId} {
       allow get, list: if approved() && kind in ['review','risk'] && (
-        role() in ['admin','super_admin'] ||
-        (role() == 'department_manager' && userDepartmentKey() == departmentKey)
+        admin() || (departmentManager() && userDepartmentKey() != '' && userDepartmentKey() == departmentKey)
       );
 
       allow create, update: if approved() && kind in ['review','risk'] &&
@@ -791,11 +790,6 @@ service cloud.firestore {
             request.resource.data.managerDecision == 'approved' &&
             request.resource.data.status == 'open' &&
             request.resource.data.closureReason == '') ||
-          (request.resource.data.workflowStage == 'returned_requester' &&
-            request.resource.data.managerDecision == 'returned' &&
-            request.resource.data.status == 'open' &&
-            request.resource.data.closureReason == '' &&
-            request.resource.data.managerComment.size() > 0) ||
           (request.resource.data.workflowStage == 'rejected_manager' &&
             request.resource.data.managerDecision == 'rejected' &&
             request.resource.data.status == 'closed' &&
@@ -879,11 +873,6 @@ service cloud.firestore {
       allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
       allow list: if departmentManager() && ('departmentKey' in resource.data) &&
         resource.data.departmentKey == userDepartmentKey();
-      // Exact recovery query used by the canonical inbox when an older queue
-      // document is missing.
-      allow list: if departmentManager() &&
-        resource.data.departmentKey == userDepartmentKey() &&
-        resource.data.workflowStage == 'pending_department_manager';
 
       allow update: if
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
