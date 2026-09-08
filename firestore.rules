@@ -719,6 +719,20 @@ service cloud.firestore {
       (!changed.hasAny(['managerDecision']) || request.resource.data.managerDecision == 'pending');
     }
 
+    // Requester rating is a small, isolated update after a request is closed.
+    // Keep this rule independent from workflow edits so rating cannot fail when
+    // manager/super-admin fields or historical workflow values differ.
+    function validAdvisoryRequesterRating() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly(['rating','ratingComment','ratingAt','updatedAt','updatedAtIso','updatedBy']) &&
+        (resource.data.status == 'closed' || resource.data.workflowStage == 'closed') &&
+        request.resource.data.rating is number &&
+        request.resource.data.rating >= 1 && request.resource.data.rating <= 5 &&
+        (!('rating' in resource.data) || resource.data.rating == null || resource.data.rating == 0) &&
+        request.resource.data.workflowStage == resource.data.workflowStage &&
+        request.resource.data.status == resource.data.status;
+    }
+
     function advisoryOwnerRoutePreserved() {
       return
         (resource.data.workflowStage == 'pending_department_manager' &&
@@ -894,6 +908,7 @@ service cloud.firestore {
       allow update: if
         (superAdmin() && validAdvisorySuperAdminDecision()) ||
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
+        (approved() && ownEmail(resource.data.userEmail) && validAdvisoryRequesterRating()) ||
         (approved() && ownEmail(resource.data.userEmail) &&
           validAdvisoryOwnerChange() && advisoryOwnerRoutePreserved()) ||
         (
