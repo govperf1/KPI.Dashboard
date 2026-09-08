@@ -1195,12 +1195,38 @@ window._selectPortal=async portal=>{
         });
         else result.errors.push('Risk queue: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
 
-        /* v317 — The canonical department inbox is the only Manager source.
-           Do not fall back to advisory_requests / grc_risk_requests when the
-           queue is empty: those legacy collection queries can be rejected by
-           Firestore Rules and were producing repeated permission warnings.
-           New requests are indexed into inbox_v3 and Super Admin backfill
-           handles historical pending requests. */
+        /* v319 — Queue recovery without real-time listeners.
+           The queue is the fast path for new requests. Historical requests can
+           legitimately exist without an inbox_v3 row (created before the queue,
+           or an earlier partial write). If a queue kind is empty, recover that
+           kind once from the authoritative source using the exact departmentKey
+           query already allowed by Firestore Rules. This fixes the Manager seeing
+           0 requests while keeping quota usage low: no snapshots and no polling
+           of the source unless the queue is actually missing rows. */
+        if(!Object.keys(reviewMap).length){
+          try{
+            const snap=await getDocsFromServer(query(
+              collection(db,ADV_REQUESTS_COLLECTION),
+              where('departmentKey','==',fresh.departmentKey)
+            ));
+            snap.forEach(function(d){addReview(d.id,d.data()||{});});
+            if(Object.keys(reviewMap).length)console.info('[GRC Manager Inbox] recovered review requests from authoritative source');
+          }catch(err){
+            result.errors.push('Review recovery: '+String(err&&err.message||err));
+          }
+        }
+        if(!Object.keys(riskMap).length){
+          try{
+            const snap=await getDocsFromServer(query(
+              collection(db,GRC_RISK_REQUESTS_COLLECTION),
+              where('departmentKey','==',fresh.departmentKey)
+            ));
+            snap.forEach(function(d){addRisk(d.id,d.data()||{});});
+            if(Object.keys(riskMap).length)console.info('[GRC Manager Inbox] recovered Risk/Incident requests from authoritative source');
+          }catch(err){
+            result.errors.push('Risk recovery: '+String(err&&err.message||err));
+          }
+        }
         result.review=Object.keys(reviewMap).map(function(k){return reviewMap[k];});
         result.risk=_grcRiskSort(Object.keys(riskMap).map(function(k){return riskMap[k];}));
         result.review.sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
@@ -1324,7 +1350,7 @@ window._selectPortal=async portal=>{
       return _advMergeRows(primary,await _advFallbackRows(true),false);
     };
     window._advisoryGetManagerQueue=async function(){
-      const bundle=await window._grcGetDepartmentApprovalQueue(true);
+      const bundle=await window._grcGetDepartmentApprovalQueue(false);
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
       // Approval inbox contains only requests assigned to this manager.
       // The manager's own submissions belong under My Requests instead.
