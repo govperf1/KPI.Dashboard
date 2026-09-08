@@ -1336,7 +1336,27 @@ window._selectPortal=async portal=>{
       const risk=Array.isArray(bundle&&bundle.risk)?bundle.risk:_advisoryManagerLastRisk;
       if(review.length||!_advisoryManagerLastQueue.length)_advisoryManagerLastQueue=review.slice();
       if(risk.length||!_advisoryManagerLastRisk.length)_advisoryManagerLastRisk=risk.slice();
-      let own;try{own=await window._advisoryGetMine();if(Array.isArray(own))_advisoryManagerLastOwn=own.slice();else own=_advisoryManagerLastOwn;}catch(err){console.warn('[Review Development] manager own requests refresh failed; keeping last verified rows',err&&err.code||err);own=_advisoryManagerLastOwn;}
+      /* Department Managers already have an authorized department-scoped read.
+         Do not call the requester email/UID compatibility queries here: those
+         probes were repeatedly returning permission-denied and every retry could
+         refresh the page while the manager was choosing Return/Reject. */
+      let own=_advisoryManagerLastOwn;
+      try{
+        const dept=String((bundle&&bundle.profile&&bundle.profile.departmentKey)||window.__grcManagerDepartmentKey||'').trim();
+        if(dept){
+          const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)));
+          const allDept=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+          const me=_advEmail(),uid=_advUid();
+          own=allDept.filter(function(r){
+            return (uid&&String(r.requesterUid||r.userUid||r.uid||'')===uid) ||
+              String(r.userEmail||r.requesterEmail||'').toLowerCase().trim()===me;
+          });
+          _advisoryManagerLastOwn=own.slice();
+        }
+      }catch(err){
+        console.warn('[Review Development] manager own department read failed; keeping last verified rows',err&&err.code||err);
+        own=_advisoryManagerLastOwn;
+      }
       const merged=_advMergeRows(_advisoryManagerLastQueue||[],own||[],false);
       /* Arrays can carry metadata without changing legacy callers. This gives the
          Review page and the GRC approval panel the exact same Risk queue. */
@@ -1348,15 +1368,22 @@ window._selectPortal=async portal=>{
     window._advisorySubscribe=function(callback){
       if(typeof callback!=='function'||!_advEmail()||!db)return function(){};
       if(_advIsDepartmentManager()){
-        let stopped=false,pollTimer=null;
+        let stopped=false,pollTimer=null,lastKey='';
         const pull=async function(){
           if(stopped)return;
           try{
             const rows=await window._advisoryGetManagerQueue();
-            const dashboardRows=(rows||[]).map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
-            callback({records:rows||[],publicRecords:dashboardRows,managerRiskRecords:Array.isArray(rows&&rows._grcRiskRecords)?rows._grcRiskRecords:(Array.isArray(rows&&rows.risk)?rows.risk:[]),errors:{},source:'manager-queue'});
+            const riskRows=Array.isArray(rows&&rows._grcRiskRecords)?rows._grcRiskRecords:(Array.isArray(rows&&rows.risk)?rows.risk:[]);
+            const key=(rows||[]).map(function(r){return [r.id,r.workflowStage,r.status,r.updatedAtIso||'',r.managerActionAtIso||''].join('|');}).sort().join('~')+'#'+riskRows.map(function(r){return [r.id,r.status,r.updatedAtIso||''].join('|');}).sort().join('~');
+            /* Do not emit an identical 15-second poll. An identical payload used
+               to replace the manager table DOM and made the selected action vanish. */
+            if(key!==lastKey){
+              lastKey=key;
+              const dashboardRows=(rows||[]).map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
+              callback({records:rows||[],publicRecords:dashboardRows,managerRiskRecords:riskRows,errors:{},source:'manager-queue'});
+            }
           }catch(err){
-            callback({records:[],publicRecords:[],errors:{manager:String(err&&err.message||err&&err.code||err)},source:'manager-queue'});
+            if(!lastKey){callback({records:[],publicRecords:[],errors:{manager:String(err&&err.message||err&&err.code||err)},source:'manager-queue'});}
           }
           if(!stopped)pollTimer=setTimeout(pull,15000);
         };
@@ -1433,7 +1460,12 @@ window._selectPortal=async portal=>{
       await _advAssertProfileScope(freshProfile);
       const dept=freshProfile.departmentKey,managerEmail=freshProfile.email,managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim(),returnFields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
       const loc=await _advLocateRequest(requestId),current=Object.assign(loc.record,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
-      if(String(current.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request. Your request must be reviewed by Super Admin.');
+      /* A historical account can submit as User/Owner and later be promoted to
+         Department Manager. Same email alone must not make the routed request
+         unusable or remove its actions. Only a request explicitly stamped as a
+         Department Manager self-submission is protected from self-approval. */
+      const currentRequesterRole=String(current.requesterRole||current.submittedByRole||'').toLowerCase().trim().replace(/[ _-]+/g,'_');
+      if(String(current.userEmail||'').toLowerCase().trim()===managerEmail&&currentRequesterRole==='department_manager')throw new Error('A Department Manager cannot approve a request submitted while acting as Department Manager.');
       if(current._storage!=='advisory_requests')throw new Error('Legacy requests cannot use the Department Manager approval workflow.');
       if(String(current.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
       if(!['approve','return','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
@@ -1443,9 +1475,10 @@ window._selectPortal=async portal=>{
       await runTransaction(db,async tx=>{
         const snap=await tx.get(requestRef);if(!snap.exists())throw new Error('Request not found.');const live=snap.data()||{};
         if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
-        if(String(live.userEmail||'').toLowerCase().trim()===managerEmail)throw new Error('A Department Manager cannot approve their own request.');
+        const liveRequesterRole=String(live.requesterRole||live.submittedByRole||'').toLowerCase().trim().replace(/[ _-]+/g,'_');
+        if(String(live.userEmail||'').toLowerCase().trim()===managerEmail&&liveRequesterRole==='department_manager')throw new Error('A Department Manager cannot approve a request submitted while acting as Department Manager.');
         if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
-        else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='';}
+        else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='returned_by_department_manager';}
         else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
         const decision=action==='approve'?'approved':action==='return'?'returned':'rejected';
         const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:decision,managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
