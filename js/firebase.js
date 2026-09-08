@@ -794,9 +794,10 @@ window._selectPortal=async portal=>{
       try{
         /* Filter only by email — avoids composite index requirement.
            Sort newest-first on client. */
+        const _uid=String(auth.currentUser&&auth.currentUser.uid||window._fbUid||window._fbUserUid||window._fbAuthUid||'').trim();
         const _email=(window._fbUser||'').toLowerCase().trim();
         const snap=await getDocs(query(collection(db,'kpi_requests'),
-          where('userEmail','==',_email)));
+          where(_uid?'requesterUid':'userEmail','==',_uid||_email)));
         const rows=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());}).filter(function(r){return !_isReviewDevelopmentRequestDoc(r);});
         rows.sort(function(a,b){
           var ta=(a.createdAt&&a.createdAt.seconds)||0;
@@ -860,12 +861,13 @@ window._selectPortal=async portal=>{
     };
     window._grcRequestsGetMine=async function(){
       if(!window._fbUser||!db) return [];
+      const uid=String(auth.currentUser&&auth.currentUser.uid||window._fbUid||window._fbUserUid||window._fbAuthUid||'').trim();
       const email=String(window._fbUser||'').toLowerCase().trim();
       try{
-        // One canonical exact query. Do not fan out to UID/legacy queries:
-        // a denied compatibility query previously produced noisy failures and
-        // made valid request lists look empty in the UI.
-        const snap=await getDocs(query(collection(db,'grc_requests'),where('userEmail','==',email)));
+        // UID is the immutable authenticated identity and has a dedicated
+        // query-safe Rules branch. Email is retained only when a UID is truly
+        // unavailable before auth initialization completes.
+        const snap=await getDocs(query(collection(db,'grc_requests'),where(uid?'requesterUid':'userEmail','==',uid||email)));
         const rows=snap.docs.map(function(d){return Object.assign({id:d.id},d.data()||{});});
         rows.sort(function(a,b){return ((b.createdAt&&b.createdAt.seconds)||0)-((a.createdAt&&a.createdAt.seconds)||0);});
         return rows;
@@ -915,8 +917,9 @@ window._selectPortal=async portal=>{
     };
     window._grcRequestsSubscribeMine=function(callback){
       if(typeof callback!=='function'||!window._fbUser||!db)return function(){};
+      const uid=String(auth.currentUser&&auth.currentUser.uid||window._fbUid||window._fbUserUid||window._fbAuthUid||'').trim();
       const me=(window._fbUser||'').toLowerCase().trim();
-      return onSnapshot(query(collection(db,'grc_requests'),where('userEmail','==',me)),function(snap){
+      return onSnapshot(query(collection(db,'grc_requests'),where(uid?'requesterUid':'userEmail','==',uid||me)),function(snap){
         const rows=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});
         rows.sort(function(a,b){return ((b.updatedAt&&b.updatedAt.seconds)||(b.createdAt&&b.createdAt.seconds)||0)-((a.updatedAt&&a.updatedAt.seconds)||(a.createdAt&&a.createdAt.seconds)||0);});
         callback(rows,null);
@@ -1286,9 +1289,9 @@ window._selectPortal=async portal=>{
       if(!_advEmail()||!db)return[];
       let primary=[];
       try{
-        // Canonical exact email query works for both current and historical rows.
-        // Keep a UID read only as a non-blocking supplement for future rows.
-        const own=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
+        // UID is the canonical authenticated ownership key and maps directly to
+        // the query-safe Security Rules branch.
+        const own=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||_advEmail())));
         primary=own.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));
       }catch(err){
         console.warn('[Review Development] getMine canonical email failed',err&&err.code||err);
@@ -1370,7 +1373,7 @@ window._selectPortal=async portal=>{
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)),'advisory_requests');
           listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
         }else{
-          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
+          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
         }
       }else if(_advIsAdmin()||_advCanAnalyze()){
         // Authorized analytics roles read only the authoritative collection.
@@ -1378,7 +1381,7 @@ window._selectPortal=async portal=>{
       }else{
         // One exact ownership listener. Compatibility fallbacks were causing
         // permission-denied noise and could overwrite a valid empty/loaded view.
-        listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
+        listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
       }
       return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
@@ -1971,7 +1974,7 @@ window._selectPortal=async portal=>{
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION);
       try{
         // Canonical exact email query; remove UID/department compatibility fan-out.
-        return await _grcRiskRead(query(col,where('submittedByEmail','==',_grcRiskEmail())));
+        return await _grcRiskRead(query(col,where(_grcRiskUid()?'submittedByUid':'submittedByEmail','==',_grcRiskUid()||_grcRiskEmail())));
       }catch(err){
         console.warn('[GRC Risk Requests] getMine canonical email failed',err&&err.code||err);
         throw err;
@@ -2020,7 +2023,7 @@ window._selectPortal=async portal=>{
       else{
         // Operational users subscribe only to their own exact canonical request set.
         // Department-wide approval routing is handled through the manager inbox.
-        qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
+        qrefs.push(query(col,where(_grcRiskUid()?'submittedByUid':'submittedByEmail','==',_grcRiskUid()||_grcRiskEmail())));
       }
       const sources={},unsubs=[],failed={};let successCount=0;
       function emit(){
