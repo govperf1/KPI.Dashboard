@@ -864,15 +864,13 @@ window._selectPortal=async portal=>{
       const uid=String(auth.currentUser&&auth.currentUser.uid||window._fbUid||window._fbUserUid||window._fbAuthUid||'').trim();
       const email=String(window._fbUser||'').toLowerCase().trim();
       try{
-        // UID is the immutable authenticated identity and has a dedicated
-        // query-safe Rules branch. Email is retained only when a UID is truly
-        // unavailable before auth initialization completes.
-        const snap=await getDocs(query(collection(db,'grc_requests'),where(uid?'requesterUid':'userEmail','==',uid||email)));
+        // Use the canonical email ownership key. Existing and new request rows are email-keyed in Firestore Rules, so this exact query remains compatible with historical requests.
+        const snap=await getDocs(query(collection(db,'grc_requests'),where('userEmail','==',email)));
         const rows=snap.docs.map(function(d){return Object.assign({id:d.id},d.data()||{});});
         rows.sort(function(a,b){return ((b.createdAt&&b.createdAt.seconds)||0)-((a.createdAt&&a.createdAt.seconds)||0);});
         return rows;
       }catch(e){
-        console.warn('[GRC Requests] getMine canonical email failed:',e&&e.code||e&&e.message||e);
+        console.warn('[GRC Requests] getMine failed:',e&&e.code||e&&e.message||e);
         throw e;
       }
     };
@@ -1268,7 +1266,7 @@ window._selectPortal=async portal=>{
          sanitize in memory. Operational users use an exact own-email query. */
       if(_advCanAnalyze())primary=await _advGetSorted(ADV_REQUESTS_COLLECTION);
       else{
-        try{const own=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||_advEmail())));primary=own.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));}catch(_){ }
+        try{const own=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));primary=own.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));}catch(_){ }
       }
       const fallback=await _advFallbackRows(!_advCanAnalyze());
       return _advMergeRows(primary,fallback,true);
@@ -1289,12 +1287,11 @@ window._selectPortal=async portal=>{
       if(!_advEmail()||!db)return[];
       let primary=[];
       try{
-        // UID is the canonical authenticated ownership key and maps directly to
-        // the query-safe Security Rules branch.
-        const own=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||_advEmail())));
+        // Use the canonical email ownership key so historical and current requests share one query-safe read path.
+        const own=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
         primary=own.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));
       }catch(err){
-        console.warn('[Review Development] getMine canonical email failed',err&&err.code||err);
+        console.warn('[Review Development] getMine failed',err&&err.code||err);
         throw err;
       }
       return _advMergeRows(primary,[],false);
@@ -1973,10 +1970,10 @@ window._selectPortal=async portal=>{
       if(!_grcRiskEmail())return[];
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION);
       try{
-        // Canonical exact email query; remove UID/department compatibility fan-out.
-        return await _grcRiskRead(query(col,where(_grcRiskUid()?'submittedByUid':'submittedByEmail','==',_grcRiskUid()||_grcRiskEmail())));
+        // Canonical exact email query for both historical and current workflow rows.
+        return await _grcRiskRead(query(col,where('submittedByEmail','==',_grcRiskEmail())));
       }catch(err){
-        console.warn('[GRC Risk Requests] getMine canonical email failed',err&&err.code||err);
+        console.warn('[GRC Risk Requests] getMine failed',err&&err.code||err);
         throw err;
       }
     };
@@ -2023,7 +2020,7 @@ window._selectPortal=async portal=>{
       else{
         // Operational users subscribe only to their own exact canonical request set.
         // Department-wide approval routing is handled through the manager inbox.
-        qrefs.push(query(col,where(_grcRiskUid()?'submittedByUid':'submittedByEmail','==',_grcRiskUid()||_grcRiskEmail())));
+        qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
       }
       const sources={},unsubs=[],failed={};let successCount=0;
       function emit(){
