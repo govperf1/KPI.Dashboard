@@ -1321,9 +1321,11 @@ window._selectPortal=async portal=>{
     window._advisoryGetManagerQueue=async function(){
       const bundle=await window._grcGetDepartmentApprovalQueue(true);
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
-      // Approval inbox contains only requests assigned to this manager.
-      // The manager's own submissions belong under My Requests instead.
-      return bundle.review||[];
+      /* Keep both datasets in the manager page: other users' same-department
+         approval queue is rendered in the upper table, while the manager's
+         own submissions are rendered separately in the lower table. */
+      const own=await window._advisoryGetMine().catch(function(err){console.warn('[Review Development] manager own requests failed',err&&err.code||err);return[];});
+      return _advMergeRows(bundle.review||[],own||[],false);
     };
     function stageOfManagerRow(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};

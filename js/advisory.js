@@ -83,9 +83,10 @@
   }
   function workflowStage(r){var x=String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();return x==='submitted'?'pending_super_admin':x;}
   function workflowLabel(r){var x=workflowStage(r),m={pending_department_manager:'Pending Department Manager Approval',pending_super_admin:'Pending Super Admin Review',returned_requester:'Returned for Update',rejected_manager:'Rejected by Department Manager',responded:'Super Admin Response Sent',awaiting_requester_information:'Awaiting Requester Information',clarification_received:'Clarification Received',requester_confirmed:'Requester Confirmed',closed:'Closed'};return m[x]||String(x||'Open').replace(/_/g,' ').replace(/\b\w/g,function(c){return c.toUpperCase();});}
-  function isManagerApprovalRecord(r){if(!isDepartmentManager()||!r)return false;var stage=workflowStage(r);if(stage!=='pending_department_manager')return false;if(String(r&&r.userEmail||'').toLowerCase().trim()===userEmail())return false;var assigned=r._managerAssigned===true||String(r.assignedManagerEmail||'').toLowerCase().trim()===userEmail();var dept=String(r.departmentKey||'').trim();var mine=String(userDepartmentKey()||'').trim();return assigned||(!assigned&&!!mine&&dept===mine);}
-  function isManagerOwnRequest(r){return isDepartmentManager()&&String(r&&r.userEmail||'').toLowerCase().trim()===userEmail();}
-  function isOwnRequest(r){return String(r&&r.userEmail||'').toLowerCase().trim()===userEmail();}
+  function isManagerApprovalRecord(r){if(!isDepartmentManager()||!r)return false;var stage=workflowStage(r);if(stage!=='pending_department_manager')return false;if(sameRequester(r))return false;var assigned=r._managerAssigned===true||String(r.assignedManagerEmail||'').toLowerCase().trim()===userEmail();var dept=String(r.departmentKey||'').trim();var mine=String(userDepartmentKey()||'').trim();return assigned||(!assigned&&!!mine&&dept===mine);}
+  function sameRequester(r){if(!r)return false;var me=String((window._fbUserUid||window.currentUserUid||window._fbUid||'')).trim();var rid=String(r.requesterUid||r.userUid||r.uid||'').trim();if(me&&rid&&me===rid)return true;return String(r.userEmail||r.requesterEmail||'').toLowerCase().trim()===userEmail();}
+  function isManagerOwnRequest(r){return isDepartmentManager()&&sameRequester(r);}
+  function isOwnRequest(r){return sameRequester(r);}
   function departmentName(k){return(DEPARTMENTS[k]&&DEPARTMENTS[k].name)||String(k||'—');}
   function departmentCode(k){return(DEPARTMENTS[k]&&DEPARTMENTS[k].code)||'FMS';}
   function root(){return document.getElementById(currentRootId);}
@@ -188,7 +189,7 @@
     /* The Submitted box is the requester's tracking history. Ownership is
        resolved server-side by _advisoryGetMine; do not apply a second strict
        browser-side email filter that can hide valid UID-owned requests. */
-    var list=(records||[]).filter(function(r){return r&&recordPlatform(r)===currentPlatform;}).slice()
+    var list=(records||[]).filter(function(r){return r&&recordPlatform(r)===currentPlatform&&(!isDepartmentManager()||isManagerOwnRequest(r));}).slice()
       .sort(function(a,b){return timeMs(b.createdAt)-timeMs(a.createdAt);});
     return'<div class="adv-card"><div class="adv-register-toolbar"><div><h3>Submitted Review & Development Requests</h3><p>Track every request you submitted, including its current status and approval stage.</p></div><button class="adv-btn ghost" onclick="window._advReload()">Refresh</button></div><div class="adv-table-wrap"><table class="adv-table" style="min-width:980px"><thead><tr><th>Request Code</th><th>Request Type</th><th>Item Type</th><th>Related Record(s)</th><th>Submitted</th><th>Status</th><th>Approval Stage</th><th>Last Update</th><th>Rating</th><th></th></tr></thead><tbody>'+(list.length?list.map(function(r){return'<tr><td class="adv-code">'+esc(r.code||r.id)+'</td><td>'+esc(typeLabel(r))+'</td><td>'+esc(r.category||r.relatedType||'—')+'</td><td>'+esc(relatedText(r))+'</td><td>'+formatDate(r.createdAt,true)+'</td><td>'+statusBadge(r.status)+'</td><td><span class="adv-workflow-stage">'+esc(workflowLabel(r))+'</span></td><td>'+formatDate(r.updatedAt||r.respondedAt||r.createdAt,true)+'</td><td>'+stars(r.rating)+(r.ratingComment?'<div class="adv-rating-comment-mini">'+esc(r.ratingComment)+'</div>':'')+'</td><td><button class="adv-btn secondary" onclick="window._advOpenRequest(\''+esc(r.id)+'\')">Show</button></td></tr>';}).join(''):'<tr><td colspan="10"><div class="adv-empty">No requests have been submitted yet.</div></td></tr>')+'</tbody></table></div></div>';
   }
