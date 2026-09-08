@@ -1191,6 +1191,25 @@ window._selectPortal=async portal=>{
            denied warnings even while the manager's queue is valid. */
         try{const q=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review'));q.forEach(function(d){const v=d.data()||{},x=Object.assign({},v.snapshot||{});x.departmentKey=x.departmentKey||v.departmentKey;addReview(v.requestId||d.id,x);});}catch(e){result.errors.push('Review queue: '+String(e&&e.code||e&&e.message||e));}
         try{const q=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'));q.forEach(function(d){const v=d.data()||{},x=Object.assign({},v.snapshot||{});x.departmentKey=x.departmentKey||v.departmentKey;addRisk(v.requestId||d.id,x);});}catch(e){result.errors.push('Risk queue: '+String(e&&e.code||e&&e.message||e));}
+        /* v324 — Source recovery for legacy requests whose queue-index write was
+           denied or skipped. The Department Manager is still restricted to an
+           exact department query and pending workflow states. This makes old
+           requests visible without waiting for a Super Admin backfill. */
+        if(!Object.keys(riskMap).length){
+          const sourceDepartments=[fresh.departmentKey];
+          if(fresh.departmentKey==='projects')sourceDepartments.push('Project_Management','Project Management','project_management');
+          if(fresh.departmentKey==='maintenance')sourceDepartments.push('Maintenance','Maintenance_Management','maintenance_management');
+          if(fresh.departmentKey==='safety')sourceDepartments.push('Safety','Safety_Management','safety_management');
+          if(fresh.departmentKey==='housekeeping')sourceDepartments.push('Housekeeping','Housekeeping_Management','housekeeping_management');
+          if(fresh.departmentKey==='laundry')sourceDepartments.push('Laundry','Laundry_Management','laundry_management');
+          for(const sourceDept of sourceDepartments){
+            try{
+              const q=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',sourceDept)));
+              q.forEach(function(d){addRisk(d.id,d.data()||{});});
+            }catch(e){result.errors.push('Risk source '+sourceDept+': '+String(e&&e.code||e&&e.message||e));}
+            if(Object.keys(riskMap).length)break;
+          }
+        }
         result.review=Object.keys(reviewMap).map(k=>reviewMap[k]).sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
         result.risk=_grcRiskSort(Object.keys(riskMap).map(k=>riskMap[k]));
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();
@@ -1325,17 +1344,7 @@ window._selectPortal=async portal=>{
          approval queue is rendered in the upper table, while the manager's
          own submissions are rendered separately in the lower table. */
       const own=await window._advisoryGetMine().catch(function(err){console.warn('[Review Development] manager own requests failed',err&&err.code||err);return[];});
-      /* v317 — Preserve the Risk & Incident manager queue together with the
-         review rows. The previous version returned only an Array of review/own
-         requests, so advisory.js had no way to receive bundle.risk and the
-         Department Approval Requests table incorrectly showed 0 Risk/Incident
-         requests even when they were visible in the Risk & Incident workflow. */
-      const merged=_advMergeRows(bundle.review||[],own||[],false);
-      merged._grcRiskRecords=Array.isArray(bundle.risk)?bundle.risk:[];
-      merged.review=Array.isArray(bundle.review)?bundle.review:[];
-      merged.risk=merged._grcRiskRecords;
-      merged._grcManagerProfile=bundle.profile||null;
-      return merged;
+      return _advMergeRows(bundle.review||[],own||[],false);
     };
     function stageOfManagerRow(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
@@ -1348,7 +1357,7 @@ window._selectPortal=async portal=>{
           try{
             const rows=await window._advisoryGetManagerQueue();
             const dashboardRows=(rows||[]).map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
-            callback({records:rows||[],publicRecords:dashboardRows,managerRiskRecords:Array.isArray(rows&&rows._grcRiskRecords)?rows._grcRiskRecords:[],errors:{},source:'manager-queue'});
+            callback({records:rows||[],publicRecords:dashboardRows,errors:{},source:'manager-queue'});
           }catch(err){
             callback({records:[],publicRecords:[],errors:{manager:String(err&&err.message||err&&err.code||err)},source:'manager-queue'});
           }

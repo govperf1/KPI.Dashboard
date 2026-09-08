@@ -272,40 +272,33 @@
     /* Department Manager approval queues use fresh Firestore profile reads.
        Do not let a stale session-scoped live listener hide valid approvals. */
     if(isManager()){
-      if(startedFor===key&&unsub&&reviewApprovalUnsub)return;
+      if(startedFor===key&&managerPollTimer)return;
       if(unsub)try{unsub();}catch(_){}unsub=null;
       if(reviewApprovalUnsub)try{reviewApprovalUnsub();}catch(_){}reviewApprovalUnsub=null;
       if(managerPollTimer){clearInterval(managerPollTimer);managerPollTimer=null;}
       startedFor=key;managerRiskAllRows=[];managerReviewAllRows=[];
-      if(typeof window._grcRiskRequestsSubscribe==='function'){
-        unsub=window._grcRiskRequestsSubscribe(function(payload,err){
-          if(err){window.__grcManagerApprovalError='Risk / Incident: '+String(err&&err.message||err);return;}
-          var riskPayload=payload||{};
-          cache=(Array.isArray(riskPayload.records)?riskPayload.records:Array.isArray(riskPayload)?riskPayload:[]).filter(managerDepartmentRequest);
-          managerRiskAllRows=Array.isArray(riskPayload.allRecords)?riskPayload.allRecords:cache.slice();
-          window.__grcRiskRequestCache=cache;
-          try{document.dispatchEvent(new CustomEvent('grc:riskRequestsUpdated',{detail:{rows:cache}}));}catch(_e){}
+      /* v324 — Both Risk/Incident and Review queues now come from ONE canonical
+         department bundle. Do not let two independent listeners race and replace
+         a valid queue with an empty permission-denied result. */
+      var pullManagerQueues=async function(){
+        try{
+          var bundle=null;
+          if(typeof window._grcGetDepartmentApprovalQueue==='function')bundle=await window._grcGetDepartmentApprovalQueue(true);
+          if(!bundle)bundle={risk:typeof window._grcRiskRequestsGetForManager==='function'?await window._grcRiskRequestsGetForManager():[],review:[]};
+          cache=(Array.isArray(bundle.risk)?bundle.risk:[]).filter(managerDepartmentRequest);
+          reviewApprovalRows=(Array.isArray(bundle.review)?bundle.review:[]).filter(reviewManagerRequest);
+          managerRiskAllRows=cache.slice();managerReviewAllRows=reviewApprovalRows.slice();
+          window.__grcRiskRequestCache=cache;window.__grcManagerReviewPayload={records:reviewApprovalRows,allRecords:reviewApprovalRows,risk:cache};
+          if(bundle.errors&&bundle.errors.length)window.__grcManagerApprovalError=bundle.errors.join(' · ');else window.__grcManagerApprovalError='';
+          try{document.dispatchEvent(new CustomEvent('grc:riskRequestsUpdated',{detail:{rows:cache}}));document.dispatchEvent(new CustomEvent('grc:managerReviewQueueUpdated',{detail:window.__grcManagerReviewPayload}));}catch(_e){}
           refreshBadge();
           if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
           if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();
           scheduleApprovalNotice(false);
-        });
-      }
-      if(typeof window._advisorySubscribe==='function'){
-        reviewApprovalUnsub=window._advisorySubscribe(function(payload){
-          var reviewPayload=payload||{};
-          reviewApprovalRows=(Array.isArray(reviewPayload.records)?reviewPayload.records:[]).filter(reviewManagerRequest);
-          managerReviewAllRows=Array.isArray(reviewPayload.allRecords)?reviewPayload.allRecords:reviewApprovalRows.slice();
-          window.__grcManagerReviewPayload=reviewPayload;
-          try{document.dispatchEvent(new CustomEvent('grc:managerReviewQueueUpdated',{detail:reviewPayload}));}catch(_e){}
-          if(reviewPayload.errors&&reviewPayload.errors.manager)window.__grcManagerApprovalError='Review & Development: '+reviewPayload.errors.manager;
-          else window.__grcManagerApprovalError='';
-          refreshBadge();
-          if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
-          if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();
-          scheduleApprovalNotice(false);
-        });
-      }
+        }catch(err){window.__grcManagerApprovalError='Department approvals: '+String(err&&err.message||err);console.warn('[GRC Manager Approval Pull] failed',err&&err.code||err);}
+      };
+      pullManagerQueues();
+      managerPollTimer=setInterval(pullManagerQueues,4000);
       return;
     }
     if(isSuper()&&typeof window._advisorySubscribePendingSuperAdmin==='function'){
