@@ -1128,11 +1128,19 @@ window._selectPortal=async portal=>{
        assignments can never hide a valid pending request from the department's
        current Department Manager. */
     const GRC_MANAGER_QUEUE_ROOT='grc_department_approval_inbox_v3';
+    /* v322 — one canonical department key for EVERY manager-inbox path.
+       Older requests were stored as Project_Management while the authenticated
+       manager resolves to projects. Firestore paths are literal, so those were
+       two different inboxes even though they are the same department. */
+    function _grcQueueDepartmentKey(departmentKey){
+      const raw=String(departmentKey||'').trim();
+      try{return String(_advCanonicalDepartment(raw)||raw).trim();}catch(_){return raw;}
+    }
     function _grcManagerQueueCollection(departmentKey,kind){
-      return collection(db,GRC_MANAGER_QUEUE_ROOT,String(departmentKey||''),String(kind||'review')==='risk'?'risk':'review');
+      return collection(db,GRC_MANAGER_QUEUE_ROOT,_grcQueueDepartmentKey(departmentKey),String(kind||'review')==='risk'?'risk':'review');
     }
     function _grcManagerQueueItemRef(departmentKey,kind,requestId){
-      return doc(db,GRC_MANAGER_QUEUE_ROOT,String(departmentKey||''),String(kind||'review')==='risk'?'risk':'review',String(requestId||''));
+      return doc(db,GRC_MANAGER_QUEUE_ROOT,_grcQueueDepartmentKey(departmentKey),String(kind||'review')==='risk'?'risk':'review',String(requestId||''));
     }
     function _grcQueuePlain(v){
       if(v==null)return v;
@@ -1171,7 +1179,7 @@ window._selectPortal=async portal=>{
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         const result={profile:fresh,review:[],risk:[],errors:[]},reviewMap={},riskMap={};
-        const addReview=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;if(String(x.userEmail||'').toLowerCase().trim()===fresh.email)return;if(String(x.departmentKey||'')!==fresh.departmentKey)return;if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;x._managerAssigned=true;reviewMap[key]=x;};
+        const addReview=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;if(String(x.userEmail||'').toLowerCase().trim()===fresh.email)return;if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');x._managerAssigned=true;reviewMap[key]=x;};
         const addRisk=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});if(!x||String(x.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;if(_advCanonicalDepartment(x.departmentKey||x.department||x.departmentRaw||'')!==fresh.departmentKey)return;if(!['pending_manager','returned_manager'].includes(String(x.status||'').toLowerCase()))return;x._managerAssigned=true;riskMap[key]=x;};
         /* The department queue path is the manager's authoritative read model.
            Do not probe source collections here: historical rows can lack the
@@ -1191,7 +1199,7 @@ window._selectPortal=async portal=>{
       if(!_advIsSuperAdmin()||!db)return 0;const guard='__grcDeptInboxBackfillV215';if(!force&&window[guard])return 0;window[guard]=true;let count=0;
       try{
         const [reviewSnap,riskSnap]=await Promise.all([getDocs(collection(db,ADV_REQUESTS_COLLECTION)),getDocs(collection(db,GRC_RISK_REQUESTS_COLLECTION))]);
-        for(const d of reviewSnap.docs){const r=d.data()||{},dept=String(r.departmentKey||'');if(!dept||String(r.workflowStage||'')!=='pending_department_manager')continue;const snapshot=_grcReviewQueueSnapshot(r,d.id);await setDoc(_grcManagerQueueItemRef(dept,'review',d.id),_grcQueueItem('review',d.id,dept,String(r.userEmail||''),snapshot),{merge:false});count++;}
+        for(const d of reviewSnap.docs){const r=d.data()||{},dept=_grcQueueDepartmentKey(r.departmentKey||r.department||r.departmentRaw||'');if(!dept||String(r.workflowStage||'')!=='pending_department_manager')continue;const normalized=Object.assign({},r,{departmentKey:dept});const snapshot=_grcReviewQueueSnapshot(normalized,d.id);await setDoc(_grcManagerQueueItemRef(dept,'review',d.id),_grcQueueItem('review',d.id,dept,String(r.userEmail||''),snapshot),{merge:false});count++;}
         for(const d of riskSnap.docs){const r=d.data()||{},dept=_advCanonicalDepartment(r.departmentKey||r.department||r.departmentRaw||''),status=String(r.status||'');if(!dept||!['pending_manager','returned_manager'].includes(status))continue;const snapshot=_grcRiskQueueSnapshot(Object.assign({},r,{departmentKey:dept}),d.id);await setDoc(_grcManagerQueueItemRef(dept,'risk',d.id),_grcQueueItem('risk',d.id,dept,String(r.submittedByEmail||''),snapshot),{merge:false});count++;}
       }catch(e){console.warn('[GRC Department Inbox Backfill]',e&&e.code||e);}return count;
     };
