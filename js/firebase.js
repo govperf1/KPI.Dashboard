@@ -1175,6 +1175,8 @@ window._selectPortal=async portal=>{
       window.__grcManagerDepartmentKey=profile.departmentKey;return profile;
     }
     let _grcManagerQueueCache=null,_grcManagerQueueCacheAt=0,_grcManagerQueueCachePromise=null;
+    /* Keep a verified department history snapshot so a transient queue/network read never makes existing Risk/Incident requests disappear. */
+    let _grcManagerRiskHistoryCache=[],_grcManagerRiskHistoryAt=0;
     /* v316 — Manager inbox reads only the department-scoped queue.
        Never let an optional source/history read erase a valid queue result. */
     window._grcGetDepartmentApprovalQueue=async function(force){
@@ -1191,12 +1193,26 @@ window._selectPortal=async portal=>{
            denied warnings even while the manager's queue is valid. */
         try{const q=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review'));q.forEach(function(d){const v=d.data()||{},x=Object.assign({},v.snapshot||{});x.departmentKey=x.departmentKey||v.departmentKey;addReview(v.requestId||d.id,x);});}catch(e){result.errors.push('Review queue: '+String(e&&e.code||e&&e.message||e));}
         try{const q=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'));q.forEach(function(d){const v=d.data()||{},x=Object.assign({},v.snapshot||{});x.departmentKey=x.departmentKey||v.departmentKey;addRisk(v.requestId||d.id,x);});}catch(e){result.errors.push('Risk queue: '+String(e&&e.code||e&&e.message||e));}
-        /* Manager reads are intentionally limited to the department inbox.
-           Do not fall back to grc_risk_requests here: Firestore evaluates a
-           collection query before returning rows and older source documents can
-           make the whole department query fail with permission-denied. Existing
-           pending rows are backfilled into this inbox by Super Admin, while all
-           new submissions write the inbox snapshot at submit/resubmit time. */
+        /* Keep the inbox as the authoritative ACTION queue, but also recover the
+           manager's department history from the source collection. Older completed
+           requests may predate the inbox index and must remain visible in the manager
+           profile. This read is cached separately to avoid repeated Firestore reads. */
+        const historyNow=Date.now();
+        if(!_grcManagerRiskHistoryAt || historyNow-_grcManagerRiskHistoryAt>60000){
+          try{
+            const src=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));
+            const sourceMap={};src.forEach(function(d){const x=_grcRiskRequestData(d);if(x){x._managerAssigned=true;sourceMap[d.id]=x;addRisk(d.id,x);}});
+            _grcManagerRiskHistoryCache=_grcRiskSort(Object.keys(sourceMap).map(k=>sourceMap[k]));
+            _grcManagerRiskHistoryAt=Date.now();
+          }catch(e){
+            result.errors.push('Risk history: '+String(e&&e.code||e&&e.message||e));
+          }
+        }else{
+          _grcManagerRiskHistoryCache.forEach(function(x){if(x)addRisk(x.id,x);});
+        }
+        /* If the source history read is temporarily unavailable, keep the last
+           verified history instead of replacing the manager view with an empty list. */
+        _grcManagerRiskHistoryCache.forEach(function(x){if(x)addRisk(x.id,x);});
         result.review=Object.keys(reviewMap).map(k=>reviewMap[k]).sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
         result.risk=_grcRiskSort(Object.keys(riskMap).map(k=>riskMap[k]));
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();

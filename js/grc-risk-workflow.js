@@ -306,7 +306,10 @@
         }catch(err){window.__grcManagerApprovalError='Department approvals: '+String(err&&err.message||err);console.warn('[GRC Manager Approval Pull] failed',err&&err.code||err);}
       };
       pullManagerQueues();
-      managerPollTimer=setInterval(pullManagerQueues,4000);
+      /* Do not poll Firestore every 4 seconds. That caused the read spike and quota
+         exhaustion seen in the console. The queue keeps the last verified rows and
+         refreshes on a slower interval while the profile remains stable. */
+      managerPollTimer=setInterval(pullManagerQueues,60000);
       return;
     }
     if(isSuper()&&typeof window._advisorySubscribePendingSuperAdmin==='function'){
