@@ -910,8 +910,12 @@ window._selectPortal=async portal=>{
       const status=String(row.status||'').toLowerCase();
       if(!['approved','rejected'].includes(status))throw new Error('Only completed requests can be rated.');
       if(Number(row.rating||0))throw new Error('This request has already been rated.');
-      const n=Math.max(1,Math.min(5,Number(rating||0))),nowIso=new Date().toISOString();
-      await updateDoc(ref,{rating:n,ratingComment:String(comment||'').trim(),ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:nowIso});
+      const n=Math.max(1,Math.min(5,Number(rating||0)));
+      if(!Number.isFinite(n)||n<1)throw new Error('Select a star rating before submitting.');
+      // Keep requester feedback as a strictly isolated Firestore update.
+      // This avoids mixing a rating with workflow timestamps/fields that may
+      // require admin permissions under the security rules.
+      await updateDoc(ref,{rating:n,ratingComment:String(comment||'').trim(),ratingAt:serverTimestamp()});
       try{await window._recordAuditDirect('GRC_USER_REQUEST_RATING','Rated GRC user request '+requestId+' · '+n+'/5',null,{requestId:requestId,rating:n,comment:String(comment||'')},{portal:'grc'});}catch(_){}
       return true;
     };
