@@ -253,6 +253,7 @@ service cloud.firestore {
       return access && (
         all ||
         (d != '' && ('departmentKey' in data) && data.departmentKey == d) ||
+        (d != '' && ('departmentKey' in data) && data.departmentKey == d) ||
         (d != '' && ('department' in data) && canonicalDepartment(data.department) == d) ||
         (('departmentKey' in data) && data.departmentKey == 'division') ||
         (('department' in data) && canonicalDepartment(data.department) == 'division') ||
@@ -595,6 +596,7 @@ service cloud.firestore {
 
     match /grc_requests/{requestId} {
       allow create: if canAccessGrc() && ownEmail(request.resource.data.userEmail) &&
+        (!('requesterUid' in request.resource.data) || request.resource.data.requesterUid == request.auth.uid) &&
         (
           !('department' in request.resource.data) ||
           request.resource.data.department == '' ||
@@ -603,14 +605,16 @@ service cloud.firestore {
 
       allow get: if canAccessGrc() &&
         (admin() || permit('view_request_analytics', ['governance_performance_manager']) ||
-         ownEmail(resource.data.userEmail));
+         ownEmail(resource.data.userEmail) ||
+         (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid));
 
       // _grcRequestsGetMine() queries exactly by the authenticated lowercase email.
       // This explicit list branch makes the query authorization provable.
       allow list: if canAccessGrc() && (
         admin() ||
         permit('view_request_analytics', ['governance_performance_manager']) ||
-        (resource.data.userEmail is string && resource.data.userEmail == authEmail())
+        ((resource.data.userEmail is string && resource.data.userEmail == authEmail()) ||
+         (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid))
       );
 
       allow update: if admin() ||
@@ -647,7 +651,8 @@ service cloud.firestore {
     // and split by workflow kind so manager queries are directly provable.
     match /grc_department_approval_inbox_v3/{departmentKey}/{kind}/{itemId} {
       allow get, list: if approved() && kind in ['review','risk'] && (
-        admin() || (departmentManager() && userDepartmentKey() != '' && userDepartmentKey() == departmentKey)
+        role() in ['admin','super_admin'] ||
+        (role() == 'department_manager' && userDepartmentKey() == departmentKey)
       );
 
       allow create, update: if approved() && kind in ['review','risk'] &&
