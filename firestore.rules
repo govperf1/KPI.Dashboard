@@ -571,6 +571,7 @@ service cloud.firestore {
       // List/query authorization must be provable from the actual query field.
       allow list: if approved() && (
         admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']) ||
+        (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) ||
         (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
       );
       // Generic Performance User Requests are admin-controlled after submit.
