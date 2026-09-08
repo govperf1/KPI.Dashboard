@@ -1136,6 +1136,24 @@ window._selectPortal=async portal=>{
       const raw=String(departmentKey||'').trim();
       try{return String(_advCanonicalDepartment(raw)||raw).trim();}catch(_){return raw;}
     }
+    /* v323 — Read both the canonical inbox path and historical aliases.
+       Firestore paths are literal. Older Project Management requests were
+       written under Project_Management / Project Management, while the current
+       profile correctly resolves to projects. Reading only /projects therefore
+       made the Department Manager see 0 requests even though the inbox items
+       still existed under a legacy path. */
+    function _grcManagerQueueDepartmentPaths(departmentKey){
+      const canonical=_grcQueueDepartmentKey(departmentKey);
+      const aliases={
+        projects:['projects','Project_Management','Project Management','project_management'],
+        maintenance:['maintenance','Maintenance','maintenance_management','Maintenance_Management'],
+        safety:['safety','Safety','safety_management','Safety_Management'],
+        housekeeping:['housekeeping','Housekeeping','housekeeping_management','Housekeeping_Management'],
+        laundry:['laundry','Laundry','laundry_management','Laundry_Management']
+      };
+      const list=(aliases[canonical]||[canonical]).concat([canonical]);
+      return Array.from(new Set(list.map(function(x){return String(x||'').trim();}).filter(Boolean)));
+    }
     function _grcManagerQueueCollection(departmentKey,kind){
       return collection(db,GRC_MANAGER_QUEUE_ROOT,_grcQueueDepartmentKey(departmentKey),String(kind||'review')==='risk'?'risk':'review');
     }
@@ -1185,8 +1203,33 @@ window._selectPortal=async portal=>{
            Do not probe source collections here: historical rows can lack the
            canonical fields required for a Firestore query, causing permission-
            denied warnings even while the manager's queue is valid. */
-        try{const q=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review'));q.forEach(function(d){const v=d.data()||{},x=Object.assign({},v.snapshot||{});x.departmentKey=x.departmentKey||v.departmentKey;addReview(v.requestId||d.id,x);});}catch(e){result.errors.push('Review queue: '+String(e&&e.code||e&&e.message||e));}
-        try{const q=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'));q.forEach(function(d){const v=d.data()||{},x=Object.assign({},v.snapshot||{});x.departmentKey=x.departmentKey||v.departmentKey;addRisk(v.requestId||d.id,x);});}catch(e){result.errors.push('Risk queue: '+String(e&&e.code||e&&e.message||e));}
+        /* Read every known path for this department and merge by request id.
+           This keeps the current canonical path authoritative while preserving
+           requests created before the canonical path migration. */
+        const queuePaths=_grcManagerQueueDepartmentPaths(fresh.departmentKey);
+        async function readQueue(kind,adder,label){
+          const settled=await Promise.all(queuePaths.map(async function(path){
+            try{
+              return {path:path,snap:await getDocsFromServer(collection(db,GRC_MANAGER_QUEUE_ROOT,path,kind))};
+            }catch(e){
+              return {path:path,error:e};
+            }
+          }));
+          let failures=[];
+          settled.forEach(function(item){
+            if(item.error){failures.push(item.path+': '+String(item.error&&item.error.code||item.error&&item.error.message||item.error));return;}
+            item.snap.forEach(function(d){
+              const v=d.data()||{},x=Object.assign({},v.snapshot||{});
+              x.departmentKey=x.departmentKey||v.departmentKey||item.path;
+              adder(v.requestId||d.id,x);
+            });
+          });
+          /* Only report a queue error when every compatible path failed. A
+             missing legacy alias must never overwrite a valid canonical queue. */
+          if(failures.length===settled.length)result.errors.push(label+' queue: '+failures.join(' | '));
+        }
+        await readQueue('review',addReview,'Review');
+        await readQueue('risk',addRisk,'Risk');
         result.review=Object.keys(reviewMap).map(k=>reviewMap[k]).sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
         result.risk=_grcRiskSort(Object.keys(riskMap).map(k=>riskMap[k]));
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();
