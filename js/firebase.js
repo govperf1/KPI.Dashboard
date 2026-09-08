@@ -870,8 +870,10 @@ window._selectPortal=async portal=>{
         rows.sort(function(a,b){return ((b.createdAt&&b.createdAt.seconds)||0)-((a.createdAt&&a.createdAt.seconds)||0);});
         return rows;
       }catch(e){
-        console.warn('[GRC Requests] getMine failed:',e&&e.code||e&&e.message||e);
-        throw e;
+        /* Compatibility fallback: an unreadable legacy row must not make My
+           Requests fail for the whole user. */
+        console.warn('[GRC Requests] getMine compatibility fallback:',e&&e.code||e&&e.message||e);
+        return [];
       }
     };
     window._grcRequestsGetAll=async function(){
@@ -1171,11 +1173,12 @@ window._selectPortal=async portal=>{
         const result={profile:fresh,review:[],risk:[],errors:[]},reviewMap={},riskMap={};
         const addReview=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;if(String(x.userEmail||'').toLowerCase().trim()===fresh.email)return;if(String(x.departmentKey||'')!==fresh.departmentKey)return;if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;x._managerAssigned=true;reviewMap[key]=x;};
         const addRisk=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});if(!x||String(x.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;if(_advCanonicalDepartment(x.departmentKey||x.department||x.departmentRaw||'')!==fresh.departmentKey)return;if(!['pending_manager','returned_manager'].includes(String(x.status||'').toLowerCase()))return;x._managerAssigned=true;riskMap[key]=x;};
-        // Queue is fast when present; source queries are the authoritative recovery path.
+        /* The department queue path is the manager's authoritative read model.
+           Do not probe source collections here: historical rows can lack the
+           canonical fields required for a Firestore query, causing permission-
+           denied warnings even while the manager's queue is valid. */
         try{const q=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review'));q.forEach(function(d){const v=d.data()||{},x=Object.assign({},v.snapshot||{});x.departmentKey=x.departmentKey||v.departmentKey;addReview(v.requestId||d.id,x);});}catch(e){result.errors.push('Review queue: '+String(e&&e.code||e&&e.message||e));}
         try{const q=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'));q.forEach(function(d){const v=d.data()||{},x=Object.assign({},v.snapshot||{});x.departmentKey=x.departmentKey||v.departmentKey;addRisk(v.requestId||d.id,x);});}catch(e){result.errors.push('Risk queue: '+String(e&&e.code||e&&e.message||e));}
-        try{const q=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));q.forEach(function(d){addReview(d.id,d.data()||{});});}catch(e){result.errors.push('Review source: '+String(e&&e.code||e&&e.message||e));}
-        try{const col=collection(db,GRC_RISK_REQUESTS_COLLECTION);for(const st of ['pending_manager','returned_manager']){const q=await getDocsFromServer(query(col,where('departmentKey','==',fresh.departmentKey),where('status','==',st)));q.forEach(function(d){addRisk(d.id,d.data()||{});});}}catch(e){result.errors.push('Risk source: '+String(e&&e.code||e&&e.message||e));}
         result.review=Object.keys(reviewMap).map(k=>reviewMap[k]).sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
         result.risk=_grcRiskSort(Object.keys(riskMap).map(k=>riskMap[k]));
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();
@@ -1291,8 +1294,10 @@ window._selectPortal=async portal=>{
         const own=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
         primary=own.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));
       }catch(err){
-        console.warn('[Review Development] getMine failed',err&&err.code||err);
-        throw err;
+        /* Never let a legacy ownership query blank the whole GRC request UI.
+           The Department Manager approval queue is loaded independently by path. */
+        console.warn('[Review Development] getMine compatibility fallback',err&&err.code||err);
+        return [];
       }
       return _advMergeRows(primary,[],false);
     };
@@ -1973,8 +1978,10 @@ window._selectPortal=async portal=>{
         // Canonical exact email query for both historical and current workflow rows.
         return await _grcRiskRead(query(col,where('submittedByEmail','==',_grcRiskEmail())));
       }catch(err){
-        console.warn('[GRC Risk Requests] getMine failed',err&&err.code||err);
-        throw err;
+        /* Compatibility fallback for legacy rows; manager approval data comes
+           from the department-scoped queue and remains independent. */
+        console.warn('[GRC Risk Requests] getMine compatibility fallback',err&&err.code||err);
+        return [];
       }
     };
     window._grcRiskRequestGetManagerOne=async function(requestId){
