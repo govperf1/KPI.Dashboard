@@ -4,7 +4,7 @@
    Review & Development Center requests.
    ===================================================================== */
 (function(){
-  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V217__)return;window.__QUMC_GRC_RISK_WORKFLOW_V217__=true;
+  'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V218__)return;window.__QUMC_GRC_RISK_WORKFLOW_V218__=true;
   var cache=[],unsub=null,startedFor='',reviewApprovalRows=[],reviewApprovalUnsub=null,approvalNoticeKey='',approvalNoticeEntry=0,approvalNoticeTimer=null,feedbackNormalRows=[],feedbackReviewRows=[],feedbackNormalUnsub=null,feedbackReviewUnsub=null,feedbackStartedFor='',feedbackTimer=null,managerPullBusy=false,managerPullAt=0,managerPollTimer=null,managerRiskAllRows=[],managerReviewAllRows=[];
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function role(){var raw=window._fbRole||window.currentUserRole||'viewer';return typeof window._normalizePortalRole==='function'?window._normalizePortalRole(raw):String(raw).trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
@@ -63,13 +63,13 @@
   }
   function historyTimeline(r,compact){var h=Array.isArray(r&&r.history)?r.history.slice():[];if(!h.length)return'';if(compact&&h.length>4)h=h.slice(-4);return'<section class="grc-risk-history '+(compact?'compact':'')+'"><div class="grc-risk-block-title">'+esc(isAr()?'سجل الاعتماد':'Approval History')+'</div><div class="grc-risk-history-list">'+h.map(function(x){var note=String(x&&x.note||'').trim(),actor=String(x&&x.by||'').trim(),rlabel=historyRoleLabel(x&&x.role||''),fields=Array.isArray(x&&x.fields)?x.fields:[];return'<div class="grc-risk-history-item"><i></i><div><div class="grc-risk-history-top"><strong>'+esc(historyStatusLabel(x&&x.status||''))+'</strong><time>'+esc(historyTime(x&&x.at||x&&x.createdAt))+'</time></div><small>'+esc(rlabel+(actor?' · '+actor:''))+'</small>'+(fields.length?'<p><b>'+esc(isAr()?'الحقول: ':'Fields: ')+'</b>'+esc(fields.map(fieldLabel).join(' · '))+'</p>':'')+(note?'<p>'+esc(note)+'</p>':'')+'</div></div>';}).join('')+'</div></section>';}
   function tone(s){if(/^pending/.test(s)||/^returned/.test(s))return'warn';if(s==='published')return'good';if(/^rejected/.test(s)||s==='cancelled')return'bad';return'info';}
-  function actionable(r){var s=String(r.status||'');if(isOwner())return ownRequest(r)&&s==='returned_requester';if(isManager())return managerCanReviewRisk(r)&&s==='pending_manager';if(isSuper())return s==='pending_super_admin';return false;}
+  function actionable(r){var s=String(r.status||'');if(isOwner())return ownRequest(r)&&s==='returned_requester';if(isManager())return managerCanReviewRisk(r)&&['pending_manager','returned_manager'].indexOf(s)>=0;if(isSuper())return s==='pending_super_admin';return false;}
   function riskApprovalNoticeRows(){
     return cache.filter(function(r){
       if(isManager()&&!responsibleRiskSubmitter(r))return false;
       var s=String(r&&r.status||'');
       if(isSuper())return s==='pending_super_admin';
-      if(isManager())return managerCanReviewRisk(r)&&s==='pending_manager';
+      if(isManager())return managerCanReviewRisk(r)&&['pending_manager','returned_manager'].indexOf(s)>=0;
       if(isNoticeOwner())return ownRequest(r)&&['pending_manager','pending_super_admin','returned_manager','returned_requester'].indexOf(s)>=0;
       return false;
     });
@@ -398,7 +398,7 @@
     if(isManager()){
       /* Profile queue: show all Risk & Incident requests for the manager's
          department submitted by the responsible owner. No status filter here. */
-      var riskRows=managerRiskAllRows.filter(function(r){return managerCanReviewRisk(r);}).sort(function(a,b){return (new Date(b.updatedAtIso||b.createdAtIso||b.createdAt||0).getTime()||0)-(new Date(a.updatedAtIso||a.createdAtIso||a.createdAt||0).getTime()||0);});
+      var riskRows=managerRiskAllRows.filter(function(r){/* Full department request history must remain visible, including requests submitted from the same account. Manager-action eligibility is handled only by actions()/entry notification. */return managerDepartmentRequest(r);}).sort(function(a,b){return (new Date(b.updatedAtIso||b.createdAtIso||b.createdAt||0).getTime()||0)-(new Date(a.updatedAtIso||a.createdAtIso||a.createdAt||0).getTime()||0);});
       var total=riskRows.length;
       body.innerHTML='<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Risk & Incident Register Requests</h3><p>All Risk & Incident requests submitted by the responsible owner for your department.</p></div><span>'+riskRows.length+'</span></div>'+(riskRows.length?riskRows.map(function(r){return card(r);}).join(''):'<div class="grc-risk-empty">No Risk or Incident requests are available for your department.</div>')+'</section>';
       var count=document.getElementById('_grcRiskProfileCount');if(count)count.textContent=total+' request(s)';
