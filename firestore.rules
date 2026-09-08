@@ -1,7 +1,7 @@
-// FIRESTORE SECURITY RULES v70 — Canonical GRC Profile + Department Workflow
-// v70: Department Manager source queries and inbox reads remain query-safe;
-// pending Review & Development requests may be recovered directly by exact
-// departmentKey + workflowStage queries when an older inbox row is missing.
+// FIRESTORE SECURITY RULES v71 — Canonical exact-query request reads
+// v71: Request list authorization is split into exact query-safe branches.
+// This prevents mixed ownership/legacy OR expressions from rejecting valid
+// userEmail, requesterUid, submittedByEmail and manager department queries.
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -608,14 +608,14 @@ service cloud.firestore {
          ownEmail(resource.data.userEmail) ||
          (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid));
 
-      // _grcRequestsGetMine() queries exactly by the authenticated lowercase email.
-      // This explicit list branch makes the query authorization provable.
-      allow list: if canAccessGrc() && (
-        admin() ||
-        permit('view_request_analytics', ['governance_performance_manager']) ||
-        ((resource.data.userEmail is string && resource.data.userEmail == authEmail()) ||
-         (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid))
-      );
+      // Exact query-safe list branches. Keep ownership reads separate from
+      // analytics reads so an exact userEmail query never depends on a legacy UID.
+      allow list: if admin();
+      allow list: if permit('view_request_analytics', ['governance_performance_manager']);
+      allow list: if canAccessGrc() && resource.data.userEmail is string &&
+        resource.data.userEmail == authEmail();
+      allow list: if canAccessGrc() && ('requesterUid' in resource.data) &&
+        resource.data.requesterUid == request.auth.uid;
 
       allow update: if admin() ||
         (canAccessGrc() && ownEmail(resource.data.userEmail) && validGrcRequestRatingChange());
@@ -626,7 +626,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // a unique v64 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId == 'v70-grc-manager-source-recovery-20260907';
+      allow get: if approved() && versionId == 'v71-canonical-exact-request-reads-20260908';
       allow list, create, update, delete: if false;
     }
 
@@ -873,7 +873,11 @@ service cloud.firestore {
       allow get: if departmentManager() && ('departmentKey' in resource.data) &&
         resource.data.departmentKey == userDepartmentKey();
 
-      allow list: if admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']);
+      // Split list branches deliberately: each browser listener issues one exact
+      // where() clause and Firestore can prove that clause independently.
+      allow list: if admin();
+      allow list: if role() == 'governance_performance_manager';
+      allow list: if permit('view_request_analytics', ['governance_performance_manager']);
       allow list: if approved() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
       allow list: if departmentManager() && ('departmentKey' in resource.data) &&
@@ -1034,13 +1038,14 @@ service cloud.firestore {
         resource.data.department == profileDepartmentValueFrom(userData());
       allow list: if departmentManager() && ('departmentRaw' in resource.data) &&
         resource.data.departmentRaw == profileDepartmentValueFrom(userData());
-      allow list: if
-        admin() ||
-        (canReadRiskIncidentWorkflow() && (
-          (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid) ||
-          (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail()) ||
-          riskRequestDepartmentList(resource.data)
-        ));
+      // Split owner and department list authorization into independent exact
+      // branches. This is safer for Firestore query authorization than one large OR.
+      allow list: if admin();
+      allow list: if canReadRiskIncidentWorkflow() &&
+        (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid);
+      allow list: if canReadRiskIncidentWorkflow() &&
+        (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail());
+      allow list: if canReadRiskIncidentWorkflow() && riskRequestDepartmentList(resource.data);
 
       allow update: if
         (
