@@ -836,6 +836,7 @@ window._selectPortal=async portal=>{
       if(!window._fbUser||!db) throw new Error('not authenticated');
       const ref=await addDoc(collection(db,'grc_requests'),{
         platform:'grc',
+        requesterUid: String(window._fbUid||window.currentUserUid||''),
         userName: window._fbName||window._fbUser.split('@')[0],
         userEmail: (window._fbUser||'').toLowerCase().trim(),
         department: String(window._fbDept||window.currentUserDept||'').trim(),
@@ -979,8 +980,8 @@ window._selectPortal=async portal=>{
     }
     async function _advAssertRulesVersion(){
       if(window.__advRulesV64Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v64-grc-superadmin-global-20260824'));window.__advRulesV64Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v64 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      try{await _getServerDoc(doc(db,'system_rule_versions','v72-grc-manager-action-legacy-guard-20260907'));window.__advRulesV64Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v72 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     async function _advAssertProfileScope(profile){
       profile=profile||{};
@@ -1269,13 +1270,15 @@ window._selectPortal=async portal=>{
          the email query as a silent compatibility read for older documents; a
          legacy permission failure must never break the current request list. */
       if(_advUid()){
-        const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid())));
-        primary=snap.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));
+        try{
+          const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid())));
+          primary=snap.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));
+        }catch(_uidOwnRead){ console.warn('[Review Development] UID own-read fallback:',_uidOwnRead&&_uidOwnRead.code||_uidOwnRead); }
       }
       try{
         const legacy=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
         primary=_advMergeRows(primary,legacy.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests')),false);
-      }catch(_legacyOwnRead){}
+      }catch(_legacyOwnRead){ console.warn('[Review Development] email own-read fallback:',_legacyOwnRead&&_legacyOwnRead.code||_legacyOwnRead); }
       return _advMergeRows(primary,await _advFallbackRows(true),false);
     };
     window._advisoryGetManagerQueue=async function(){
@@ -1537,9 +1540,9 @@ window._selectPortal=async portal=>{
     function _grcRiskCanViewRegister(){const r=_grcRiskRole(),p=_grcRiskPerms();return ['super_admin','admin','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].includes(r)||p.includes('access_grc')||p.includes('view_grc_department')||p.includes('edit_risk_management')||p.includes('edit_incident_register')||p.includes('*');}
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
-      if(window.__grcRulesV64Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v64-grc-superadmin-global-20260824'));window.__grcRulesV64Verified=true;return true;}
-      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v64 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
+      if(window.__grcRulesV72Verified===true)return true;
+      try{await _getServerDoc(doc(db,'system_rule_versions','v72-grc-manager-action-legacy-guard-20260907'));window.__grcRulesV72Verified=true;return true;}
+      catch(e){if(String(e&&e.code||'').toLowerCase().indexOf('permission-denied')>=0)throw new Error('rules-version-mismatch:Firestore Rules v72 are not active. Publish the firestore.rules file included with this update, wait for Firebase to confirm the rules were saved successfully, then sign in again.');throw e;}
     }
     window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
     // Compatibility aliases point to the same current probe so old callers cannot
