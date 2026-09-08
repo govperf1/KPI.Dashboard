@@ -1,0 +1,14 @@
+REQUESTS READ FIX — BUILD 62 PATCH
+
+Root issue addressed:
+1) Previous patch changed several My Requests reads to UID queries while parts of the deployed/request data model and legacy records are authorized by canonical email.
+2) That produced permission-denied on GRC Requests, Review & Development, and Risk/Incident request reads, so pages rendered empty.
+3) This patch returns all requester-owned reads to one exact canonical-email query and keeps Rules compatible with both email and UID ownership.
+
+Changed files:
+- js/firebase.js
+- firestore.rules
+
+Important deployment:
+Replace js/firebase.js in the hosted project and publish firestore.rules.
+Then hard refresh/sign out and sign back in.
