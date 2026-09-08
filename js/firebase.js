@@ -1189,8 +1189,9 @@ window._selectPortal=async portal=>{
       window.__grcManagerDepartmentKey=profile.departmentKey;return profile;
     }
     let _grcManagerQueueCache=null,_grcManagerQueueCacheAt=0,_grcManagerQueueCachePromise=null;
-    /* v316 — Manager inbox reads only the department-scoped queue.
-       Never let an optional source/history read erase a valid queue result. */
+    /* v324 — Manager inbox uses the department-scoped queue first, with an
+       exact department-key Risk/Incident fallback so a GRC Owner request cannot
+       disappear merely because the secondary inbox index was unavailable. */
     window._grcGetDepartmentApprovalQueue=async function(force){
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile()),now=Date.now();
       if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<1200)return _grcManagerQueueCache;
@@ -1230,6 +1231,19 @@ window._selectPortal=async portal=>{
         }
         await readQueue('review',addReview,'Review');
         await readQueue('risk',addRisk,'Risk');
+        /* Risk & Incident source fallback: a GRC Owner's workflow request must
+           still reach the Department Manager even if the secondary inbox index
+           was not created (for example, while an older ruleset was deployed).
+           The query is exact and department-scoped; client-side filtering never
+           broadens access. */
+        if(Object.keys(riskMap).length===0){
+          try{
+            const source=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));
+            source.forEach(function(d){addRisk(d.id,d.data()||{});});
+          }catch(sourceError){
+            result.errors.push('Risk source fallback: '+String(sourceError&&sourceError.code||sourceError&&sourceError.message||sourceError));
+          }
+        }
         result.review=Object.keys(reviewMap).map(k=>reviewMap[k]).sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
         result.risk=_grcRiskSort(Object.keys(riskMap).map(k=>riskMap[k]));
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();
