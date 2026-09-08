@@ -179,7 +179,7 @@ service cloud.firestore {
     function profileRoleFrom(data) {
       let r = ('role' in data) ? normalizedRoleValue(data.role) : 'viewer';
       return r == 'superadmin' ? 'super_admin' :
-             (r in ['departmentmanager', 'dept_manager', 'deptmanager', 'manager']) ? 'department_manager' :
+             (r in ['departmentmanager', 'department manager', 'department-manager', 'department_manager', 'dept manager', 'dept-manager', 'deptmanager', 'manager']) ? 'department_manager' :
              r == 'riskowner' ? 'risk_owner' :
              r == 'grcowner' ? 'grc_owner' :
              r == 'platformowner' ? 'platform_owner' :
