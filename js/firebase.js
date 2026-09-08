@@ -1296,17 +1296,22 @@ window._selectPortal=async portal=>{
     };
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
-      let primary=[];
-      try{
-        // Use the canonical email ownership key so historical and current requests share one query-safe read path.
-        const own=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
-        primary=own.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));
-      }catch(err){
-        /* Never let a legacy ownership query blank the whole GRC request UI.
-           The Department Manager approval queue is loaded independently by path. */
-        console.warn('[Review Development] getMine compatibility fallback',err&&err.code||err);
-        return [];
+      /* My Requests must never disappear because one historical ownership index
+         is unavailable. Current rows are owned by canonical email + UID; older
+         rows may contain only one of them. Read each narrow, rules-compatible
+         ownership path independently and merge the successful results. */
+      const reads=[];
+      const me=_advEmail(),uid=_advUid();
+      reads.push(getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)))
+        .then(function(snap){return snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});})
+        .catch(function(err){console.warn('[Review Development] getMine email path failed',err&&err.code||err);return [];}));
+      if(uid){
+        reads.push(getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)))
+          .then(function(snap){return snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});})
+          .catch(function(err){console.warn('[Review Development] getMine UID path failed',err&&err.code||err);return [];}));
       }
+      const groups=await Promise.all(reads),primary=[];
+      groups.forEach(function(rows){(rows||[]).forEach(function(r){primary.push(r);});});
       return _advMergeRows(primary,[],false);
     };
     window._advisoryGetManagerQueue=async function(){
@@ -1531,8 +1536,17 @@ window._selectPortal=async portal=>{
     };
 
     window._advisoryRate=async function(requestId,rating,comment){
-      const current=await _advAuthorizedRequest(requestId,false),n=Math.max(1,Math.min(5,Number(rating||0)));if(_advStatusKey(current.status)!=='closed')throw new Error('Only closed requests can be rated.');if(Number(current.rating))throw new Error('This request has already been rated.');
-      const ratingComment=String(comment||'').trim(),updates={rating:n,ratingComment:ratingComment,ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:_advIso(),updatedBy:_advEmail()};await updateDoc(current._requestRef,updates);
+      const current=await _advAuthorizedRequest(requestId,false,false),n=Math.max(1,Math.min(5,Number(rating||0)));
+      if(_advStatusKey(current.status)!=='closed')throw new Error('Only closed requests can be rated.');
+      if(Number(current.rating))throw new Error('This request has already been rated.');
+      const ratingComment=String(comment||'').trim(),updates={
+        rating:n,ratingComment:ratingComment,ratingAt:serverTimestamp(),
+        updatedAt:serverTimestamp(),updatedAtIso:_advIso(),updatedBy:_advEmail()
+      };
+      /* Keep the rating write limited to the authoritative request document.
+         No mirror or manager-queue write is required, so a queue permission
+         can never make a valid requester rating fail. */
+      await updateDoc(current._requestRef,updates);
       try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_RATING','Rated Review & Development request '+String(current.code||requestId)+' · '+n+'/5',null,{requestId:requestId,rating:n,comment:ratingComment},{portal:String(current.platform||'grc')});}catch(_){}
       return true;
     };
