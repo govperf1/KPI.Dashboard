@@ -280,36 +280,42 @@
     /* Department Manager approval queues use fresh Firestore profile reads.
        Do not let a stale session-scoped live listener hide valid approvals. */
     if(isManager()){
-      if(startedFor===key&&managerPollTimer)return;
+      /* One shared live broker for all manager approval UI.
+         No polling, no getDocsFromServer loop, and no DOM refresh when the
+         data did not actually change. */
+      if(startedFor===key&&unsub)return;
       if(unsub)try{unsub();}catch(_){}unsub=null;
       if(reviewApprovalUnsub)try{reviewApprovalUnsub();}catch(_){}reviewApprovalUnsub=null;
       if(managerPollTimer){clearInterval(managerPollTimer);managerPollTimer=null;}
       startedFor=key;managerRiskAllRows=[];managerReviewAllRows=[];
-      /* v324 — Both Risk/Incident and Review queues now come from ONE canonical
-         department bundle. Do not let two independent listeners race and replace
-         a valid queue with an empty permission-denied result. */
-      var pullManagerQueues=async function(){
-        try{
-          var bundle=null;
-          if(typeof window._grcGetDepartmentApprovalQueue==='function')bundle=await window._grcGetDepartmentApprovalQueue(true);
-          if(!bundle)bundle={risk:typeof window._grcRiskRequestsGetForManager==='function'?await window._grcRiskRequestsGetForManager():[],review:[]};
+      if(typeof window._grcSubscribeDepartmentApprovalQueue==='function'){
+        unsub=window._grcSubscribeDepartmentApprovalQueue(function(bundle){
+          if(!bundle)return;
           cache=(Array.isArray(bundle.risk)?bundle.risk:[]).filter(managerDepartmentRequest);
           reviewApprovalRows=(Array.isArray(bundle.review)?bundle.review:[]).filter(reviewManagerRequest);
           managerRiskAllRows=cache.slice();managerReviewAllRows=reviewApprovalRows.slice();
-          window.__grcRiskRequestCache=cache;window.__grcManagerReviewPayload={records:reviewApprovalRows,allRecords:reviewApprovalRows,risk:cache};
-          if(bundle.errors&&bundle.errors.length)window.__grcManagerApprovalError=bundle.errors.join(' · ');else window.__grcManagerApprovalError='';
-          try{document.dispatchEvent(new CustomEvent('grc:riskRequestsUpdated',{detail:{rows:cache}}));document.dispatchEvent(new CustomEvent('grc:managerReviewQueueUpdated',{detail:window.__grcManagerReviewPayload}));}catch(_e){}
+          window.__grcRiskRequestCache=cache;
+          window.__grcManagerReviewPayload={records:reviewApprovalRows,allRecords:reviewApprovalRows,risk:cache};
+          window.__grcManagerApprovalError=(bundle.errors&&bundle.errors.length)?bundle.errors.join(' · '):'';
+          try{
+            document.dispatchEvent(new CustomEvent('grc:riskRequestsUpdated',{detail:{rows:cache}}));
+            document.dispatchEvent(new CustomEvent('grc:managerReviewQueueUpdated',{detail:window.__grcManagerReviewPayload}));
+          }catch(_e){}
           refreshBadge();
           if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
           if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();
           scheduleApprovalNotice(false);
-        }catch(err){window.__grcManagerApprovalError='Department approvals: '+String(err&&err.message||err);console.warn('[GRC Manager Approval Pull] failed',err&&err.code||err);}
-      };
-      pullManagerQueues();
-      /* Do not poll Firestore every 4 seconds. That caused the read spike and quota
-         exhaustion seen in the console. The queue keeps the last verified rows and
-         refreshes on a slower interval while the profile remains stable. */
-      managerPollTimer=setInterval(pullManagerQueues,60000);
+        });
+      }else{
+        /* Compatibility fallback: one cached pull only, never a polling loop. */
+        (async function(){try{
+          var bundle=await (window._grcGetDepartmentApprovalQueue?window._grcGetDepartmentApprovalQueue(false):null);
+          if(!bundle)return;
+          cache=(Array.isArray(bundle.risk)?bundle.risk:[]).filter(managerDepartmentRequest);
+          reviewApprovalRows=(Array.isArray(bundle.review)?bundle.review:[]).filter(reviewManagerRequest);
+          managerRiskAllRows=cache.slice();managerReviewAllRows=reviewApprovalRows.slice();refreshBadge();
+        }catch(err){console.warn('[GRC Manager Approval Queue] initial pull failed',err&&err.code||err);}})();
+      }
       return;
     }
     if(isSuper()&&typeof window._advisorySubscribePendingSuperAdmin==='function'){

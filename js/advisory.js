@@ -159,7 +159,20 @@
       if(liveKey===lastManagerLiveKey&&managerInlineDecisionActive()){loading=false;return;}
       lastManagerLiveKey=liveKey;
     }if(errs.fallback)console.warn('[Review Development] legacy fallback sync skipped',errs.fallback);if(messages.length)console.warn('[Review Development] live sync warning',messages.join(' · '));/* Keep the last verified rows on a transient listener denial instead of replacing the page with an empty/error state. */if(!messages.length||incoming.length||!records.length)records=incoming;lastLoadError=messages.join(' · ');loading=false;if(!managerInlineDecisionActive())renderView();if(isDepartmentManager()&&typeof window._grcRiskInjectManagerQueue==='function')window._grcRiskInjectManagerQueue(managerRiskRecords,records.filter(isManagerApprovalRecord));if(currentView==='requests'&&!isAdmin())showRatingNotification();}
-  function mount(platform,rootId){if(liveUnsub){try{liveUnsub();}catch(_){}liveUnsub=null;}livePayload=null;currentPlatform=platform;currentRootId=rootId;/* Action queues are the operational landing view for Admin/Super Admin. The analytics dashboard remains available as a separate card. */currentView='requests';dashboardFilter='all';departmentFilter='';lastManagerLiveKey='';loading=true;lastLoadError='';renderView();if(apiReady('_advisorySubscribe')){liveUnsub=window._advisorySubscribe(applyLivePayload);}else{loading=false;loadRecords(false);if(isDepartmentManager()){var managerTimer=setInterval(function(){if(root()&&currentView==='requests')loadRecords(true);},5000);liveUnsub=function(){clearInterval(managerTimer);};}}}
+  function mount(platform,rootId){if(liveUnsub){try{liveUnsub();}catch(_){}liveUnsub=null;}livePayload=null;currentPlatform=platform;currentRootId=rootId;/* Action queues are the operational landing view for Admin/Super Admin. The analytics dashboard remains available as a separate card. */currentView='requests';dashboardFilter='all';departmentFilter='';lastManagerLiveKey='';loading=true;lastLoadError='';renderView();if(apiReady('_advisorySubscribe')){liveUnsub=window._advisorySubscribe(applyLivePayload);}else{
+    /* Firebase module can finish a moment after the GRC shell. Never fall back to
+       a 5-second Firestore polling loop; retry the subscription once the API exists. */
+    loading=false;renderView();
+    var retryStopped=false,retryCount=0,retryTimer=null;
+    (function waitForApi(){
+      if(retryStopped)return;
+      if(apiReady('_advisorySubscribe')){liveUnsub=window._advisorySubscribe(applyLivePayload);return;}
+      retryCount++;
+      if(retryCount<=20)retryTimer=setTimeout(waitForApi,250);
+      else {lastLoadError='Live connection is still starting. Please refresh once if it does not connect.';renderView();}
+    })();
+    liveUnsub=function(){retryStopped=true;if(retryTimer)clearTimeout(retryTimer);};
+  }}
   window._advSwitchView=function(view){if(view==='management')view='requests';if(view==='dashboard'&&!canViewDashboard())view='requests';currentView=view;dashboardSearch='';dashboardStatus='';adminSearch='';adminStatus='';adminDepartment='';var r=root();if(r)r.querySelectorAll('.adv-module-card').forEach(function(x){x.classList.toggle('is-active',x.getAttribute('data-adv-view')===view);});if(livePayload)applyLivePayload(livePayload);else loadRecords();};
 
   function managerInlineDecisionActive(){return !!document.querySelector('#advViewHost .adv-manager-inline-decision:not([hidden])');}

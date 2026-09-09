@@ -1191,6 +1191,9 @@ window._selectPortal=async portal=>{
     /* v316 — Manager inbox reads only the department-scoped queue.
        Never let an optional source/history read erase a valid queue result. */
     window._grcGetDepartmentApprovalQueue=async function(force){
+      /* If the live department queue is active, it is the authoritative cache.
+         Never bypass it with another server read just because a caller passes true. */
+      if(window.__grcManagerQueueLiveActive&&_grcManagerQueueCache)return _grcManagerQueueCache;
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile()),now=Date.now();
       if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<30000)return _grcManagerQueueCache;
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
@@ -1231,6 +1234,101 @@ window._selectPortal=async portal=>{
         return result;
       })();
       try{return await _grcManagerQueueCachePromise;}finally{_grcManagerQueueCachePromise=null;}
+    };
+
+
+    /* ══════════════════════════════════════════════════════
+       DEPARTMENT MANAGER LIVE QUEUE BROKER
+       One shared set of Firestore listeners for the entire GRC session.
+       This replaces the old 30/60-second polling loops that repeatedly used
+       getDocsFromServer and caused the Firestore read spike / 429 exhaustion.
+       All manager UI surfaces subscribe to this broker and reuse one cache.
+       ══════════════════════════════════════════════════════ */
+    let _grcManagerLiveProfile=null,_grcManagerLiveUnsubs=[],_grcManagerLiveCallbacks=new Set(),
+        _grcManagerLiveSources={review:null,risk:null,history:null},_grcManagerLiveErrors={},
+        _grcManagerLiveStartPromise=null;
+
+    function _grcManagerLiveBuild(){
+      const fresh=_grcManagerLiveProfile;
+      if(!fresh)return _grcManagerQueueCache||{profile:null,review:[],risk:[],errors:[]};
+      const reviewMap={},riskMap={};
+      const addReview=function(id,row){
+        const key=String(id||row&&row.id||'');if(!key)return;
+        const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;
+        if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;
+        if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;
+        x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');
+        x._managerAssigned=true;reviewMap[key]=x;
+      };
+      const addRisk=function(id,row){
+        const key=String(id||row&&row.id||'');if(!key)return;
+        const x=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});
+        if(!x)return;
+        if(_advCanonicalDepartment(x.departmentKey||x.department||x.departmentRaw||'')!==fresh.departmentKey)return;
+        x._managerAssigned=true;riskMap[key]=x;
+      };
+      (_grcManagerLiveSources.review||[]).forEach(function(v){addReview(v.requestId||v.id,v.snapshot||v);});
+      (_grcManagerLiveSources.risk||[]).forEach(function(v){addRisk(v.requestId||v.id,v.snapshot||v);});
+      (_grcManagerLiveSources.history||[]).forEach(function(v){addRisk(v.id,v);});
+      const result={
+        profile:fresh,
+        review:Object.keys(reviewMap).map(function(k){return reviewMap[k];}).sort(function(a,b){return _advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso);}),
+        risk:_grcRiskSort(Object.keys(riskMap).map(function(k){return riskMap[k];})),
+        errors:Object.keys(_grcManagerLiveErrors).map(function(k){return k+': '+_grcManagerLiveErrors[k];})
+      };
+      _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();
+      return result;
+    }
+    function _grcManagerLiveEmit(){
+      const result=_grcManagerLiveBuild();
+      _grcManagerLiveCallbacks.forEach(function(cb){try{cb(result);}catch(e){console.warn('[GRC Manager Queue] subscriber failed',e&&e.message||e);}});
+    }
+    function _grcManagerLiveStopIfUnused(){
+      if(_grcManagerLiveCallbacks.size)return;
+      _grcManagerLiveUnsubs.forEach(function(u){try{u();}catch(_){}});_grcManagerLiveUnsubs=[];
+      _grcManagerLiveSources={review:null,risk:null,history:null};_grcManagerLiveErrors={};
+      _grcManagerLiveProfile=null;_grcManagerLiveStartPromise=null;window.__grcManagerQueueLiveActive=false;
+    }
+    async function _grcManagerLiveEnsure(){
+      if(_grcManagerLiveStartPromise)return _grcManagerLiveStartPromise;
+      if(window.__grcManagerQueueLiveActive&&_grcManagerLiveProfile)return _grcManagerQueueCache;
+      _grcManagerLiveStartPromise=(async function(){
+        const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
+        _grcManagerLiveProfile=fresh;
+        const listen=function(name,qref,map){
+          try{
+            const unsub=onSnapshot(qref,{includeMetadataChanges:false},function(snap){
+              _grcManagerLiveSources[name]=snap.docs.map(map);
+              delete _grcManagerLiveErrors[name];_grcManagerLiveEmit();
+            },function(err){
+              _grcManagerLiveErrors[name]=String(err&&err.code||err&&err.message||err);
+              console.warn('[GRC Manager Queue] live '+name+' listener failed',err&&err.code||err);
+              _grcManagerLiveEmit();
+            });
+            _grcManagerLiveUnsubs.push(unsub);
+          }catch(err){_grcManagerLiveErrors[name]=String(err&&err.message||err);_grcManagerLiveEmit();}
+        };
+        listen('review',_grcManagerQueueCollection(fresh.departmentKey,'review'),function(d){return Object.assign({id:d.id},d.data()||{});});
+        listen('risk',_grcManagerQueueCollection(fresh.departmentKey,'risk'),function(d){return Object.assign({id:d.id},d.data()||{});});
+        /* Preserve the full Risk/Incident department history without polling.
+           This listener replaces the old getDocsFromServer call every 5 minutes. */
+        listen('history',query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)),function(d){return Object.assign({id:d.id},d.data()||{});});
+        window.__grcManagerQueueLiveActive=true;
+        return _grcManagerLiveBuild();
+      })();
+      try{return await _grcManagerLiveStartPromise;}finally{_grcManagerLiveStartPromise=null;}
+    }
+    window._grcSubscribeDepartmentApprovalQueue=function(callback){
+      if(typeof callback!=='function')return function(){};
+      let active=true;_grcManagerLiveCallbacks.add(callback);
+      _grcManagerLiveEnsure().then(function(result){if(active){try{callback(result);}catch(_){}}}).catch(function(err){
+        if(active){try{callback({profile:null,review:[],risk:[],errors:['Manager queue: '+String(err&&err.message||err)]});}catch(_){}}
+      });
+      if(window.__grcManagerQueueLiveActive&&_grcManagerQueueCache){try{callback(_grcManagerQueueCache);}catch(_){}}
+      return function(){if(!active)return;active=false;_grcManagerLiveCallbacks.delete(callback);_grcManagerLiveStopIfUnused();};
+    };
+    window._grcStopDepartmentApprovalQueue=function(){
+      _grcManagerLiveCallbacks.clear();_grcManagerLiveStopIfUnused();
     };
     window._grcRepairDepartmentApprovalInboxV200=async function(force){
       if(!_advIsSuperAdmin()||!db)return 0;const guard='__grcDeptInboxBackfillV215';if(!force&&window[guard])return 0;window[guard]=true;let count=0;
@@ -1413,27 +1511,31 @@ window._selectPortal=async portal=>{
     window._advisorySubscribe=function(callback){
       if(typeof callback!=='function'||!_advEmail()||!db)return function(){};
       if(_advIsDepartmentManager()){
-        let stopped=false,pollTimer=null,lastKey='';
-        const pull=async function(){
+        /* Reuse the shared live department queue. The old 30-second timer called
+           getDocs repeatedly and was a major source of quota exhaustion. */
+        let stopped=false,lastKey='';
+        if(typeof window._grcSubscribeDepartmentApprovalQueue==='function'){
+          const unsub=window._grcSubscribeDepartmentApprovalQueue(function(bundle){
+            if(stopped||!bundle)return;
+            const review=Array.isArray(bundle.review)?bundle.review:[];
+            const riskRows=Array.isArray(bundle.risk)?bundle.risk:[];
+            const rows=_advMergeRows(review,[],false);
+            const key=rows.map(function(r){return [r.id,r.workflowStage,r.status,r.updatedAtIso||'',r.managerActionAtIso||''].join('|');}).sort().join('~')+'#'+riskRows.map(function(r){return [r.id,r.status,r.updatedAtIso||''].join('|');}).sort().join('~');
+            if(key===lastKey)return;lastKey=key;
+            const dashboardRows=rows.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
+            callback({records:rows,publicRecords:dashboardRows,managerRiskRecords:riskRows,errors:bundle.errors||{},source:'manager-live'});
+          });
+          return function(){stopped=true;try{unsub();}catch(_){}};
+        }
+        /* Compatibility fallback: one cached read, never a polling loop. */
+        (async function(){try{
+          const rows=await window._advisoryGetManagerQueue();
           if(stopped)return;
-          try{
-            const rows=await window._advisoryGetManagerQueue();
-            const riskRows=Array.isArray(rows&&rows._grcRiskRecords)?rows._grcRiskRecords:(Array.isArray(rows&&rows.risk)?rows.risk:[]);
-            const key=(rows||[]).map(function(r){return [r.id,r.workflowStage,r.status,r.updatedAtIso||'',r.managerActionAtIso||''].join('|');}).sort().join('~')+'#'+riskRows.map(function(r){return [r.id,r.status,r.updatedAtIso||''].join('|');}).sort().join('~');
-            /* Do not emit an identical 15-second poll. An identical payload used
-               to replace the manager table DOM and made the selected action vanish. */
-            if(key!==lastKey){
-              lastKey=key;
-              const dashboardRows=(rows||[]).map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
-              callback({records:rows||[],publicRecords:dashboardRows,managerRiskRecords:riskRows,errors:{},source:'manager-queue'});
-            }
-          }catch(err){
-            if(!lastKey){callback({records:[],publicRecords:[],errors:{manager:String(err&&err.message||err&&err.code||err)},source:'manager-queue'});}
-          }
-          if(!stopped)pollTimer=setTimeout(pull,30000);
-        };
-        pull();
-        return function(){stopped=true;if(pollTimer)clearTimeout(pollTimer);};
+          const riskRows=Array.isArray(rows&&rows._grcRiskRecords)?rows._grcRiskRecords:(Array.isArray(rows&&rows.risk)?rows.risk:[]);
+          const dashboardRows=(rows||[]).map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
+          callback({records:rows||[],publicRecords:dashboardRows,managerRiskRecords:riskRows,errors:{},source:'manager-cache'});
+        }catch(err){if(!stopped)callback({records:[],publicRecords:[],errors:{manager:String(err&&err.message||err)},source:'manager-cache'});}})();
+        return function(){stopped=true;};
       }
       let closed=false,timer=null,unsubs=[];
       const sources={};
@@ -2128,15 +2230,17 @@ window._selectPortal=async portal=>{
          departmentKey listener could fail Security Rules and then overwrite a
          correctly loaded approval queue with an empty array. */
       if(_grcRiskIsManager()){
-        let stopped=false,timer=null;
-        const pull=async function(){
-          if(stopped)return;
-          try{callback(await window._grcRiskRequestsGetForManager());}
-          catch(err){console.warn('[GRC Manager Inbox] refresh failed',err&&err.code||err);callback([],err);}
-          if(!stopped)timer=setTimeout(pull,30000);
-        };
-        pull();
-        _grcRiskRequestUnsub=function(){stopped=true;if(timer)clearTimeout(timer);};
+        /* Shared live manager queue — never poll Firestore. */
+        if(typeof window._grcSubscribeDepartmentApprovalQueue==='function'){
+          _grcRiskRequestUnsub=window._grcSubscribeDepartmentApprovalQueue(function(bundle){
+            const rows=Array.isArray(bundle&&bundle.risk)?bundle.risk:[];
+            callback(rows,bundle&&bundle.errors&&bundle.errors.length?new Error(bundle.errors.join(' · ')):null);
+          });
+          return _grcRiskRequestUnsub;
+        }
+        /* Compatibility fallback: one cached read only. */
+        (async function(){try{callback(await window._grcRiskRequestsGetForManager());}catch(err){callback([],err);}})();
+        _grcRiskRequestUnsub=function(){};
         return _grcRiskRequestUnsub;
       }
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
