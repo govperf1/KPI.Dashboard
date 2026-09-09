@@ -1,0 +1,26 @@
+تحديث v336 — إصلاحات الطلبات والصلاحيات
+
+تم التركيز على المشاكل الظاهرة في آخر صور Console:
+
+1) My Requests / GRC Owner
+- تم جعل قراءة الطلبات تعتمد أولاً على userEmail وهو مسار الهوية الأساسي.
+- لن يتم تشغيل استعلام requesterUid بشكل متكرر بجانب الاستعلام الناجح.
+- requesterUid أصبح fallback فقط إذا لم يرجع مسار البريد أي طلبات.
+- هذا يقلل أخطاء getMine UID path failed permission-denied.
+
+2) التقييم
+- تم فصل صلاحية التقييم عن الدور الحالي.
+- نفس حساب Firebase يمكن استخدامه كـ GRC Owner أو Department Manager؛ التقييم يعتمد على ملكية الطلب (email/UID) وليس الدور.
+- تم السماح بتقييم الطلبات المكتملة Approved / Rejected / Closed في الطلبات العامة/القديمة.
+- تم منع حقل updatedBy من التسبب في رفض تقييم الطلبات العامة عندما لا تكون القاعدة تسمح به.
+
+3) Review & Development
+- قبل تنفيذ قرار Department Manager يتم الآن محاولة قراءة المصدر authoritative request من السيرفر.
+- هذا يمنع تنفيذ Approve / Return / Reject على Queue snapshot قديم بعد أن يكون الطلب انتقل بالفعل إلى Pending Super Admin.
+
+4) Returned requests
+- مسار إعادة الإرسال يبقى معتمداً على هوية صاحب الطلب email/UID وليس على الدور.
+- قواعد advisory requester rating أصبحت تستخدم advisoryOwner(requestId) لضمان دعم UID أو email.
+
+مهم:
+يجب نشر firestore.rules مع ملفات الموقع. تغيير JavaScript وحده لا يغير Firestore Security Rules.

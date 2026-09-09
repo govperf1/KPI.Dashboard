@@ -531,6 +531,16 @@ service cloud.firestore {
       ]);
     }
 
+    function validLegacyRequestRating() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return changed.hasOnly(['rating','ratingComment','ratingAt','updatedAt','updatedAtIso','updatedBy']) &&
+        request.resource.data.rating is number &&
+        request.resource.data.rating >= 1 && request.resource.data.rating <= 5 &&
+        request.resource.data.ratingComment is string &&
+        (resource.data.status in ['closed','Closed','approved','Approved','rejected','Rejected']) &&
+        (!('rating' in resource.data) || resource.data.rating == null || resource.data.rating == 0);
+    }
+
     match /kpi_requests/{requestId} {
       allow create: if approved() &&
         request.resource.data.userEmail is string &&
@@ -546,6 +556,10 @@ service cloud.firestore {
       // Requester-side workflow updates remain only for historical Review &
       // Development fallback rows; new R&D requests use advisory_requests.
       allow update: if admin() ||
+        /* Feedback is identity-based and independent from the current role.
+           This keeps the same Firebase email usable as GRC Owner or Department
+           Manager without losing the ability to rate its own completed request. */
+        (approved() && ownEmail(resource.data.userEmail) && validLegacyRequestRating()) ||
         (approved() && ownEmail(resource.data.userEmail) &&
           (('isReviewDevelopmentRequest' in resource.data && resource.data.isReviewDevelopmentRequest == true) ||
            ('requestDomain' in resource.data && resource.data.requestDomain == 'review_development')) &&
@@ -558,7 +572,7 @@ service cloud.firestore {
     // may rate only their own completed request, and only the feedback fields.
     function validGrcRequestRatingChange() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        'rating', 'ratingComment', 'ratingAt', 'updatedAt', 'updatedAtIso'
+        'rating', 'ratingComment', 'ratingAt', 'updatedAt', 'updatedAtIso', 'updatedBy'
       ]) &&
       resource.data.status is string &&
       resource.data.status in ['approved', 'Approved', 'rejected', 'Rejected'] &&
@@ -597,7 +611,7 @@ service cloud.firestore {
     // v66 is the current approval-sync deployment marker. The v65 marker remains
     // accepted for backward compatibility during rollout.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId in ['v60-grc-department-scope-approval-20260823','v65-grc-superadmin-global-20260824','v66-grc-approval-sync-20260825','v70-grc-manager-department-query-20260903','v71-grc-owner-manager-route-20260906','v72-grc-manager-action-legacy-guard-20260907','v71-canonical-exact-request-reads-20260908'];
+      allow get: if approved() && versionId in ['v60-grc-department-scope-approval-20260823','v65-grc-superadmin-global-20260824','v66-grc-approval-sync-20260825','v70-grc-manager-department-query-20260903','v71-grc-owner-manager-route-20260906','v72-grc-manager-action-legacy-guard-20260907','v71-canonical-exact-request-reads-20260908','v72-role-identity-workflow-rating-20260909'];
       allow list, create, update, delete: if false;
     }
 
@@ -925,7 +939,7 @@ service cloud.firestore {
       allow update: if
         (superAdmin() && validAdvisorySuperAdminDecision()) ||
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
-        (approved() && ownEmail(resource.data.userEmail) && validAdvisoryRequesterRating()) ||
+        (approved() && advisoryOwner(requestId) && validAdvisoryRequesterRating()) ||
         /* Requester workflow is identity-based, not role-based. This is
            essential when the same Firebase email is switched between GRC Owner
            and Department Manager during testing or normal administration. */
