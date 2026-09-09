@@ -715,7 +715,13 @@ service cloud.firestore {
         'status','messages','attachments','attachmentCount',
         'completedAt','closedAt','rating','ratingComment','ratingAt',
         'workflowStage','closureReason','updatedAt','updatedAtIso','updatedBy',
-        'title','details','priority','relatedNewText','managerDecision'
+        'title','details','priority','relatedNewText','managerDecision',
+        /* A returned Review & Development request must clear the previous
+           manager decision before it can be routed again. These are workflow
+           resets performed only by the requester during returned_requester →
+           pending_department_manager. */
+        'managerComment','managerName','managerEmail','managerActionAt','managerActionAtIso',
+        'returnNote','returnSource','returnFields','returnedAt'
       ]) &&
       // Request content is editable only after the Department Manager has
       // explicitly returned it. This prevents a requester from changing the
@@ -1084,6 +1090,23 @@ service cloud.firestore {
         request.resource.data.status in ['pending_super_admin','returned_requester','rejected_manager'];
     }
 
+    // Super Admin may act only after the Department Manager has forwarded the
+    // request. This prevents a privileged account from bypassing the manager
+    // stage while still allowing the final publish / return / reject workflow.
+    function validSuperRiskTransition() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return resource.data.status == 'pending_super_admin' &&
+        request.resource.data.status in ['published','returned_manager','rejected_super_admin'] &&
+        changed.hasOnly([
+          'status','recordType',
+          'superAdminName','superAdminEmail','superAdminNote',
+          'returnFields','returnNote','returnSource',
+          'finalRecord','publishedRiskId','publishedRecordId','publishedCloudId',
+          'approvedAt','publishedAt','publishedAtIso',
+          'updatedAt','updatedAtIso','history'
+        ]);
+    }
+
 
     match /grc_risk_requests/{requestId} {
       // Every new Risk/Incident request is written with canonical identity and
@@ -1118,11 +1141,10 @@ service cloud.firestore {
           (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail()) ||
           riskRequestDepartmentList(resource.data)
         ));
-      // Evaluate Super Admin first. During testing the same authenticated
-      // account may have originally submitted the request under another role.
-      // The current server-side Super Admin role must remain authoritative.
+      // The current server-side Super Admin role is authoritative, but it
+      // cannot bypass a pending Department Manager stage.
       allow update: if
-        superAdmin() ||
+        (superAdmin() && validSuperRiskTransition()) ||
         (
           approved() && riskRequestOwner(resource.data) &&
           riskRequesterChange() && riskRequesterProposedRecordAllowed() && validRequesterRiskTransition()
