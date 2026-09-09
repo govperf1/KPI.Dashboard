@@ -796,16 +796,16 @@ async function runLaunchRequestCleanup(){
   const btn=document.getElementById('launchCleanupBtn'),box=document.getElementById('launchCleanupResult');
   if(btn){btn.disabled=true;btn.textContent='Deleting test requests…';}
   try{
-    if(typeof window._grcPreLaunchCleanupRequests!=='function')throw new Error('Cleanup service is still loading. Please wait a few seconds and try again.');
-    const result=await window._grcPreLaunchCleanupRequests();
-    if(box){box.style.display='block';box.style.background='#ECFDF5';box.style.color='#166534';box.textContent='✓ Cleanup complete. Deleted '+Number(result.deleted||0)+' request and queue records.';}
+    if(typeof window._grcRequestsClearAllForLaunch!=='function')throw new Error('Cleanup service is still loading. Please wait a few seconds and try again.');
+    const result=await window._grcRequestsClearAllForLaunch();
+    if(box){box.style.display='block';box.style.background='#ECFDF5';box.style.color='#166534';box.textContent='✓ GRC cleanup complete. Deleted '+Number(result.deleted||0)+' request/mirror/queue records. Remaining: '+Number(result.remaining||0);}
   }catch(err){
     if(box){box.style.display='block';box.style.background='#FEF2F2';box.style.color='#991B1B';box.textContent='✕ Cleanup failed: '+String(err&&err.message||err);}
   }finally{if(btn){btn.disabled=false;btn.textContent='🗑 Delete All Test Requests';}}
 }
 </script>
 <!-- Firebase module (ES import syntax — must be type=module) -->
-<script type="module" src="js/firebase.js?v=20260909-v333-grc-owner-submit-resubmit-fix"></script>
+<script type="module" src="js/firebase.js?v=20260909-v334-grc-verified-request-cleanup"></script>
 
 <!-- Application modules (loaded in dependency order) -->
 <script src="js/kpi.js?v=20260817-v189-viewer-risk-advisory"></script>
@@ -815,7 +815,7 @@ async function runLaunchRequestCleanup(){
 <script src="js/admin.js?v=20260817-v189-viewer-risk-advisory"></script>
 <script src="js/notifications.js?v=20260909-v333-grc-owner-user-request-fix"></script>
 <script src="js/auth.js?v=20260817-v189-viewer-risk-advisory"></script>
-<script src="js/grc.js?v=20260908-v321-manager-inbox-fix&old=20260907-v314-grc-entry-alert"></script>
+<script src="js/grc.js?v=20260909-v334-grc-verified-request-cleanup"></script>
 <script src="js/grc-risk-workflow.js?v=20260908-v330-manager-latest-fix"></script>
 <script src="js/grc-chat.js?v=20260908-v331-clickable-chat-fix"></script>
 <script src="js/grc-export.js?v=20260817-v189-viewer-risk-advisory"></script>
