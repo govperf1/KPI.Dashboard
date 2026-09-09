@@ -861,7 +861,11 @@ service cloud.firestore {
 
     function advisoryOwner(requestId) {
       return exists(/databases/$(database)/documents/advisory_requests/$(requestId)) &&
-        ownEmail(get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.userEmail);
+        (
+          ownEmail(get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.userEmail) ||
+          (('requesterUid' in get(/databases/$(database)/documents/advisory_requests/$(requestId)).data) &&
+           get(/databases/$(database)/documents/advisory_requests/$(requestId)).data.requesterUid == request.auth.uid)
+        );
     }
 
     function advisoryManagerForRequest(requestId) {
@@ -922,7 +926,10 @@ service cloud.firestore {
         (superAdmin() && validAdvisorySuperAdminDecision()) ||
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
         (approved() && ownEmail(resource.data.userEmail) && validAdvisoryRequesterRating()) ||
-        (approved() && ownEmail(resource.data.userEmail) &&
+        /* Requester workflow is identity-based, not role-based. This is
+           essential when the same Firebase email is switched between GRC Owner
+           and Department Manager during testing or normal administration. */
+        (approved() && advisoryOwner(requestId) &&
           validAdvisoryOwnerChange() && advisoryOwnerRoutePreserved()) ||
         (
           approved() && profileRoleFrom(userData()) == 'department_manager' &&
@@ -936,6 +943,17 @@ service cloud.firestore {
             (('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
             (('department' in resource.data) && canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))
           ) &&
+          validAdvisoryManagerChange()
+        ) ||
+        /* Exact department fallback: queue mirrors may be stale, but the source
+           request remains routable by its canonical department. Same requester
+           email must never downgrade the active Department Manager action. */
+        (
+          approved() && profileRoleFrom(userData()) == 'department_manager' &&
+          profileDepartmentKeyFrom(userData()) != '' &&
+          ('workflowStage' in resource.data) && resource.data.workflowStage == 'pending_department_manager' &&
+          ((('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
+           (('department' in resource.data) && canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))) &&
           validAdvisoryManagerChange()
         );
       allow delete: if superAdmin();
