@@ -394,6 +394,7 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 <button class="atb" onclick="swAt('del',this)"> Delete KPI</button>
 <button class="atb" onclick="swAt('gap',this)"> Gap Analysis</button>
 <button class="atb" onclick="swAt('auditlog',this)"> Audit Log</button>
+<button class="atb" onclick="swAt('launchcleanup',this)"> Launch Cleanup</button>
 </div>
 <!-- Scrollable body -->
 <div class="mbody" id="adminBody">
@@ -703,6 +704,15 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
 </div>
 <div id="auditLogList" style="border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--card)"></div>
 </div>
+<div class="ap" id="ap-launchcleanup">
+<div style="padding:4px 0 12px">
+  <div style="font-size:15px;font-weight:800;color:var(--ink);margin-bottom:8px">Pre-Launch Request Cleanup</div>
+  <div style="font-size:11px;line-height:1.7;color:var(--t3);margin-bottom:14px">Deletes test request records only: Risk & Incident requests, Review & Development requests, My Requests, manager inbox copies and legacy Review & Development request copies. It does <b>not</b> delete published Risk/Incident registers, users, KPIs or permissions.</div>
+  <div style="border:1px solid #F3C7C7;background:#FFF7F7;border-radius:10px;padding:12px;margin-bottom:12px;font-size:11px;color:#9B1C1C">⚠ This is permanent. Use only before platform launch after confirming these are test requests.</div>
+  <button type="button" class="af-btn-danger" id="launchCleanupBtn" onclick="runLaunchRequestCleanup()">🗑 Delete All Test Requests</button>
+  <div id="launchCleanupResult" style="display:none;margin-top:12px;padding:10px;border-radius:8px;font-size:11px;font-weight:700"></div>
+</div>
+</div></div>
 </div><!-- /mbody -->
 <!-- Feedback area (shown per active tab) -->
 <div id="_editFeedback" style="display:none;font-size:11px;font-weight:600;border-radius:8px;margin:0 20px 8px;padding:8px 12px"></div>
@@ -777,8 +787,25 @@ window.updateUserBadge = window.updateUserBadge || function(name, role){
        auth.js       → Add-KPI save patch (must be last)
      ═══════════════════════════════════════════════════════ -->
 
+
+<script>
+async function runLaunchRequestCleanup(){
+  if(!confirm('Delete ALL test Risk & Incident and Review & Development requests? Published registers will NOT be deleted.'))return;
+  const typed=prompt('Type DELETE to confirm permanent request cleanup:');
+  if(typed!=='DELETE')return;
+  const btn=document.getElementById('launchCleanupBtn'),box=document.getElementById('launchCleanupResult');
+  if(btn){btn.disabled=true;btn.textContent='Deleting test requests…';}
+  try{
+    if(typeof window._grcPreLaunchCleanupRequests!=='function')throw new Error('Cleanup service is still loading. Please wait a few seconds and try again.');
+    const result=await window._grcPreLaunchCleanupRequests();
+    if(box){box.style.display='block';box.style.background='#ECFDF5';box.style.color='#166534';box.textContent='✓ Cleanup complete. Deleted '+Number(result.deleted||0)+' request and queue records.';}
+  }catch(err){
+    if(box){box.style.display='block';box.style.background='#FEF2F2';box.style.color='#991B1B';box.textContent='✕ Cleanup failed: '+String(err&&err.message||err);}
+  }finally{if(btn){btn.disabled=false;btn.textContent='🗑 Delete All Test Requests';}}
+}
+</script>
 <!-- Firebase module (ES import syntax — must be type=module) -->
-<script type="module" src="js/firebase.js?v=20260909-v331-read-spike-fix"></script>
+<script type="module" src="js/firebase.js?v=20260909-v332-launch-cleanup"></script>
 
 <!-- Application modules (loaded in dependency order) -->
 <script src="js/kpi.js?v=20260817-v189-viewer-risk-advisory"></script>
