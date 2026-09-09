@@ -983,16 +983,27 @@ window._selectPortal=async portal=>{
       for(i=0;i<fields.length;i++){if(!Object.prototype.hasOwnProperty.call(data,fields[i]))continue;value=data[fields[i]];if(_advMeaningfulDepartment(value))return value;}
       return null;
     }
+    let _advFreshProfileCache=null,_advFreshProfileCacheAt=0,_advFreshProfilePromise=null;
     async function _advFreshProfile(){
       const u=auth.currentUser;if(!u||!u.email)throw new Error('Not authenticated.');
-      const profileEmail=String(u.email||'').toLowerCase().trim();
-      const snap=await _getServerDoc(doc(db,'users',profileEmail));
-      if(!snap.exists())throw new Error('Your user profile could not be found in Firestore.');
-      const d=snap.data()||{};if(d.approved!==true)throw new Error('Your account is not approved.');
-      const raw=_advProfileDepartmentValue(d);
-      const meaningful=_advMeaningfulDepartment(raw),role=_advNormalizeRoleValue(d.role||'viewer'),parsedKey=_advCanonicalDepartment(raw),key=role==='governance_performance_manager'?'':parsedKey;
-      if(role!=='governance_performance_manager'&&meaningful&&!parsedKey)throw new Error('profile-department-unrecognized:'+String(raw));
-      return {email:String(u.email||'').toLowerCase().trim(),uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
+      const now=Date.now(),profileEmail=String(u.email||'').toLowerCase().trim();
+      /* v331 — A manager page can ask for the same profile from multiple queue
+         widgets. Coalesce those reads and keep a very short verified cache. */
+      if(_advFreshProfileCache&&_advFreshProfileCache.email===profileEmail&&now-_advFreshProfileCacheAt<15000)return _advFreshProfileCache;
+      if(_advFreshProfilePromise)return _advFreshProfilePromise;
+      _advFreshProfilePromise=(async function(){
+        try{
+          const snap=await _getServerDoc(doc(db,'users',profileEmail));
+          if(!snap.exists())throw new Error('Your user profile could not be found in Firestore.');
+          const d=snap.data()||{};if(d.approved!==true)throw new Error('Your account is not approved.');
+          const raw=_advProfileDepartmentValue(d);
+          const meaningful=_advMeaningfulDepartment(raw),role=_advNormalizeRoleValue(d.role||'viewer'),parsedKey=_advCanonicalDepartment(raw),key=role==='governance_performance_manager'?'':parsedKey;
+          if(role!=='governance_performance_manager'&&meaningful&&!parsedKey)throw new Error('profile-department-unrecognized:'+String(raw));
+          const profile={email:profileEmail,uid:String(u.uid||''),role:role,rawDepartment:role==='governance_performance_manager'?null:raw,departmentKey:key};
+          _advFreshProfileCache=profile;_advFreshProfileCacheAt=Date.now();return profile;
+        }finally{_advFreshProfilePromise=null;}
+      })();
+      return _advFreshProfilePromise;
     }
     /* Rules probes are diagnostic only. They must never block a real workflow.
        Firestore itself remains the authority for the actual create/read/update.
@@ -1181,7 +1192,7 @@ window._selectPortal=async portal=>{
        Never let an optional source/history read erase a valid queue result. */
     window._grcGetDepartmentApprovalQueue=async function(force){
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile()),now=Date.now();
-      if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<1200)return _grcManagerQueueCache;
+      if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<30000)return _grcManagerQueueCache;
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         const result={profile:fresh,review:[],risk:[],errors:[]},reviewMap={},riskMap={};
@@ -1198,7 +1209,7 @@ window._selectPortal=async portal=>{
            requests may predate the inbox index and must remain visible in the manager
            profile. This read is cached separately to avoid repeated Firestore reads. */
         const historyNow=Date.now();
-        if(!_grcManagerRiskHistoryAt || historyNow-_grcManagerRiskHistoryAt>60000){
+        if(!_grcManagerRiskHistoryAt || historyNow-_grcManagerRiskHistoryAt>300000){
           try{
             const src=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));
             const sourceMap={};src.forEach(function(d){const x=_grcRiskRequestData(d);if(x){x._managerAssigned=true;sourceMap[d.id]=x;addRisk(d.id,x);}});
@@ -1353,7 +1364,7 @@ window._selectPortal=async portal=>{
       groups.forEach(function(rows){(rows||[]).forEach(function(r){primary.push(r);});});
       return _advMergeRows(primary,[],false);
     };
-    let _advisoryManagerLastQueue=[],_advisoryManagerLastOwn=[],_advisoryManagerLastRisk=[];
+    let _advisoryManagerLastQueue=[],_advisoryManagerLastOwn=[],_advisoryManagerLastRisk=[],_advisoryManagerOwnCacheAt=0,_advisoryManagerOwnCachePromise=null;
     window._advisoryGetManagerQueue=async function(){
       /* One stable manager snapshot: do not force a fresh server read every UI refresh.
          A transient permission/network failure must never replace visible rows with []. */
@@ -1370,22 +1381,27 @@ window._selectPortal=async portal=>{
          probes were repeatedly returning permission-denied and every retry could
          refresh the page while the manager was choosing Return/Reject. */
       let own=_advisoryManagerLastOwn;
-      try{
-        const dept=String((bundle&&bundle.profile&&bundle.profile.departmentKey)||window.__grcManagerDepartmentKey||'').trim();
-        if(dept){
-          const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)));
-          const allDept=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
-          const me=_advEmail(),uid=_advUid();
-          own=allDept.filter(function(r){
-            return (uid&&String(r.requesterUid||r.userUid||r.uid||'')===uid) ||
-              String(r.userEmail||r.requesterEmail||'').toLowerCase().trim()===me;
-          });
-          _advisoryManagerLastOwn=own.slice();
+      const ownNow=Date.now();
+      /* v331 — Never re-read the whole department on every manager refresh.
+         The manager's own-request history changes rarely and this broad server
+         query was the main cause of BatchGetDocuments 429 / read spikes. */
+      if(!_advisoryManagerOwnCacheAt || ownNow-_advisoryManagerOwnCacheAt>=60000){
+        if(!_advisoryManagerOwnCachePromise){
+          _advisoryManagerOwnCachePromise=(async function(){
+            try{
+              const dept=String((bundle&&bundle.profile&&bundle.profile.departmentKey)||window.__grcManagerDepartmentKey||'').trim();
+              if(!dept)return _advisoryManagerLastOwn;
+              const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)));
+              const allDept=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+              const me=_advEmail(),uid=_advUid();
+              own=allDept.filter(function(r){return (uid&&String(r.requesterUid||r.userUid||r.uid||'')===uid)||String(r.userEmail||r.requesterEmail||'').toLowerCase().trim()===me;});
+              _advisoryManagerLastOwn=own.slice();_advisoryManagerOwnCacheAt=Date.now();return own;
+            }catch(err){console.warn('[Review Development] manager own department read failed; keeping last verified rows',err&&err.code||err);return _advisoryManagerLastOwn;}
+            finally{_advisoryManagerOwnCachePromise=null;}
+          })();
         }
-      }catch(err){
-        console.warn('[Review Development] manager own department read failed; keeping last verified rows',err&&err.code||err);
-        own=_advisoryManagerLastOwn;
-      }
+        own=await _advisoryManagerOwnCachePromise;
+      }else own=_advisoryManagerLastOwn;
       const merged=_advMergeRows(_advisoryManagerLastQueue||[],own||[],false);
       /* Arrays can carry metadata without changing legacy callers. This gives the
          Review page and the GRC approval panel the exact same Risk queue. */
@@ -1414,7 +1430,7 @@ window._selectPortal=async portal=>{
           }catch(err){
             if(!lastKey){callback({records:[],publicRecords:[],errors:{manager:String(err&&err.message||err&&err.code||err)},source:'manager-queue'});}
           }
-          if(!stopped)pollTimer=setTimeout(pull,15000);
+          if(!stopped)pollTimer=setTimeout(pull,30000);
         };
         pull();
         return function(){stopped=true;if(pollTimer)clearTimeout(pollTimer);};
@@ -2101,7 +2117,7 @@ window._selectPortal=async portal=>{
       return data;
     };
     window._grcRiskRequestsGetForManager=async function(){
-      const bundle=await window._grcGetDepartmentApprovalQueue(true);
+      const bundle=await window._grcGetDepartmentApprovalQueue(false);
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
       return bundle.risk||[];
     };
@@ -2117,7 +2133,7 @@ window._selectPortal=async portal=>{
           if(stopped)return;
           try{callback(await window._grcRiskRequestsGetForManager());}
           catch(err){console.warn('[GRC Manager Inbox] refresh failed',err&&err.code||err);callback([],err);}
-          if(!stopped)timer=setTimeout(pull,4000);
+          if(!stopped)timer=setTimeout(pull,30000);
         };
         pull();
         _grcRiskRequestUnsub=function(){stopped=true;if(timer)clearTimeout(timer);};
