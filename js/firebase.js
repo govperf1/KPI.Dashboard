@@ -1653,19 +1653,20 @@ window._selectPortal=async portal=>{
       if((action==='return'||action==='reject')&&!managerComment)throw new Error(action==='return'?'A return note is required.':'A rejection reason is required.');
       const requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso(),queueRef=_grcManagerQueueItemRef(String(current.departmentKey||''),'review',requestId);
       let finalStage='',finalStatus='',closureReason='';
-      await runTransaction(db,async tx=>{
-        const snap=await tx.get(requestRef);if(!snap.exists())throw new Error('Request not found.');const live=snap.data()||{};
-        if(String(live.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
-        if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
-        else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='returned_by_department_manager';}
-        else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
-        const decision=action==='approve'?'approved':action==='return'?'returned':'rejected';
-        const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:decision,managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
-        if(action==='return'){updates.returnNote=managerComment;updates.returnSource='department_manager';updates.returnFields=returnFields;updates.returnedAt=serverTimestamp();}
-        else{updates.returnNote='';updates.returnSource='';updates.returnFields=[];}
-        if(action==='reject')updates.closedAt=serverTimestamp();
-        tx.update(requestRef,updates);
-      });
+      if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
+      else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='returned_by_department_manager';}
+      else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
+      const decision=action==='approve'?'approved':action==='return'?'returned':'rejected';
+      // Do not use a transaction for this single-document workflow decision.
+      // The transaction performed an additional Rules read of the same request;
+      // that read could fail for a Department Manager even though the scoped
+      // update itself was authorized. The server preflight above still guards
+      // stale workflow stages and Firestore Rules validate every changed field.
+      const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:decision,managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
+      if(action==='return'){updates.returnNote=managerComment;updates.returnSource='department_manager';updates.returnFields=returnFields;updates.returnedAt=serverTimestamp();}
+      else{updates.returnNote='';updates.returnSource='';updates.returnFields=[];}
+      if(action==='reject')updates.closedAt=serverTimestamp();
+      await updateDoc(requestRef,updates);
       /* Keep the index document after the decision.  The authoritative request
          remains the source of truth and the manager tabs can therefore show
          Returned / Rejected / Published history instead of dropping the item
@@ -1704,7 +1705,7 @@ window._selectPortal=async portal=>{
       }
       else if(action==='return'){
         if(!messageText)throw new Error('A return note is required.');
-        status='in_progress';workflowStage='returned_requester';closureReason='returned_by_super_admin';
+        status='open';workflowStage='returned_requester';closureReason='returned_by_super_admin';
       }
       else if(action==='respond'){if(!messageText)throw new Error('A response is required.');status='closed';workflowStage='closed';closureReason='responded_by_super_admin';updates.respondedAt=serverTimestamp();updates.closedAt=serverTimestamp();publicUpdates.respondedAt=serverTimestamp();publicUpdates.closedAt=serverTimestamp();}
       else if(action==='request_info'){if(!messageText)throw new Error('An information request is required.');status='in_progress';workflowStage='awaiting_requester_information';}
