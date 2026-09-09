@@ -762,11 +762,18 @@ window._selectPortal=async portal=>{
 
     /* Submit a new request */
     window._kpiRequestsSubmit=async function(requestType,message){
-      if(!window._fbUser||!db) throw new Error('not authenticated');
+      /* Always use Firebase Auth as the identity authority. Some owner accounts
+         load the portal before legacy window._fbUser/_fbUid globals are hydrated;
+         using those globals caused an empty/stale email or UID and only those
+         accounts were rejected by Firestore. */
+      const au=auth.currentUser;
+      const email=String((au&&au.email)||window._fbUser||window.currentUserEmail||'').toLowerCase().trim();
+      const uid=String((au&&au.uid)||window._fbUid||window._fbUserUid||window._fbAuthUid||'').trim();
+      if(!email||!db) throw new Error('not authenticated');
       const ref=await addDoc(collection(db,'kpi_requests'),{
-        userName: window._fbName||window._fbUser.split('@')[0],
-        userEmail: (window._fbUser||'').toLowerCase().trim(),
-        requesterUid: String(window._fbUid||window._fbUserUid||window._fbAuthUid||''),
+        userName: window._fbName||window.currentUserName||email.split('@')[0],
+        userEmail: email,
+        requesterUid: uid,
         department: String(window._fbDept||window.currentUserDept||'').trim(),
         requestType: String(requestType||'General').trim(),
         message: String(message||'').trim(),
@@ -950,7 +957,7 @@ window._selectPortal=async portal=>{
     function _advIsSuperAdmin(){return _advRole()==='super_admin';}
     function _advIsDepartmentManager(){return _advRole()==='department_manager';}
     function _advCanAnalyze(){return _advIsAdmin()||_clientHasPerm('view_request_analytics')||_advRole()==='governance_performance_manager';}
-    function _advEmail(){return String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();}
+    function _advEmail(){return String((auth.currentUser&&auth.currentUser.email)||window._fbUser||window.currentUserEmail||'').toLowerCase().trim();}
     function _advUid(){return String(auth.currentUser&&auth.currentUser.uid||'').trim();}
     function _advRawDepartment(){return Object.prototype.hasOwnProperty.call(window,'_fbDept')?window._fbDept:window.currentUserDept;}
     function _advCanonicalDepartment(value){
@@ -2014,7 +2021,19 @@ window._selectPortal=async portal=>{
       return{requestId:requestRef.id,requestCode:requestCode};
     };
     window._grcRiskRequestResubmit=async function(requestId,proposedRecord,note){
-      if(!_grcRiskCanSubmit('risk')&&!_grcRiskCanSubmit('incident'))throw new Error('Access denied.');const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(!_grcRiskOwnsRequest(r))throw new Error('Access denied.');if(String(r.status||'')!=='returned_requester')throw new Error('Only a request returned for update can be edited and resubmitted.');
+      /* Re-read the server profile before resubmission. This avoids relying on
+         stale window role/permission globals, which was why a valid GRC Owner
+         could open the request but received a client-side permission failure. */
+      const freshProfile=await _advFreshProfile();
+      const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);
+      if(!snap.exists())throw new Error('Request not found.');
+      const r=snap.data()||{},recordType=String(r.recordType||'risk').toLowerCase();
+      if(!['risk','incident'].includes(recordType))throw new Error('Invalid request type.');
+      if(!['risk_owner','grc_owner','platform_owner'].includes(freshProfile.role))throw new Error('Access denied.');
+      if(!freshProfile.departmentKey)throw new Error('No department is assigned to your account.');
+      const owns=(freshProfile.uid&&String(r.submittedByUid||'')===String(freshProfile.uid))||String(r.submittedByEmail||'').toLowerCase().trim()===String(freshProfile.email||'').toLowerCase().trim();
+      if(!owns)throw new Error('Access denied.');
+      if(String(r.status||'')!=='returned_requester')throw new Error('Only a request returned for update can be edited and resubmitted.');
       const proposed=_grcRiskJson(proposedRecord||r.proposedRecord),now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status:'pending_manager',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'Resubmitted')});
       const dept=String(r.departmentKey||r.department||'');
       const updates={proposedRecord:proposed,changedFields:_grcRiskChangedFields(r.currentRecord,proposed),status:'pending_manager',requesterNote:String(note||r.requesterNote||''),managerNote:'',superAdminNote:'',assignedManagerEmail:'',returnFields:[],returnNote:'',returnSource:'',updatedAt:serverTimestamp(),updatedAtIso:now,history};

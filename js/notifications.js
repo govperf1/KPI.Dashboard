@@ -941,13 +941,16 @@ function updateExecTrend(yr){
       if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'إرسال الطلب':'Submit Request';}
       return;
     }
-    if(!window._fbUser){
-      _showErr('⚠ No authenticated user (window._fbUser is empty). Please log out and log in again.');
+    if(!window._fbUser && !(window.firebaseAuthUser&&window.firebaseAuthUser.email)){
+      _showErr('⚠ No authenticated user. Please log out and log in again.');
       if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'إرسال الطلب':'Submit Request';}
       return;
     }
-    console.log('[UserReq] Submitting as:', window._fbUser, 'type:', reqType);
-    window._kpiRequestsSubmit(reqType,message).then(function(){
+    console.log('[UserReq] Submitting as:', window._fbUser||'(auth session)', 'type:', reqType);
+    Promise.race([
+      window._kpiRequestsSubmit(reqType,message),
+      new Promise(function(_,reject){setTimeout(function(){reject(new Error('Request submission timed out.'));},60000);})
+    ]).then(function(){
       if(fbEl){fbEl.textContent=isAr?'✓ تم إرسال طلبك بنجاح. سيتم الرد عليه قريباً.':'✓ Request submitted. You will be notified of the response.';fbEl.style.color='#16A34A';fbEl.style.background='rgba(22,163,74,.08)';fbEl.style.display='block';}
       if(msgEl)msgEl.value='';
       if(btnEl){btnEl.disabled=false;btnEl.textContent=isAr?'إرسال طلب آخر':'Submit Another';}
