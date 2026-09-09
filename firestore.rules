@@ -1050,9 +1050,12 @@ service cloud.firestore {
         (resource.data.proposedRecord is map &&
          request.resource.data.proposedRecord is map &&
          resource.data.returnFields is list &&
-         resource.data.returnFields.size() > 0 &&
-         request.resource.data.proposedRecord.diff(resource.data.proposedRecord).affectedKeys()
-           .hasOnly(resource.data.returnFields));
+         /* A manager may return a request with a note but without selecting
+            individual fields. In that case the requester may edit the proposed
+            record and resubmit; previously size()>0 denied every such edit. */
+         (resource.data.returnFields.size() == 0 ||
+          request.resource.data.proposedRecord.diff(resource.data.proposedRecord).affectedKeys()
+            .hasOnly(resource.data.returnFields)));
     }
 
     function riskManagerOwnsResource(data) {
