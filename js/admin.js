@@ -4147,3 +4147,71 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
   function boot(){window._ensurePerformanceAdminRequestTabs();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else setTimeout(boot,0);
 })();
+
+
+/* ═══════════════════════════════════════════════════════════════
+   v337 SUPER ADMIN — VIEW GAP ANALYSIS OPEN FIX
+   The dashboard card is a view action and must work for Super Admin
+   independently of edit permissions. Keep the original editor/workflow
+   untouched; only add a safe fallback when the modal fails to open.
+   ═══════════════════════════════════════════════════════════════ */
+(function(){
+  if(window.__qumcViewGapOpenFixV337)return;
+  window.__qumcViewGapOpenFixV337=true;
+  var _baseOpenGap=window.openGap;
+  function _findGapKpi(id){
+    try{
+      var rows=(typeof window.allK==='function'?window.allK():(typeof allK==='function'?allK():[]))||[];
+      return rows.find(function(x){return String(x&&x.id)===String(id);})||null;
+    }catch(_){return null;}
+  }
+  function _ensureGapModal(){
+    var ov=document.getElementById('gapOv');
+    if(ov)return ov;
+    ov=document.createElement('div');
+    ov.className='overlay';ov.id='gapOv';
+    ov.innerHTML='<div class="modal" style="max-width:520px"><div class="mhd"><span class="mhd-t" id="gapT">Gap Analysis</span><button class="mx" type="button">✕</button></div><div class="mbody" id="gapB"></div></div>';
+    document.body.appendChild(ov);
+    var b=ov.querySelector('.mx');if(b)b.onclick=function(){ov.classList.remove('open');};
+    return ov;
+  }
+  function _fallbackOpenGap(id){
+    var k=_findGapKpi(id);if(!k)return false;
+    var ov=_ensureGapModal(),title=document.getElementById('gapT'),body=document.getElementById('gapB');
+    var ar=(typeof window.lang!=='undefined'?window.lang:'en')==='ar';
+    if(title)title.textContent=(ar?'تحليل الفجوة — ':'Gap Analysis — ')+(ar?(k.nameAr||k.nameEn||k.name||k.id):(k.nameEn||k.name||k.id));
+    var qlbl={q1:'Q1',q2:'Q2',q3:'Q3',q4:'Q4'};
+    var html=[],found=0;
+    ['q1','q2','q3','q4'].forEach(function(q){
+      var v=k[q];
+      if(v===null||v===undefined||v==='')return;
+      var missed=false;
+      try{missed=typeof window.metStatus==='function'?!window.metStatus(k,v):Number(v)<Number(k.target);}catch(_){missed=Number(v)<Number(k.target);}
+      if(!missed)return;
+      found++;
+      var gd=((window.ST&&window.ST.gaps)||{})[String(id)+'_'+q]||{};
+      html.push('<div style="padding:13px 15px;border:1px solid var(--border);border-radius:11px;margin-bottom:8px;background:var(--card)">'+
+        '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><div><div style="font-size:13px;font-weight:800;color:var(--ink)">'+qlbl[q]+'</div><div style="font-size:10px;color:var(--t3);margin-top:3px">'+(ar?'النتيجة':'Result')+': '+v+'% | '+(ar?'الهدف':'Target')+': '+k.target+'%</div></div><span style="font-size:10px;font-weight:800;padding:4px 11px;border-radius:10px;background:rgba(220,38,38,.10);color:#DC2626">⚠ '+(ar?'فجوة':'Gap')+'</span></div>'+
+        '<div style="margin-top:10px;font-size:10px;line-height:1.6;color:var(--t2)"><b>'+ (ar?'الأسباب':'Root Cause') +':</b> '+String(gd.gapEn||gd.gap|| (ar?'لم تُدخل بيانات بعد':'No data entered yet.')).replace(/</g,'&lt;')+'</div>'+
+        '<div style="margin-top:6px;font-size:10px;line-height:1.6;color:var(--t2)"><b>'+ (ar?'الإجراءات':'Corrective Actions') +':</b> '+String(gd.actEn||gd.action|| (ar?'لم تُدخل بيانات بعد':'No data entered yet.')).replace(/</g,'&lt;')+'</div></div>');
+    });
+    if(body)body.innerHTML=found?html.join(''):'<div style="text-align:center;padding:36px 20px;color:var(--t3);font-size:12px">'+(ar?'لا توجد أرباع فيها فجوة لهذا المؤشر.':'No quarters with a gap for this KPI.')+'</div>';
+    ov.classList.add('open');
+    return true;
+  }
+  window.openGap=function(id){
+    var ov=_ensureGapModal();
+    try{
+      if(typeof _baseOpenGap==='function')_baseOpenGap(id);
+    }catch(e){
+      console.warn('[Gap View] primary open failed; using safe view fallback',e);
+    }
+    // A short check catches cases where the primary function silently returns
+    // because of a stale filtered KPI reference.
+    setTimeout(function(){
+      try{
+        if(!ov.classList.contains('open'))_fallbackOpenGap(id);
+      }catch(e){console.warn('[Gap View] fallback failed',e);}
+    },0);
+  };
+})();

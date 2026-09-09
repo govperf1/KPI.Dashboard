@@ -2413,10 +2413,17 @@ window._selectPortal=async portal=>{
 
       const result={
         deleted:0,riskRequests:0,reviewDevelopment:0,legacyReviewDevelopment:0,
-        publicMirrors:0,attachments:0,queues:0,errors:[],remaining:0
+        publicMirrors:0,attachments:0,queues:0,myRequests:0,errors:[],remaining:0
       };
       const refs=[];
       const add=function(ref){if(ref)refs.push(ref);};
+
+      // GRC My Requests are stored in grc_requests. These are GRC-only user
+      // request records (Access/Permission, Data Correction, etc.) and are
+      // intentionally separate from Performance kpi_requests.
+      const myRequests=await _launchSnapshot('grc_requests',collection(db,'grc_requests'));
+      if(myRequests.error)result.errors.push(myRequests.label+': '+String(myRequests.error.code||myRequests.error.message||myRequests.error));
+      else myRequests.snap.docs.forEach(function(d){add(d.ref);result.myRequests++;});
 
       // Read each source independently. One permission failure must never stop
       // cleanup of every other source.
@@ -2477,6 +2484,7 @@ window._selectPortal=async portal=>{
       // Server verification: report a failure instead of falsely saying that
       // cleanup succeeded when a source still contains request documents.
       const verifySources=[
+        ['myRequests',collection(db,'grc_requests')],
         ['risk',collection(db,GRC_RISK_REQUESTS_COLLECTION)],
         ['review',collection(db,ADV_REQUESTS_COLLECTION)],
         ['public',collection(db,ADV_PUBLIC_COLLECTION)]
