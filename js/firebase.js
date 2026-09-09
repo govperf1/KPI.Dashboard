@@ -2168,6 +2168,67 @@ window._selectPortal=async portal=>{
       return snap.docs.length;
     };
 
+
+    /* Launch cleanup: permanently removes TEST REQUESTS only.
+       This intentionally does NOT touch published Risk/Incident register records,
+       users, KPI data, documents, counters, or configuration. It clears the three
+       request sources and their manager/public queue mirrors so no ghost request
+       can reappear after the launch cleanup. Super Admin only. */
+    window._grcRequestsClearAllForLaunch=async function(){
+      if(!window._fbUser||!db) throw new Error('not authenticated');
+      const role=_normalizePortalRole(window._fbRole||'');
+      if(role!=='super_admin') throw new Error('Super Admin access required');
+
+      const result={reviewDevelopment:0,riskIncident:0,mirrors:0,queues:0};
+      const reviewSnap=await getDocs(collection(db,ADV_REQUESTS_COLLECTION));
+      const riskSnap=await getDocs(collection(db,GRC_RISK_REQUESTS_COLLECTION));
+      const ops=[];
+
+      reviewSnap.forEach(function(d){
+        const row=d.data()||{};
+        const dept=_grcQueueDepartmentKey(row.departmentKey||row.department||row.departmentRaw||'');
+        ops.push({kind:'review',id:d.id,dept:dept,primary:d.ref,publicRef:doc(db,ADV_PUBLIC_COLLECTION,d.id),queueRef:dept?_grcManagerQueueItemRef(dept,'review',d.id):null});
+      });
+      riskSnap.forEach(function(d){
+        const row=d.data()||{};
+        const dept=_grcQueueDepartmentKey(row.departmentKey||row.department||row.departmentRaw||'');
+        ops.push({kind:'risk',id:d.id,dept:dept,primary:d.ref,queueRef:dept?_grcManagerQueueItemRef(dept,'risk',d.id):null});
+      });
+
+      /* Keep batches below Firestore's 500-operation limit. Each request can
+         have primary + mirror + queue, so 120 requests per batch is safe. */
+      for(let start=0;start<ops.length;start+=120){
+        const batch=writeBatch(db),chunk=ops.slice(start,start+120);
+        chunk.forEach(function(op){
+          batch.delete(op.primary);
+          if(op.kind==='review'){
+            result.reviewDevelopment++;
+            batch.delete(op.publicRef);result.mirrors++;
+          }else result.riskIncident++;
+          if(op.queueRef){batch.delete(op.queueRef);result.queues++;}
+        });
+        await batch.commit();
+      }
+
+      /* Clear stale public mirrors left by older test builds even when their
+         primary request was already removed. */
+      try{
+        const publicSnap=await getDocs(collection(db,ADV_PUBLIC_COLLECTION));
+        for(let start=0;start<publicSnap.docs.length;start+=250){
+          const batch=writeBatch(db),chunk=publicSnap.docs.slice(start,start+250);
+          chunk.forEach(function(d){batch.delete(d.ref);result.mirrors++;});
+          await batch.commit();
+        }
+      }catch(e){console.warn('[Launch Cleanup] stale public mirror cleanup skipped',e&&e.code||e);}
+
+      /* Clear manager request caches so the UI cannot temporarily restore a
+         deleted test request from a previous in-memory department snapshot. */
+      try{Object.keys(sessionStorage).filter(k=>k.indexOf('grc_manager_')===0||k.indexOf('grc_risk_manager_')===0).forEach(k=>sessionStorage.removeItem(k));}catch(_){ }
+      try{Object.keys(localStorage).filter(k=>k.indexOf('grc_manager_')===0||k.indexOf('grc_risk_manager_')===0).forEach(k=>localStorage.removeItem(k));}catch(_){ }
+      try{window.dispatchEvent(new CustomEvent('grc:launch-cleanup-complete',{detail:result}));}catch(_){ }
+      return result;
+    };
+
     /* ══════════════════════════════════════════════════════
        READ-ONLY onSnapshot: receives changes from other users.
        RULE: Never writes to Firestore from this listener.
