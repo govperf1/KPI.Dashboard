@@ -2159,14 +2159,49 @@ window._selectPortal=async portal=>{
     };
     window._grcRiskRequestsStop=function(){if(_grcRiskRequestUnsub){_grcRiskRequestUnsub();_grcRiskRequestUnsub=null;}};
 
-    window._kpiRequestsClearAllForLaunch=async function(){
-      if(!window._fbUser||!db) throw new Error('not authenticated');
+    /* Pre-launch request cleanup: request records only. Published Risk/Incident
+       registers and all user/profile data are intentionally untouched. */
+    async function _launchDeleteRefs(refs){
+      let count=0;
+      for(let i=0;i<refs.length;i+=450){
+        const batch=writeBatch(db);
+        refs.slice(i,i+450).forEach(function(ref){batch.delete(ref);});
+        await batch.commit();count+=Math.min(450,refs.length-i);
+      }
+      return count;
+    }
+    window._grcPreLaunchCleanupRequests=async function(){
+      if(!window._fbUser||!db)throw new Error('Not authenticated.');
       const role=_normalizePortalRole(window._fbRole||'');
-      if(role!=='super_admin'&&role!=='admin') throw new Error('access denied');
-      const snap=await getDocs(collection(db,'kpi_requests'));
-      await Promise.all(snap.docs.map(function(d){return deleteDoc(doc(db,'kpi_requests',d.id));}));
-      return snap.docs.length;
+      if(role!=='super_admin'&&role!=='admin')throw new Error('Only Super Admin or Admin can clean test requests.');
+      const [riskSnap,advSnap,publicSnap,fallbackSnap]=await Promise.all([
+        getDocs(collection(db,GRC_RISK_REQUESTS_COLLECTION)),
+        getDocs(collection(db,ADV_REQUESTS_COLLECTION)),
+        getDocs(collection(db,ADV_PUBLIC_COLLECTION)),
+        getDocs(collection(db,ADV_FALLBACK_COLLECTION))
+      ]);
+      const refs=[],seen=new Set(),add=function(ref){if(ref&&!seen.has(ref.path)){seen.add(ref.path);refs.push(ref);}};
+      // Risk & Incident request records + their exact manager inbox mirrors.
+      riskSnap.docs.forEach(function(d){
+        const r=d.data()||{},dept=_advCanonicalDepartment(r.departmentKey||r.department||r.departmentRaw||'');
+        add(d.ref);if(dept)add(_grcManagerQueueItemRef(dept,'risk',d.id));
+      });
+      // Review & Development requests + public rows + exact manager inbox mirrors.
+      advSnap.docs.forEach(function(d){
+        const r=d.data()||{},dept=_grcQueueDepartmentKey(r.departmentKey||r.department||r.departmentRaw||'');
+        add(d.ref);add(doc(db,ADV_PUBLIC_COLLECTION,d.id));if(dept)add(_grcManagerQueueItemRef(dept,'review',d.id));
+      });
+      // Remove orphan public test rows too; no published register data is touched.
+      publicSnap.docs.forEach(function(d){add(d.ref);});
+      // Legacy fallback: ONLY Review & Development rows, never KPI/performance requests.
+      fallbackSnap.docs.forEach(function(d){try{if(_advIsFallbackRow(d.data()||{}))add(d.ref);}catch(_){}});
+      const deleted=await _launchDeleteRefs(refs);
+      try{window._grcRiskRequestsStop&&window._grcRiskRequestsStop();}catch(_){}
+      try{window._advisoryRequestsStop&&window._advisoryRequestsStop();}catch(_){}
+      try{localStorage.removeItem('grc-manager-inbox-cache');sessionStorage.removeItem('grc-manager-inbox-cache');}catch(_){}
+      return {deleted:deleted,riskRequests:riskSnap.size,reviewRequests:advSnap.size,publicRows:publicSnap.size};
     };
+    window._kpiRequestsClearAllForLaunch=window._grcPreLaunchCleanupRequests;
 
 
     /* Launch cleanup: permanently removes TEST REQUESTS only.
