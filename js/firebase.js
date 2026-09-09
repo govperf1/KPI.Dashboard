@@ -1464,18 +1464,28 @@ window._selectPortal=async portal=>{
          is unavailable. Current rows are owned by canonical email + UID; older
          rows may contain only one of them. Read each narrow, rules-compatible
          ownership path independently and merge the successful results. */
-      const reads=[];
       const me=_advEmail(),uid=_advUid();
-      reads.push(getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)))
-        .then(function(snap){return snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});})
-        .catch(function(err){console.warn('[Review Development] getMine email path failed',err&&err.code||err);return [];}));
-      if(uid){
-        reads.push(getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)))
-          .then(function(snap){return snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});})
-          .catch(function(err){console.warn('[Review Development] getMine UID path failed',err&&err.code||err);return [];}));
+      /* Canonical email is mandatory for all current requests and is the same
+         identity used by the Rules. Read this path first to avoid a second
+         UID query/listener that can be denied for legacy documents. */
+      let primary=[];
+      try{
+        const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
+        primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+      }catch(err){
+        console.warn('[Review Development] getMine email path failed',err&&err.code||err);
       }
-      const groups=await Promise.all(reads),primary=[];
-      groups.forEach(function(rows){(rows||[]).forEach(function(r){primary.push(r);});});
+      /* Only use the legacy UID index when the canonical email path returned no
+         rows. A UID probe is therefore never run repeatedly beside a successful
+         email query. */
+      if(!primary.length&&uid){
+        try{
+          const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
+          primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+        }catch(err){
+          console.warn('[Review Development] legacy UID fallback unavailable',err&&err.code||err);
+        }
+      }
       return _advMergeRows(primary,[],false);
     };
     let _advisoryManagerLastQueue=[],_advisoryManagerLastOwn=[],_advisoryManagerLastRisk=[],_advisoryManagerOwnCacheAt=0,_advisoryManagerOwnCachePromise=null;
@@ -1622,7 +1632,18 @@ window._selectPortal=async portal=>{
       const freshProfile=await _grcResolveManagerProfile(await _advFreshProfile(true));
       await _advAssertProfileScope(freshProfile);
       const dept=freshProfile.departmentKey,managerEmail=freshProfile.email,managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim(),returnFields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
-      const loc=await _advLocateRequest(requestId),current=Object.assign(loc.record,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
+      const loc=await _advLocateRequest(requestId);
+      /* Queue snapshots are a read model and can be older than the source.
+         Always hydrate the authoritative request from the server before the
+         manager acts so an already-forwarded item is not committed again. */
+      let authoritative=loc.record;
+      try{
+        const serverSnap=await getDocFromServer(loc.requestRef);
+        if(serverSnap.exists())authoritative=_advNormalizeRow(serverSnap.id,serverSnap.data(),'advisory_requests');
+      }catch(serverReadErr){
+        console.warn('[Review Development] manager server preflight unavailable; using authorized source',serverReadErr&&serverReadErr.code||serverReadErr);
+      }
+      const current=Object.assign(authoritative,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
       /* The approval queue is assignment-based. Do not block an item merely
          because the same account also appears as requester; historical requests
          may belong to a user who later became the Department Manager. */
@@ -1762,12 +1783,20 @@ window._selectPortal=async portal=>{
 
     window._advisoryRate=async function(requestId,rating,comment){
       const current=await _advAuthorizedRequest(requestId,false,false),n=Math.max(1,Math.min(5,Number(rating||0)));
-      if(_advStatusKey(current.status)!=='closed')throw new Error('Only closed requests can be rated.');
+      const ratingStatus=_advStatusKey(current.status);
+      const ratingStage=String(current.workflowStage||'').toLowerCase();
+      const canRate=current._storage==='advisory_requests'
+        ? (ratingStatus==='closed'||ratingStage==='closed')
+        : ['closed','approved','rejected'].includes(ratingStatus);
+      if(!canRate)throw new Error('Only completed requests can be rated.');
       if(Number(current.rating))throw new Error('This request has already been rated.');
       const ratingComment=String(comment||'').trim(),updates={
         rating:n,ratingComment:ratingComment,ratingAt:serverTimestamp(),
-        updatedAt:serverTimestamp(),updatedAtIso:_advIso(),updatedBy:_advEmail()
+        updatedAt:serverTimestamp(),updatedAtIso:_advIso()
       };
+      /* advisory_requests records permit an audit actor; legacy/generic request
+         records intentionally keep rating writes to the minimal feedback fields. */
+      if(current._storage==='advisory_requests')updates.updatedBy=_advEmail();
       /* Keep the rating write limited to the authoritative request document.
          No mirror or manager-queue write is required, so a queue permission
          can never make a valid requester rating fail. */
