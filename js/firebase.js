@@ -909,11 +909,18 @@ window._selectPortal=async portal=>{
       try{await window._recordAuditDirect('GRC_USER_REQUEST_RESPONSE','GRC user request '+String(status||'updated')+' · '+requestId,before,{requestId:requestId,status:String(status||''),comment:String(comment||'')},{portal:'grc'});}catch(_){}
     };
     window._grcRequestsRate=async function(requestId,rating,comment){
-      if(!window._fbUser||!db)throw new Error('not authenticated');
+      /* Rating ownership must use the authenticated Firebase identity, never the
+         browser role/session label. The same account can switch between GRC Owner
+         and Department Manager, so window._fbUser may be stale or temporarily
+         empty after a role change even though auth.currentUser is unchanged. */
+      const activeUser=auth&&auth.currentUser;
+      if(!activeUser||!activeUser.email||!db)throw new Error('not authenticated');
       const ref=doc(db,'grc_requests',requestId),snap=await getDoc(ref);
       if(!snap.exists())throw new Error('Request not found.');
-      const row=snap.data()||{},me=(window._fbUser||'').toLowerCase().trim();
-      if(String(row.userEmail||'').toLowerCase().trim()!==me)throw new Error('Access denied.');
+      const row=snap.data()||{},me=String(activeUser.email||'').toLowerCase().trim(),uid=String(activeUser.uid||'');
+      const ownsByEmail=String(row.userEmail||'').toLowerCase().trim()===me;
+      const ownsByUid=uid&&String(row.requesterUid||'')===uid;
+      if(!ownsByEmail&&!ownsByUid)throw new Error('Access denied.');
       const status=String(row.status||'').toLowerCase();
       if(!['approved','rejected'].includes(status))throw new Error('Only completed requests can be rated.');
       if(Number(row.rating||0))throw new Error('This request has already been rated.');
@@ -1708,7 +1715,13 @@ window._selectPortal=async portal=>{
         const stage=String(current.workflowStage||current.status||'');
         if(stage!=='returned_requester')throw new Error('Only a request returned for update can be resubmitted.');
         if(String(current.userEmail||'').toLowerCase().trim()!==_advEmail())throw new Error('Access denied.');
-        const freshProfile=await _advFreshProfile(),departmentKey=freshProfile.departmentKey;
+        /* Force the server profile for every resubmission. Do not use the
+           current browser role/email as the authority because one Firebase account
+           can legitimately switch between Department Manager and GRC Owner. */
+        const freshProfile=await _advFreshProfile(true),departmentKey=freshProfile.departmentKey;
+        const authUid=String(freshProfile.uid||''),ownerUid=String(current.requesterUid||'');
+        const ownerEmail=String(current.userEmail||'').toLowerCase().trim();
+        if(!((authUid&&ownerUid&&authUid===ownerUid)||ownerEmail===String(freshProfile.email||'').toLowerCase().trim()))throw new Error('Access denied.');
         if(!departmentKey)throw new Error('A department is required to resubmit this request.');
         const title=String(data.title||current.title||'').trim();
         const details=String(data.details||current.details||'').trim();
@@ -1722,11 +1735,16 @@ window._selectPortal=async portal=>{
         updates.managerDecision='pending';updates.managerComment='';updates.managerName='';updates.managerEmail='';
         updates.managerActionAt=null;updates.managerActionAtIso='';
         updates.messages=arrayUnion({id:'msg_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),senderRole:_advRole(),senderName:String(window._fbName||'Requester'),senderEmail:_advEmail(),text:'Request updated and resubmitted to the Department Manager.',attachments:messageAttachments,createdAt:_advIso()});
-        const snapshot=_grcReviewQueueSnapshot(Object.assign({},current,updates,{id:requestId,departmentKey:departmentKey,userEmail:_advEmail(),updatedAtIso:_advIso()}),requestId);
-        const batch=writeBatch(db);
-        batch.update(requestRef,updates);
-        batch.set(_grcManagerQueueItemRef(departmentKey,'review',requestId),_grcQueueItem('review',requestId,departmentKey,_advEmail(),snapshot),{merge:false});
-        await batch.commit();
+        const snapshot=_grcReviewQueueSnapshot(Object.assign({},current,updates,{id:requestId,departmentKey:departmentKey,userEmail:freshProfile.email,updatedAtIso:_advIso()}),requestId);
+        /* The request document is authoritative. Save it first; a stale manager
+           queue mirror must never make a valid returned request appear unsent. */
+        await updateDoc(requestRef,updates);
+        try{
+          await setDoc(_grcManagerQueueItemRef(departmentKey,'review',requestId),_grcQueueItem('review',requestId,departmentKey,freshProfile.email,snapshot),{merge:true});
+        }catch(queueErr){
+          console.warn('[Review Development] resubmit queue sync skipped after authoritative resubmit',queueErr&&queueErr.code||queueErr&&queueErr.message||queueErr);
+        }
+        _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
         return true;
       }else if(action==='clarify'){
         var stage=String(current.workflowStage||current.status||'');if(stage!=='awaiting_requester_information')throw new Error('This request is not waiting for clarification.');const text=String(data.text||'').trim();if(!text)throw new Error('Clarification is required.');updates.status='in_progress';updates.workflowStage='clarification_received';publicUpdates.status='in_progress';publicUpdates.workflowStage='clarification_received';updates.messages=arrayUnion({id:'msg_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),senderRole:_advRole(),senderName:String(window._fbName||'Requester'),senderEmail:_advEmail(),text,attachments:messageAttachments,createdAt:_advIso()});
