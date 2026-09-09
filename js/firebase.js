@@ -2282,108 +2282,141 @@ window._selectPortal=async portal=>{
     };
     window._grcRiskRequestsStop=function(){if(_grcRiskRequestUnsub){_grcRiskRequestUnsub();_grcRiskRequestUnsub=null;}};
 
-    /* Pre-launch request cleanup: request records only. Published Risk/Incident
-       registers and all user/profile data are intentionally untouched. */
-    async function _launchDeleteRefs(refs){
-      let count=0;
-      for(let i=0;i<refs.length;i+=450){
-        const batch=writeBatch(db);
-        refs.slice(i,i+450).forEach(function(ref){batch.delete(ref);});
-        await batch.commit();count+=Math.min(450,refs.length-i);
+    /* ══════════════════════════════════════════════════════
+       GRC LAUNCH REQUEST CLEANUP — REQUESTS ONLY
+       Authoritative cleanup used before launch.  This intentionally never
+       touches published Risk/Incident registers or Performance KPI records.
+       It removes primary request rows, Review mirrors, legacy R&D fallback
+       rows, attachment chunks, and ALL known department-inbox queue copies.
+       ══════════════════════════════════════════════════════ */
+    async function _launchSnapshot(label, ref){
+      try{
+        const snap=await getDocsFromServer(ref);
+        return {label:label,snap:snap,error:null};
+      }catch(error){
+        console.warn('[GRC Launch Cleanup] read failed:',label,error&&error.code||error);
+        return {label:label,snap:null,error:error};
       }
-      return count;
     }
-    window._grcPreLaunchCleanupRequests=async function(){
-      if(!window._fbUser||!db)throw new Error('Not authenticated.');
-      const role=_normalizePortalRole(window._fbRole||'');
-      if(role!=='super_admin')throw new Error('Only Super Admin can clean GRC test requests.');
-      const [riskSnap,advSnap,publicSnap,fallbackSnap]=await Promise.all([
-        getDocs(collection(db,GRC_RISK_REQUESTS_COLLECTION)),
-        getDocs(collection(db,ADV_REQUESTS_COLLECTION)),
-        getDocs(collection(db,ADV_PUBLIC_COLLECTION)),
-        getDocs(collection(db,ADV_FALLBACK_COLLECTION))
-      ]);
-      const refs=[],seen=new Set(),add=function(ref){if(ref&&!seen.has(ref.path)){seen.add(ref.path);refs.push(ref);}};
-      // Risk & Incident request records + their exact manager inbox mirrors.
-      riskSnap.docs.forEach(function(d){
-        const r=d.data()||{},dept=_advCanonicalDepartment(r.departmentKey||r.department||r.departmentRaw||'');
-        add(d.ref);if(dept)add(_grcManagerQueueItemRef(dept,'risk',d.id));
+    async function _launchDeleteRefs(refs){
+      const unique=[],seen=new Set();
+      refs.forEach(function(ref){
+        if(ref&&ref.path&&!seen.has(ref.path)){seen.add(ref.path);unique.push(ref);}
       });
-      // Review & Development requests + public rows + exact manager inbox mirrors.
-      advSnap.docs.forEach(function(d){
-        const r=d.data()||{},dept=_grcQueueDepartmentKey(r.departmentKey||r.department||r.departmentRaw||'');
-        add(d.ref);add(doc(db,ADV_PUBLIC_COLLECTION,d.id));if(dept)add(_grcManagerQueueItemRef(dept,'review',d.id));
+      let deleted=0;
+      for(let i=0;i<unique.length;i+=350){
+        const batch=writeBatch(db),chunk=unique.slice(i,i+350);
+        chunk.forEach(function(ref){batch.delete(ref);});
+        await batch.commit();
+        deleted+=chunk.length;
+      }
+      return deleted;
+    }
+    function _grcLaunchQueueKeys(){
+      return [
+        'safety','maintenance','laundry','housekeeping','projects','governance','division',
+        'Project_Management','Project Management','project_management',
+        'Maintenance','maintenance_management','Maintenance_Management',
+        'Safety','safety_management','Safety_Management',
+        'Housekeeping','housekeeping_management','Housekeeping_Management',
+        'Laundry','laundry_management','Laundry_Management'
+      ];
+    }
+
+    window._grcRequestsClearAllForLaunch=async function(){
+      if(!db||!auth.currentUser)throw new Error('Not authenticated. Please sign in again.');
+      const role=_normalizePortalRole(window._fbRole||window.currentUserRole||'');
+      if(role!=='super_admin')throw new Error('Super Admin access is required.');
+
+      const result={
+        deleted:0,riskRequests:0,reviewDevelopment:0,legacyReviewDevelopment:0,
+        publicMirrors:0,attachments:0,queues:0,errors:[],remaining:0
+      };
+      const refs=[];
+      const add=function(ref){if(ref)refs.push(ref);};
+
+      // Read each source independently. One permission failure must never stop
+      // cleanup of every other source.
+      const risk=await _launchSnapshot('grc_risk_requests',collection(db,GRC_RISK_REQUESTS_COLLECTION));
+      if(risk.error)result.errors.push(risk.label+': '+String(risk.error.code||risk.error.message||risk.error));
+      else risk.snap.docs.forEach(function(d){add(d.ref);result.riskRequests++;});
+
+      const review=await _launchSnapshot('advisory_requests',collection(db,ADV_REQUESTS_COLLECTION));
+      if(review.error)result.errors.push(review.label+': '+String(review.error.code||review.error.message||review.error));
+      else review.snap.docs.forEach(function(d){add(d.ref);result.reviewDevelopment++;});
+
+      const publicRows=await _launchSnapshot('advisory_public',collection(db,ADV_PUBLIC_COLLECTION));
+      if(publicRows.error)result.errors.push(publicRows.label+': '+String(publicRows.error.code||publicRows.error.message||publicRows.error));
+      else publicRows.snap.docs.forEach(function(d){add(d.ref);result.publicMirrors++;});
+
+      // Legacy fallback contains mixed Performance and old R&D data. Delete ONLY
+      // rows positively identified as Review & Development.
+      const fallback=await _launchSnapshot('kpi_requests',collection(db,ADV_FALLBACK_COLLECTION));
+      if(fallback.error)result.errors.push(fallback.label+': '+String(fallback.error.code||fallback.error.message||fallback.error));
+      else fallback.snap.docs.forEach(function(d){
+        try{if(_advIsFallbackRow(d.data()||{})){add(d.ref);result.legacyReviewDevelopment++;}}catch(_){}
       });
-      // Remove orphan public test rows too; no published register data is touched.
-      publicSnap.docs.forEach(function(d){add(d.ref);});
-      // Legacy fallback: ONLY Review & Development rows, never KPI/performance requests.
-      fallbackSnap.docs.forEach(function(d){try{if(_advIsFallbackRow(d.data()||{}))add(d.ref);}catch(_){}});
-      const deleted=await _launchDeleteRefs(refs);
+
+      // Attachment chunks belong only to Review & Development and otherwise keep
+      // old deleted requests alive through attachment metadata.
+      const attachments=await _launchSnapshot('advisory_attachments',collection(db,'advisory_attachments'));
+      if(attachments.error)result.errors.push(attachments.label+': '+String(attachments.error.code||attachments.error.message||attachments.error));
+      else attachments.snap.docs.forEach(function(d){add(d.ref);result.attachments++;});
+
+      // Delete every queue copy, including orphan rows and old department aliases.
+      const queueSeen=new Set();
+      for(const departmentKey of _grcLaunchQueueKeys()){
+        for(const kind of ['review','risk']){
+          const pathKey=departmentKey+'|'+kind;
+          if(queueSeen.has(pathKey))continue;
+          queueSeen.add(pathKey);
+          const q=await _launchSnapshot(
+            'queue:'+departmentKey+'/'+kind,
+            collection(db,GRC_MANAGER_QUEUE_ROOT,departmentKey,kind)
+          );
+          if(q.error){
+            result.errors.push(q.label+': '+String(q.error.code||q.error.message||q.error));
+          }else{
+            q.snap.docs.forEach(function(d){add(d.ref);result.queues++;});
+          }
+        }
+      }
+
+      result.deleted=await _launchDeleteRefs(refs);
+
+      // Stop active UI listeners and clear every request cache before the next
+      // render, preventing a deleted test request from being painted from memory.
       try{window._grcRiskRequestsStop&&window._grcRiskRequestsStop();}catch(_){}
       try{window._advisoryRequestsStop&&window._advisoryRequestsStop();}catch(_){}
-      try{localStorage.removeItem('grc-manager-inbox-cache');sessionStorage.removeItem('grc-manager-inbox-cache');}catch(_){}
-      return {deleted:deleted,riskRequests:riskSnap.size,reviewRequests:advSnap.size,publicRows:publicSnap.size};
-    };
+      try{Object.keys(sessionStorage).filter(k=>/grc|advisory|request/i.test(k)).forEach(k=>sessionStorage.removeItem(k));}catch(_){}
+      try{Object.keys(localStorage).filter(k=>/grc.*(request|inbox)|advisory/i.test(k)).forEach(k=>localStorage.removeItem(k));}catch(_){}
 
-    /* Launch cleanup: permanently removes TEST REQUESTS only.
-       This intentionally does NOT touch published Risk/Incident register records,
-       users, KPI data, documents, counters, or configuration. It clears the three
-       request sources and their manager/public queue mirrors so no ghost request
-       can reappear after the launch cleanup. Super Admin only. */
-    window._grcRequestsClearAllForLaunch=async function(){
-      if(!window._fbUser||!db) throw new Error('not authenticated');
-      const role=_normalizePortalRole(window._fbRole||'');
-      if(role!=='super_admin') throw new Error('Super Admin access required');
-
-      const result={reviewDevelopment:0,riskIncident:0,mirrors:0,queues:0};
-      const reviewSnap=await getDocs(collection(db,ADV_REQUESTS_COLLECTION));
-      const riskSnap=await getDocs(collection(db,GRC_RISK_REQUESTS_COLLECTION));
-      const ops=[];
-
-      reviewSnap.forEach(function(d){
-        const row=d.data()||{};
-        const dept=_grcQueueDepartmentKey(row.departmentKey||row.department||row.departmentRaw||'');
-        ops.push({kind:'review',id:d.id,dept:dept,primary:d.ref,publicRef:doc(db,ADV_PUBLIC_COLLECTION,d.id),queueRef:dept?_grcManagerQueueItemRef(dept,'review',d.id):null});
-      });
-      riskSnap.forEach(function(d){
-        const row=d.data()||{};
-        const dept=_grcQueueDepartmentKey(row.departmentKey||row.department||row.departmentRaw||'');
-        ops.push({kind:'risk',id:d.id,dept:dept,primary:d.ref,queueRef:dept?_grcManagerQueueItemRef(dept,'risk',d.id):null});
-      });
-
-      /* Keep batches below Firestore's 500-operation limit. Each request can
-         have primary + mirror + queue, so 120 requests per batch is safe. */
-      for(let start=0;start<ops.length;start+=120){
-        const batch=writeBatch(db),chunk=ops.slice(start,start+120);
-        chunk.forEach(function(op){
-          batch.delete(op.primary);
-          if(op.kind==='review'){
-            result.reviewDevelopment++;
-            batch.delete(op.publicRef);result.mirrors++;
-          }else result.riskIncident++;
-          if(op.queueRef){batch.delete(op.queueRef);result.queues++;}
-        });
-        await batch.commit();
+      // Server verification: report a failure instead of falsely saying that
+      // cleanup succeeded when a source still contains request documents.
+      const verifySources=[
+        ['risk',collection(db,GRC_RISK_REQUESTS_COLLECTION)],
+        ['review',collection(db,ADV_REQUESTS_COLLECTION)],
+        ['public',collection(db,ADV_PUBLIC_COLLECTION)]
+      ];
+      for(const pair of verifySources){
+        const v=await _launchSnapshot('verify:'+pair[0],pair[1]);
+        if(v.error)result.errors.push(v.label+': '+String(v.error.code||v.error.message||v.error));
+        else result.remaining+=v.snap.size;
       }
 
-      /* Clear stale public mirrors left by older test builds even when their
-         primary request was already removed. */
-      try{
-        const publicSnap=await getDocs(collection(db,ADV_PUBLIC_COLLECTION));
-        for(let start=0;start<publicSnap.docs.length;start+=250){
-          const batch=writeBatch(db),chunk=publicSnap.docs.slice(start,start+250);
-          chunk.forEach(function(d){batch.delete(d.ref);result.mirrors++;});
-          await batch.commit();
-        }
-      }catch(e){console.warn('[Launch Cleanup] stale public mirror cleanup skipped',e&&e.code||e);}
-
-      /* Clear manager request caches so the UI cannot temporarily restore a
-         deleted test request from a previous in-memory department snapshot. */
-      try{Object.keys(sessionStorage).filter(k=>k.indexOf('grc_manager_')===0||k.indexOf('grc_risk_manager_')===0).forEach(k=>sessionStorage.removeItem(k));}catch(_){ }
-      try{Object.keys(localStorage).filter(k=>k.indexOf('grc_manager_')===0||k.indexOf('grc_risk_manager_')===0).forEach(k=>localStorage.removeItem(k));}catch(_){ }
-      try{window.dispatchEvent(new CustomEvent('grc:launch-cleanup-complete',{detail:result}));}catch(_){ }
+      try{window.dispatchEvent(new CustomEvent('grc:launch-cleanup-complete',{detail:result}));}catch(_){}
+      if(result.remaining>0){
+        throw new Error('Cleanup completed partially. '+result.remaining+' request record(s) still remain on the server. '+(result.errors[0]||'Check Firestore Rules and deploy the latest rules.'));
+      }
+      if(result.errors.length){
+        console.warn('[GRC Launch Cleanup] completed with non-blocking source errors',result.errors);
+      }
       return result;
     };
+
+    // Keep the old button API as an alias so every existing GRC cleanup button
+    // uses the same verified cleanup implementation.
+    window._grcPreLaunchCleanupRequests=window._grcRequestsClearAllForLaunch;
 
     /* ══════════════════════════════════════════════════════
        READ-ONLY onSnapshot: receives changes from other users.

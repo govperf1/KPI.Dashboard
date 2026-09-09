@@ -4770,7 +4770,7 @@
     var typed=prompt(isAr()?'اكتب DELETE للتأكيد النهائي:':'Type DELETE to confirm permanent deletion:');
     if(String(typed||'').trim().toUpperCase()!=='DELETE')return;
     var btn=document.getElementById('_grcLaunchCleanupBtn'),box=document.getElementById('_grcLaunchCleanupResult');if(btn){btn.disabled=true;btn.textContent=(isAr()?'جاري الحذف…':'Deleting…');}
-    try{if(typeof window._grcPreLaunchCleanupRequests!=='function')throw new Error('GRC cleanup service is not available.');var result=await window._grcPreLaunchCleanupRequests();if(box){box.style.display='block';box.style.background='rgba(22,163,74,.14)';box.style.color='#4ade80';box.textContent=(isAr()?'✓ اكتمل الحذف. تم حذف ':'✓ Cleanup complete. Deleted ')+Number(result.deleted||0)+(isAr()?' سجل طلب ونسخة مرتبطة.':' request/queue records.');}}
+    try{if(typeof window._grcRequestsClearAllForLaunch!=='function')throw new Error('GRC cleanup service is not available.');var result=await window._grcRequestsClearAllForLaunch();if(box){box.style.display='block';box.style.background='rgba(22,163,74,.14)';box.style.color='#4ade80';box.textContent=(isAr()?'✓ اكتمل حذف طلبات GRC فقط. تم حذف ':'✓ GRC request cleanup complete. Deleted ')+Number(result.deleted||0)+(isAr()?' سجل/نسخة مرتبطة. المتبقي: ':' request/mirror/queue record(s). Remaining: ')+Number(result.remaining||0);}}
     catch(err){if(box){box.style.display='block';box.style.background='rgba(220,38,38,.14)';box.style.color='#fb7185';box.textContent='✕ '+String(err&&err.message||err);}}
     finally{if(btn){btn.disabled=false;btn.textContent='🗑 '+(isAr()?'حذف جميع طلبات الاختبار':'Delete All Test Requests');}}
   };
