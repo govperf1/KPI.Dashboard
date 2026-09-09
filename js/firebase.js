@@ -2173,7 +2173,7 @@ window._selectPortal=async portal=>{
     window._grcPreLaunchCleanupRequests=async function(){
       if(!window._fbUser||!db)throw new Error('Not authenticated.');
       const role=_normalizePortalRole(window._fbRole||'');
-      if(role!=='super_admin'&&role!=='admin')throw new Error('Only Super Admin or Admin can clean test requests.');
+      if(role!=='super_admin')throw new Error('Only Super Admin can clean GRC test requests.');
       const [riskSnap,advSnap,publicSnap,fallbackSnap]=await Promise.all([
         getDocs(collection(db,GRC_RISK_REQUESTS_COLLECTION)),
         getDocs(collection(db,ADV_REQUESTS_COLLECTION)),
@@ -2201,8 +2201,6 @@ window._selectPortal=async portal=>{
       try{localStorage.removeItem('grc-manager-inbox-cache');sessionStorage.removeItem('grc-manager-inbox-cache');}catch(_){}
       return {deleted:deleted,riskRequests:riskSnap.size,reviewRequests:advSnap.size,publicRows:publicSnap.size};
     };
-    window._kpiRequestsClearAllForLaunch=window._grcPreLaunchCleanupRequests;
-
 
     /* Launch cleanup: permanently removes TEST REQUESTS only.
        This intentionally does NOT touch published Risk/Incident register records,
