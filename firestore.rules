@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v71 — Manager approval permission + legacy field guard fix
+// FIRESTORE SECURITY RULES v72 — Review & Development manager + Super Admin decision write fix
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -800,10 +800,16 @@ service cloud.firestore {
 
     function validAdvisorySuperAdminDecision() {
       let changed = request.resource.data.diff(resource.data).affectedKeys();
+      // Keep this list aligned with _advisoryAdminAction(). Review & Development
+      // decisions stamp SLA/response metadata and optionally append a response
+      // message, so those fields must not make an otherwise valid decision fail.
       return resource.data.workflowStage == 'pending_super_admin' &&
         changed.hasOnly([
           'status','workflowStage','closureReason',
-          'updatedAt','updatedAtIso','updatedBy','closedAt','superAdminNote'
+          'updatedAt','updatedAtIso','updatedBy',
+          'firstRespondedAt','respondedAt','responseMinutes',
+          'completedAt','closedAt','superAdminNote','messages',
+          'attachments','attachmentCount'
         ]) &&
         request.resource.data.updatedBy == authEmail() &&
         (
