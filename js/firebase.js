@@ -991,13 +991,15 @@ window._selectPortal=async portal=>{
       return null;
     }
     let _advFreshProfileCache=null,_advFreshProfileCacheAt=0,_advFreshProfilePromise=null;
-    async function _advFreshProfile(){
+    async function _advFreshProfile(force){
       const u=auth.currentUser;if(!u||!u.email)throw new Error('Not authenticated.');
       const now=Date.now(),profileEmail=String(u.email||'').toLowerCase().trim();
-      /* v331 — A manager page can ask for the same profile from multiple queue
-         widgets. Coalesce those reads and keep a very short verified cache. */
-      if(_advFreshProfileCache&&_advFreshProfileCache.email===profileEmail&&now-_advFreshProfileCacheAt<15000)return _advFreshProfileCache;
-      if(_advFreshProfilePromise)return _advFreshProfilePromise;
+      /* Role changes can be tested with the same email. Never reuse the short
+         browser cache for a workflow decision when force=true: Security Rules
+         evaluate the server profile, so the action must use that same profile. */
+      if(!force&&_advFreshProfileCache&&_advFreshProfileCache.email===profileEmail&&now-_advFreshProfileCacheAt<15000)return _advFreshProfileCache;
+      if(!force&&_advFreshProfilePromise)return _advFreshProfilePromise;
+      if(force){_advFreshProfileCache=null;_advFreshProfileCacheAt=0;}
       _advFreshProfilePromise=(async function(){
         try{
           const snap=await _getServerDoc(doc(db,'users',profileEmail));
@@ -1610,7 +1612,7 @@ window._selectPortal=async portal=>{
       // the values Security Rules evaluate and avoids stale-device permission
       // failures after a profile change.
       await _advAssertRulesVersion();
-      const freshProfile=await _grcResolveManagerProfile(await _advFreshProfile());
+      const freshProfile=await _grcResolveManagerProfile(await _advFreshProfile(true));
       await _advAssertProfileScope(freshProfile);
       const dept=freshProfile.departmentKey,managerEmail=freshProfile.email,managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim(),returnFields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
       const loc=await _advLocateRequest(requestId),current=Object.assign(loc.record,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
@@ -1654,7 +1656,8 @@ window._selectPortal=async portal=>{
     };
 
     window._advisoryAdminAction=async function(requestId,action,data,file){
-      if(!_advIsSuperAdmin())throw new Error('Super Admin approval is required.');
+      const activeProfile=await _advFreshProfile(true);
+      if(activeProfile.role!=='super_admin')throw new Error('Super Admin approval is required.');
       data=data||{};const current=await _advAuthorizedRequest(requestId,true,false),requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso();
       if(_advStatusKey(current.status)==='closed'||String(current.workflowStage||'')==='closed')throw new Error('This request is closed and no longer accepts Super Admin actions.');
       const approvalStage=String(current.workflowStage||'');if(approvalStage==='pending_department_manager'||approvalStage==='rejected_manager')throw new Error('This request has not been approved by the Department Manager.');
@@ -2021,31 +2024,64 @@ window._selectPortal=async portal=>{
       return{requestId:requestRef.id,requestCode:requestCode};
     };
     window._grcRiskRequestResubmit=async function(requestId,proposedRecord,note){
-      /* Re-read the server profile before resubmission. This avoids relying on
-         stale window role/permission globals, which was why a valid GRC Owner
-         could open the request but received a client-side permission failure. */
-      const freshProfile=await _advFreshProfile();
+      /* Always read the CURRENT server profile. The same Firebase account may
+         legitimately be used as Department Manager in one test and GRC Owner in
+         another, so email equality alone must never decide the active role. */
+      const freshProfile=await _advFreshProfile(true);
       const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);
       if(!snap.exists())throw new Error('Request not found.');
       const r=snap.data()||{},recordType=String(r.recordType||'risk').toLowerCase();
       if(!['risk','incident'].includes(recordType))throw new Error('Invalid request type.');
-      if(!['risk_owner','grc_owner','platform_owner'].includes(freshProfile.role))throw new Error('Access denied.');
-      if(!freshProfile.departmentKey)throw new Error('No department is assigned to your account.');
-      const owns=(freshProfile.uid&&String(r.submittedByUid||'')===String(freshProfile.uid))||String(r.submittedByEmail||'').toLowerCase().trim()===String(freshProfile.email||'').toLowerCase().trim();
+      if(!['risk_owner','grc_owner','platform_owner'].includes(freshProfile.role))throw new Error('Access denied. Switch back to the GRC Owner role and reopen the request.');
+      const owns=(freshProfile.uid&&String(r.submittedByUid||'')===String(freshProfile.uid))||
+        String(r.submittedByEmail||'').toLowerCase().trim()===String(freshProfile.email||'').toLowerCase().trim();
       if(!owns)throw new Error('Access denied.');
       if(String(r.status||'')!=='returned_requester')throw new Error('Only a request returned for update can be edited and resubmitted.');
-      const proposed=_grcRiskJson(proposedRecord||r.proposedRecord),now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status:'pending_manager',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'Resubmitted')});
+
+      const proposed=_grcRiskJson(proposedRecord||r.proposedRecord),now=_grcRiskIso(),
+        history=Array.isArray(r.history)?r.history.slice():[];
+      history.push({status:'pending_manager',by:String(freshProfile.email||_grcRiskEmail()),role:freshProfile.role,at:now,note:String(note||'Resubmitted')});
       const dept=String(r.departmentKey||r.department||'');
-      const updates={proposedRecord:proposed,changedFields:_grcRiskChangedFields(r.currentRecord,proposed),status:'pending_manager',requesterNote:String(note||r.requesterNote||''),managerNote:'',superAdminNote:'',assignedManagerEmail:'',returnFields:[],returnNote:'',returnSource:'',updatedAt:serverTimestamp(),updatedAtIso:now,history};
-      const snapshot=_grcRiskQueueSnapshot(Object.assign({},r,updates,{updatedAtIso:now}),requestId),batch=writeBatch(db);
-      batch.update(ref,updates);
-      batch.set(_grcManagerQueueItemRef(dept,'risk',requestId),_grcQueueItem('risk',requestId,dept,String(r.submittedByEmail||_grcRiskEmail()),snapshot),{merge:false});
-      await batch.commit();
+      const updates={
+        proposedRecord:proposed,
+        changedFields:_grcRiskChangedFields(r.currentRecord,proposed),
+        status:'pending_manager',
+        requesterNote:String(note||r.requesterNote||''),
+        managerNote:'',superAdminNote:'',assignedManagerEmail:'',
+        returnFields:[],returnNote:'',returnSource:'',
+        updatedAt:serverTimestamp(),updatedAtIso:now,history
+      };
+
+      /* Update the authoritative request first. The department inbox is only an
+         index; a stale/mismatched inbox must not turn a successful resubmission
+         into a false permission error. */
+      await updateDoc(ref,updates);
+      const snapshot=_grcRiskQueueSnapshot(Object.assign({},r,updates,{updatedAtIso:now}),requestId);
+      try{
+        await setDoc(
+          _grcManagerQueueItemRef(dept,'risk',requestId),
+          _grcQueueItem('risk',requestId,dept,String(r.submittedByEmail||freshProfile.email||''),snapshot),
+          {merge:false}
+        );
+      }catch(queueErr){
+        /* Retry with merge in case an older manager-history row already exists.
+           The request itself remains valid even if this derived index is rebuilt
+           later by the manager history sync. */
+        try{
+          await setDoc(
+            _grcManagerQueueItemRef(dept,'risk',requestId),
+            _grcQueueItem('risk',requestId,dept,String(r.submittedByEmail||freshProfile.email||''),snapshot),
+            {merge:true}
+          );
+        }catch(queueErr2){
+          console.warn('[GRC Risk Resubmit Queue] index sync skipped after authoritative resubmit',queueErr2&&queueErr2.code||queueErr2);
+        }
+      }
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('GRC_REGISTER_REQUEST_RESUBMIT','Resubmitted '+String(r.recordType||'risk')+' request '+String(r.requestCode||requestId),r.proposedRecord,proposed,{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
       return true;
     };
-    window._grcRiskRequestCancel=async function(requestId){
+        window._grcRiskRequestCancel=async function(requestId){
       const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(!_grcRiskOwnsRequest(r))throw new Error('Access denied.');if(!['pending_manager','returned_requester'].includes(String(r.status||'')))throw new Error('This request can no longer be cancelled.');const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status:'cancelled',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:'Cancelled by requester'});
       const updates={status:'cancelled',updatedAt:serverTimestamp(),updatedAtIso:now,history},dept=String(r.departmentKey||r.department||''),batch=writeBatch(db);
       batch.update(ref,updates);if(dept)batch.delete(_grcManagerQueueItemRef(dept,'risk',requestId));
