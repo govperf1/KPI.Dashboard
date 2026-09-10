@@ -971,7 +971,8 @@ service cloud.firestore {
       let u = userData();
       let d = profileDepartmentKeyFrom(u);
       return signedIn() && u.approved == true &&
-        data.userEmail is string && ownEmail(data.userEmail) &&
+        data.userEmail is string && data.userEmail == authEmail() &&
+        data.requesterUid is string && data.requesterUid == request.auth.uid &&
         data.departmentKey is string && data.departmentKey == d &&
         data.workflowStage is string &&
         data.workflowStage in ['pending_department_manager','pending_super_admin'] &&
@@ -989,6 +990,14 @@ service cloud.firestore {
       // their potential result set, so each browser query gets one simple rule
       // branch instead of a large nested OR that is difficult to prove safely.
       allow get: if admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']);
+      /* v342 exact requester identity branch. New requests are normalized at
+         creation to userEmail == authEmail and requesterUid == auth.uid, so
+         Firestore can prove either exact ownership query without a department
+         read or a queue-index read. */
+      allow get, list: if approved() && (
+        (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) ||
+        (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
+      );
       allow get: if approved() && (
         (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) ||
         (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
