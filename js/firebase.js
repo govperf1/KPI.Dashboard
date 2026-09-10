@@ -1447,27 +1447,11 @@ window._selectPortal=async portal=>{
     };
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
-      /* Department Managers must never probe the requester email/UID paths.
-         Their authorized department queue is the canonical source and probing
-         ownership indexes caused repeated permission-denied warnings. */
-      if(_advIsDepartmentManager()){
-        try{
-          const queue=await window._advisoryGetManagerQueue();
-          const me=_advEmail(),uid=_advUid();
-          return (Array.isArray(queue)?queue:[]).filter(function(r){
-            return (uid&&String(r.requesterUid||r.userUid||r.uid||'')===uid)||
-              String(r.userEmail||r.requesterEmail||'').toLowerCase().trim()===me;
-          });
-        }catch(err){console.warn('[Review Development] manager getMine queue failed',err&&err.code||err);return [];}
-      }
-      /* My Requests must never disappear because one historical ownership index
-         is unavailable. Current rows are owned by canonical email + UID; older
-         rows may contain only one of them. Read each narrow, rules-compatible
-         ownership path independently and merge the successful results. */
+      /* My Requests is identity-based for every role, including Department
+         Managers. A manager's own request can leave the department action queue
+         after it is forwarded to Super Admin, so using the queue as "My Requests"
+         made the requester row disappear even though the source request existed. */
       const me=_advEmail(),uid=_advUid();
-      /* Canonical email is mandatory for all current requests and is the same
-         identity used by the Rules. Read this path first to avoid a second
-         UID query/listener that can be denied for legacy documents. */
       let primary=[];
       try{
         const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
@@ -1475,9 +1459,8 @@ window._selectPortal=async portal=>{
       }catch(err){
         console.warn('[Review Development] getMine email path failed',err&&err.code||err);
       }
-      /* Only use the legacy UID index when the canonical email path returned no
-         rows. A UID probe is therefore never run repeatedly beside a successful
-         email query. */
+      /* Legacy rows may have only requesterUid. Use this exact ownership path
+         only when the canonical email path returned no rows. */
       if(!primary.length&&uid){
         try{
           const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
@@ -1500,27 +1483,27 @@ window._selectPortal=async portal=>{
       const risk=Array.isArray(bundle&&bundle.risk)?bundle.risk:_advisoryManagerLastRisk;
       if(review.length||!_advisoryManagerLastQueue.length)_advisoryManagerLastQueue=review.slice();
       if(risk.length||!_advisoryManagerLastRisk.length)_advisoryManagerLastRisk=risk.slice();
-      /* Department Managers already have an authorized department-scoped read.
-         Do not call the requester email/UID compatibility queries here: those
-         probes were repeatedly returning permission-denied and every retry could
-         refresh the page while the manager was choosing Return/Reject. */
+      /* Manager own history is identity-scoped, not department-query scoped.
+         The previous broad department read could be denied and also caused
+         unnecessary reads. */
       let own=_advisoryManagerLastOwn;
       const ownNow=Date.now();
-      /* v331 — Never re-read the whole department on every manager refresh.
-         The manager's own-request history changes rarely and this broad server
-         query was the main cause of BatchGetDocuments 429 / read spikes. */
       if(!_advisoryManagerOwnCacheAt || ownNow-_advisoryManagerOwnCacheAt>=60000){
         if(!_advisoryManagerOwnCachePromise){
           _advisoryManagerOwnCachePromise=(async function(){
             try{
-              const dept=String((bundle&&bundle.profile&&bundle.profile.departmentKey)||window.__grcManagerDepartmentKey||'').trim();
-              if(!dept)return _advisoryManagerLastOwn;
-              const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)));
-              const allDept=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
               const me=_advEmail(),uid=_advUid();
-              own=allDept.filter(function(r){return (uid&&String(r.requesterUid||r.userUid||r.uid||'')===uid)||String(r.userEmail||r.requesterEmail||'').toLowerCase().trim()===me;});
-              _advisoryManagerLastOwn=own.slice();_advisoryManagerOwnCacheAt=Date.now();return own;
-            }catch(err){console.warn('[Review Development] manager own department read failed; keeping last verified rows',err&&err.code||err);return _advisoryManagerLastOwn;}
+              let rows=[];
+              const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
+              rows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+              if(!rows.length&&uid){
+                try{
+                  const legacy=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
+                  rows=legacy.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+                }catch(_){}
+              }
+              _advisoryManagerLastOwn=rows.slice();_advisoryManagerOwnCacheAt=Date.now();return rows;
+            }catch(err){console.warn('[Review Development] manager own identity read failed; keeping last verified rows',err&&err.code||err);return _advisoryManagerLastOwn;}
             finally{_advisoryManagerOwnCachePromise=null;}
           })();
         }
