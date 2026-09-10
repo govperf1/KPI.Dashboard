@@ -1447,22 +1447,26 @@ window._selectPortal=async portal=>{
         callback(rows,null);
       },function(err){callback([],err);});
     };
+    /* v342 ROOT CAUSE FIX — own request reads are identity-first and never
+       stop after one denied query. New requests always carry requesterUid,
+       while older requests may only have userEmail. */
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
-      /* All current R&D submissions stamp requesterUid. Read My Requests by the
-         immutable Firebase UID, including Department Manager accounts. This is
-         the same exact ownership field used by the live listener and removes the
-         email-query permission denial seen in the production console. */
-      const uid=_advUid();
-      if(!uid)return[];
-      try{
-        const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
-        return _advMergeRows(snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');}),[],false);
-      }catch(err){
-        console.warn('[Review Development] getMine UID path failed',err&&err.code||err);
-        return[];
+      const me=_advEmail(),uid=_advUid();
+      const rowsById={};let lastErr=null;
+      const add=function(snap){snap.docs.forEach(function(d){rowsById[String(d.id)]=_advNormalizeRow(d.id,d.data(),'advisory_requests');});};
+      const attempts=[];
+      if(uid)attempts.push(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
+      if(me)attempts.push(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
+      for(const qref of attempts){
+        try{add(await getDocsFromServer(qref));}
+        catch(err){lastErr=err;console.warn('[Review Development] getMine identity path failed',err&&err.code||err);}
       }
+      const rows=Object.keys(rowsById).map(function(k){return rowsById[k];});
+      if(!rows.length&&lastErr)throw lastErr;
+      return _advMergeRows(rows,[],false);
     };
+    let _advisoryManagerLastQueue=[],_advisoryManagerLastOwn=[],_advisoryManagerLastRisk=[],_advisoryManagerOwnCacheAt=0,_advisoryManagerOwnCachePromise=null;
     window._advisoryGetManagerQueue=async function(){
       /* One stable manager snapshot: do not force a fresh server read every UI refresh.
          A transient permission/network failure must never replace visible rows with []. */
@@ -1483,17 +1487,8 @@ window._selectPortal=async portal=>{
         if(!_advisoryManagerOwnCachePromise){
           _advisoryManagerOwnCachePromise=(async function(){
             try{
-              const me=_advEmail(),uid=_advUid();
-              let rows=[];
-              const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
-              rows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
-              if(!rows.length&&uid){
-                try{
-                  const legacy=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
-                  rows=legacy.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
-                }catch(_){}
-              }
-              _advisoryManagerLastOwn=rows.slice();_advisoryManagerOwnCacheAt=Date.now();return rows;
+              const rows=await window._advisoryGetMine();
+              _advisoryManagerLastOwn=Array.isArray(rows)?rows.slice():[];_advisoryManagerOwnCacheAt=Date.now();return _advisoryManagerLastOwn;
             }catch(err){console.warn('[Review Development] manager own identity read failed; keeping last verified rows',err&&err.code||err);return _advisoryManagerLastOwn;}
             finally{_advisoryManagerOwnCachePromise=null;}
           })();
@@ -1551,22 +1546,30 @@ window._selectPortal=async portal=>{
             emitManager();
           }catch(err){queueErrors.manager=String(err&&err.message||err);emitManager();}})();
         }
-        /* Current Review & Development rows always stamp requesterUid. Use the
-           authenticated UID as the single owner key for the live My Requests
-           listener. The previous email listener was the exact path producing
-           permission-denied for Department Managers even when their queue was
-           readable. Do not run a second denied email listener in parallel. */
-        try{
-          const ownUid=_advUid();
-          if(!ownUid)throw new Error('Missing authenticated requester UID.');
-          ownUnsub=onSnapshot(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',ownUid)),function(snap){
-            ownRows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
-            ownError='';emitManager();
+        /* Own requests are independent from the approval inbox. Use requesterUid
+           first (canonical for new requests), then merge the legacy email path.
+           A failure in one listener must not erase rows received from the other. */
+        const ownMap={};let ownUidReady=!_advUid(),ownEmailReady=!_advEmail();
+        const emitOwn=function(){
+          ownRows=Object.keys(ownMap).map(function(k){return ownMap[k];});
+          if(ownUidReady&&ownEmailReady){ownError='';emitManager();}
+        };
+        const listenOwn=function(qref,key){
+          return onSnapshot(qref,function(snap){
+            snap.docs.forEach(function(d){ownMap[String(d.id)]=_advNormalizeRow(d.id,d.data(),'advisory_requests');});
+            if(key==='uid')ownUidReady=true;else ownEmailReady=true;emitOwn();
           },function(err){
-            ownRows=[];ownError=String(err&&err.code||err&&err.message||err||'listener-failed');
-            console.warn('[Review Development] manager own-request UID listener failed',err&&err.code||err);emitManager();
+            console.warn('[Review Development] manager own-request listener failed',key,err&&err.code||err);
+            if(key==='uid')ownUidReady=true;else ownEmailReady=true;
+            ownError=ownRows.length?'':String(err&&err.code||err&&err.message||err||'listener-failed');emitOwn();
           });
-        }catch(err){ownError=String(err&&err.message||err||'listener-failed');emitManager();}
+        };
+        try{
+          const ownUnsubs=[];
+          if(_advUid())ownUnsubs.push(listenOwn(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid())),'uid'));
+          if(_advEmail())ownUnsubs.push(listenOwn(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())),'email'));
+          ownUnsub=function(){ownUnsubs.forEach(function(u){try{u();}catch(_){}});};
+        }catch(err){ownError=String(err&&err.message||err||'listener-failed');ownUidReady=true;ownEmailReady=true;emitManager();}
         return function(){stopped=true;try{if(queueUnsub)queueUnsub();}catch(_){}try{if(ownUnsub)ownUnsub();}catch(_){}};
       }
       let closed=false,timer=null,unsubs=[];
@@ -1638,16 +1641,35 @@ window._selectPortal=async portal=>{
       const freshProfile=await _grcResolveManagerProfile(await _advFreshProfile(true));
       await _advAssertProfileScope(freshProfile);
       const dept=freshProfile.departmentKey,managerEmail=freshProfile.email,managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim(),returnFields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
-      /* The Department Approval Inbox is already the manager's authorized read
-         model. Do not re-read advisory_requests before deciding: production was
-         denying that authoritative get() while the scoped update itself was
-         valid, so Approve/Return/Reject could never reach updateDoc(). The Rules
-         below validate the actual source stage, department and exact transition. */
-      const requestRef=doc(db,ADV_REQUESTS_COLLECTION,String(requestId));
-      const current={id:String(requestId),departmentKey:dept,userEmail:'',code:String(requestId),_storage:'advisory_requests',_requestRef:requestRef};
+      let loc;
+      try{
+        const sourceRef=doc(db,ADV_REQUESTS_COLLECTION,String(requestId));
+        const sourceSnap=await getDocFromServer(sourceRef);
+        if(!sourceSnap.exists())throw new Error('Request not found.');
+        loc={record:_advNormalizeRow(sourceSnap.id,sourceSnap.data(),'advisory_requests'),requestRef:sourceRef,publicRef:doc(db,ADV_PUBLIC_COLLECTION,sourceSnap.id),storage:'advisory_requests'};
+      }catch(readErr){
+        console.warn('[Review Development] manager authoritative request read failed',readErr&&readErr.code||readErr);
+        throw readErr;
+      }
+      /* Queue snapshots are a read model and can be older than the source.
+         Always hydrate the authoritative request from the server before the
+         manager acts so an already-forwarded item is not committed again. */
+      let authoritative=loc.record;
+      try{
+        const serverSnap=await getDocFromServer(loc.requestRef);
+        if(serverSnap.exists())authoritative=_advNormalizeRow(serverSnap.id,serverSnap.data(),'advisory_requests');
+      }catch(serverReadErr){
+        console.warn('[Review Development] manager server preflight unavailable; using authorized source',serverReadErr&&serverReadErr.code||serverReadErr);
+      }
+      const current=Object.assign(authoritative,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
+      /* The approval queue is assignment-based. Do not block an item merely
+         because the same account also appears as requester; historical requests
+         may belong to a user who later became the Department Manager. */
+      if(current._storage!=='advisory_requests')throw new Error('Legacy requests cannot use the Department Manager approval workflow.');
+      if(String(current.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
       if(!['approve','return','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
       if((action==='return'||action==='reject')&&!managerComment)throw new Error(action==='return'?'A return note is required.':'A rejection reason is required.');
-      const nowIso=_advIso(),queueRef=_grcManagerQueueItemRef(String(current.departmentKey||dept),'review',requestId);
+      const requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso(),queueRef=_grcManagerQueueItemRef(String(current.departmentKey||''),'review',requestId);
       let finalStage='',finalStatus='',closureReason='';
       if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
       else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='returned_by_department_manager';}
@@ -1656,8 +1678,8 @@ window._selectPortal=async portal=>{
       // Do not use a transaction for this single-document workflow decision.
       // The transaction performed an additional Rules read of the same request;
       // that read could fail for a Department Manager even though the scoped
-      // update itself was authorized. The scoped Firestore Rules validate the
-      // current stage, department and every allowed transition at write time.
+      // update itself was authorized. The server preflight above still guards
+      // stale workflow stages and Firestore Rules validate every changed field.
       const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:decision,managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
       if(action==='return'){updates.returnNote=managerComment;updates.returnSource='department_manager';updates.returnFields=returnFields;updates.returnedAt=serverTimestamp();}
       else{updates.returnNote='';updates.returnSource='';updates.returnFields=[];}
