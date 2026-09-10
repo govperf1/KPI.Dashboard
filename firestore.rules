@@ -981,6 +981,7 @@ service cloud.firestore {
         data.managerDecision in ['pending','not_required'];
     }
 
+    // v343: manager source GET + exact decision transition fix
     match /advisory_requests/{requestId} {
       // requesterUid is audit metadata only. Routing is authorized from the
       // authenticated Firestore profile resolved once by validAdvisoryCreate().
@@ -1011,8 +1012,8 @@ service cloud.firestore {
         profileDepartmentKeyFrom(userData()) != '' &&
         (
           advisoryManagerQueueAssigned(requestId) ||
-          (('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
-          (('department' in resource.data) && canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))
+          (('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == canonicalDepartment(profileDepartmentKeyFrom(userData()))) ||
+          (('department' in resource.data) && canonicalDepartment(resource.data.department) == canonicalDepartment(profileDepartmentKeyFrom(userData())))
         );
 
       allow list: if admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']);
@@ -1043,8 +1044,8 @@ service cloud.firestore {
             advisoryManagerQueueAssigned(requestId) ||
             assignedReviewManager(requestId) ||
             advisoryManagerOwnsResource(resource.data) ||
-            (('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
-            (('department' in resource.data) && canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))
+            (('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == canonicalDepartment(profileDepartmentKeyFrom(userData()))) ||
+            (('department' in resource.data) && canonicalDepartment(resource.data.department) == canonicalDepartment(profileDepartmentKeyFrom(userData())))
           ) &&
           (validAdvisoryManagerChange() || validAdvisoryManagerChangeV73())
         ) ||
@@ -1055,8 +1056,8 @@ service cloud.firestore {
           approved() && profileRoleFrom(userData()) == 'department_manager' &&
           profileDepartmentKeyFrom(userData()) != '' &&
           ('workflowStage' in resource.data) && resource.data.workflowStage == 'pending_department_manager' &&
-          ((('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
-           (('department' in resource.data) && canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))) &&
+          ((('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == canonicalDepartment(profileDepartmentKeyFrom(userData()))) ||
+           (('department' in resource.data) && canonicalDepartment(resource.data.department) == canonicalDepartment(profileDepartmentKeyFrom(userData())))) &&
           (validAdvisoryManagerChange() || validAdvisoryManagerChangeV73())
         ) ||
         /* Current action handler path: exact department + exact transition.
@@ -1068,9 +1069,9 @@ service cloud.firestore {
           resource.data.workflowStage == 'pending_department_manager' &&
           (
             (('departmentKey' in resource.data) &&
-              canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
+              canonicalDepartment(resource.data.departmentKey) == canonicalDepartment(profileDepartmentKeyFrom(userData()))) ||
             (('department' in resource.data) &&
-              canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))
+              canonicalDepartment(resource.data.department) == canonicalDepartment(profileDepartmentKeyFrom(userData())))
           ) &&
           validAdvisoryManagerDecisionDirect()
         ) ||
@@ -1082,8 +1083,8 @@ service cloud.firestore {
           profileDepartmentKeyFrom(userData()) != '' &&
           resource.data.workflowStage == 'pending_department_manager' &&
           (
-            (('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
-            (('department' in resource.data) && canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))
+            (('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == canonicalDepartment(profileDepartmentKeyFrom(userData()))) ||
+            (('department' in resource.data) && canonicalDepartment(resource.data.department) == canonicalDepartment(profileDepartmentKeyFrom(userData())))
           ) &&
           validAdvisoryManagerDecisionDirect()
         );
@@ -1273,8 +1274,8 @@ service cloud.firestore {
         profileRoleFrom(userData()) == 'department_manager' &&
         profileDepartmentKeyFrom(userData()) != '' &&
         (
-          canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData()) ||
-          canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()) ||
+          canonicalDepartment(resource.data.departmentKey) == canonicalDepartment(profileDepartmentKeyFrom(userData())) ||
+          canonicalDepartment(resource.data.department) == canonicalDepartment(profileDepartmentKeyFrom(userData())) ||
           riskManagerQueueAssigned(requestId)
         );
       // Managers list the path-scoped approval queue, never this collection directly.
