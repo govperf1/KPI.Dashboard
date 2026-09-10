@@ -956,6 +956,8 @@ window._selectPortal=async portal=>{
        Firestore rules already allow kpi_requests but have not yet been updated
        for the dedicated Review & Development collections.
        ══════════════════════════════════════════════════════ */
+    // Maximum audit rows kept in the client snapshot. This constant must exist before Performance server state is normalized.
+    const AUDIT_MAX_RECORDS=500;
     const ADV_REQUESTS_COLLECTION='advisory_requests';
     const ADV_PUBLIC_COLLECTION='advisory_public';
     const ADV_FALLBACK_COLLECTION='kpi_requests';
@@ -1453,15 +1455,18 @@ window._selectPortal=async portal=>{
          made the requester row disappear even though the source request existed. */
       const me=_advEmail(),uid=_advUid();
       let primary=[];
+      let emailReadFailed=false;
       try{
-        const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
+        const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
         primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
       }catch(err){
+        emailReadFailed=true;
         console.warn('[Review Development] getMine email path failed',err&&err.code||err);
       }
-      /* Legacy rows may have only requesterUid. Use this exact ownership path
-         only when the canonical email path returned no rows. */
-      if(!primary.length&&uid){
+      /* Only use the legacy UID path when the canonical email query succeeded
+         and simply found no legacy rows. Retrying another denied query produced
+         misleading permission noise and could hide the real authorization fault. */
+      if(!emailReadFailed&&!primary.length&&uid){
         try{
           const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
           primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
@@ -1643,7 +1648,16 @@ window._selectPortal=async portal=>{
       const freshProfile=await _grcResolveManagerProfile(await _advFreshProfile(true));
       await _advAssertProfileScope(freshProfile);
       const dept=freshProfile.departmentKey,managerEmail=freshProfile.email,managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim(),returnFields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
-      const loc=await _advLocateRequest(requestId);
+      let loc;
+      try{
+        const sourceRef=doc(db,ADV_REQUESTS_COLLECTION,String(requestId));
+        const sourceSnap=await getDocFromServer(sourceRef);
+        if(!sourceSnap.exists())throw new Error('Request not found.');
+        loc={record:_advNormalizeRow(sourceSnap.id,sourceSnap.data(),'advisory_requests'),requestRef:sourceRef,publicRef:doc(db,ADV_PUBLIC_COLLECTION,sourceSnap.id),storage:'advisory_requests'};
+      }catch(readErr){
+        console.warn('[Review Development] manager authoritative request read failed',readErr&&readErr.code||readErr);
+        throw readErr;
+      }
       /* Queue snapshots are a read model and can be older than the source.
          Always hydrate the authoritative request from the server before the
          manager acts so an already-forwarded item is not committed again. */
