@@ -1064,6 +1064,19 @@ service cloud.firestore {
               canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))
           ) &&
           validAdvisoryManagerDecisionDirect()
+        ) ||
+        /* Final direct manager decision path. Keep this branch free of queue
+           index exists()/get() checks so the source update cannot be denied
+           when an inbox mirror is stale or a legacy request uses an alias. */
+        (
+          approved() && profileRoleFrom(userData()) == 'department_manager' &&
+          profileDepartmentKeyFrom(userData()) != '' &&
+          resource.data.workflowStage == 'pending_department_manager' &&
+          (
+            (('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
+            (('department' in resource.data) && canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))
+          ) &&
+          validAdvisoryManagerDecisionDirect()
         );
       allow delete: if superAdmin();
     }
