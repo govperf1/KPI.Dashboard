@@ -402,12 +402,30 @@
     var actionHtml=canAct?`<div style="display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;padding-top:10px;border-top:1px solid #e4edf1"><button type="button" class="grc-risk-action good" onclick="window._grcReviewManagerPanel('${esc(r.id)}','approve',this)">Approve to Super Admin</button><button type="button" class="grc-risk-action warn" onclick="window._grcReviewManagerPanel('${esc(r.id)}','return',this)">Return to Requester</button><button type="button" class="grc-risk-action bad" onclick="window._grcReviewManagerPanel('${esc(r.id)}','reject',this)">Reject</button></div><div class="grc-review-manager-panel grc-risk-inline-decision" hidden></div>`:'';
     return `<article class="grc-risk-request-card"><div class="grc-risk-card-head"><div><strong>${esc(r.code||r.id)}</strong><small>${esc(isAr()?'مراجعة وتطوير':'Review & Development')} · ${esc(reviewTypeText(r))}</small></div><span class="grc-risk-status ${statusClass}">${esc(statusText)}</span></div><div class="grc-risk-card-grid"><span>${esc(isAr()?'نوع العنصر':'Item Type')}</span><b>${esc(r.category||r.relatedType||r.requestTypeLabel||'—')}</b><span>${esc(isAr()?'السجل المرتبط':'Related Record')}</span><b>${esc(reviewRelatedText(r)||r.relatedNewText||'—')}</b><span>${esc(isAr()?'مقدم الطلب':'Submitted by')}</span><b>${esc(r.userName||r.userEmail||'—')}</b><span>${esc(isAr()?'تاريخ الإرسال':'Submitted')}</span><b>${esc(reviewDateText(r))}</b><span>${esc(isAr()?'الأولوية':'Priority')}</span><b>${esc(r.priority||'—')}</b></div><div style="margin-top:9px;padding:9px 10px;border:1px solid #e1ebef;border-radius:9px;background:#f8fbfc"><div style="font-size:9px;font-weight:850;color:#5b7180;margin-bottom:4px">${esc(isAr()?'تفاصيل الطلب':'Request Details')}</div><div style="font-size:10px;line-height:1.55;color:#243f50;white-space:pre-wrap">${esc(details||'No request details were stored for this request.')}</div></div>${actionHtml}</article>`;
   }
+  function superAdminProfileCard(item){
+    var r=item&&item.row||item||{},kind=item&&item.kind||'risk',isReview=kind==='review';
+    var details=isReview?String(r.details||r.title||r.relatedNewText||r.category||r.relatedType||'').trim():String((r.proposedRecord&& (r.proposedRecord.riskIdentified||r.proposedRecord.description||r.proposedRecord.title))||r.details||'').trim();
+    var code=isReview?(r.code||r.id):(r.requestCode||r.id),status=isReview?'Pending Super Admin Review':statusLabel(r.status||'pending_super_admin');
+    var type=isReview?'Review & Development':recordLabel(r),operation=isReview?reviewTypeText(r):operationLabel(r.operation,r);
+    var related=isReview?(reviewRelatedText(r)||r.relatedNewText||'—'):(r.targetRecordId||r.targetRiskId||(r.proposedRecord&&r.proposedRecord.id)||'New Record');
+    var requester=isReview?(r.userName||r.userEmail||'—'):(r.submittedByName||r.submittedByEmail||'—');
+    var submitted=isReview?reviewDateText(r):(r.createdAtText||r.createdAtIso||'—');
+    var action=isReview?'<button class="grc-super-open-btn" type="button" onclick="window._grcReviewApprovalOpenRequest(\''+esc(r.id)+'\')">Open Request <span>→</span></button>':'<button class="grc-super-open-btn" type="button" onclick="window._grcRiskShowDetails(\''+esc(r.id)+'\')">Open Request <span>→</span></button>';
+    return '<article class="grc-super-request-card">'+
+      '<div class="grc-super-card-top"><div class="grc-super-id-wrap"><div class="grc-super-code">'+esc(code)+'</div><div class="grc-super-type">'+esc(type)+' <span>•</span> '+esc(operation)+'</div></div><div class="grc-super-status"><span class="grc-super-status-dot"></span>'+esc(status)+'</div></div>'+
+      '<div class="grc-super-meta-grid">'+
+        '<div><span>Related Record</span><b>'+esc(related)+'</b></div>'+
+        '<div><span>Submitted by</span><b>'+esc(requester)+'</b></div>'+
+        '<div><span>Submitted</span><b>'+esc(submitted)+'</b></div>'+
+        '<div><span>Request Area</span><b>'+esc(isReview?(r.category||r.relatedType||'Review & Development'):(r.department||'—'))+'</b></div>'+
+      '</div>'+
+      '<div class="grc-super-details"><span>Request Details</span><p>'+esc(details||'No request details were stored for this request.')+'</p></div>'+
+      '<div class="grc-super-card-footer">'+action+'</div></article>';
+  }
   function renderProfileBody(){
     var body=document.getElementById('_grcRiskProfileBody');if(!body)return;
     if(isManager()){
-      /* Profile queue: show all Risk & Incident requests for the manager's
-         department submitted by the responsible owner. No status filter here. */
-      var riskRows=managerRiskAllRows.filter(function(r){/* Full department request history must remain visible, including requests submitted from the same account. Manager-action eligibility is handled only by actions()/entry notification. */return managerDepartmentRequest(r);}).sort(function(a,b){return (new Date(b.updatedAtIso||b.createdAtIso||b.createdAt||0).getTime()||0)-(new Date(a.updatedAtIso||a.createdAtIso||a.createdAt||0).getTime()||0);});
+      var riskRows=managerRiskAllRows.filter(function(r){return managerDepartmentRequest(r);}).sort(function(a,b){return (new Date(b.updatedAtIso||b.createdAtIso||b.createdAt||0).getTime()||0)-(new Date(a.updatedAtIso||a.createdAtIso||a.createdAt||0).getTime()||0);});
       var total=riskRows.length;
       body.innerHTML='<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Risk & Incident Register Requests</h3><p>All Risk & Incident requests submitted by the responsible owner for your department.</p></div><span>'+riskRows.length+'</span></div>'+(riskRows.length?riskRows.map(function(r){return card(r);}).join(''):'<div class="grc-risk-empty">No Risk or Incident requests are available for your department.</div>')+'</section>';
       var count=document.getElementById('_grcRiskProfileCount');if(count)count.textContent=total+' request(s)';
@@ -415,7 +433,10 @@
     }
     var tab=activeApprovalTab(),rows=filteredRisk(tab).map(function(r){return{kind:'risk',row:r,time:new Date(r.updatedAtIso||r.createdAtIso||0).getTime()||0};});
     rows=rows.concat(filteredReview(tab).map(function(r){return{kind:'review',row:r,time:reviewRequestTime(r)};})).sort(function(a,b){return b.time-a.time;});
-    body.innerHTML=rows.length?rows.map(function(x){return x.kind==='review'?(isSuper()?reviewSuperAdminNoticeCard(x.row):reviewProfileCard(x.row)):card(x.row);}).join(''):'<div class="grc-risk-empty">No Risk or Incident Register requests in this view.</div>';
+    var reviewCount=rows.filter(function(x){return x.kind==='review';}).length,riskCount=rows.length-reviewCount;
+    if(isSuper()){
+      body.innerHTML='<section class="grc-super-queue"><div class="grc-super-queue-head"><div><div class="grc-super-kicker">SUPER ADMIN APPROVAL QUEUE</div><h3>Requests awaiting final review</h3><p>Review each request, open the full details, and complete the final approval workflow.</p></div><div class="grc-super-counts"><span><b>'+rows.length+'</b> Total</span><span><b>'+reviewCount+'</b> Review & Development</span><span><b>'+riskCount+'</b> Risk & Incident</span></div></div><div class="grc-super-list">'+(rows.length?rows.map(superAdminProfileCard).join(''):'<div class="grc-risk-empty">No requests are available in this view.</div>')+'</div></section>';
+    }else body.innerHTML=rows.length?rows.map(function(x){return x.kind==='review'?reviewProfileCard(x.row):card(x.row);}).join(''):'<div class="grc-risk-empty">No Risk or Incident Register requests in this view.</div>';
     var count=document.getElementById('_grcRiskProfileCount');if(count)count.textContent=rows.length+' request(s)';
   }
   function closeProfileMenu(){var m=document.getElementById('_grcUserProfileMenu');if(m)m.remove();}
