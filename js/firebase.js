@@ -1520,31 +1520,59 @@ window._selectPortal=async portal=>{
     window._advisorySubscribe=function(callback){
       if(typeof callback!=='function'||!_advEmail()||!db)return function(){};
       if(_advIsDepartmentManager()){
-        /* Reuse the shared live department queue. The old 30-second timer called
-           getDocs repeatedly and was a major source of quota exhaustion. */
-        let stopped=false,lastKey='';
-        if(typeof window._grcSubscribeDepartmentApprovalQueue==='function'){
-          const unsub=window._grcSubscribeDepartmentApprovalQueue(function(bundle){
-            if(stopped||!bundle)return;
-            const review=Array.isArray(bundle.review)?bundle.review:[];
-            const riskRows=Array.isArray(bundle.risk)?bundle.risk:[];
-            const rows=_advMergeRows(review,[],false);
-            const key=rows.map(function(r){return [r.id,r.workflowStage,r.status,r.updatedAtIso||'',r.managerActionAtIso||''].join('|');}).sort().join('~')+'#'+riskRows.map(function(r){return [r.id,r.status,r.updatedAtIso||''].join('|');}).sort().join('~');
-            if(key===lastKey)return;lastKey=key;
-            const dashboardRows=rows.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
-            callback({records:rows,publicRecords:dashboardRows,managerRiskRecords:riskRows,errors:bundle.errors||{},source:'manager-live'});
-          });
-          return function(){stopped=true;try{unsub();}catch(_){}};
-        }
-        /* Compatibility fallback: one cached read, never a polling loop. */
-        (async function(){try{
-          const rows=await window._advisoryGetManagerQueue();
+        /* Department Manager has TWO independent views:
+           1) department approval inbox (assigned requests)
+           2) My Requests (requests submitted by this account)
+           The old implementation returned after subscribing to the inbox, so
+           the account's own requests never reached Submitted Requests. */
+        let stopped=false,queueRows=[],ownRows=[],queueRiskRows=[],queueErrors={},ownError='',ownUnsub=null,queueUnsub=null,lastKey='';
+        const emitManager=function(){
           if(stopped)return;
-          const riskRows=Array.isArray(rows&&rows._grcRiskRecords)?rows._grcRiskRecords:(Array.isArray(rows&&rows.risk)?rows.risk:[]);
-          const dashboardRows=(rows||[]).map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
-          callback({records:rows||[],publicRecords:dashboardRows,managerRiskRecords:riskRows,errors:{},source:'manager-cache'});
-        }catch(err){if(!stopped)callback({records:[],publicRecords:[],errors:{manager:String(err&&err.message||err)},source:'manager-cache'});}})();
-        return function(){stopped=true;};
+          const merged=_advMergeRows((queueRows||[]).concat(ownRows||[]),[],false);
+          const key=merged.map(function(r){return [r.id,r.workflowStage,r.status,r.updatedAtIso||'',r.managerActionAtIso||''].join('|');}).sort().join('~')+
+            '#'+(queueRiskRows||[]).map(function(r){return [r.id,r.status,r.updatedAtIso||''].join('|');}).sort().join('~')+
+            '#'+String(ownError||'');
+          if(key===lastKey)return;lastKey=key;
+          const dashboardRows=merged.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
+          const errors=Object.assign({},queueErrors||{});
+          if(ownError)errors.own=ownError;
+          callback({records:merged,publicRecords:dashboardRows,managerRiskRecords:queueRiskRows||[],errors:errors,source:'manager-inbox-plus-own'});
+        };
+        if(typeof window._grcSubscribeDepartmentApprovalQueue==='function'){
+          queueUnsub=window._grcSubscribeDepartmentApprovalQueue(function(bundle){
+            if(stopped)return;
+            bundle=bundle||{};
+            queueRows=Array.isArray(bundle.review)?bundle.review:[];
+            queueRiskRows=Array.isArray(bundle.risk)?bundle.risk:[];
+            queueErrors={};
+            if(bundle.errors&&typeof bundle.errors==='object'){
+              if(Array.isArray(bundle.errors)){if(bundle.errors.length)queueErrors.manager=bundle.errors.join(' · ');}
+              else Object.keys(bundle.errors).forEach(function(k){if(bundle.errors[k])queueErrors[k]=String(bundle.errors[k]);});
+            }
+            emitManager();
+          });
+        }else{
+          (async function(){try{
+            const rows=await window._advisoryGetManagerQueue();
+            if(stopped)return;
+            queueRows=Array.isArray(rows)?rows:(Array.isArray(rows&&rows.review)?rows.review:[]);
+            queueRiskRows=Array.isArray(rows&&rows._grcRiskRecords)?rows._grcRiskRecords:(Array.isArray(rows&&rows.risk)?rows.risk:[]);
+            emitManager();
+          }catch(err){queueErrors.manager=String(err&&err.message||err);emitManager();}})();
+        }
+        /* Exact identity query only. Do not fall back to UID unless email query
+           genuinely returns no rows; a denied UID fallback was producing noise
+           and masking a valid empty My Requests state. */
+        try{
+          ownUnsub=onSnapshot(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())),function(snap){
+            ownRows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+            ownError='';emitManager();
+          },function(err){
+            ownRows=[];ownError=String(err&&err.code||err&&err.message||err||'listener-failed');
+            console.warn('[Review Development] manager own-request listener failed',err&&err.code||err);emitManager();
+          });
+        }catch(err){ownError=String(err&&err.message||err||'listener-failed');emitManager();}
+        return function(){stopped=true;try{if(queueUnsub)queueUnsub();}catch(_){}try{if(ownUnsub)ownUnsub();}catch(_){}};
       }
       let closed=false,timer=null,unsubs=[];
       const sources={};
