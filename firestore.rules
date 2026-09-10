@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v72 — Review & Development manager + Super Admin decision write fix
+// FIRESTORE SECURITY RULES v73 — Review & Development manager + Super Admin decision write fix
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -879,6 +879,42 @@ service cloud.firestore {
         );
     }
 
+    // v73 — explicit Department Manager decision transition. This keeps the
+    // operational action independent of optional legacy queue metadata while
+    // preserving the same department boundary and exact workflow transitions.
+    function validAdvisoryManagerChangeV73() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      return resource.data.workflowStage == 'pending_department_manager' &&
+        changed.hasOnly([
+          'status','workflowStage','closureReason',
+          'managerDecision','managerComment','managerName','managerEmail',
+          'managerActionAt','managerActionAtIso','closedAt','returnedAt',
+          'managerReturnFields','returnFields','returnNote','returnSource',
+          'updatedAt','updatedAtIso','updatedBy'
+        ]) &&
+        request.resource.data.managerEmail is string &&
+        request.resource.data.managerEmail == authEmail() &&
+        request.resource.data.updatedBy is string &&
+        request.resource.data.updatedBy == authEmail() &&
+        (
+          (request.resource.data.workflowStage == 'pending_super_admin' &&
+            request.resource.data.managerDecision == 'approved' &&
+            request.resource.data.status == 'open') ||
+          (request.resource.data.workflowStage == 'returned_requester' &&
+            request.resource.data.managerDecision == 'returned' &&
+            request.resource.data.status == 'open' &&
+            request.resource.data.closureReason == 'returned_by_department_manager' &&
+            request.resource.data.managerComment is string &&
+            request.resource.data.managerComment.size() > 0) ||
+          (request.resource.data.workflowStage == 'rejected_manager' &&
+            request.resource.data.managerDecision == 'rejected' &&
+            request.resource.data.status == 'closed' &&
+            request.resource.data.closureReason == 'rejected_by_department_manager' &&
+            request.resource.data.managerComment is string &&
+            request.resource.data.managerComment.size() > 0)
+        );
+    }
+
     function advisoryOwner(requestId) {
       return exists(/databases/$(database)/documents/advisory_requests/$(requestId)) &&
         (
@@ -963,7 +999,7 @@ service cloud.firestore {
             (('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
             (('department' in resource.data) && canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))
           ) &&
-          validAdvisoryManagerChange()
+          (validAdvisoryManagerChange() || validAdvisoryManagerChangeV73())
         ) ||
         /* Exact department fallback: queue mirrors may be stale, but the source
            request remains routable by its canonical department. Same requester
@@ -974,7 +1010,7 @@ service cloud.firestore {
           ('workflowStage' in resource.data) && resource.data.workflowStage == 'pending_department_manager' &&
           ((('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData())) ||
            (('department' in resource.data) && canonicalDepartment(resource.data.department) == profileDepartmentKeyFrom(userData()))) &&
-          validAdvisoryManagerChange()
+          (validAdvisoryManagerChange() || validAdvisoryManagerChangeV73())
         );
       allow delete: if superAdmin();
     }
