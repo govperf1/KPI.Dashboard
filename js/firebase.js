@@ -1449,34 +1449,20 @@ window._selectPortal=async portal=>{
     };
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
-      /* My Requests is identity-based for every role, including Department
-         Managers. A manager's own request can leave the department action queue
-         after it is forwarded to Super Admin, so using the queue as "My Requests"
-         made the requester row disappear even though the source request existed. */
-      const me=_advEmail(),uid=_advUid();
-      let primary=[];
-      let emailReadFailed=false;
+      /* All current R&D submissions stamp requesterUid. Read My Requests by the
+         immutable Firebase UID, including Department Manager accounts. This is
+         the same exact ownership field used by the live listener and removes the
+         email-query permission denial seen in the production console. */
+      const uid=_advUid();
+      if(!uid)return[];
       try{
-        const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
-        primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+        const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
+        return _advMergeRows(snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');}),[],false);
       }catch(err){
-        emailReadFailed=true;
-        console.warn('[Review Development] getMine email path failed',err&&err.code||err);
+        console.warn('[Review Development] getMine UID path failed',err&&err.code||err);
+        return[];
       }
-      /* Only use the legacy UID path when the canonical email query succeeded
-         and simply found no legacy rows. Retrying another denied query produced
-         misleading permission noise and could hide the real authorization fault. */
-      if(!emailReadFailed&&!primary.length&&uid){
-        try{
-          const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
-          primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
-        }catch(err){
-          console.warn('[Review Development] legacy UID fallback unavailable',err&&err.code||err);
-        }
-      }
-      return _advMergeRows(primary,[],false);
     };
-    let _advisoryManagerLastQueue=[],_advisoryManagerLastOwn=[],_advisoryManagerLastRisk=[],_advisoryManagerOwnCacheAt=0,_advisoryManagerOwnCachePromise=null;
     window._advisoryGetManagerQueue=async function(){
       /* One stable manager snapshot: do not force a fresh server read every UI refresh.
          A transient permission/network failure must never replace visible rows with []. */
@@ -1565,16 +1551,20 @@ window._selectPortal=async portal=>{
             emitManager();
           }catch(err){queueErrors.manager=String(err&&err.message||err);emitManager();}})();
         }
-        /* Exact identity query only. Do not fall back to UID unless email query
-           genuinely returns no rows; a denied UID fallback was producing noise
-           and masking a valid empty My Requests state. */
+        /* Current Review & Development rows always stamp requesterUid. Use the
+           authenticated UID as the single owner key for the live My Requests
+           listener. The previous email listener was the exact path producing
+           permission-denied for Department Managers even when their queue was
+           readable. Do not run a second denied email listener in parallel. */
         try{
-          ownUnsub=onSnapshot(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())),function(snap){
+          const ownUid=_advUid();
+          if(!ownUid)throw new Error('Missing authenticated requester UID.');
+          ownUnsub=onSnapshot(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',ownUid)),function(snap){
             ownRows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
             ownError='';emitManager();
           },function(err){
             ownRows=[];ownError=String(err&&err.code||err&&err.message||err||'listener-failed');
-            console.warn('[Review Development] manager own-request listener failed',err&&err.code||err);emitManager();
+            console.warn('[Review Development] manager own-request UID listener failed',err&&err.code||err);emitManager();
           });
         }catch(err){ownError=String(err&&err.message||err||'listener-failed');emitManager();}
         return function(){stopped=true;try{if(queueUnsub)queueUnsub();}catch(_){}try{if(ownUnsub)ownUnsub();}catch(_){}};
@@ -1648,35 +1638,16 @@ window._selectPortal=async portal=>{
       const freshProfile=await _grcResolveManagerProfile(await _advFreshProfile(true));
       await _advAssertProfileScope(freshProfile);
       const dept=freshProfile.departmentKey,managerEmail=freshProfile.email,managerName=String(window._fbName||window.currentUserName||managerEmail),managerComment=String(comment||'').trim(),returnFields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
-      let loc;
-      try{
-        const sourceRef=doc(db,ADV_REQUESTS_COLLECTION,String(requestId));
-        const sourceSnap=await getDocFromServer(sourceRef);
-        if(!sourceSnap.exists())throw new Error('Request not found.');
-        loc={record:_advNormalizeRow(sourceSnap.id,sourceSnap.data(),'advisory_requests'),requestRef:sourceRef,publicRef:doc(db,ADV_PUBLIC_COLLECTION,sourceSnap.id),storage:'advisory_requests'};
-      }catch(readErr){
-        console.warn('[Review Development] manager authoritative request read failed',readErr&&readErr.code||readErr);
-        throw readErr;
-      }
-      /* Queue snapshots are a read model and can be older than the source.
-         Always hydrate the authoritative request from the server before the
-         manager acts so an already-forwarded item is not committed again. */
-      let authoritative=loc.record;
-      try{
-        const serverSnap=await getDocFromServer(loc.requestRef);
-        if(serverSnap.exists())authoritative=_advNormalizeRow(serverSnap.id,serverSnap.data(),'advisory_requests');
-      }catch(serverReadErr){
-        console.warn('[Review Development] manager server preflight unavailable; using authorized source',serverReadErr&&serverReadErr.code||serverReadErr);
-      }
-      const current=Object.assign(authoritative,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
-      /* The approval queue is assignment-based. Do not block an item merely
-         because the same account also appears as requester; historical requests
-         may belong to a user who later became the Department Manager. */
-      if(current._storage!=='advisory_requests')throw new Error('Legacy requests cannot use the Department Manager approval workflow.');
-      if(String(current.workflowStage||'')!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
+      /* The Department Approval Inbox is already the manager's authorized read
+         model. Do not re-read advisory_requests before deciding: production was
+         denying that authoritative get() while the scoped update itself was
+         valid, so Approve/Return/Reject could never reach updateDoc(). The Rules
+         below validate the actual source stage, department and exact transition. */
+      const requestRef=doc(db,ADV_REQUESTS_COLLECTION,String(requestId));
+      const current={id:String(requestId),departmentKey:dept,userEmail:'',code:String(requestId),_storage:'advisory_requests',_requestRef:requestRef};
       if(!['approve','return','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
       if((action==='return'||action==='reject')&&!managerComment)throw new Error(action==='return'?'A return note is required.':'A rejection reason is required.');
-      const requestRef=current._requestRef,publicRef=current._publicRef,nowIso=_advIso(),queueRef=_grcManagerQueueItemRef(String(current.departmentKey||''),'review',requestId);
+      const nowIso=_advIso(),queueRef=_grcManagerQueueItemRef(String(current.departmentKey||dept),'review',requestId);
       let finalStage='',finalStatus='',closureReason='';
       if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
       else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='returned_by_department_manager';}
@@ -1685,8 +1656,8 @@ window._selectPortal=async portal=>{
       // Do not use a transaction for this single-document workflow decision.
       // The transaction performed an additional Rules read of the same request;
       // that read could fail for a Department Manager even though the scoped
-      // update itself was authorized. The server preflight above still guards
-      // stale workflow stages and Firestore Rules validate every changed field.
+      // update itself was authorized. The scoped Firestore Rules validate the
+      // current stage, department and every allowed transition at write time.
       const updates={status:finalStatus,workflowStage:finalStage,closureReason:closureReason,managerDecision:decision,managerComment:managerComment,managerName:managerName,managerEmail:managerEmail,managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail};
       if(action==='return'){updates.returnNote=managerComment;updates.returnSource='department_manager';updates.returnFields=returnFields;updates.returnedAt=serverTimestamp();}
       else{updates.returnNote='';updates.returnSource='';updates.returnFields=[];}
