@@ -1029,7 +1029,7 @@ window._selectPortal=async portal=>{
        stopped valid requests before the real write was even attempted. */
     async function _advAssertRulesVersion(){
       if(window.__advRulesV71Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v71-canonical-exact-request-reads-20260908'));window.__advRulesV71Verified=true;return true;}
+      try{await _getServerDoc(doc(db,'system_rule_versions','v74-authoritative-review-inbox-20260914'));window.__advRulesV71Verified=true;return true;}
       catch(e){console.warn('[GRC Rules Probe] version probe unavailable; continuing with real Firestore authorization',e&&e.code||e&&e.message||e);return false;}
     }
     async function _advAssertProfileScope(profile){
@@ -1208,6 +1208,37 @@ window._selectPortal=async portal=>{
     let _grcManagerRiskHistoryCache=[],_grcManagerRiskHistoryAt=0;
     /* v316 — Manager inbox reads only the department-scoped queue.
        Never let an optional source/history read erase a valid queue result. */
+    /* v346 — Inbox entries are only a routing projection. Older builds could
+       leave a queue document behind after the source request had already moved
+       to Super Admin. Reconcile the small review queue against the authoritative
+       source before exposing manager actions. A denied source read never deletes
+       or hides the queue entry; only a verified non-pending source is cleaned. */
+    let _grcReviewQueueSourceCache={},_grcReviewQueueSourceCacheAt={};
+    async function _grcReconcileReviewQueueEntry(profile,entry){
+      const queueRow=entry&&entry.row,requestId=String(entry&&entry.requestId||'').trim();
+      if(!requestId||!queueRow)return queueRow;
+      const now=Date.now(),cachedAt=Number(_grcReviewQueueSourceCacheAt[requestId]||0);
+      if(cachedAt&&now-cachedAt<15000&&_grcReviewQueueSourceCache[requestId])return _grcReviewQueueSourceCache[requestId];
+      try{
+        const source=await getDoc(doc(db,ADV_REQUESTS_COLLECTION,requestId));
+        if(!source.exists()){
+          try{await deleteDoc(_grcManagerQueueItemRef(profile.departmentKey,'review',requestId));}catch(_){}
+          _grcReviewQueueSourceCache[requestId]=null;_grcReviewQueueSourceCacheAt[requestId]=now;return null;
+        }
+        const live=_advNormalizeRow(source.id,source.data()||{},'advisory_requests');
+        const stage=String(live.workflowStage||live.status||'').toLowerCase();
+        if(stage!=='pending_department_manager'){
+          try{await deleteDoc(_grcManagerQueueItemRef(profile.departmentKey,'review',requestId));}catch(_){}
+          _grcReviewQueueSourceCache[requestId]=null;_grcReviewQueueSourceCacheAt[requestId]=now;return null;
+        }
+        if(_grcQueueDepartmentKey(live.departmentKey||live.department||live.departmentRaw||'')!==_grcQueueDepartmentKey(profile.departmentKey))return null;
+        live.departmentKey=_grcQueueDepartmentKey(live.departmentKey||live.department||live.departmentRaw||'');live._managerAssigned=true;
+        _grcReviewQueueSourceCache[requestId]=live;_grcReviewQueueSourceCacheAt[requestId]=now;return live;
+      }catch(err){
+        /* Keep the queue snapshot on a transient Rules/network failure. */
+        return queueRow;
+      }
+    }
     window._grcGetDepartmentApprovalQueue=async function(force){
       /* If the live department queue is active, it is the authoritative cache.
          Never bypass it with another server read just because a caller passes true. */
@@ -1217,21 +1248,13 @@ window._selectPortal=async portal=>{
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         const result={profile:fresh,review:[],risk:[],errors:[]},reviewMap={},riskMap={};
-        const addReview=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;
-          /* Self-heal stale inbox snapshots. A request created by a Department
-             Manager (or explicitly marked as not requiring manager approval)
-             must never remain actionable in the manager queue. */
-          if(String(x.requesterRole||'').toLowerCase()==='department_manager')return;
-          if(x.requiresManagerApproval===false)return;
-          if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;
-          if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;
-          x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');x._managerAssigned=true;reviewMap[key]=x;};
+        const addReview=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;/* Do NOT drop a routed request merely because the current manager account has the same email. Historical test accounts can submit as User/Owner and later be promoted to Department Manager; routing is determined by the queue path and the role stamped on the request. */if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');x._managerAssigned=true;reviewMap[key]=x;};
         const addRisk=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});if(!x)return;/* Same-email requests must remain visible. The action layer blocks a true self-manager request, but hiding here made a valid department queue appear as 0 requests. */if(_advCanonicalDepartment(x.departmentKey||x.department||x.departmentRaw||'')!==fresh.departmentKey)return;/* Keep the full department history in the manager profile. The entry notification separately filters only rows that still require a manager action, so completed/published/rejected requests must not disappear from the manager's request list. */x._managerAssigned=true;riskMap[key]=x;};
         /* The department queue path is the manager's authoritative read model.
            Do not probe source collections here: historical rows can lack the
            canonical fields required for a Firestore query, causing permission-
            denied warnings even while the manager's queue is valid. */
-        try{const q=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review'));q.forEach(function(d){const v=d.data()||{},x=Object.assign({},v.snapshot||{});x.departmentKey=x.departmentKey||v.departmentKey;addReview(v.requestId||d.id,x);});}catch(e){result.errors.push('Review queue: '+String(e&&e.code||e&&e.message||e));}
+        try{const q=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review'));const entries=q.docs.map(function(d){const v=d.data()||{},x=Object.assign({},v.snapshot||{});x.departmentKey=x.departmentKey||v.departmentKey;return {requestId:v.requestId||d.id,row:x};});const verified=await Promise.all(entries.map(function(entry){return _grcReconcileReviewQueueEntry(fresh,entry);}));verified.forEach(function(x){if(x)addReview(x.id||'',x);});}catch(e){result.errors.push('Review queue: '+String(e&&e.code||e&&e.message||e));}
         try{const q=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'));q.forEach(function(d){const v=d.data()||{},x=Object.assign({},v.snapshot||{});x.departmentKey=x.departmentKey||v.departmentKey;addRisk(v.requestId||d.id,x);});}catch(e){result.errors.push('Risk queue: '+String(e&&e.code||e&&e.message||e));}
         /* Keep the inbox as the authoritative ACTION queue, but also recover the
            manager's department history from the source collection. Older completed
@@ -1281,10 +1304,6 @@ window._selectPortal=async portal=>{
       const addReview=function(id,row){
         const key=String(id||row&&row.id||'');if(!key)return;
         const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;
-        /* Never surface a stale inbox copy for a self-manager request or a
-           request that explicitly bypasses Department Manager approval. */
-        if(String(x.requesterRole||'').toLowerCase()==='department_manager')return;
-        if(x.requiresManagerApproval===false)return;
         if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;
         if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;
         x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');
@@ -1327,8 +1346,17 @@ window._selectPortal=async portal=>{
         _grcManagerLiveProfile=fresh;
         const listen=function(name,qref,map){
           try{
-            const unsub=onSnapshot(qref,{includeMetadataChanges:false},function(snap){
-              _grcManagerLiveSources[name]=snap.docs.map(map);
+            const unsub=onSnapshot(qref,{includeMetadataChanges:false},async function(snap){
+              let rows=snap.docs.map(map);
+              if(name==='review'&&_grcManagerLiveProfile){
+                const profile=_grcManagerLiveProfile;
+                rows=await Promise.all(rows.map(async function(v){
+                  const snapshot=Object.assign({},v.snapshot||v);snapshot.departmentKey=snapshot.departmentKey||v.departmentKey;
+                  const verified=await _grcReconcileReviewQueueEntry(profile,{requestId:v.requestId||v.id,row:snapshot});
+                  return verified?Object.assign({},v,{requestId:v.requestId||v.id,snapshot:verified}):null;
+                }));rows=rows.filter(Boolean);
+              }
+              _grcManagerLiveSources[name]=rows;
               delete _grcManagerLiveErrors[name];_grcManagerLiveEmit();
             },function(err){
               _grcManagerLiveErrors[name]=String(err&&err.code||err&&err.message||err);
@@ -1471,22 +1499,11 @@ window._selectPortal=async portal=>{
       let primary=[];
       let emailReadFailed=false;
       try{
-        const profile=await _advFreshProfile();
-        /* Department Managers already have an exact department-scoped source
-           permission. Read that authorized path and then filter locally to the
-           manager's own requests. This avoids opening a second own-email query
-           that was intermittently denied for Department Manager sessions. */
-        if(profile&&profile.role==='department_manager'&&profile.departmentKey){
-          const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',profile.departmentKey)));
-          primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');})
-            .filter(function(r){return String(r.userEmail||'').toLowerCase()===me;});
-        }else{
-          const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
-          primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
-        }
+        const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
+        primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
       }catch(err){
         emailReadFailed=true;
-        console.warn('[Review Development] getMine authorized path failed',err&&err.code||err);
+        console.warn('[Review Development] getMine email path failed',err&&err.code||err);
       }
       /* Only use the legacy UID path when the canonical email query succeeded
          and simply found no legacy rows. Retrying another denied query produced
@@ -1590,10 +1607,18 @@ window._selectPortal=async portal=>{
             emitManager();
           }catch(err){queueErrors.manager=String(err&&err.message||err);emitManager();}})();
         }
-        /* Manager own history is already contained in the authorized
-           department-scoped source read. Do not open a second own-email listener:
-           that redundant query was the source of repeated permission-denied noise. */
-        ownRows=[];ownError='';
+        /* Exact identity query only. Do not fall back to UID unless email query
+           genuinely returns no rows; a denied UID fallback was producing noise
+           and masking a valid empty My Requests state. */
+        try{
+          ownUnsub=onSnapshot(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())),function(snap){
+            ownRows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+            ownError='';emitManager();
+          },function(err){
+            ownRows=[];ownError=String(err&&err.code||err&&err.message||err||'listener-failed');
+            console.warn('[Review Development] manager own-request listener failed',err&&err.code||err);emitManager();
+          });
+        }catch(err){ownError=String(err&&err.message||err||'listener-failed');emitManager();}
         return function(){stopped=true;try{if(queueUnsub)queueUnsub();}catch(_){}try{if(ownUnsub)ownUnsub();}catch(_){}};
       }
       let closed=false,timer=null,unsubs=[];
@@ -1616,11 +1641,8 @@ window._selectPortal=async portal=>{
              and one exact own-request query. This prevents cross-department reads
              and avoids a broad department listener that Firestore can reject. */
           if(_advIsDepartmentManager()){
-            const managerEmail=me;
-            primary=primary.filter(function(r){
-              const own=String(r&&r.userEmail||'').toLowerCase()===managerEmail;
-              return own||stageOf(r)==='pending_department_manager';
-            });
+            primary=primary.filter(function(r){return stageOf(r)==='pending_department_manager';})
+              .concat((sources.own&&sources.own.rows)||[]);
           }
           const merged=_advMergeRows(primary,fallback,false);
           const dashboardRows=merged.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
@@ -1643,9 +1665,8 @@ window._selectPortal=async portal=>{
       };
       if(_advIsDepartmentManager()){
         if(dept){
-          /* One authorized department-scoped listener is sufficient for a
-             Department Manager; own rows are already part of that result. */
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)),'advisory_requests');
+          listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
         }else{
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
         }
@@ -1686,6 +1707,25 @@ window._selectPortal=async portal=>{
       const decision=action==='approve'?'approved':action==='return'?'returned':'rejected';
       const nowIso=_advIso();
       const requestRef=doc(db,ADV_REQUESTS_COLLECTION,requestId);
+      /* v346 — Verify the authoritative source stage before writing. This prevents
+         a stale inbox projection from sending an already-forwarded request through
+         the manager decision path and producing a misleading permission-denied. */
+      try{
+        const source=await getDoc(requestRef);
+        if(source.exists()){
+          const stage=String((source.data()||{}).workflowStage||'').toLowerCase();
+          if(stage!=='pending_department_manager'){
+            try{await deleteDoc(_grcManagerQueueItemRef(freshProfile.departmentKey,'review',requestId));}catch(_){}
+            _grcReviewQueueSourceCache[requestId]=null;_grcReviewQueueSourceCacheAt[requestId]=Date.now();
+            _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
+            throw new Error('This request is no longer awaiting Department Manager approval. The stale inbox entry was removed.');
+          }
+        }
+      }catch(stageError){
+        const msg=String(stageError&&stageError.message||stageError||'');
+        if(msg.indexOf('no longer awaiting Department Manager approval')>=0)throw stageError;
+        /* If GET is temporarily unavailable, proceed with the authorized UPDATE. */
+      }
       const updates={
         status:finalStatus,workflowStage:finalStage,closureReason:closureReason,
         managerDecision:decision,managerComment:managerComment,
@@ -1924,7 +1964,7 @@ window._selectPortal=async portal=>{
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
       if(window.__grcRulesV71Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v71-canonical-exact-request-reads-20260908'));window.__grcRulesV71Verified=true;return true;}
+      try{await _getServerDoc(doc(db,'system_rule_versions','v74-authoritative-review-inbox-20260914'));window.__grcRulesV71Verified=true;return true;}
       catch(e){console.warn('[GRC Rules Probe] risk version probe unavailable; continuing with real Firestore authorization',e&&e.code||e&&e.message||e);return false;}
     }
     window._qumcAssertFirestoreRulesV69=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV64=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
