@@ -1,0 +1,20 @@
+V84 ROOT FIX
+
+What was changed:
+1. Risk & Incident request loading no longer uses the stale onSnapshot listener that repeatedly produced:
+   [GRC Risk Requests] listener failed permission-denied
+   It now performs authoritative server reads and refreshes every 12 seconds.
+2. Super Admin/Admin read access for grc_risk_requests is declared directly in Firestore Rules.
+3. GRC Owner getMine now reads email and UID histories independently and merges results.
+4. Automatic Super Admin inbox backfill was removed from login because it was generating repeated permission-denied noise.
+5. Profile opener binding was made persistent across header re-renders.
+6. All touched scripts were cache-busted to v84.
+
+IMPORTANT DEPLOYMENT:
+Deploy firestore.rules before testing the JavaScript. If only the JS files are uploaded and Firestore Rules are not published, Firestore will continue to return permission-denied and no client-side change can read blocked data.
+
+Files to upload together:
+- firestore.rules
+- js/firebase.js
+- js/grc-risk-workflow.js
+- index.html
