@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v78 — Manager authorization root-cause fix
+// FIRESTORE SECURITY RULES v81 — unified manager routing + durable history
 // v75: Removes queue-existence dependency from manager decisions and authorizes
 // the manager directly from the authenticated canonical department. The queue is
 // routing-only; a stale/missing projection can never block a valid source update.
@@ -813,9 +813,17 @@ service cloud.firestore {
     // one of the three exact workflow transitions. Queue documents are history/
     // routing only and never an authorization dependency for the source update.
     function validAdvisoryManagerChange(requestId) {
+      // v81: use the same routing proof as Risk & Incident. Historical Review
+      // requests may have departmentKey, department or departmentRaw only; the
+      // queue assignment is also a valid routing proof. Do NOT require one
+      // particular legacy field when the request is already in the manager's
+      // authenticated department.
       return departmentManager() &&
-        advisoryManagerDepartmentMatch(resource.data) &&
-        resource.data.workflowStage == 'pending_department_manager' &&
+        advisoryManagerCanAct(requestId, resource.data) &&
+        (
+          resource.data.workflowStage == 'pending_department_manager' ||
+          resource.data.status == 'pending_department_manager'
+        ) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status','workflowStage','closureReason',
           'managerDecision','managerComment','managerName','managerEmail',
