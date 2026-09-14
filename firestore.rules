@@ -1,4 +1,4 @@
-// FIRESTORE SECURITY RULES v81 — unified manager routing + durable history
+// FIRESTORE SECURITY RULES v75 — Manager authorization root-cause fix
 // v75: Removes queue-existence dependency from manager decisions and authorizes
 // the manager directly from the authenticated canonical department. The queue is
 // routing-only; a stale/missing projection can never block a valid source update.
@@ -627,7 +627,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // a unique v64 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId in ['v71-canonical-exact-request-reads-20260908','v72-review-manager-decision-20260910','v73-review-workflow-recovery-20260914','v74-authoritative-review-inbox-20260914','v78-manager-history-and-forward-20260914','v80-review-match-risk-workflow-20260914','v83-profile-permission-fix-20260914','v84-authoritative-risk-read-20260914','v92-profile-manager-route-20260914'];
+      allow get: if approved() && versionId in ['v71-canonical-exact-request-reads-20260908','v72-review-manager-decision-20260910','v73-review-workflow-recovery-20260914','v74-authoritative-review-inbox-20260914'];
       allow list, create, update, delete: if false;
     }
 
@@ -796,64 +796,38 @@ service cloud.firestore {
     }
 
     function advisoryManagerCanAct(requestId, data) {
-      // v78: accept every authoritative routing proof used by existing records.
-      // Some historical requests were created before departmentKey was normalized,
-      // while others are routed through the canonical inbox. A valid manager must
-      // never be blocked because one legacy routing field is absent.
-      return advisoryManagerDepartmentMatch(data) ||
-        (departmentManager() && userDepartmentKey() != '' &&
-          (('departmentKey' in data && canonicalDepartment(data.departmentKey) == userDepartmentKey()) ||
-           ('department' in data && canonicalDepartment(data.department) == userDepartmentKey()) ||
-           ('departmentRaw' in data && canonicalDepartment(data.departmentRaw) == userDepartmentKey()) ||
-           advisoryManagerQueueAssignment(requestId)));
-    }
-
-    // v80 — Intentionally mirrors the working Risk & Incident manager transition:
-    // authenticated department manager + department match + pending source stage +
-    // one of the three exact workflow transitions. Queue documents are history/
-    // routing only and never an authorization dependency for the source update.
-    // v82 — keep manager authorization deliberately simple and based only on
-    // the authenticated manager profile and the request's department. Do not
-    // depend on inbox documents or legacy helper chains when changing the source.
-    // v92: authoritative manager routing fallback. If a historical request has
-    // a legacy/mixed department alias, the department-scoped inbox remains a
-    // valid proof that the current Department Manager owns this decision.
-    function advisoryManagerInboxRoute(requestId) {
-      return departmentManager() && userDepartmentKey() != '' &&
-        exists(/databases/$(database)/documents/grc_department_approval_inbox_v3/$(userDepartmentKey())/review/$(requestId));
+      // ROOT-CAUSE FIX v75: advisory_requests is authoritative. Do not make the
+      // manager UPDATE depend on exists() for an inbox projection: a missing or
+      // stale queue document previously turned a valid manager decision into
+      // permission-denied. Department aliases are canonicalized by the direct
+      // department comparison above (for example Project_Management -> projects).
+      return advisoryManagerDepartmentMatch(data);
     }
 
     function validAdvisoryManagerChange(requestId) {
-      return departmentManager() &&
-        userDepartmentKey() != '' &&
-        (
-          (('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == userDepartmentKey()) ||
-          (('department' in resource.data) && canonicalDepartment(resource.data.department) == userDepartmentKey()) ||
-          (('departmentRaw' in resource.data) && canonicalDepartment(resource.data.departmentRaw) == userDepartmentKey()) ||
-          advisoryManagerInboxRoute(requestId)
-        ) &&
+      return approved() &&
+        role() == 'department_manager' &&
+        advisoryManagerCanAct(requestId, resource.data) &&
         resource.data.workflowStage == 'pending_department_manager' &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status','workflowStage','closureReason',
           'managerDecision','managerComment','managerName','managerEmail',
           'managerActionAt','managerActionAtIso','closedAt',
           'returnFields','returnNote','returnSource','returnedAt',
-          'updatedAt','updatedAtIso','updatedBy','history'
+          'updatedAt','updatedAtIso','updatedBy'
         ]) &&
+        request.resource.data.managerEmail == authEmail() &&
+        request.resource.data.updatedBy == authEmail() &&
         request.resource.data.managerDecision in ['approved','returned','rejected'] &&
+        request.resource.data.workflowStage in [
+          'pending_super_admin','returned_requester','rejected_manager'
+        ] &&
         (
-          (request.resource.data.managerDecision == 'approved' &&
-            request.resource.data.workflowStage == 'pending_super_admin' &&
-            request.resource.data.status == 'open') ||
-          (request.resource.data.managerDecision == 'returned' &&
-            request.resource.data.workflowStage == 'returned_requester' &&
-            request.resource.data.status == 'open') ||
-          (request.resource.data.managerDecision == 'rejected' &&
-            request.resource.data.workflowStage == 'rejected_manager' &&
-            request.resource.data.status == 'closed')
+          request.resource.data.workflowStage == 'pending_super_admin' ||
+          request.resource.data.workflowStage == 'returned_requester' ||
+          request.resource.data.workflowStage == 'rejected_manager'
         );
     }
-
     function validAdvisoryOwnerResubmit() {
       return approved() &&
         ownEmail(resource.data.userEmail) &&
@@ -1078,16 +1052,13 @@ service cloud.firestore {
 
 
     match /grc_risk_requests/{requestId} {
-      // v84 authoritative request access. Admin/Super Admin reads are declared
-      // directly before scoped requester/department branches so the collection
-      // query is provable without relying on legacy resource predicates.
+      // Every new Risk/Incident request is written with canonical identity and
+      // department fields taken from the authenticated Firestore profile.
       allow create: if validRiskRequestCreate(request.resource.data);
-
-      allow get, list: if admin();
 
       // Direct opens retain compatibility with historical aliases.
       allow get: if canReadRiskIncidentWorkflow() && (
-        riskRequestOwner(resource.data) || riskRequestDepartment(resource.data)
+        admin() || riskRequestOwner(resource.data) || riskRequestDepartment(resource.data)
       );
       allow get: if departmentManager() && riskRequestDepartment(resource.data);
       // Department Manager approval queues are normally keyed by departmentKey.
@@ -1103,6 +1074,7 @@ service cloud.firestore {
         resource.data.departmentRaw == profileDepartmentValueFrom(userData());
       // Split owner and department list authorization into independent exact
       // branches. This is safer for Firestore query authorization than one large OR.
+      allow list: if admin();
       allow list: if canReadRiskIncidentWorkflow() &&
         (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid);
       allow list: if canReadRiskIncidentWorkflow() &&
