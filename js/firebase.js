@@ -1548,7 +1548,7 @@ window._selectPortal=async portal=>{
       if(_advisoryManagerHistoryPromise)return _advisoryManagerHistoryPromise;
       _advisoryManagerHistoryPromise=(async function(){
         try{
-          const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)));
+          const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)));
           _advisoryManagerHistory=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
           _advisoryManagerHistoryAt=Date.now();
         }catch(err){
@@ -1732,25 +1732,11 @@ window._selectPortal=async portal=>{
       const decision=action==='approve'?'approved':action==='return'?'returned':'rejected';
       const nowIso=_advIso();
       const requestRef=doc(db,ADV_REQUESTS_COLLECTION,requestId);
-      /* v346 — Verify the authoritative source stage before writing. This prevents
-         a stale inbox projection from sending an already-forwarded request through
-         the manager decision path and producing a misleading permission-denied. */
-      try{
-        const source=await getDoc(requestRef);
-        if(source.exists()){
-          const stage=String((source.data()||{}).workflowStage||'').toLowerCase();
-          if(stage!=='pending_department_manager'){
-            try{await deleteDoc(_grcManagerQueueItemRef(freshProfile.departmentKey,'review',requestId));}catch(_){}
-            _grcReviewQueueSourceCache[requestId]=null;_grcReviewQueueSourceCacheAt[requestId]=Date.now();
-            _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
-            throw new Error('This request is no longer awaiting Department Manager approval. The stale inbox entry was removed.');
-          }
-        }
-      }catch(stageError){
-        const msg=String(stageError&&stageError.message||stageError||'');
-        if(msg.indexOf('no longer awaiting Department Manager approval')>=0)throw stageError;
-        /* If GET is temporarily unavailable, proceed with the authorized UPDATE. */
-      }
+      /* The manager action is authorized by the authoritative document's
+         department + pending stage in Firestore Rules. Do not preflight GET here:
+         historical requests can legitimately be visible through the routed inbox
+         while their old source schema fails a direct client read. The old GET
+         produced misleading permission-denied noise and did not add safety. */
       const updates={
         status:finalStatus,workflowStage:finalStage,closureReason:closureReason,
         managerDecision:decision,managerComment:managerComment,
