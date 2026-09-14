@@ -1,0 +1,8 @@
+V85 ROOT FIX
+- Root cause: duplicate click handlers opened then immediately removed the profile menu.
+- Removed inline legacy handler and added Event de-duplication.
+- Profile menu uses explicit visible styling and maximum z-index.
+- Fixed fake snapshot handling that caused snap.exists is not a function in manager history.
+- Reduced expected compatibility permission-denied console noise.
+- Cache/build versions updated.
+Deploy all modified files together.
