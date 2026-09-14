@@ -809,8 +809,10 @@ service cloud.firestore {
     }
 
     function validAdvisoryManagerChange(requestId) {
-      return approved() &&
-        role() == 'department_manager' &&
+      // Manager approval is authorized from the authenticated server profile and
+      // the authoritative source request only. Queue documents and client audit
+      // fields are NOT authorization gates: they are routing/audit metadata.
+      return departmentManager() &&
         advisoryManagerCanAct(requestId, resource.data) &&
         resource.data.workflowStage == 'pending_department_manager' &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -820,16 +822,17 @@ service cloud.firestore {
           'returnFields','returnNote','returnSource','returnedAt',
           'updatedAt','updatedAtIso','updatedBy'
         ]) &&
-        request.resource.data.managerEmail == authEmail() &&
-        request.resource.data.updatedBy == authEmail() &&
         request.resource.data.managerDecision in ['approved','returned','rejected'] &&
-        request.resource.data.workflowStage in [
-          'pending_super_admin','returned_requester','rejected_manager'
-        ] &&
         (
-          request.resource.data.workflowStage == 'pending_super_admin' ||
-          request.resource.data.workflowStage == 'returned_requester' ||
-          request.resource.data.workflowStage == 'rejected_manager'
+          (request.resource.data.managerDecision == 'approved' &&
+            request.resource.data.workflowStage == 'pending_super_admin' &&
+            request.resource.data.status == 'open') ||
+          (request.resource.data.managerDecision == 'returned' &&
+            request.resource.data.workflowStage == 'returned_requester' &&
+            request.resource.data.status == 'open') ||
+          (request.resource.data.managerDecision == 'rejected' &&
+            request.resource.data.workflowStage == 'rejected_manager' &&
+            request.resource.data.status == 'closed')
         );
     }
     function validAdvisoryOwnerResubmit() {
