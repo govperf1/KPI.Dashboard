@@ -1029,7 +1029,7 @@ window._selectPortal=async portal=>{
        stopped valid requests before the real write was even attempted. */
     async function _advAssertRulesVersion(){
       if(window.__advRulesV71Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v74-authoritative-review-inbox-20260914'));window.__advRulesV71Verified=true;return true;}
+      try{await _getServerDoc(doc(db,'system_rule_versions','v92-profile-manager-route-20260914'));window.__advRulesV71Verified=true;return true;}
       catch(e){console.warn('[GRC Rules Probe] version probe unavailable; continuing with real Firestore authorization',e&&e.code||e&&e.message||e);return false;}
     }
     async function _advAssertProfileScope(profile){
@@ -1268,7 +1268,8 @@ window._selectPortal=async portal=>{
             _grcManagerRiskHistoryCache=_grcRiskSort(Object.keys(sourceMap).map(k=>sourceMap[k]));
             _grcManagerRiskHistoryAt=Date.now();
           }catch(e){
-            result.errors.push('Risk history: '+String(e&&e.code||e&&e.message||e));
+            // Optional historical source projection. The queue remains authoritative.
+            if(String(e&&e.code||'')!=='permission-denied')result.errors.push('Risk history: '+String(e&&e.code||e&&e.message||e));
           }
         }else{
           _grcManagerRiskHistoryCache.forEach(function(x){if(x)addRisk(x.id,x);});
@@ -1396,7 +1397,7 @@ window._selectPortal=async portal=>{
         const [reviewSnap,riskSnap]=await Promise.all([getDocs(collection(db,ADV_REQUESTS_COLLECTION)),getDocs(collection(db,GRC_RISK_REQUESTS_COLLECTION))]);
         for(const d of reviewSnap.docs){const r=d.data()||{},dept=_grcQueueDepartmentKey(r.departmentKey||r.department||r.departmentRaw||'');if(!dept||String(r.workflowStage||'')!=='pending_department_manager')continue;const normalized=Object.assign({},r,{departmentKey:dept});const snapshot=_grcReviewQueueSnapshot(normalized,d.id);await setDoc(_grcManagerQueueItemRef(dept,'review',d.id),_grcQueueItem('review',d.id,dept,String(r.userEmail||''),snapshot),{merge:false});count++;}
         for(const d of riskSnap.docs){const r=d.data()||{},dept=_advCanonicalDepartment(r.departmentKey||r.department||r.departmentRaw||''),status=String(r.status||'');if(!dept||!['pending_manager','returned_manager'].includes(status))continue;const snapshot=_grcRiskQueueSnapshot(Object.assign({},r,{departmentKey:dept}),d.id);await setDoc(_grcManagerQueueItemRef(dept,'risk',d.id),_grcQueueItem('risk',d.id,dept,String(r.submittedByEmail||''),snapshot),{merge:false});count++;}
-      }catch(e){console.warn('[GRC Department Inbox Backfill]',e&&e.code||e);}return count;
+      }catch(e){if(String(e&&e.code||'')!=='permission-denied')console.warn('[GRC Department Inbox Backfill]',e&&e.code||e);}return count;
     };
 
     window._advisorySubmit=async function(payload,file){
@@ -1692,12 +1693,10 @@ window._selectPortal=async portal=>{
         }catch(err){sources[key]={ready:true,rows:[],error:String(err&&err.message||err||'listener-failed')};emit();}
       };
       if(_advIsDepartmentManager()){
-        if(dept){
-          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)),'advisory_requests');
-          listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
-        }else{
-          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
-        }
+        // v92: manager data is already served by the department queue broker above.
+        // Do not attach a second source listener here: mixed historical department
+        // aliases can make that query permission-denied and hide a valid queue.
+        listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
       }else if(_advIsAdmin()||_advCanAnalyze()){
         // Authorized analytics roles read only the authoritative collection.
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
@@ -2001,7 +2000,7 @@ window._selectPortal=async portal=>{
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
       if(window.__grcRulesV71Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v74-authoritative-review-inbox-20260914'));window.__grcRulesV71Verified=true;return true;}
+      try{await _getServerDoc(doc(db,'system_rule_versions','v92-profile-manager-route-20260914'));window.__grcRulesV71Verified=true;return true;}
       catch(e){console.warn('[GRC Rules Probe] risk version probe unavailable; continuing with real Firestore authorization',e&&e.code||e&&e.message||e);return false;}
     }
     window._qumcAssertFirestoreRulesV69=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV64=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;

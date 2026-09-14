@@ -538,73 +538,20 @@
   window._grcRiskOpenNotifications=function(ev){if(ev){ev.preventDefault();ev.stopPropagation();}start();var old=document.getElementById('_grcRiskNotifPanel');if(old){old.remove();return;}var btn=document.getElementById('grcRiskNotifBtn'),rect=btn&&btn.getBoundingClientRect(),panel=document.createElement('div');panel.id='_grcRiskNotifPanel';panel.className='grc-risk-notif-panel';panel.style.top=((rect&&rect.bottom||70)+8)+'px';panel.style.right=Math.max(12,window.innerWidth-(rect&&rect.right||window.innerWidth-20))+'px';panel.innerHTML='<header><b>'+esc(isAr()?'إشعارات سجل المخاطر والحوادث':'Risk & Incident Register Notifications')+'</b><div class="grc-risk-notif-head-actions"><button type="button" data-grc-mark-all class="grc-risk-notif-mark">'+esc(isAr()?'تحديد الكل كمقروء':'Mark all read')+'</button><button type="button" class="grc-risk-notif-close" onclick="document.getElementById(\'_grcRiskNotifPanel\').remove()">×</button></div></header><div class="grc-risk-notif-list"></div>';document.body.appendChild(panel);renderNotificationPanel(panel);};
   window._grcRiskRefreshUi=function(){start();refreshBadge();scheduleApprovalNotice(false);};
 
-  // v83: define the profile opener inside this workflow closure so it can use
-  // the same role/escaping helpers as the rest of the Risk workflow. Older builds
-  // exposed only an inline symbol and therefore broke the profile for all roles.
-  // v85: a single physical click could execute both the legacy inline onclick
-  // and the header bridge. The second execution removed the menu immediately,
-  // making the profile appear to do nothing without any console error.
-  /* Restore the ORIGINAL QUMC profile card in GRC instead of creating a second
-     miniature menu. This keeps the same old design and makes one click work for
-     every role. */
+  // v92: restore the original profile behavior. Clicking the account badge opens
+  // the full role-aware profile overlay directly (no intermediate hidden menu).
   window._grcRiskOpenProfileMenu=function(ev){
     try{
       if(ev){
-        if(ev.__grcProfileMenuHandled)return false;
-        try{ev.__grcProfileMenuHandled=true;}catch(_){}
         ev.preventDefault();ev.stopPropagation();
+        if(ev.__grcProfileOpenHandled)return;
+        try{ev.__grcProfileOpenHandled=true;}catch(_){}
       }
-      var drop=document.getElementById('userProfileDrop');
-      var trigger=(ev&&ev.currentTarget&&ev.currentTarget.closest&&ev.currentTarget.closest('.grc-profile-trigger'))||document.querySelector('.grc-profile-trigger');
-      if(!drop||!trigger)return false;
-
-      /* A second click closes the same original card. */
-      if(drop.classList.contains('qumc-profile-open')||drop.classList.contains('qumc-final-open')){
-        drop.classList.remove('qumc-profile-open','qumc-final-open','open','show');
-        drop.style.display='none';drop.style.visibility='hidden';drop.style.pointerEvents='none';
-        return false;
-      }
-
-      var name=window._fbName||window.currentUserName||'User';
-      var mail=email()||'—';
-      var dept=window._fbDept||window.currentUserDept||'—';
-      var roleText=role().replace(/_/g,' ');
-      var initial=String(name||'U').charAt(0).toUpperCase();
-      function put(id,value){var el=document.getElementById(id);if(el)el.textContent=value;}
-      put('profileAvatar',initial);put('profileName',name);put('profileEmail',mail);
-      put('profileNameRow',name);put('profileRoleRow',roleText);put('profileDeptRow',dept);put('profileLastLoginRow',window._fbLastLogin||'Current session');
-
-      /* Remove the generic Performance request block and build role-aware GRC actions
-         inside the original profile design. */
-      var oldActions=document.getElementById('_grcOriginalProfileActions');if(oldActions)oldActions.remove();
-      var perfActions=document.getElementById('_profileReqBtns');if(perfActions)perfActions.remove();
-      var actions=document.createElement('div');actions.id='_grcOriginalProfileActions';
-      actions.className='qumc-profile-requests-panel';
-      actions.style.cssText='display:flex;flex-direction:column;gap:8px;padding:12px;border-top:1px solid rgba(21,37,56,.10);margin-top:4px;';
-      var manager=isManager(), superAdmin=isSuper(), admin=isAdmin(), owner=isOwner();
-      var title='My GRC Requests',copy='View requests submitted by you.';
-      if(manager){title='Department Approval Requests';copy='Review requests waiting for your department approval.';}
-      else if(superAdmin||admin){title='GRC Approval Requests';copy='View requests waiting for GRC approval and follow-up.';}
-      else if(owner){title='Risk & Incident Requests';copy='View your returned, rejected and current register requests.';}
-      actions.innerHTML='<div class="qumc-profile-section-title" style="margin:0 0 2px">GRC</div>'+ 
-        '<button type="button" class="qumc-profile-request-btn qumc-profile-request-btn-primary" data-grc-profile-main style="width:100%;padding:9px 12px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.28);border-radius:12px;color:#0195af;font-size:10px;font-weight:800;cursor:pointer;text-align:left;">'+esc(title)+'</button>'+ 
-        '<button type="button" class="qumc-profile-request-btn qumc-profile-request-btn-soft" data-grc-profile-submit style="width:100%;padding:9px 12px;background:rgba(21,37,56,.05);border:1px solid rgba(21,37,56,.10);border-radius:12px;color:#526a77;font-size:10px;font-weight:800;cursor:pointer;text-align:left;">Submit a Request</button>';
-      var logout=drop.querySelector('.qumc-logout-btn,#profileLogoutBtn');if(logout)drop.insertBefore(actions,logout);else drop.appendChild(actions);
-      var main=actions.querySelector('[data-grc-profile-main]');if(main)main.onclick=function(e){e.preventDefault();e.stopPropagation();closeOriginalProfile();if(typeof window._grcRiskOpenProfile==='function')window._grcRiskOpenProfile();};
-      var submit=actions.querySelector('[data-grc-profile-submit]');if(submit)submit.onclick=function(e){e.preventDefault();e.stopPropagation();closeOriginalProfile();if(typeof window._grcShowSubmitRequestForm==='function')window._grcShowSubmitRequestForm();else if(typeof window._showSubmitRequestForm==='function')window._showSubmitRequestForm();};
-
-      var rect=trigger.getBoundingClientRect();
-      drop.style.position='fixed';drop.style.top=(rect.bottom+8)+'px';
-      drop.style.right=Math.max(12,window.innerWidth-rect.right)+'px';drop.style.left='auto';
-      drop.style.display='block';drop.style.visibility='visible';drop.style.opacity='1';drop.style.pointerEvents='auto';drop.style.zIndex='2147483640';
-      drop.classList.add('qumc-profile-open','qumc-final-open');
-      return false;
-    }catch(err){console.error('[GRC Profile Menu]',err);return false;}
-  };
-  function closeOriginalProfile(){
-    var d=document.getElementById('userProfileDrop');if(!d)return;
-    d.classList.remove('qumc-profile-open','qumc-final-open','open','show');
-    d.style.display='none';d.style.visibility='hidden';d.style.pointerEvents='none';
+      var existing=document.getElementById('_grcUserProfileMenu');
+      if(existing)existing.remove();
+      if(typeof window._grcRiskOpenProfile==='function')return window._grcRiskOpenProfile();
+      console.warn('[GRC Profile] profile overlay is not ready');
+    }catch(err){console.error('[GRC Profile]',err);}
   };
 
   window._grcRiskBindHeader=function(){
@@ -618,7 +565,7 @@
     start();refreshBadge();
   };
 
-  document.addEventListener('click',function(e){var p=document.getElementById('_grcRiskNotifPanel'),b=document.getElementById('grcRiskNotifBtn');if(p&&(!b||!b.contains(e.target))&&!p.contains(e.target))p.remove();var m=document.getElementById('_grcUserProfileMenu'),u=document.querySelector('.grc-profile-trigger');if(m&&(!u||!u.contains(e.target))&&!m.contains(e.target))m.remove();var d=document.getElementById('userProfileDrop');if(d&&u&&(!u.contains(e.target))&&!d.contains(e.target))closeOriginalProfile();},true);
+  document.addEventListener('click',function(e){var p=document.getElementById('_grcRiskNotifPanel'),b=document.getElementById('grcRiskNotifBtn');if(p&&(!b||!b.contains(e.target))&&!p.contains(e.target))p.remove();var m=document.getElementById('_grcUserProfileMenu'),u=document.querySelector('.grc-profile-trigger');if(m&&(!u||!u.contains(e.target))&&!m.contains(e.target))m.remove();},true);
   document.addEventListener('DOMContentLoaded',start);document.addEventListener('grc:portalChanged',start);document.addEventListener('grc:authReady',start);setInterval(refreshBadge,5000);
 })();
 
@@ -639,13 +586,12 @@ if(typeof window._grcRiskOpenPrefillMenu!=='function'){
 }
 
 
-/* v85 profile bridge: remove any inline legacy handler and bind exactly once. */
+/* v92 profile bridge: direct full overlay, one handler only. */
 (function(){
   function bind(){
-    if(typeof window._grcRiskOpenProfileMenu!=='function')return;
     document.querySelectorAll('.grc-profile-trigger').forEach(function(el){
-      if(el.dataset&&el.dataset.grcV85Bound==='1')return;
-      if(el.dataset)el.dataset.grcV85Bound='1';
+      if(el.dataset&&el.dataset.grcV92Bound==='1')return;
+      if(el.dataset)el.dataset.grcV92Bound='1';
       try{el.removeAttribute('onclick');}catch(_){}
       el.openProfileMenu=function(e){return window._grcRiskOpenProfileMenu(e);};
       el.onclick=function(e){return window._grcRiskOpenProfileMenu(e);};
@@ -654,5 +600,5 @@ if(typeof window._grcRiskOpenPrefillMenu!=='function'){
   document.addEventListener('DOMContentLoaded',bind);
   document.addEventListener('grc:portalChanged',function(){setTimeout(bind,0);});
   document.addEventListener('grc:authReady',function(){setTimeout(bind,0);});
-  setInterval(bind,1000);bind();
+  setInterval(bind,1500);bind();
 })();
