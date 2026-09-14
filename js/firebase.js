@@ -1217,7 +1217,15 @@ window._selectPortal=async portal=>{
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         const result={profile:fresh,review:[],risk:[],errors:[]},reviewMap={},riskMap={};
-        const addReview=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;/* Do NOT drop a routed request merely because the current manager account has the same email. Historical test accounts can submit as User/Owner and later be promoted to Department Manager; routing is determined by the queue path and the role stamped on the request. */if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');x._managerAssigned=true;reviewMap[key]=x;};
+        const addReview=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;
+          /* Self-heal stale inbox snapshots. A request created by a Department
+             Manager (or explicitly marked as not requiring manager approval)
+             must never remain actionable in the manager queue. */
+          if(String(x.requesterRole||'').toLowerCase()==='department_manager')return;
+          if(x.requiresManagerApproval===false)return;
+          if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;
+          if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;
+          x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');x._managerAssigned=true;reviewMap[key]=x;};
         const addRisk=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});if(!x)return;/* Same-email requests must remain visible. The action layer blocks a true self-manager request, but hiding here made a valid department queue appear as 0 requests. */if(_advCanonicalDepartment(x.departmentKey||x.department||x.departmentRaw||'')!==fresh.departmentKey)return;/* Keep the full department history in the manager profile. The entry notification separately filters only rows that still require a manager action, so completed/published/rejected requests must not disappear from the manager's request list. */x._managerAssigned=true;riskMap[key]=x;};
         /* The department queue path is the manager's authoritative read model.
            Do not probe source collections here: historical rows can lack the
@@ -1273,6 +1281,10 @@ window._selectPortal=async portal=>{
       const addReview=function(id,row){
         const key=String(id||row&&row.id||'');if(!key)return;
         const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;
+        /* Never surface a stale inbox copy for a self-manager request or a
+           request that explicitly bypasses Department Manager approval. */
+        if(String(x.requesterRole||'').toLowerCase()==='department_manager')return;
+        if(x.requiresManagerApproval===false)return;
         if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;
         if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;
         x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');
@@ -1459,11 +1471,22 @@ window._selectPortal=async portal=>{
       let primary=[];
       let emailReadFailed=false;
       try{
-        const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
-        primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+        const profile=await _advFreshProfile();
+        /* Department Managers already have an exact department-scoped source
+           permission. Read that authorized path and then filter locally to the
+           manager's own requests. This avoids opening a second own-email query
+           that was intermittently denied for Department Manager sessions. */
+        if(profile&&profile.role==='department_manager'&&profile.departmentKey){
+          const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',profile.departmentKey)));
+          primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');})
+            .filter(function(r){return String(r.userEmail||'').toLowerCase()===me;});
+        }else{
+          const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
+          primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+        }
       }catch(err){
         emailReadFailed=true;
-        console.warn('[Review Development] getMine email path failed',err&&err.code||err);
+        console.warn('[Review Development] getMine authorized path failed',err&&err.code||err);
       }
       /* Only use the legacy UID path when the canonical email query succeeded
          and simply found no legacy rows. Retrying another denied query produced
@@ -1567,18 +1590,10 @@ window._selectPortal=async portal=>{
             emitManager();
           }catch(err){queueErrors.manager=String(err&&err.message||err);emitManager();}})();
         }
-        /* Exact identity query only. Do not fall back to UID unless email query
-           genuinely returns no rows; a denied UID fallback was producing noise
-           and masking a valid empty My Requests state. */
-        try{
-          ownUnsub=onSnapshot(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())),function(snap){
-            ownRows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
-            ownError='';emitManager();
-          },function(err){
-            ownRows=[];ownError=String(err&&err.code||err&&err.message||err||'listener-failed');
-            console.warn('[Review Development] manager own-request listener failed',err&&err.code||err);emitManager();
-          });
-        }catch(err){ownError=String(err&&err.message||err||'listener-failed');emitManager();}
+        /* Manager own history is already contained in the authorized
+           department-scoped source read. Do not open a second own-email listener:
+           that redundant query was the source of repeated permission-denied noise. */
+        ownRows=[];ownError='';
         return function(){stopped=true;try{if(queueUnsub)queueUnsub();}catch(_){}try{if(ownUnsub)ownUnsub();}catch(_){}};
       }
       let closed=false,timer=null,unsubs=[];
@@ -1601,8 +1616,11 @@ window._selectPortal=async portal=>{
              and one exact own-request query. This prevents cross-department reads
              and avoids a broad department listener that Firestore can reject. */
           if(_advIsDepartmentManager()){
-            primary=primary.filter(function(r){return stageOf(r)==='pending_department_manager';})
-              .concat((sources.own&&sources.own.rows)||[]);
+            const managerEmail=me;
+            primary=primary.filter(function(r){
+              const own=String(r&&r.userEmail||'').toLowerCase()===managerEmail;
+              return own||stageOf(r)==='pending_department_manager';
+            });
           }
           const merged=_advMergeRows(primary,fallback,false);
           const dashboardRows=merged.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});
@@ -1625,8 +1643,9 @@ window._selectPortal=async portal=>{
       };
       if(_advIsDepartmentManager()){
         if(dept){
+          /* One authorized department-scoped listener is sufficient for a
+             Department Manager; own rows are already part of that result. */
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)),'advisory_requests');
-          listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
         }else{
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
         }
