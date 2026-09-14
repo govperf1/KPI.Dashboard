@@ -541,23 +541,30 @@
   // v83: define the profile opener inside this workflow closure so it can use
   // the same role/escaping helpers as the rest of the Risk workflow. Older builds
   // exposed only an inline symbol and therefore broke the profile for all roles.
+  // v85: a single physical click could execute both the legacy inline onclick
+  // and the header bridge. The second execution removed the menu immediately,
+  // making the profile appear to do nothing without any console error.
   window._grcRiskOpenProfileMenu=function(ev){
     try{
-      if(ev){ev.preventDefault();ev.stopPropagation();}
+      if(ev){
+        if(ev.__grcProfileMenuHandled)return;
+        try{ev.__grcProfileMenuHandled=true;}catch(_){}
+        ev.preventDefault();ev.stopPropagation();
+      }
       var old=document.getElementById('_grcUserProfileMenu');
-      if(old){old.remove();return;}
-      var trigger=document.querySelector('.grc-profile-trigger');
+      if(old)return;
+      var trigger=(ev&&ev.currentTarget&&ev.currentTarget.closest&&ev.currentTarget.closest('.grc-profile-trigger'))||document.querySelector('.grc-profile-trigger');
       var rect=trigger&&trigger.getBoundingClientRect();
       var menu=document.createElement('div');
       menu.id='_grcUserProfileMenu';
       menu.className='grc-risk-user-profile-menu';
-      menu.style.position='fixed';menu.style.zIndex='10050';menu.style.minWidth='260px';
+      menu.style.position='fixed';menu.style.zIndex='2147483000';menu.style.minWidth='300px';menu.style.maxWidth='calc(100vw - 24px)';menu.style.background='#fff';menu.style.border='1px solid #c9dbe1';menu.style.borderRadius='14px';menu.style.boxShadow='0 18px 44px rgba(9,35,48,.24)';menu.style.padding='6px';
       menu.style.top=((rect&&rect.bottom||70)+8)+'px';
       menu.style.right=Math.max(12,window.innerWidth-(rect&&rect.right||window.innerWidth-12))+'px';
       var manager=isManager();
       var title=manager?'Department Approval Requests':'Risk & Incident Register Requests';
       var copy=manager?'View all current and previous department requests.':'View all your current and previous register requests.';
-      menu.innerHTML='<button type="button" class="grc-risk-profile-menu-item" data-grc-open-profile><b>'+esc(title)+'</b><small>'+esc(copy)+'</small></button>';
+      menu.innerHTML='<button type="button" class="grc-risk-profile-menu-item" data-grc-open-profile style="display:block;width:100%;text-align:left;border:0;background:#fff;color:#17384a;border-radius:10px;padding:12px 14px;cursor:pointer;font-family:inherit"><b style="display:block;font-size:12px">'+esc(title)+'</b><small style="display:block;margin-top:5px;color:#708792;font-size:10px;line-height:1.45">'+esc(copy)+'</small></button>';
       document.body.appendChild(menu);
       var open=menu.querySelector('[data-grc-open-profile]');
       if(open)open.onclick=function(e){e.preventDefault();e.stopPropagation();menu.remove();if(typeof window._grcRiskOpenProfile==='function')window._grcRiskOpenProfile();};
@@ -596,25 +603,20 @@ if(typeof window._grcRiskOpenPrefillMenu!=='function'){
 }
 
 
-/* v84 profile opener bridge: attach globally and to every matching header trigger.
-   This runs after the workflow has loaded and survives header re-renders. */
+/* v85 profile bridge: remove any inline legacy handler and bind exactly once. */
 (function(){
   function bind(){
-    var fn=window._grcRiskOpenProfileMenu;
-    if(typeof fn!=='function')return;
+    if(typeof window._grcRiskOpenProfileMenu!=='function')return;
     document.querySelectorAll('.grc-profile-trigger').forEach(function(el){
-      if(el.dataset&&el.dataset.grcV84Bound==='1')return;
-      if(el.dataset)el.dataset.grcV84Bound='1';
+      if(el.dataset&&el.dataset.grcV85Bound==='1')return;
+      if(el.dataset)el.dataset.grcV85Bound='1';
+      try{el.removeAttribute('onclick');}catch(_){}
       el.openProfileMenu=function(e){return window._grcRiskOpenProfileMenu(e);};
-      el.addEventListener('click',function(e){
-        e.preventDefault();e.stopPropagation();
-        return window._grcRiskOpenProfileMenu(e);
-      },true);
+      el.onclick=function(e){return window._grcRiskOpenProfileMenu(e);};
     });
   }
   document.addEventListener('DOMContentLoaded',bind);
-  document.addEventListener('grc:portalChanged',bind);
-  document.addEventListener('grc:authReady',bind);
-  setInterval(bind,1500);
-  bind();
+  document.addEventListener('grc:portalChanged',function(){setTimeout(bind,0);});
+  document.addEventListener('grc:authReady',function(){setTimeout(bind,0);});
+  setInterval(bind,1000);bind();
 })();

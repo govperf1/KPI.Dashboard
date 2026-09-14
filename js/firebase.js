@@ -47,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260914-v84-risk-authoritative-read-fix');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260824-v216-grc-authoritative-workflow');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -682,7 +682,7 @@ window._selectPortal=async portal=>{
             if(_normalizePortalRole(role)==='super_admin'){
               try{await _ensureOwnerRoleDefinitions();}catch(re){console.warn('[Roles] Owner role installation skipped:',re&&re.message||re);}
               try{await _repairAdvisoryPublicMirrorV172();}catch(repairErr){console.warn('[Review Development] public mirror integrity repair skipped:',repairErr&&repairErr.message||repairErr);}
-              /* v84: do not auto-run department inbox backfill on every Super Admin login. Source requests remain authoritative; repeated backfill writes caused misleading permission-denied noise when rules were not freshly deployed. */
+              try{await window._grcRepairDepartmentApprovalInboxV200(true);}catch(queueRepairErr){console.warn('[GRC Manager Queue] backfill skipped:',queueRepairErr&&queueRepairErr.message||queueRepairErr);}
             }else if(_normalizePortalRole(role)==='department_manager'){
             }
             try{await _flushPendingAudit();}catch(ae){console.warn('[AUDIT] pending audit flush failed',ae&&ae.message||ae);}
@@ -879,7 +879,7 @@ window._selectPortal=async portal=>{
       }catch(e){
         /* Compatibility fallback: an unreadable legacy row must not make My
            Requests fail for the whole user. */
-        console.warn('[GRC Requests] getMine compatibility fallback:',e&&e.code||e&&e.message||e);
+        console.debug('[GRC Requests] getMine unavailable for this role:',e&&e.code||e&&e.message||e);
         return [];
       }
     };
@@ -1503,7 +1503,7 @@ window._selectPortal=async portal=>{
         primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
       }catch(err){
         emailReadFailed=true;
-        console.warn('[Review Development] getMine email path failed',err&&err.code||err);
+        console.debug('[Review Development] getMine email path unavailable; retaining verified rows',err&&err.code||err);
       }
       /* Only use the legacy UID path when the canonical email query succeeded
          and simply found no legacy rows. Retrying another denied query produced
@@ -2131,7 +2131,7 @@ window._selectPortal=async portal=>{
       }
       throw new Error('Unsupported '+recordType+' request operation.');
     }
-    function _grcRiskRequestData(snap){if(!snap||!snap.exists())return null;const d=snap.data()||{};return Object.assign({id:snap.id},d,{createdAtText:window._fmtTs?window._fmtTs(d.createdAt):d.createdAtIso||'',updatedAtText:window._fmtTs?window._fmtTs(d.updatedAt):d.updatedAtIso||''});}
+    function _grcRiskRequestData(snap){if(!snap)return null;try{if(typeof snap.exists==='function'&&!snap.exists())return null;if(snap.exists===false)return null;}catch(_){return null;}const d=typeof snap.data==='function'?(snap.data()||{}):(snap.data&&typeof snap.data==='object'?snap.data:{});return Object.assign({id:snap.id||d.id||''},d,{createdAtText:window._fmtTs?window._fmtTs(d.createdAt):d.createdAtIso||'',updatedAtText:window._fmtTs?window._fmtTs(d.updatedAt):d.updatedAtIso||''});}
 
     window._grcRiskRequestSubmit=async function(operation,payload){
       if(!_grcRiskEmail()||!db)throw new Error('not authenticated');
@@ -2417,16 +2417,19 @@ window._selectPortal=async portal=>{
     async function _grcRiskReadMany(qrefs){const groups=await Promise.all((qrefs||[]).map(async qref=>{try{return await _grcRiskRead(qref);}catch(err){console.warn('[GRC Risk Requests] scoped read failed',err&&err.code||err);return[];}}));return _grcRiskMergeRows(groups);}
     window._grcRiskRequestsGetMine=async function(){
       if(!_grcRiskEmail())return[];
-      const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),groups=[];
+      const col=collection(db,GRC_RISK_REQUESTS_COLLECTION);
       try{
-        groups.push(await _grcRiskRead(query(col,where('submittedByEmail','==',_grcRiskEmail()))));
-      }catch(err){console.warn('[GRC Risk Requests] email getMine failed',err&&err.code||err);}
-      const uid=String(auth.currentUser&&auth.currentUser.uid||'').trim();
-      if(uid){
-        try{groups.push(await _grcRiskRead(query(col,where('submittedByUid','==',uid))));}
-        catch(err){console.warn('[GRC Risk Requests] uid getMine failed',err&&err.code||err);}
+        // v81: run the canonical email query first. A denied legacy UID query
+        // must never erase an otherwise authorized history for GRC Owner/Admin.
+        let rows=await _grcRiskRead(query(col,where('submittedByEmail','==',_grcRiskEmail())));
+        if(rows.length)return rows;
+        const uid=String(auth.currentUser&&auth.currentUser.uid||'');
+        if(uid)rows=await _grcRiskRead(query(col,where('submittedByUid','==',uid)));
+        return rows;
+      }catch(err){
+        console.warn('[GRC Risk Requests] getMine failed',err&&err.code||err);
+        return [];
       }
-      return _grcRiskMergeRows(groups);
     };
     window._grcRiskRequestGetManagerOne=async function(requestId){
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
@@ -2472,43 +2475,44 @@ window._selectPortal=async portal=>{
     };
     window._grcRiskRequestsGetAll=async function(){if(!_grcRiskIsAdmin())throw new Error('Access denied.');return _grcRiskRead(collection(db,GRC_RISK_REQUESTS_COLLECTION));};
     window._grcRiskRequestsSubscribe=function(callback){
-      if(_grcRiskRequestUnsub){_grcRiskRequestUnsub();_grcRiskRequestUnsub=null;}
-      if(!_grcRiskEmail()||!db){callback([]);return function(){};}
-      if(!_grcRiskCanViewRegister()||['viewer','user'].includes(_grcRiskRole())){callback([]);return function(){};}
-
-      /* v84 ROOT FIX:
-         Risk request reads use one authoritative server read instead of an
-         unrestricted onSnapshot listener. The old listener could remain bound
-         to a stale authorization context and repeatedly report
-         "listener failed permission-denied" after the portal had already
-         resolved a different role/profile. */
-      let stopped=false,busy=false,timer=null;
-      const load=async function(){
-        if(stopped||busy)return;
-        busy=true;
-        try{
-          let rows=[];
-          if(_grcRiskIsManager()){
-            const payload=await window._grcRiskRequestsGetForManager();
-            rows=Array.isArray(payload&&payload.records)?payload.records:(Array.isArray(payload)?payload:[]);
-          }else if(_grcRiskIsAdmin()){
-            rows=await window._grcRiskRequestsGetAll();
-          }else{
-            rows=await window._grcRiskRequestsGetMine();
-          }
-          if(!stopped)callback(Array.isArray(rows)?rows:[]);
-        }catch(err){
-          console.warn('[GRC Risk Requests] authoritative read failed',err&&err.code||err&&err.message||err);
-          if(!stopped)callback([],err);
-        }finally{busy=false;}
-      };
-      load();
-      timer=setInterval(load,12000);
-      _grcRiskRequestUnsub=function(){
-        stopped=true;
-        if(timer){clearInterval(timer);timer=null;}
-      };
-      return _grcRiskRequestUnsub;
+      if(_grcRiskRequestUnsub){_grcRiskRequestUnsub();_grcRiskRequestUnsub=null;}if(!_grcRiskEmail()||!db)return function(){};if(!_grcRiskCanViewRegister()||['viewer','user'].includes(_grcRiskRole())){callback([]);return function(){};}
+      /* Department Manager must use the explicit email inbox. The old direct
+         departmentKey listener could fail Security Rules and then overwrite a
+         correctly loaded approval queue with an empty array. */
+      if(_grcRiskIsManager()){
+        /* Shared live manager queue — never poll Firestore. */
+        if(typeof window._grcSubscribeDepartmentApprovalQueue==='function'){
+          _grcRiskRequestUnsub=window._grcSubscribeDepartmentApprovalQueue(function(bundle){
+            const rows=Array.isArray(bundle&&bundle.risk)?bundle.risk:[];
+            callback(rows,bundle&&bundle.errors&&bundle.errors.length?new Error(bundle.errors.join(' · ')):null);
+          });
+          return _grcRiskRequestUnsub;
+        }
+        /* Compatibility fallback: one cached read only. */
+        (async function(){try{callback(await window._grcRiskRequestsGetForManager());}catch(err){callback([],err);}})();
+        _grcRiskRequestUnsub=function(){};
+        return _grcRiskRequestUnsub;
+      }
+      const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
+      if(_grcRiskIsAdmin())qrefs.push(col);
+      else{
+        // Own-request history can exist under either canonical email or UID in
+        // historical rows. Subscribe to both exact server-authorized identities
+        // and merge by document id so the Profile never drops a valid request.
+        qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
+        const uid=String(auth.currentUser&&auth.currentUser.uid||'').trim();
+        if(uid)qrefs.push(query(col,where('submittedByUid','==',uid)));
+      }
+      const sources={},unsubs=[],failed={};let successCount=0;
+      function emit(){
+        let rows=_grcRiskMergeRows(Object.keys(sources).map(k=>sources[k]));
+        if(_grcRiskIsManager())rows=rows.filter(function(r){return ['pending_manager','returned_manager'].includes(String(r&&r.status||'').toLowerCase());});
+        callback(rows);
+      }
+      qrefs.forEach((qref,i)=>{unsubs.push(onSnapshot(qref,{includeMetadataChanges:true},snap=>{
+        const rows=[];snap.forEach(d=>{if(d.metadata&&d.metadata.hasPendingWrites)return;const row=_grcRiskRequestData(d);if(row)rows.push(row);});sources[i]=rows;delete failed[i];successCount++;emit();
+      },err=>{failed[i]=err;console.warn('[GRC Risk Requests] listener '+i+' failed',err&&err.code||err);if(Object.keys(failed).length===qrefs.length&&successCount===0)callback([],err);}));});
+      _grcRiskRequestUnsub=function(){unsubs.forEach(u=>{try{u();}catch(_){}});};return _grcRiskRequestUnsub;
     };
     window._grcRiskRequestsStop=function(){if(_grcRiskRequestUnsub){_grcRiskRequestUnsub();_grcRiskRequestUnsub=null;}};
 
