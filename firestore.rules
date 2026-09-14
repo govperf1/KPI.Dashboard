@@ -746,7 +746,7 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'status','messages','attachments','attachmentCount',
         'completedAt','closedAt','rating','ratingComment','ratingAt',
-        'workflowStage','closureReason','updatedAt','updatedAtIso','updatedBy'
+        'workflowStage','closureReason','returnFields','returnNote','returnSource','returnedAt','updatedAt','updatedAtIso','updatedBy'
       ]);
     }
 
@@ -766,7 +766,7 @@ service cloud.firestore {
         'status','messages','attachments','attachmentCount',
         'firstRespondedAt','respondedAt','responseMinutes',
         'completedAt','closedAt','rating','ratingComment','ratingAt',
-        'workflowStage','closureReason','updatedAt','updatedAtIso','updatedBy'
+        'workflowStage','closureReason','returnFields','returnNote','returnSource','returnedAt','updatedAt','updatedAtIso','updatedBy'
       ]);
     }
 
@@ -780,7 +780,7 @@ service cloud.firestore {
     }
 
     function advisoryAdminCanProcess() {
-      return !(resource.data.workflowStage in ['pending_department_manager','rejected_manager']) &&
+      return !(resource.data.workflowStage in ['pending_department_manager','returned_manager','rejected_manager']) &&
         (
           !advisoryRequesterNeedsManager(resource.data) ||
           (resource.data.managerDecision == 'approved' && resource.data.workflowStage == 'pending_super_admin')
@@ -808,7 +808,7 @@ service cloud.firestore {
       return approved() &&
         role() == 'department_manager' &&
         advisoryManagerCanAct(requestId, resource.data) &&
-        resource.data.workflowStage == 'pending_department_manager' &&
+        resource.data.workflowStage in ['pending_department_manager','returned_manager'] &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status','workflowStage','closureReason',
           'managerDecision','managerComment','managerName','managerEmail',
