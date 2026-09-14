@@ -1,0 +1,10 @@
+V86 PROFILE RESTORE
+- Restored the original full QUMC profile card in the GRC header.
+- Restored Profile fields: Name, Role, Department, Last Login and Logout.
+- Removed the V85 one-line profile menu behavior.
+- Added role-authorized GRC request action inside the original profile card:
+  Department Manager -> Department Approval Requests
+  GRC/Risk Owner -> Risk & Incident Register Requests
+  Super Admin/Admin/Platform Owner/Governance & Performance Manager -> GRC Approval Requests
+  Viewer -> profile information only
+- Single-click event protection remains without changing the original card design.
