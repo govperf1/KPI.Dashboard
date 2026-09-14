@@ -1563,6 +1563,16 @@ window._selectPortal=async portal=>{
       return merged;
     };
     function stageOfManagerRow(r){return String(r&&r.workflowStage||r&&r.status||'').trim().toLowerCase();}
+    // Complete department history for the profile page. This is separate from the
+    // active inbox so processed requests never disappear.
+    window._advisoryGetManagerHistory=async function(){
+      const fresh=await _grcResolveManagerProfile(await _advFreshProfile(true));
+      const dept=String(fresh.departmentKey||'').trim();if(!dept)return[];
+      let rows=[];
+      try{const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)));rows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});}
+      catch(err){console.warn('[Review Development] manager history read failed',err&&err.code||err);}
+      return _advMergeRows(rows,[],false);
+    };
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
     window._advisorySubscribe=function(callback){
       if(typeof callback!=='function'||!_advEmail()||!db)return function(){};
@@ -2410,6 +2420,17 @@ window._selectPortal=async portal=>{
       const bundle=await window._grcGetDepartmentApprovalQueue(false);
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
       return bundle.risk||[];
+    };
+    // Complete department history for the Risk & Incident profile. The active
+    // approval inbox intentionally contains pending rows only; history must read
+    // the authoritative source collection so processed requests remain visible.
+    window._grcRiskRequestsGetHistoryForManager=async function(){
+      const fresh=await _grcResolveManagerProfile(await _advFreshProfile(true));
+      const dept=String(fresh.departmentKey||'').trim();if(!dept)return[];
+      let rows=[];
+      try{rows=await _grcRiskRead(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',dept)));}
+      catch(err){console.warn('[GRC Risk Requests] manager history read failed',err&&err.code||err);}
+      return Array.isArray(rows)?rows:[];
     };
     window._grcRiskRequestsGetAll=async function(){if(!_grcRiskIsAdmin())throw new Error('Access denied.');return _grcRiskRead(collection(db,GRC_RISK_REQUESTS_COLLECTION));};
     window._grcRiskRequestsSubscribe=function(callback){
