@@ -627,7 +627,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // a unique v64 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId in ['v71-canonical-exact-request-reads-20260908','v72-review-manager-decision-20260910','v73-review-workflow-recovery-20260914','v74-authoritative-review-inbox-20260914','v78-manager-history-and-forward-20260914','v80-review-match-risk-workflow-20260914'];
+      allow get: if approved() && versionId in ['v71-canonical-exact-request-reads-20260908','v72-review-manager-decision-20260910','v73-review-workflow-recovery-20260914','v74-authoritative-review-inbox-20260914','v78-manager-history-and-forward-20260914','v80-review-match-risk-workflow-20260914','v83-profile-permission-fix-20260914'];
       allow list, create, update, delete: if false;
     }
 
@@ -1091,6 +1091,7 @@ service cloud.firestore {
         resource.data.departmentRaw == profileDepartmentValueFrom(userData());
       // Split owner and department list authorization into independent exact
       // branches. This is safer for Firestore query authorization than one large OR.
+      allow list: if superAdmin();
       allow list: if admin();
       allow list: if canReadRiskIncidentWorkflow() &&
         (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid);
