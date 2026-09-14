@@ -812,18 +812,18 @@ service cloud.firestore {
     // authenticated department manager + department match + pending source stage +
     // one of the three exact workflow transitions. Queue documents are history/
     // routing only and never an authorization dependency for the source update.
+    // v82 — keep manager authorization deliberately simple and based only on
+    // the authenticated manager profile and the request's department. Do not
+    // depend on inbox documents or legacy helper chains when changing the source.
     function validAdvisoryManagerChange(requestId) {
-      // v81: use the same routing proof as Risk & Incident. Historical Review
-      // requests may have departmentKey, department or departmentRaw only; the
-      // queue assignment is also a valid routing proof. Do NOT require one
-      // particular legacy field when the request is already in the manager's
-      // authenticated department.
       return departmentManager() &&
-        advisoryManagerCanAct(requestId, resource.data) &&
+        userDepartmentKey() != '' &&
         (
-          resource.data.workflowStage == 'pending_department_manager' ||
-          resource.data.status == 'pending_department_manager'
+          (('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == userDepartmentKey()) ||
+          (('department' in resource.data) && canonicalDepartment(resource.data.department) == userDepartmentKey()) ||
+          (('departmentRaw' in resource.data) && canonicalDepartment(resource.data.departmentRaw) == userDepartmentKey())
         ) &&
+        resource.data.workflowStage == 'pending_department_manager' &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status','workflowStage','closureReason',
           'managerDecision','managerComment','managerName','managerEmail',
