@@ -550,11 +550,41 @@
 })();
 
 
-// v81 compatibility: some cached UI markup from earlier builds still calls this
-// symbol. Keep it defined so a stale click never crashes the whole GRC workflow.
-window._grcRiskOpenPrefillMenu=window._grcRiskOpenPrefillMenu||function(){
+
+// v82 profile entry + stale-markup compatibility.
+// The header markup has always called _grcRiskOpenProfileMenu, but older builds
+// never defined it. That left the profile button broken for every role.
+window._grcRiskOpenProfileMenu=function(ev){
   try{
-    var el=document.querySelector('[data-grc-risk-prefill], .grc-risk-prefill-menu');
-    if(el&&typeof el.click==='function')el.click();
-  }catch(_){}
+    if(ev){ev.preventDefault();ev.stopPropagation();}
+    var old=document.getElementById('_grcUserProfileMenu');
+    if(old){old.remove();return;}
+    var trigger=document.querySelector('.grc-profile-trigger');
+    var rect=trigger&&trigger.getBoundingClientRect();
+    var menu=document.createElement('div');
+    menu.id='_grcUserProfileMenu';
+    menu.className='grc-risk-user-profile-menu';
+    menu.style.position='fixed';
+    menu.style.zIndex='10050';
+    menu.style.minWidth='260px';
+    menu.style.top=((rect&&rect.bottom||70)+8)+'px';
+    menu.style.right=Math.max(12,window.innerWidth-(rect&&rect.right||window.innerWidth-12))+'px';
+    var manager=(typeof isManager==='function'&&isManager());
+    var title=manager?'Department Approval Requests':'Risk & Incident Register Requests';
+    menu.innerHTML='<button type="button" class="grc-risk-profile-menu-item" data-grc-open-profile><b>'+esc(title)+'</b><small>'+
+      esc(manager?'View all current and previous department requests.':'View all your current and previous register requests.')+
+      '</small></button>';
+    document.body.appendChild(menu);
+    var open=menu.querySelector('[data-grc-open-profile]');
+    if(open)open.onclick=function(e){e.preventDefault();e.stopPropagation();menu.remove();window._grcRiskOpenProfile();};
+  }catch(err){console.error('[GRC Profile Menu]',err);}
 };
+// Some cached inline handlers call this symbol. Always replace invalid stale values.
+if(typeof window._grcRiskOpenPrefillMenu!=='function'){
+  window._grcRiskOpenPrefillMenu=function(){
+    try{
+      var el=document.querySelector('[data-grc-risk-prefill], .grc-risk-prefill-menu');
+      if(el&&typeof el.click==='function')el.click();
+    }catch(_){}
+  };
+}
