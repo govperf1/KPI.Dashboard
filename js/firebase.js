@@ -2393,7 +2393,7 @@ window._selectPortal=async portal=>{
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION);
       try{
         // Canonical exact email query for both historical and current workflow rows.
-        return await _grcRiskRead(query(col,where('submittedByEmail','==',_grcRiskEmail())));
+        return await _grcRiskReadMany([query(col,where('submittedByEmail','==',_grcRiskEmail())), query(col,where('submittedByUid','==',String(auth.currentUser&&auth.currentUser.uid||'')))]);
       }catch(err){
         /* Compatibility fallback for legacy rows; manager approval data comes
            from the department-scoped queue and remains independent. */
@@ -2455,9 +2455,12 @@ window._selectPortal=async portal=>{
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
       if(_grcRiskIsAdmin())qrefs.push(col);
       else{
-        // Operational users subscribe only to their own exact canonical request set.
-        // Department-wide approval routing is handled through the manager inbox.
+        // Own-request history can exist under either canonical email or UID in
+        // historical rows. Subscribe to both exact server-authorized identities
+        // and merge by document id so the Profile never drops a valid request.
         qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
+        const uid=String(auth.currentUser&&auth.currentUser.uid||'').trim();
+        if(uid)qrefs.push(query(col,where('submittedByUid','==',uid)));
       }
       const sources={},unsubs=[],failed={};let successCount=0;
       function emit(){
