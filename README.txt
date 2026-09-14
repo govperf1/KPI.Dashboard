@@ -1,10 +1,13 @@
-TARGETED FIX ONLY — GRC Owner Risk/Incident Edit & Resubmit
+Review & Development Manager → Super Admin Fix v77
 
-Fixes only the Firestore permission check for a requester-owned Risk/Incident
-request that is already in status: returned_requester.
+Root fix:
+- Removes brittle manager audit-value equality checks that were causing valid
+  Department Manager decisions to receive permission-denied.
+- Keeps authorization restricted to an approved Department Manager whose
+  canonical department matches the request.
+- Keeps the allowed transition strict:
+  pending_department_manager -> pending_super_admin (approved)
+  pending_department_manager -> returned_requester (returned)
+  pending_department_manager -> rejected_manager (rejected)
 
-No other workflow routing or permissions were changed.
-
-The fix allows the returned GRC Owner request to update proposedRecord and
-resubmit to pending_manager even when legacy returnFields are empty or contain
-UI labels that do not match Firestore field keys.
+Deploy firestore.rules, then replace js/firebase.js with the included file.
