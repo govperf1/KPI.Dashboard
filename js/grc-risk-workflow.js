@@ -5,8 +5,7 @@
    ===================================================================== */
 (function(){
   'use strict';if(window.__QUMC_GRC_RISK_WORKFLOW_V218__)return;window.__QUMC_GRC_RISK_WORKFLOW_V218__=true;
-  var cache=[],unsub=null,startedFor='',reviewApprovalRows=[],reviewApprovalUnsub=null,approvalNoticeKey='',approvalNoticeEntry=0,approvalNoticeTimer=null,feedbackNormalRows=[],feedbackReviewRows=[],feedbackNormalUnsub=null,feedbackReviewUnsub=null,feedbackStartedFor='',feedbackTimer=null,managerPullBusy=false,managerPullAt=0,managerPollTimer=null,managerRiskAllRows=[],managerReviewAllRows=[],
-      profileHistoryRiskRows=[],profileHistoryReviewRows=[],profileHistoryLoading=false,profileHistoryKey='';
+  var cache=[],unsub=null,startedFor='',reviewApprovalRows=[],reviewApprovalUnsub=null,approvalNoticeKey='',approvalNoticeEntry=0,approvalNoticeTimer=null,feedbackNormalRows=[],feedbackReviewRows=[],feedbackNormalUnsub=null,feedbackReviewUnsub=null,feedbackStartedFor='',feedbackTimer=null,managerPullBusy=false,managerPullAt=0,managerPollTimer=null,managerRiskAllRows=[],managerReviewAllRows=[];
   function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
   function role(){var raw=window._fbRole||window.currentUserRole||'viewer';return typeof window._normalizePortalRole==='function'?window._normalizePortalRole(raw):String(raw).trim().toLowerCase().replace(/[\s-]+/g,'_').replace(/^superadmin$/,'super_admin');}
   function email(){return String(window._fbUser||window.currentUserEmail||'').toLowerCase().trim();}
@@ -423,50 +422,17 @@
       '<div class="grc-super-details"><span>Request Details</span><p>'+esc(details||'No request details were stored for this request.')+'</p></div>'+
       '<div class="grc-super-card-footer">'+action+'</div></article>';
   }
-  function profileHistoryTime(r){
-    var v=r&&(r.updatedAtIso||r.createdAtIso||r.updatedAt||r.createdAt||'');
-    try{return v&&v.toDate?v.toDate().getTime():(new Date(v||0).getTime()||0);}catch(_){return 0;}
-  }
-  function loadProfileHistory(){
-    var key=email()+'|'+role()+'|'+currentDepartmentKey();
-    if(profileHistoryLoading)return Promise.resolve();
-    if(profileHistoryKey===key)return Promise.resolve();
-    profileHistoryLoading=true;
-    var riskPromise,reviewPromise;
-    if(isSuper()){
-      riskPromise=typeof window._grcRiskRequestsGetAll==='function'?window._grcRiskRequestsGetAll():Promise.resolve(cache);
-      reviewPromise=typeof window._advisoryGetAll==='function'?window._advisoryGetAll():Promise.resolve(reviewApprovalRows);
-    }else if(isManager()){
-      riskPromise=Promise.resolve(managerRiskAllRows);
-      /* Manager history remains department-scoped and is populated from the
-         department approval model; never broaden this user's scope. */
-      reviewPromise=Promise.resolve(managerReviewAllRows);
-    }else{
-      riskPromise=Promise.resolve(cache);
-      reviewPromise=typeof window._advisoryGetMine==='function'?window._advisoryGetMine():Promise.resolve([]);
-    }
-    return Promise.allSettled([riskPromise,reviewPromise]).then(function(results){
-      if(results[0].status==='fulfilled')profileHistoryRiskRows=Array.isArray(results[0].value)?results[0].value:[];
-      if(results[1].status==='fulfilled')profileHistoryReviewRows=Array.isArray(results[1].value)?results[1].value:[];
-      profileHistoryKey=key;
-    }).finally(function(){
-      profileHistoryLoading=false;
-      if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
-    });
-  }
   function renderProfileBody(){
     var body=document.getElementById('_grcRiskProfileBody');if(!body)return;
     if(isManager()){
-      var riskRows=(profileHistoryRiskRows.length?profileHistoryRiskRows:managerRiskAllRows).filter(function(r){return managerDepartmentRequest(r);});
-      var reviewRows=(profileHistoryReviewRows.length?profileHistoryReviewRows:managerReviewAllRows).filter(reviewManagerRequest);
-      var combined=riskRows.map(function(r){return{kind:'risk',row:r,time:profileHistoryTime(r);};}).concat(reviewRows.map(function(r){return{kind:'review',row:r,time:profileHistoryTime(r);};})).sort(function(a,b){return b.time-a.time;});
-      body.innerHTML='<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Request History</h3><p>Complete request history for your department. Completed, approved, rejected, returned and published requests remain here permanently; entry notifications show only items still requiring action.</p></div><span>'+combined.length+'</span></div>'+(combined.length?combined.map(function(x){return x.kind==='review'?reviewProfileCard(x.row):card(x.row);}).join(''):'<div class="grc-risk-empty">No requests are available for your department.</div>')+'</section>';
-      var count=document.getElementById('_grcRiskProfileCount');if(count)count.textContent=combined.length+' request(s)';
+      var riskRows=managerRiskAllRows.filter(function(r){return managerDepartmentRequest(r);}).sort(function(a,b){return (new Date(b.updatedAtIso||b.createdAtIso||b.createdAt||0).getTime()||0)-(new Date(a.updatedAtIso||a.createdAtIso||a.createdAt||0).getTime()||0);});
+      var total=riskRows.length;
+      body.innerHTML='<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Risk & Incident Register Requests</h3><p>All Risk & Incident requests submitted by the responsible owner for your department.</p></div><span>'+riskRows.length+'</span></div>'+(riskRows.length?riskRows.map(function(r){return card(r);}).join(''):'<div class="grc-risk-empty">No Risk or Incident requests are available for your department.</div>')+'</section>';
+      var count=document.getElementById('_grcRiskProfileCount');if(count)count.textContent=total+' request(s)';
       return;
     }
-    var tab=activeApprovalTab(),riskBase=(profileHistoryRiskRows.length?profileHistoryRiskRows:cache),reviewBase=(profileHistoryReviewRows.length?profileHistoryReviewRows:reviewApprovalRows);
-    var rows=riskBase.filter(function(r){if(tab==='all')return true;if(tab==='action')return actionable(r);if(tab==='published')return r.status==='published';if(tab==='returned')return /^returned|^rejected/.test(String(r.status||''));return r.status===tab;}).map(function(r){return{kind:'risk',row:r,time:profileHistoryTime(r)};});
-    rows=rows.concat(reviewBase.filter(function(r){if(tab==='all')return true;if(tab==='action')return String(r.workflowStage||r.status||'').toLowerCase().indexOf('pending')===0;if(tab==='published')return /published|approved/.test(String(r.workflowStage||r.status||'').toLowerCase());if(tab==='returned')return /returned|rejected/.test(String(r.workflowStage||r.status||'').toLowerCase());return false;}).map(function(r){return{kind:'review',row:r,time:profileHistoryTime(r)};})).sort(function(a,b){return b.time-a.time;});
+    var tab=activeApprovalTab(),rows=filteredRisk(tab).map(function(r){return{kind:'risk',row:r,time:new Date(r.updatedAtIso||r.createdAtIso||0).getTime()||0};});
+    rows=rows.concat(filteredReview(tab).map(function(r){return{kind:'review',row:r,time:reviewRequestTime(r)};})).sort(function(a,b){return b.time-a.time;});
     var reviewCount=rows.filter(function(x){return x.kind==='review';}).length,riskCount=rows.length-reviewCount;
     if(isSuper()){
       body.innerHTML='<section class="grc-super-queue"><div class="grc-super-queue-head"><div><div class="grc-super-kicker">SUPER ADMIN APPROVAL QUEUE</div><h3>Requests awaiting final review</h3><p>Review each request, open the full details, and complete the final approval workflow.</p></div><div class="grc-super-counts"><span><b>'+rows.length+'</b> Total</span><span><b>'+reviewCount+'</b> Review & Development</span><span><b>'+riskCount+'</b> Risk & Incident</span></div></div><div class="grc-super-list">'+(rows.length?rows.map(superAdminProfileCard).join(''):'<div class="grc-risk-empty">No requests are available in this view.</div>')+'</div></section>';
@@ -546,7 +512,7 @@
   window._grcRiskOpenCenterRequest=openCenterRequest;
   window._grcRiskOpenCenterRequests=openCenterRequests;
 
-  window._grcRiskOpenProfile=function(requestId){if(!canAccessRiskIncidentWorkflow())return;ensureReturnWorkflowStyles();start();var old=document.getElementById('_grcRiskProfileOv');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcRiskProfileOv';ov.className='grc-risk-overlay';var manager=isManager(),title=manager?'Department Approval Requests':'Risk & Incident Registers',subtitle=manager?'All Risk & Incident and Review & Development requests for your department. Pending/returned items requiring action are shown in the entry notification.':'Additions, updates and deletion requests with the GRC approval workflow.';ov.innerHTML='<div class="grc-risk-dialog wide"><header><div><h2>'+esc(title)+'</h2><p>'+esc(subtitle)+'</p></div><button onclick="document.getElementById(\'_grcRiskProfileOv\').remove()">×</button></header><div class="grc-risk-profile-summary"><span id="_grcRiskProfileCount">0 request(s)</span>'+(manager?'':'<div class="grc-risk-tabs"><button class="active" data-grc-risk-tab="all">All</button><button data-grc-risk-tab="action">Needs Action</button><button data-grc-risk-tab="returned">Returned / Rejected</button><button data-grc-risk-tab="published">Published</button></div>')+'</div><main id="_grcRiskProfileBody"></main></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});if(!manager)ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(btn){btn.onclick=function(){ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(x){x.classList.remove('active');});btn.classList.add('active');renderProfileBody();};});renderProfileBody();loadProfileHistory();if(requestId)setTimeout(function(){window._grcRiskShowDetails(requestId);},50);};
+  window._grcRiskOpenProfile=function(requestId){if(!canAccessRiskIncidentWorkflow())return;ensureReturnWorkflowStyles();start();var old=document.getElementById('_grcRiskProfileOv');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcRiskProfileOv';ov.className='grc-risk-overlay';var manager=isManager(),title=manager?'Department Approval Requests':'Risk & Incident Registers',subtitle=manager?'All Risk & Incident and Review & Development requests for your department. Pending/returned items requiring action are shown in the entry notification.':'Additions, updates and deletion requests with the GRC approval workflow.';ov.innerHTML='<div class="grc-risk-dialog wide"><header><div><h2>'+esc(title)+'</h2><p>'+esc(subtitle)+'</p></div><button onclick="document.getElementById(\'_grcRiskProfileOv\').remove()">×</button></header><div class="grc-risk-profile-summary"><span id="_grcRiskProfileCount">0 request(s)</span>'+(manager?'':'<div class="grc-risk-tabs"><button class="active" data-grc-risk-tab="all">All</button><button data-grc-risk-tab="action">Needs Action</button><button data-grc-risk-tab="returned">Returned / Rejected</button><button data-grc-risk-tab="published">Published</button></div>')+'</div><main id="_grcRiskProfileBody"></main></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});if(!manager)ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(btn){btn.onclick=function(){ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(x){x.classList.remove('active');});btn.classList.add('active');renderProfileBody();};});renderProfileBody();if(requestId)setTimeout(function(){window._grcRiskShowDetails(requestId);},50);};
   window._grcRiskShowDetails=async function(id){
     ensureReturnWorkflowStyles();
     var r=cache.find(function(x){return String(x.id)===String(id);});if(!r)return;
