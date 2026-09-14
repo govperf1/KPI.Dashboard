@@ -544,9 +544,9 @@
   // v85: a single physical click could execute both the legacy inline onclick
   // and the header bridge. The second execution removed the menu immediately,
   // making the profile appear to do nothing without any console error.
-  // v86: Restore the original full profile card. v85 replaced the profile with a
-  // one-line action menu; that changed the UI and hid the normal user information.
-  // Keep the original card structure and add only role-authorized GRC actions.
+  /* Restore the ORIGINAL QUMC profile card in GRC instead of creating a second
+     miniature menu. This keeps the same old design and makes one click work for
+     every role. */
   window._grcRiskOpenProfileMenu=function(ev){
     try{
       if(ev){
@@ -554,90 +554,59 @@
         try{ev.__grcProfileMenuHandled=true;}catch(_){}
         ev.preventDefault();ev.stopPropagation();
       }
-      var existing=document.getElementById('_grcUserProfileDrop');
-      if(existing){
-        existing.remove();
+      var drop=document.getElementById('userProfileDrop');
+      var trigger=(ev&&ev.currentTarget&&ev.currentTarget.closest&&ev.currentTarget.closest('.grc-profile-trigger'))||document.querySelector('.grc-profile-trigger');
+      if(!drop||!trigger)return false;
+
+      /* A second click closes the same original card. */
+      if(drop.classList.contains('qumc-profile-open')||drop.classList.contains('qumc-final-open')){
+        drop.classList.remove('qumc-profile-open','qumc-final-open','open','show');
+        drop.style.display='none';drop.style.visibility='hidden';drop.style.pointerEvents='none';
         return false;
       }
-      var trigger=(ev&&ev.currentTarget&&ev.currentTarget.closest&&ev.currentTarget.closest('.grc-profile-trigger'))||document.querySelector('.grc-profile-trigger');
-      var name=String((window._fbName||window.currentUserName||email()||'User')).trim();
-      var mail=String(email()||window._fbEmail||window.currentUserEmail||'—').trim();
-      var rawRole=String(role()||window._fbRole||'').trim();
-      var roleMap={super_admin:'Super Admin',admin:'Admin',platform_owner:'Platform Owner',grc_owner:'GRC Owner',risk_owner:'Risk Owner',department_manager:'Department Manager',viewer:'Viewer',governance_performance_manager:'Governance & Performance Manager'};
-      var roleLabel=roleMap[rawRole]||rawRole||'—';
-      var department=String(window._fbDept||window.currentUserDept||'—').replace(/_/g,' ');
-      var initial=(name||'U').charAt(0).toUpperCase();
-      var menu=document.createElement('div');
-      menu.id='_grcUserProfileDrop';
-      menu.className='qumc-profile-drop qumc-profile-glass';
-      menu.setAttribute('data-grc-profile-card','1');
-      menu.style.display='block';
-      menu.style.zIndex='2147483640';
-      menu.style.maxHeight='calc(100vh - 20px)';
-      menu.style.overflowY='auto';
 
-      var actions='';
-      var manager=isManager();
-      var adminRole=['super_admin','admin','platform_owner','governance_performance_manager'].indexOf(rawRole)>=0;
-      var ownerRole=['grc_owner','risk_owner'].indexOf(rawRole)>=0;
+      var name=window._fbName||window.currentUserName||'User';
+      var mail=email()||'—';
+      var dept=window._fbDept||window.currentUserDept||'—';
+      var roleText=role().replace(/_/g,' ');
+      var initial=String(name||'U').charAt(0).toUpperCase();
+      function put(id,value){var el=document.getElementById(id);if(el)el.textContent=value;}
+      put('profileAvatar',initial);put('profileName',name);put('profileEmail',mail);
+      put('profileNameRow',name);put('profileRoleRow',roleText);put('profileDeptRow',dept);put('profileLastLoginRow',window._fbLastLogin||'Current session');
 
-      if(manager){
-        actions='<div id="_profileReqBtns" class="qumc-profile-requests-panel" style="display:flex;flex-direction:column;gap:8px;padding:12px">'+
-          '<div style="font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Requests</div>'+
-          '<button type="button" data-grc-profile-action="approval" class="qumc-profile-request-btn qumc-profile-request-btn-primary" style="width:100%;padding:9px 12px;border-radius:12px;cursor:pointer;text-align:left">📋 Department Approval Requests</button>'+
-          '</div>';
-      }else if(adminRole){
-        actions='<div id="_profileReqBtns" class="qumc-profile-requests-panel" style="display:flex;flex-direction:column;gap:8px;padding:12px">'+
-          '<div style="font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Approvals</div>'+
-          '<button type="button" data-grc-profile-action="approval" class="qumc-profile-request-btn qumc-profile-request-btn-primary" style="width:100%;padding:9px 12px;border-radius:12px;cursor:pointer;text-align:left">📋 GRC Approval Requests</button>'+
-          '</div>';
-      }else if(ownerRole){
-        actions='<div id="_profileReqBtns" class="qumc-profile-requests-panel" style="display:flex;flex-direction:column;gap:8px;padding:12px">'+
-          '<div style="font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Requests</div>'+
-          '<button type="button" data-grc-profile-action="approval" class="qumc-profile-request-btn qumc-profile-request-btn-primary" style="width:100%;padding:9px 12px;border-radius:12px;cursor:pointer;text-align:left">📋 Risk & Incident Register Requests</button>'+
-          '</div>';
-      }
+      /* Remove the generic Performance request block and build role-aware GRC actions
+         inside the original profile design. */
+      var oldActions=document.getElementById('_grcOriginalProfileActions');if(oldActions)oldActions.remove();
+      var perfActions=document.getElementById('_profileReqBtns');if(perfActions)perfActions.remove();
+      var actions=document.createElement('div');actions.id='_grcOriginalProfileActions';
+      actions.className='qumc-profile-requests-panel';
+      actions.style.cssText='display:flex;flex-direction:column;gap:8px;padding:12px;border-top:1px solid rgba(21,37,56,.10);margin-top:4px;';
+      var manager=isManager(), superAdmin=isSuper(), admin=isAdmin(), owner=isOwner();
+      var title='My GRC Requests',copy='View requests submitted by you.';
+      if(manager){title='Department Approval Requests';copy='Review requests waiting for your department approval.';}
+      else if(superAdmin||admin){title='GRC Approval Requests';copy='View requests waiting for GRC approval and follow-up.';}
+      else if(owner){title='Risk & Incident Requests';copy='View your returned, rejected and current register requests.';}
+      actions.innerHTML='<div class="qumc-profile-section-title" style="margin:0 0 2px">GRC</div>'+ 
+        '<button type="button" class="qumc-profile-request-btn qumc-profile-request-btn-primary" data-grc-profile-main style="width:100%;padding:9px 12px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.28);border-radius:12px;color:#0195af;font-size:10px;font-weight:800;cursor:pointer;text-align:left;">'+esc(title)+'</button>'+ 
+        '<button type="button" class="qumc-profile-request-btn qumc-profile-request-btn-soft" data-grc-profile-submit style="width:100%;padding:9px 12px;background:rgba(21,37,56,.05);border:1px solid rgba(21,37,56,.10);border-radius:12px;color:#526a77;font-size:10px;font-weight:800;cursor:pointer;text-align:left;">Submit a Request</button>';
+      var logout=drop.querySelector('.qumc-logout-btn,#profileLogoutBtn');if(logout)drop.insertBefore(actions,logout);else drop.appendChild(actions);
+      var main=actions.querySelector('[data-grc-profile-main]');if(main)main.onclick=function(e){e.preventDefault();e.stopPropagation();closeOriginalProfile();if(typeof window._grcRiskOpenProfile==='function')window._grcRiskOpenProfile();};
+      var submit=actions.querySelector('[data-grc-profile-submit]');if(submit)submit.onclick=function(e){e.preventDefault();e.stopPropagation();closeOriginalProfile();if(typeof window._grcShowSubmitRequestForm==='function')window._grcShowSubmitRequestForm();else if(typeof window._showSubmitRequestForm==='function')window._showSubmitRequestForm();};
 
-      menu.innerHTML=
-        '<div class="qumc-profile-head">'+
-          '<div class="qumc-profile-avatar">'+esc(initial)+'</div>'+
-          '<div style="min-width:0"><div class="qumc-profile-name">'+esc(name)+'</div><div class="qumc-profile-email">'+esc(mail)+'</div></div>'+
-        '</div>'+
-        '<div class="qumc-profile-section-title">Profile</div>'+
-        '<div class="qumc-profile-grid">'+
-          '<span>Name</span><b>'+esc(name)+'</b>'+
-          '<span>Role</span><b>'+esc(roleLabel)+'</b>'+
-          '<span>Department</span><b>'+esc(department)+'</b>'+
-          '<span>Last Login</span><b>Current session</b>'+
-        '</div>'+
-        actions+
-        '<button class="qumc-logout-btn" data-grc-profile-logout type="button">↪ Logout</button>';
-
-      document.body.appendChild(menu);
-      var rect=trigger&&trigger.getBoundingClientRect();
-      var width=Math.min(340,window.innerWidth-24);
-      menu.style.width=width+'px';
-      var right=12;
-      if(rect) right=Math.max(12,window.innerWidth-rect.right);
-      menu.style.right=right+'px';
-      menu.style.top=((rect&&rect.bottom)||58)+8+'px';
-
-      var action=menu.querySelector('[data-grc-profile-action="approval"]');
-      if(action)action.onclick=function(e){
-        e.preventDefault();e.stopPropagation();
-        menu.remove();
-        if(typeof window._grcRiskOpenProfile==='function')window._grcRiskOpenProfile();
-      };
-      var logout=menu.querySelector('[data-grc-profile-logout]');
-      if(logout)logout.onclick=function(e){
-        e.preventDefault();e.stopPropagation();
-        menu.remove();
-        if(typeof window.qumcLogoutToLogin==='function')return window.qumcLogoutToLogin(e);
-        if(typeof window._doLogout==='function')return window._doLogout();
-      };
+      var rect=trigger.getBoundingClientRect();
+      drop.style.position='fixed';drop.style.top=(rect.bottom+8)+'px';
+      drop.style.right=Math.max(12,window.innerWidth-rect.right)+'px';drop.style.left='auto';
+      drop.style.display='block';drop.style.visibility='visible';drop.style.opacity='1';drop.style.pointerEvents='auto';drop.style.zIndex='2147483640';
+      drop.classList.add('qumc-profile-open','qumc-final-open');
       return false;
     }catch(err){console.error('[GRC Profile Menu]',err);return false;}
   };
+  function closeOriginalProfile(){
+    var d=document.getElementById('userProfileDrop');if(!d)return;
+    d.classList.remove('qumc-profile-open','qumc-final-open','open','show');
+    d.style.display='none';d.style.visibility='hidden';d.style.pointerEvents='none';
+  };
+
   window._grcRiskBindHeader=function(){
     var not=document.getElementById('grcRiskNotifBtn'),usr=document.querySelector('.grc-profile-trigger');
     if(not&&!not.dataset.grcBound){not.dataset.grcBound='1';not.onclick=function(e){e.preventDefault();e.stopPropagation();window._grcRiskOpenNotifications(e);};}
@@ -649,7 +618,7 @@
     start();refreshBadge();
   };
 
-  document.addEventListener('click',function(e){var p=document.getElementById('_grcRiskNotifPanel'),b=document.getElementById('grcRiskNotifBtn');if(p&&(!b||!b.contains(e.target))&&!p.contains(e.target))p.remove();var m=document.getElementById('_grcUserProfileDrop'),u=document.querySelector('.grc-profile-trigger');if(m&&(!u||!u.contains(e.target))&&!m.contains(e.target))m.remove();},true);
+  document.addEventListener('click',function(e){var p=document.getElementById('_grcRiskNotifPanel'),b=document.getElementById('grcRiskNotifBtn');if(p&&(!b||!b.contains(e.target))&&!p.contains(e.target))p.remove();var m=document.getElementById('_grcUserProfileMenu'),u=document.querySelector('.grc-profile-trigger');if(m&&(!u||!u.contains(e.target))&&!m.contains(e.target))m.remove();var d=document.getElementById('userProfileDrop');if(d&&u&&(!u.contains(e.target))&&!d.contains(e.target))closeOriginalProfile();},true);
   document.addEventListener('DOMContentLoaded',start);document.addEventListener('grc:portalChanged',start);document.addEventListener('grc:authReady',start);setInterval(refreshBadge,5000);
 })();
 
