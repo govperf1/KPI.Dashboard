@@ -594,3 +594,27 @@ if(typeof window._grcRiskOpenPrefillMenu!=='function'){
     try{var el=document.querySelector('[data-grc-risk-prefill], .grc-risk-prefill-menu');if(el&&typeof el.click==='function')el.click();}catch(_){}
   };
 }
+
+
+/* v84 profile opener bridge: attach globally and to every matching header trigger.
+   This runs after the workflow has loaded and survives header re-renders. */
+(function(){
+  function bind(){
+    var fn=window._grcRiskOpenProfileMenu;
+    if(typeof fn!=='function')return;
+    document.querySelectorAll('.grc-profile-trigger').forEach(function(el){
+      if(el.dataset&&el.dataset.grcV84Bound==='1')return;
+      if(el.dataset)el.dataset.grcV84Bound='1';
+      el.openProfileMenu=function(e){return window._grcRiskOpenProfileMenu(e);};
+      el.addEventListener('click',function(e){
+        e.preventDefault();e.stopPropagation();
+        return window._grcRiskOpenProfileMenu(e);
+      },true);
+    });
+  }
+  document.addEventListener('DOMContentLoaded',bind);
+  document.addEventListener('grc:portalChanged',bind);
+  document.addEventListener('grc:authReady',bind);
+  setInterval(bind,1500);
+  bind();
+})();
