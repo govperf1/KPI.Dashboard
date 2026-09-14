@@ -1328,9 +1328,11 @@ window._selectPortal=async portal=>{
         };
         listen('review',_grcManagerQueueCollection(fresh.departmentKey,'review'),function(d){return Object.assign({id:d.id},d.data()||{});});
         listen('risk',_grcManagerQueueCollection(fresh.departmentKey,'risk'),function(d){return Object.assign({id:d.id},d.data()||{});});
-        /* Preserve the full Risk/Incident department history without polling.
-           This listener replaces the old getDocsFromServer call every 5 minutes. */
-        listen('history',query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)),function(d){return Object.assign({id:d.id},d.data()||{});});
+        /* Manager workflow is driven by the department-scoped inbox_v3.
+           Do not open a second source-history listener here: Firestore can reject
+           a collection query even when every routed inbox row is authorized. The
+           queue snapshots are updated after each Risk/Incident decision and are
+           the canonical manager view for this screen. */
         window.__grcManagerQueueLiveActive=true;
         return _grcManagerLiveBuild();
       })();
@@ -1687,6 +1689,12 @@ window._selectPortal=async portal=>{
         console.error('[Review Development] manager decision update failed',writeErr&&writeErr.code||writeErr&&writeErr.message||writeErr);
         throw writeErr;
       }
+      /* Source request is authoritative. Once the decision succeeds, remove the
+         active inbox item so the manager cannot keep seeing a stale pending copy.
+         Queue cleanup is intentionally non-blocking: a cleanup failure must never
+         undo a valid manager decision or prevent Super Admin from receiving it. */
+      try{await deleteDoc(_grcManagerQueueItemRef(freshProfile.departmentKey,'review',requestId));}
+      catch(queueCleanupErr){console.warn('[Review Development] manager inbox cleanup skipped',queueCleanupErr&&queueCleanupErr.code||queueCleanupErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':action==='return'?'Returned for update ':'Rejected ')+requestId,{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:decision,comment:managerComment},{portal:'grc'});}catch(_){ }
       return true;
@@ -2210,7 +2218,17 @@ window._selectPortal=async portal=>{
       await _grcRiskAssertRulesVersion();
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
       await _advAssertProfileScope(fresh);
-      const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDocFromServer(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data(),currentStatus=String(r.status||'');
+      const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId);
+      /* Read the routed inbox snapshot first. Managers are guaranteed access to
+         this exact department path; a source-document preflight was causing the
+         action to fail with permission-denied before the UPDATE rule could run. */
+      let r=null;
+      try{
+        const qref=_grcManagerQueueItemRef(fresh.departmentKey,'risk',requestId),qsnap=await getDocFromServer(qref);
+        if(qsnap.exists()){const q=qsnap.data()||{};r=q.snapshot&&typeof q.snapshot==='object'?q.snapshot:null;}
+      }catch(queueReadErr){console.warn('[GRC Risk Manager Queue] exact item read failed',queueReadErr&&queueReadErr.code||queueReadErr);}
+      if(!r){const snap=await getDocFromServer(ref);if(!snap.exists())throw new Error('Request not found.');r=snap.data();}
+      const currentStatus=String(r.status||'');
       if(!['pending_manager','returned_manager'].includes(currentStatus))throw new Error('This request is not awaiting your approval.');
       action=String(action||'');note=String(note||'').trim();fields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
       let status='';
