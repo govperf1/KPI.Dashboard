@@ -1692,80 +1692,89 @@ window._selectPortal=async portal=>{
     };
 
     window._advisoryManagerAction=async function(requestId,action,comment,fields){
-      /* IMPORTANT: Department Manager actions must not depend on a client-side
-         read of advisory_requests. The inbox can render from its routed queue,
-         while Firestore Rules authorize the UPDATE against the existing source
-         document. The previous getDocFromServer preflight caused the action to
-         fail before updateDoc whenever the manager GET rule was stricter than
-         the UPDATE rule. */
+      /* v80 — Review & Development now follows the SAME manager-decision pattern
+         as the working Risk & Incident workflow. The routed queue is used as the
+         first source of the manager task, then the authoritative request is updated.
+         Queue cleanup/history sync can never block the source transition. */
       await _advAssertRulesVersion();
-      const freshProfile=await _grcResolveManagerProfile(await _advFreshProfile(true));
-      await _advAssertProfileScope(freshProfile);
-      if(freshProfile.role!=='department_manager')throw new Error('Department Manager approval is required.');
-      const managerEmail=freshProfile.email;
-      const managerName=String(window._fbName||window.currentUserName||managerEmail);
-      const managerComment=String(comment||'').trim();
-      const returnFields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
+      const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
+      await _advAssertProfileScope(fresh);
+      if(fresh.role!=='department_manager')throw new Error('Department Manager approval is required.');
       requestId=String(requestId||'').trim();
+      action=String(action||'').trim();
+      comment=String(comment||'').trim();
+      fields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
       if(!requestId)throw new Error('Request ID is missing.');
-      if(!['approve','return','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
-      if((action==='return'||action==='reject')&&!managerComment)throw new Error(action==='return'?'A return note is required.':'A rejection reason is required.');
-      let finalStage='',finalStatus='',closureReason='';
-      if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
-      else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='returned_by_department_manager';}
-      else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
-      const decision=action==='approve'?'approved':action==='return'?'returned':'rejected';
-      const nowIso=_advIso();
-      const requestRef=doc(db,ADV_REQUESTS_COLLECTION,requestId);
-      /* v346 — Verify the authoritative source stage before writing. This prevents
-         a stale inbox projection from sending an already-forwarded request through
-         the manager decision path and producing a misleading permission-denied. */
+      if(!['approve','return','reject'].includes(action))throw new Error('Unsupported action.');
+      if(['return','reject'].includes(action)&&!comment)throw new Error(action==='return'?'A return note is required.':'A rejection reason is required.');
+
+      const ref=doc(db,ADV_REQUESTS_COLLECTION,requestId);
+      let source=null;
+      /* EXACTLY like Risk & Incident: read the routed manager item first. */
       try{
-        const source=await getDoc(requestRef);
-        if(source.exists()){
-          const stage=String((source.data()||{}).workflowStage||'').toLowerCase();
-          if(stage!=='pending_department_manager'){
-            try{await deleteDoc(_grcManagerQueueItemRef(freshProfile.departmentKey,'review',requestId));}catch(_){}
-            _grcReviewQueueSourceCache[requestId]=null;_grcReviewQueueSourceCacheAt[requestId]=Date.now();
-            _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
-            throw new Error('This request is no longer awaiting Department Manager approval. The stale inbox entry was removed.');
-          }
+        const qref=_grcManagerQueueItemRef(fresh.departmentKey,'review',requestId);
+        const qsnap=await getDocFromServer(qref);
+        if(qsnap.exists()){
+          const q=qsnap.data()||{};
+          source=q.snapshot&&typeof q.snapshot==='object'?q.snapshot:null;
         }
-      }catch(stageError){
-        const msg=String(stageError&&stageError.message||stageError||'');
-        if(msg.indexOf('no longer awaiting Department Manager approval')>=0)throw stageError;
-        /* If GET is temporarily unavailable, proceed with the authorized UPDATE. */
+      }catch(queueReadErr){
+        console.warn('[Review Development Manager Queue] exact item read failed',queueReadErr&&queueReadErr.code||queueReadErr);
       }
+      if(!source){
+        try{
+          const snap=await getDocFromServer(ref);
+          if(snap.exists())source=snap.data()||{};
+        }catch(sourceReadErr){
+          /* Do not fail a valid UPDATE solely because a preflight GET is stricter. */
+          console.warn('[Review Development] source preflight unavailable; continuing with authorized update',sourceReadErr&&sourceReadErr.code||sourceReadErr);
+        }
+      }
+      if(source){
+        const stage=String(source.workflowStage||'').toLowerCase();
+        if(stage && stage!=='pending_department_manager')throw new Error('This request is no longer awaiting Department Manager approval.');
+      }
+
+      let finalStage='',finalStatus='',closureReason='',decision='';
+      if(action==='approve'){
+        finalStage='pending_super_admin';finalStatus='open';closureReason='';decision='approved';
+      }else if(action==='return'){
+        finalStage='returned_requester';finalStatus='open';closureReason='returned_by_department_manager';decision='returned';
+      }else{
+        finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';decision='rejected';
+      }
+      const nowIso=_advIso();
+      const history=Array.isArray(source&&source.history)?source.history.slice():[];
+      history.push({workflowStage:finalStage,status:finalStatus,by:fresh.email,role:fresh.role,at:nowIso,note:comment,fields:fields});
       const updates={
         status:finalStatus,workflowStage:finalStage,closureReason:closureReason,
-        managerDecision:decision,managerComment:managerComment,
-        managerName:managerName,managerEmail:managerEmail,
+        managerDecision:decision,managerComment:comment,
+        managerName:String(window._fbName||fresh.email),managerEmail:fresh.email,
         managerActionAt:serverTimestamp(),managerActionAtIso:nowIso,
-        updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:managerEmail
+        updatedAt:serverTimestamp(),updatedAtIso:nowIso,updatedBy:fresh.email,
+        history:history
       };
       if(action==='return'){
-        updates.returnNote=managerComment;
-        updates.returnSource='department_manager';
-        updates.returnFields=returnFields;
-        updates.returnedAt=serverTimestamp();
+        updates.returnNote=comment;updates.returnSource='department_manager';updates.returnFields=fields;updates.returnedAt=serverTimestamp();
       }else{
         updates.returnNote='';updates.returnSource='';updates.returnFields=[];
       }
       if(action==='reject')updates.closedAt=serverTimestamp();
-      try{
-        await updateDoc(requestRef,updates);
-      }catch(writeErr){
+      try{await updateDoc(ref,updates);}
+      catch(writeErr){
         console.error('[Review Development] manager decision update failed',writeErr&&writeErr.code||writeErr&&writeErr.message||writeErr);
         throw writeErr;
       }
-      /* Source request is authoritative. Once the decision succeeds, remove the
-         active inbox item so the manager cannot keep seeing a stale pending copy.
-         Queue cleanup is intentionally non-blocking: a cleanup failure must never
-         undo a valid manager decision or prevent Super Admin from receiving it. */
-      try{await deleteDoc(_grcManagerQueueItemRef(freshProfile.departmentKey,'review',requestId));}
-      catch(queueCleanupErr){console.warn('[Review Development] manager inbox cleanup skipped',queueCleanupErr&&queueCleanupErr.code||queueCleanupErr);}
+      /* Same principle as Risk & Incident: source transition is complete first.
+         Keep a historical queue snapshot; any queue sync failure is non-blocking. */
+      try{
+        const snapshot=Object.assign({},source||{},updates,{id:requestId,workflowStage:finalStage,status:finalStatus,updatedAtIso:nowIso});
+        await setDoc(_grcManagerQueueItemRef(String((source&&source.departmentKey)||fresh.departmentKey||''),'review',requestId),
+          _grcQueueItem('review',requestId,String((source&&source.departmentKey)||fresh.departmentKey||''),String((source&&source.userEmail)||''),snapshot),
+          {merge:true});
+      }catch(queueErr){console.warn('[Review Development Manager Queue] history sync skipped after successful decision',queueErr&&queueErr.code||queueErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
-      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':action==='return'?'Returned for update ':'Rejected ')+requestId,{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:decision,comment:managerComment},{portal:'grc'});}catch(_){ }
+      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_'+action.toUpperCase(),'Department Manager '+action+' · '+requestId,{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:decision,comment:comment},{portal:'grc',dept:fresh.departmentKey});}catch(_){}
       return true;
     };
 
