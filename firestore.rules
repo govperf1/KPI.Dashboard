@@ -726,16 +726,31 @@ service cloud.firestore {
     }
 
     // ── Review & Development Center ──────────────────────────────────
+    // Resolve the request department from BOTH current and historical schemas.
+    // Old Review & Development requests (including records created before an
+    // account/email was changed) may store the department in department,
+    // departmentRaw or departmentCode instead of departmentKey. Workflow
+    // authorization must never depend on the requester's current account.
+    function advisoryRequestDepartment(data) {
+      return ('departmentKey' in data && data.departmentKey is string && canonicalDepartment(data.departmentKey) != '')
+        ? canonicalDepartment(data.departmentKey)
+        : (('department' in data && data.department is string && canonicalDepartment(data.department) != '')
+          ? canonicalDepartment(data.department)
+          : (('departmentRaw' in data && data.departmentRaw is string && canonicalDepartment(data.departmentRaw) != '')
+            ? canonicalDepartment(data.departmentRaw)
+            : (('departmentCode' in data && data.departmentCode is string && canonicalDepartment(data.departmentCode) != '')
+              ? canonicalDepartment(data.departmentCode)
+              : '')));
+    }
+
     function advisoryManagerDepartmentMatch(data) {
       let u = userData();
       let r = profileRoleFrom(u);
       let d = profileDepartmentKeyFrom(u);
-      // Requests may contain either the canonical key (projects) or a profile
-      // alias (Project_Management). Compare canonical values on both sides.
+      // Compare canonical values on both sides and support legacy request rows.
       return signedIn() && u.approved == true && r == 'department_manager' &&
-        d != '' && ('departmentKey' in data) &&
-        canonicalDepartment(data.departmentKey) != '' &&
-        canonicalDepartment(data.departmentKey) == d;
+        d != '' && advisoryRequestDepartment(data) != '' &&
+        advisoryRequestDepartment(data) == d;
     }
 
     function advisoryManagerCanRead(data) {
@@ -931,7 +946,7 @@ service cloud.firestore {
         /* Final manager transition fallback: same canonical department + exact
            pending stage. This covers source rows whose legacy optional fields are
            missing while still allowing only the three workflow outcomes. */
-        (departmentManager() && sameDepartment(resource.data.departmentKey) &&
+        (departmentManager() && advisoryManagerDepartmentMatch(resource.data) &&
           resource.data.workflowStage == 'pending_department_manager' &&
           request.resource.data.workflowStage in ['pending_super_admin','returned_requester','rejected_manager'] &&
           request.resource.data.managerDecision in ['approved','returned','rejected'] &&
