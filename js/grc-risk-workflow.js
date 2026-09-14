@@ -538,10 +538,40 @@
   window._grcRiskOpenNotifications=function(ev){if(ev){ev.preventDefault();ev.stopPropagation();}start();var old=document.getElementById('_grcRiskNotifPanel');if(old){old.remove();return;}var btn=document.getElementById('grcRiskNotifBtn'),rect=btn&&btn.getBoundingClientRect(),panel=document.createElement('div');panel.id='_grcRiskNotifPanel';panel.className='grc-risk-notif-panel';panel.style.top=((rect&&rect.bottom||70)+8)+'px';panel.style.right=Math.max(12,window.innerWidth-(rect&&rect.right||window.innerWidth-20))+'px';panel.innerHTML='<header><b>'+esc(isAr()?'إشعارات سجل المخاطر والحوادث':'Risk & Incident Register Notifications')+'</b><div class="grc-risk-notif-head-actions"><button type="button" data-grc-mark-all class="grc-risk-notif-mark">'+esc(isAr()?'تحديد الكل كمقروء':'Mark all read')+'</button><button type="button" class="grc-risk-notif-close" onclick="document.getElementById(\'_grcRiskNotifPanel\').remove()">×</button></div></header><div class="grc-risk-notif-list"></div>';document.body.appendChild(panel);renderNotificationPanel(panel);};
   window._grcRiskRefreshUi=function(){start();refreshBadge();scheduleApprovalNotice(false);};
 
+  // v83: define the profile opener inside this workflow closure so it can use
+  // the same role/escaping helpers as the rest of the Risk workflow. Older builds
+  // exposed only an inline symbol and therefore broke the profile for all roles.
+  window._grcRiskOpenProfileMenu=function(ev){
+    try{
+      if(ev){ev.preventDefault();ev.stopPropagation();}
+      var old=document.getElementById('_grcUserProfileMenu');
+      if(old){old.remove();return;}
+      var trigger=document.querySelector('.grc-profile-trigger');
+      var rect=trigger&&trigger.getBoundingClientRect();
+      var menu=document.createElement('div');
+      menu.id='_grcUserProfileMenu';
+      menu.className='grc-risk-user-profile-menu';
+      menu.style.position='fixed';menu.style.zIndex='10050';menu.style.minWidth='260px';
+      menu.style.top=((rect&&rect.bottom||70)+8)+'px';
+      menu.style.right=Math.max(12,window.innerWidth-(rect&&rect.right||window.innerWidth-12))+'px';
+      var manager=isManager();
+      var title=manager?'Department Approval Requests':'Risk & Incident Register Requests';
+      var copy=manager?'View all current and previous department requests.':'View all your current and previous register requests.';
+      menu.innerHTML='<button type="button" class="grc-risk-profile-menu-item" data-grc-open-profile><b>'+esc(title)+'</b><small>'+esc(copy)+'</small></button>';
+      document.body.appendChild(menu);
+      var open=menu.querySelector('[data-grc-open-profile]');
+      if(open)open.onclick=function(e){e.preventDefault();e.stopPropagation();menu.remove();if(typeof window._grcRiskOpenProfile==='function')window._grcRiskOpenProfile();};
+    }catch(err){console.error('[GRC Profile Menu]',err);}
+  };
+
   window._grcRiskBindHeader=function(){
     var not=document.getElementById('grcRiskNotifBtn'),usr=document.querySelector('.grc-profile-trigger');
     if(not&&!not.dataset.grcBound){not.dataset.grcBound='1';not.onclick=function(e){e.preventDefault();e.stopPropagation();window._grcRiskOpenNotifications(e);};}
-    if(usr&&!usr.dataset.grcBound){usr.dataset.grcBound='1';usr.onclick=function(e){e.preventDefault();e.stopPropagation();window._grcRiskOpenProfileMenu(e);};}
+    if(usr){
+      // Compatibility for stale header handlers that call usr.openProfileMenu().
+      usr.openProfileMenu=function(e){return window._grcRiskOpenProfileMenu(e);};
+      if(!usr.dataset.grcBound){usr.dataset.grcBound='1';usr.onclick=function(e){e.preventDefault();e.stopPropagation();window._grcRiskOpenProfileMenu(e);};}
+    }
     start();refreshBadge();
   };
 
@@ -551,40 +581,16 @@
 
 
 
-// v82 profile entry + stale-markup compatibility.
-// The header markup has always called _grcRiskOpenProfileMenu, but older builds
-// never defined it. That left the profile button broken for every role.
-window._grcRiskOpenProfileMenu=function(ev){
-  try{
+// v83 global compatibility for any cached inline markup. The real implementation is
+// defined above inside the workflow closure.
+if(typeof window._grcRiskOpenProfileMenu!=='function'){
+  window._grcRiskOpenProfileMenu=function(ev){
     if(ev){ev.preventDefault();ev.stopPropagation();}
-    var old=document.getElementById('_grcUserProfileMenu');
-    if(old){old.remove();return;}
-    var trigger=document.querySelector('.grc-profile-trigger');
-    var rect=trigger&&trigger.getBoundingClientRect();
-    var menu=document.createElement('div');
-    menu.id='_grcUserProfileMenu';
-    menu.className='grc-risk-user-profile-menu';
-    menu.style.position='fixed';
-    menu.style.zIndex='10050';
-    menu.style.minWidth='260px';
-    menu.style.top=((rect&&rect.bottom||70)+8)+'px';
-    menu.style.right=Math.max(12,window.innerWidth-(rect&&rect.right||window.innerWidth-12))+'px';
-    var manager=(typeof isManager==='function'&&isManager());
-    var title=manager?'Department Approval Requests':'Risk & Incident Register Requests';
-    menu.innerHTML='<button type="button" class="grc-risk-profile-menu-item" data-grc-open-profile><b>'+esc(title)+'</b><small>'+
-      esc(manager?'View all current and previous department requests.':'View all your current and previous register requests.')+
-      '</small></button>';
-    document.body.appendChild(menu);
-    var open=menu.querySelector('[data-grc-open-profile]');
-    if(open)open.onclick=function(e){e.preventDefault();e.stopPropagation();menu.remove();window._grcRiskOpenProfile();};
-  }catch(err){console.error('[GRC Profile Menu]',err);}
-};
-// Some cached inline handlers call this symbol. Always replace invalid stale values.
+    if(typeof window._grcRiskOpenProfile==='function')return window._grcRiskOpenProfile();
+  };
+}
 if(typeof window._grcRiskOpenPrefillMenu!=='function'){
   window._grcRiskOpenPrefillMenu=function(){
-    try{
-      var el=document.querySelector('[data-grc-risk-prefill], .grc-risk-prefill-menu');
-      if(el&&typeof el.click==='function')el.click();
-    }catch(_){}
+    try{var el=document.querySelector('[data-grc-risk-prefill], .grc-risk-prefill-menu');if(el&&typeof el.click==='function')el.click();}catch(_){}
   };
 }
