@@ -1227,7 +1227,7 @@ window._selectPortal=async portal=>{
         }
         const live=_advNormalizeRow(source.id,source.data()||{},'advisory_requests');
         const stage=String(live.workflowStage||live.status||'').toLowerCase();
-        if(stage!=='pending_department_manager'){
+        if(!['pending_department_manager','returned_manager'].includes(stage)){
           try{await deleteDoc(_grcManagerQueueItemRef(profile.departmentKey,'review',requestId));}catch(_){}
           _grcReviewQueueSourceCache[requestId]=null;_grcReviewQueueSourceCacheAt[requestId]=now;return null;
         }
@@ -1248,7 +1248,7 @@ window._selectPortal=async portal=>{
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         const result={profile:fresh,review:[],risk:[],errors:[]},reviewMap={},riskMap={};
-        const addReview=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;/* Do NOT drop a routed request merely because the current manager account has the same email. Historical test accounts can submit as User/Owner and later be promoted to Department Manager; routing is determined by the queue path and the role stamped on the request. */if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');x._managerAssigned=true;reviewMap[key]=x;};
+        const addReview=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;/* Do NOT drop a routed request merely because the current manager account has the same email. Historical test accounts can submit as User/Owner and later be promoted to Department Manager; routing is determined by the queue path and the role stamped on the request. */if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;if(!['pending_department_manager','returned_manager'].includes(String(x.workflowStage||x.status||'').toLowerCase()))return;x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');x._managerAssigned=true;reviewMap[key]=x;};
         const addRisk=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});if(!x)return;/* Same-email requests must remain visible. The action layer blocks a true self-manager request, but hiding here made a valid department queue appear as 0 requests. */if(_advCanonicalDepartment(x.departmentKey||x.department||x.departmentRaw||'')!==fresh.departmentKey)return;/* Keep the full department history in the manager profile. The entry notification separately filters only rows that still require a manager action, so completed/published/rejected requests must not disappear from the manager's request list. */x._managerAssigned=true;riskMap[key]=x;};
         /* The department queue path is the manager's authoritative read model.
            Do not probe source collections here: historical rows can lack the
@@ -1305,7 +1305,7 @@ window._selectPortal=async portal=>{
         const key=String(id||row&&row.id||'');if(!key)return;
         const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;
         if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;
-        if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;
+        if(!['pending_department_manager','returned_manager'].includes(String(x.workflowStage||x.status||'').toLowerCase()))return;
         x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');
         x._managerAssigned=true;reviewMap[key]=x;
       };
@@ -1714,23 +1714,25 @@ window._selectPortal=async portal=>{
       const returnFields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
       requestId=String(requestId||'').trim();
       if(!requestId)throw new Error('Request ID is missing.');
-      if(!['approve','return','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
-      if((action==='return'||action==='reject')&&!managerComment)throw new Error(action==='return'?'A return note is required.':'A rejection reason is required.');
+      if(!['approve','resend','return','reject'].includes(String(action||'')))throw new Error('Unsupported action.');
+      if(['return','reject','resend'].includes(action)&&!managerComment)throw new Error(action==='return'?'A return note is required.':action==='resend'?'A resend note is required.':'A rejection reason is required.');
       let finalStage='',finalStatus='',closureReason='';
       if(action==='approve'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
       else if(action==='return'){finalStage='returned_requester';finalStatus='open';closureReason='returned_by_department_manager';}
       else{finalStage='rejected_manager';finalStatus='closed';closureReason='rejected_by_department_manager';}
-      const decision=action==='approve'?'approved':action==='return'?'returned':'rejected';
+      const decision=(action==='approve'||action==='resend')?'approved':action==='return'?'returned':'rejected';
       const nowIso=_advIso();
       const requestRef=doc(db,ADV_REQUESTS_COLLECTION,requestId);
-      /* v346 — Verify the authoritative source stage before writing. This prevents
-         a stale inbox projection from sending an already-forwarded request through
-         the manager decision path and producing a misleading permission-denied. */
+      let currentStage='pending_department_manager',currentData=null;
+      /* Verify the authoritative stage when readable. Department Approval Requests
+         use the same Risk/Incident route: a Super Admin return goes back to the
+         Department Manager as returned_manager, then the manager resends it. */
       try{
         const source=await getDoc(requestRef);
         if(source.exists()){
-          const stage=String((source.data()||{}).workflowStage||'').toLowerCase();
-          if(stage!=='pending_department_manager'){
+          currentData=source.data()||{};
+          currentStage=String(currentData.workflowStage||'').toLowerCase();
+          if(!['pending_department_manager','returned_manager'].includes(currentStage)){
             try{await deleteDoc(_grcManagerQueueItemRef(freshProfile.departmentKey,'review',requestId));}catch(_){}
             _grcReviewQueueSourceCache[requestId]=null;_grcReviewQueueSourceCacheAt[requestId]=Date.now();
             _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
@@ -1740,8 +1742,10 @@ window._selectPortal=async portal=>{
       }catch(stageError){
         const msg=String(stageError&&stageError.message||stageError||'');
         if(msg.indexOf('no longer awaiting Department Manager approval')>=0)throw stageError;
-        /* If GET is temporarily unavailable, proceed with the authorized UPDATE. */
       }
+      if(currentStage==='returned_manager' && action==='return')throw new Error('A request returned by Super Admin can only be resent to Super Admin or rejected.');
+      if(currentStage==='returned_manager' && action==='approve')action='resend';
+      if(action==='resend'){finalStage='pending_super_admin';finalStatus='open';closureReason='';}
       const updates={
         status:finalStatus,workflowStage:finalStage,closureReason:closureReason,
         managerDecision:decision,managerComment:managerComment,
@@ -1768,10 +1772,13 @@ window._selectPortal=async portal=>{
          active inbox item so the manager cannot keep seeing a stale pending copy.
          Queue cleanup is intentionally non-blocking: a cleanup failure must never
          undo a valid manager decision or prevent Super Admin from receiving it. */
-      try{await deleteDoc(_grcManagerQueueItemRef(freshProfile.departmentKey,'review',requestId));}
-      catch(queueCleanupErr){console.warn('[Review Development] manager inbox cleanup skipped',queueCleanupErr&&queueCleanupErr.code||queueCleanupErr);}
+      try{
+        const queueSnapshot=Object.assign({},currentData||{},updates,{id:requestId,updatedAtIso:nowIso});
+        await setDoc(_grcManagerQueueItemRef(freshProfile.departmentKey,'review',requestId),
+          _grcQueueItem('review',requestId,freshProfile.departmentKey,'',queueSnapshot),{merge:true});
+      }catch(queueCleanupErr){console.warn('[Review Development] manager inbox history sync skipped',queueCleanupErr&&queueCleanupErr.code||queueCleanupErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
-      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':action==='return'?'Returned for update ':'Rejected ')+requestId,{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:decision,comment:managerComment},{portal:'grc'});}catch(_){ }
+      try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',((action==='approve'||action==='resend')?'Approved and forwarded ':action==='return'?'Returned for update ':'Rejected ')+requestId,{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:decision,comment:managerComment},{portal:'grc'});}catch(_){ }
       return true;
     };
 
@@ -1796,7 +1803,8 @@ window._selectPortal=async portal=>{
       }
       else if(action==='return'){
         if(!messageText)throw new Error('A return note is required.');
-        status='open';workflowStage='returned_requester';closureReason='returned_by_super_admin';
+        status='open';workflowStage='returned_manager';closureReason='returned_by_super_admin';
+        updates.returnFields=[];updates.returnNote=messageText;updates.returnSource='super_admin';updates.returnedAt=serverTimestamp();
       }
       else if(action==='respond'){if(!messageText)throw new Error('A response is required.');status='closed';workflowStage='closed';closureReason='responded_by_super_admin';updates.respondedAt=serverTimestamp();updates.closedAt=serverTimestamp();publicUpdates.respondedAt=serverTimestamp();publicUpdates.closedAt=serverTimestamp();}
       else if(action==='request_info'){if(!messageText)throw new Error('An information request is required.');status='in_progress';workflowStage='awaiting_requester_information';}
