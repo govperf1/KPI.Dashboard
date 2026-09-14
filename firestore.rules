@@ -1,7 +1,7 @@
-// FIRESTORE SECURITY RULES v73 — Review & Development workflow recovery
-// v73: Restores end-to-end Review & Development workflow after v72 authorization
-// regressions. Keeps canonical department routing, restores requester reads, and
-// allows Department Manager decisions using the exact field set emitted by firebase.js.
+// FIRESTORE SECURITY RULES v74 — Authoritative Review inbox recovery
+// v74: Keeps v73 authorization and rejects stale Department Manager inbox projections
+// by treating advisory_requests as the only workflow authority in the client.
+// Rules keep manager decisions restricted to pending_department_manager source rows.
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
 service cloud.firestore {
@@ -626,7 +626,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // a unique v64 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId in ['v71-canonical-exact-request-reads-20260908','v72-review-manager-decision-20260910','v73-review-workflow-recovery-20260914'];
+      allow get: if approved() && versionId in ['v71-canonical-exact-request-reads-20260908','v72-review-manager-decision-20260910','v73-review-workflow-recovery-20260914','v74-authoritative-review-inbox-20260914'];
       allow list, create, update, delete: if false;
     }
 
