@@ -1569,8 +1569,26 @@ window._selectPortal=async portal=>{
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile(true));
       const dept=String(fresh.departmentKey||'').trim();if(!dept)return[];
       let rows=[];
-      try{const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)));rows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});}
-      catch(err){console.warn('[Review Development] manager history read failed',err&&err.code||err);}
+      // v81: the department inbox is the durable manager history projection.
+      // It is updated after every source transition, so processed requests stay
+      // visible without relying on a source collection query that historical
+      // aliases cannot always authorize.
+      try{
+        const qcol=collection(db,'grc_department_approval_inbox_v3',dept,'review');
+        const snap=await getDocsFromServer(qcol);
+        rows=snap.docs.map(function(d){
+          const q=d.data()||{},source=q.snapshot&&typeof q.snapshot==='object'?q.snapshot:q;
+          return _advNormalizeRow(String(q.requestId||d.id),source,'advisory_requests');
+        });
+      }catch(err){console.warn('[Review Development] manager queue history read failed',err&&err.code||err);}
+      // Fallback to the authoritative canonical query only when the queue is
+      // genuinely empty; this keeps new records discoverable after a migration.
+      if(!rows.length){
+        try{
+          const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)));
+          rows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+        }catch(err){console.warn('[Review Development] canonical history fallback failed',err&&err.code||err);}
+      }
       return _advMergeRows(rows,[],false);
     };
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
@@ -2401,12 +2419,15 @@ window._selectPortal=async portal=>{
       if(!_grcRiskEmail())return[];
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION);
       try{
-        // Canonical exact email query for both historical and current workflow rows.
-        return await _grcRiskReadMany([query(col,where('submittedByEmail','==',_grcRiskEmail())), query(col,where('submittedByUid','==',String(auth.currentUser&&auth.currentUser.uid||'')))]);
+        // v81: run the canonical email query first. A denied legacy UID query
+        // must never erase an otherwise authorized history for GRC Owner/Admin.
+        let rows=await _grcRiskRead(query(col,where('submittedByEmail','==',_grcRiskEmail())));
+        if(rows.length)return rows;
+        const uid=String(auth.currentUser&&auth.currentUser.uid||'');
+        if(uid)rows=await _grcRiskRead(query(col,where('submittedByUid','==',uid)));
+        return rows;
       }catch(err){
-        /* Compatibility fallback for legacy rows; manager approval data comes
-           from the department-scoped queue and remains independent. */
-        console.warn('[GRC Risk Requests] getMine compatibility fallback',err&&err.code||err);
+        console.warn('[GRC Risk Requests] getMine failed',err&&err.code||err);
         return [];
       }
     };
@@ -2437,8 +2458,19 @@ window._selectPortal=async portal=>{
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile(true));
       const dept=String(fresh.departmentKey||'').trim();if(!dept)return[];
       let rows=[];
-      try{rows=await _grcRiskRead(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',dept)));}
-      catch(err){console.warn('[GRC Risk Requests] manager history read failed',err&&err.code||err);}
+      // v81: read the same durable department projection used by the working
+      // manager queue. Pending and processed snapshots remain together here.
+      try{
+        const snap=await getDocsFromServer(collection(db,'grc_department_approval_inbox_v3',dept,'risk'));
+        rows=snap.docs.map(function(d){
+          const q=d.data()||{},source=q.snapshot&&typeof q.snapshot==='object'?q.snapshot:q;
+          return _grcRiskRequestData({id:String(q.requestId||d.id),data:function(){return source;}});
+        }).filter(Boolean);
+      }catch(err){console.warn('[GRC Risk Requests] manager queue history read failed',err&&err.code||err);}
+      if(!rows.length){
+        try{rows=await _grcRiskRead(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',dept)));}
+        catch(err){console.warn('[GRC Risk Requests] canonical history fallback failed',err&&err.code||err);}
+      }
       return Array.isArray(rows)?rows:[];
     };
     window._grcRiskRequestsGetAll=async function(){if(!_grcRiskIsAdmin())throw new Error('Access denied.');return _grcRiskRead(collection(db,GRC_RISK_REQUESTS_COLLECTION));};

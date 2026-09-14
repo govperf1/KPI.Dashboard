@@ -548,3 +548,13 @@
   document.addEventListener('click',function(e){var p=document.getElementById('_grcRiskNotifPanel'),b=document.getElementById('grcRiskNotifBtn');if(p&&(!b||!b.contains(e.target))&&!p.contains(e.target))p.remove();var m=document.getElementById('_grcUserProfileMenu'),u=document.querySelector('.grc-profile-trigger');if(m&&(!u||!u.contains(e.target))&&!m.contains(e.target))m.remove();},true);
   document.addEventListener('DOMContentLoaded',start);document.addEventListener('grc:portalChanged',start);document.addEventListener('grc:authReady',start);setInterval(refreshBadge,5000);
 })();
+
+
+// v81 compatibility: some cached UI markup from earlier builds still calls this
+// symbol. Keep it defined so a stale click never crashes the whole GRC workflow.
+window._grcRiskOpenPrefillMenu=window._grcRiskOpenPrefillMenu||function(){
+  try{
+    var el=document.querySelector('[data-grc-risk-prefill], .grc-risk-prefill-menu');
+    if(el&&typeof el.click==='function')el.click();
+  }catch(_){}
+};
