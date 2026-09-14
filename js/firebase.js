@@ -1029,7 +1029,7 @@ window._selectPortal=async portal=>{
        stopped valid requests before the real write was even attempted. */
     async function _advAssertRulesVersion(){
       if(window.__advRulesV71Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v76-request-visibility-20260914'));window.__advRulesV71Verified=true;return true;}
+      try{await _getServerDoc(doc(db,'system_rule_versions','v74-authoritative-review-inbox-20260914'));window.__advRulesV71Verified=true;return true;}
       catch(e){console.warn('[GRC Rules Probe] version probe unavailable; continuing with real Firestore authorization',e&&e.code||e&&e.message||e);return false;}
     }
     async function _advAssertProfileScope(profile){
@@ -1457,7 +1457,6 @@ window._selectPortal=async portal=>{
         }
         throw saveError;
       }
-      _advCacheOwnRow(Object.assign({id:requestId},base));
       if(file){try{
         const meta=await _advUploadFile(requestId,file,_advEmail()),attachmentUpdates={attachments:arrayUnion(meta),attachmentCount:1,updatedAt:serverTimestamp(),updatedAtIso:_advIso(),updatedBy:_advEmail()};
         await updateDoc(primaryRef,attachmentUpdates);
@@ -1490,20 +1489,6 @@ window._selectPortal=async portal=>{
         callback(rows,null);
       },function(err){callback([],err);});
     };
-    /* Session-local own-request cache. Firestore remains authoritative, but this prevents
-       a just-submitted request from disappearing from the Submitted table while a live
-       listener reconnects or a server read is briefly denied. */
-    const _advOwnSessionCache=new Map();
-    function _advCacheOwnRow(row){
-      if(!row||!row.id)return;
-      const email=String(row.userEmail||'').toLowerCase().trim(),uid=String(row.requesterUid||'').trim();
-      if((email&&email===_advEmail())||(uid&&uid===_advUid()))_advOwnSessionCache.set(String(row.id),row);
-    }
-    function _advMergeOwnCache(rows){
-      const map={};(rows||[]).forEach(function(r){if(r&&r.id)map[String(r.id)]=r;});
-      _advOwnSessionCache.forEach(function(r,id){if(r&&id&&!map[id])map[id]=r;});
-      return Object.keys(map).map(function(id){return map[id];}).sort(function(a,b){return _advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso);});
-    }
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
       /* My Requests is identity-based for every role, including Department
@@ -1531,8 +1516,7 @@ window._selectPortal=async portal=>{
           console.warn('[Review Development] legacy UID fallback unavailable',err&&err.code||err);
         }
       }
-      primary.forEach(_advCacheOwnRow);
-      return _advMergeOwnCache(_advMergeRows(primary,[],false));
+      return _advMergeRows(primary,[],false);
     };
     let _advisoryManagerLastQueue=[],_advisoryManagerLastOwn=[],_advisoryManagerLastRisk=[],_advisoryManagerOwnCacheAt=0,_advisoryManagerOwnCachePromise=null;
     window._advisoryGetManagerQueue=async function(){
@@ -1565,7 +1549,7 @@ window._selectPortal=async portal=>{
                   rows=legacy.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
                 }catch(_){}
               }
-              rows.forEach(_advCacheOwnRow);_advisoryManagerLastOwn=_advMergeOwnCache(rows);_advisoryManagerOwnCacheAt=Date.now();return _advisoryManagerLastOwn;
+              _advisoryManagerLastOwn=rows.slice();_advisoryManagerOwnCacheAt=Date.now();return rows;
             }catch(err){console.warn('[Review Development] manager own identity read failed; keeping last verified rows',err&&err.code||err);return _advisoryManagerLastOwn;}
             finally{_advisoryManagerOwnCachePromise=null;}
           })();
@@ -1628,7 +1612,7 @@ window._selectPortal=async portal=>{
            and masking a valid empty My Requests state. */
         try{
           ownUnsub=onSnapshot(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())),function(snap){
-            ownRows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});ownRows.forEach(_advCacheOwnRow);
+            ownRows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
             ownError='';emitManager();
           },function(err){
             ownRows=[];ownError=String(err&&err.code||err&&err.message||err||'listener-failed');
@@ -1980,7 +1964,7 @@ window._selectPortal=async portal=>{
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
       if(window.__grcRulesV71Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v76-request-visibility-20260914'));window.__grcRulesV71Verified=true;return true;}
+      try{await _getServerDoc(doc(db,'system_rule_versions','v74-authoritative-review-inbox-20260914'));window.__grcRulesV71Verified=true;return true;}
       catch(e){console.warn('[GRC Rules Probe] risk version probe unavailable; continuing with real Firestore authorization',e&&e.code||e&&e.message||e);return false;}
     }
     window._qumcAssertFirestoreRulesV69=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV64=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
