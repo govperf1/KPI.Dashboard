@@ -1,6 +1,7 @@
-// FIRESTORE SECURITY RULES v74 — Authoritative Review inbox recovery
-// v74: Keeps v73 authorization and rejects stale Department Manager inbox projections
-// by treating advisory_requests as the only workflow authority in the client.
+// FIRESTORE SECURITY RULES v75 — Manager authorization root-cause fix
+// v75: Removes queue-existence dependency from manager decisions and authorizes
+// the manager directly from the authenticated canonical department. The queue is
+// routing-only; a stale/missing projection can never block a valid source update.
 // Rules keep manager decisions restricted to pending_department_manager source rows.
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
@@ -650,7 +651,13 @@ service cloud.firestore {
     // Canonical V65 Department Manager inbox. The path is department-scoped
     // and split by workflow kind so manager queries are directly provable.
     match /grc_department_approval_inbox_v3/{departmentKey}/{kind}/{itemId} {
-      allow get, list: if approved() && kind in ['review','risk'] && (
+      // Queue is a department-scoped routing projection. Keep GET and LIST simple
+      // so an onSnapshot collection listener can be proven independently.
+      allow get: if approved() && kind in ['review','risk'] && (
+        role() in ['admin','super_admin'] ||
+        (role() == 'department_manager' && userDepartmentKey() == departmentKey)
+      );
+      allow list: if approved() && kind in ['review','risk'] && (
         role() in ['admin','super_admin'] ||
         (role() == 'department_manager' && userDepartmentKey() == departmentKey)
       );
@@ -789,10 +796,12 @@ service cloud.firestore {
     }
 
     function advisoryManagerCanAct(requestId, data) {
-      // Current records match the source department directly. Legacy records may
-      // retain an old alias, so the routed inbox assignment is accepted as the
-      // authoritative manager authorization for that exact request.
-      return advisoryManagerDepartmentMatch(data) || advisoryManagerQueueAssignment(requestId);
+      // ROOT-CAUSE FIX v75: advisory_requests is authoritative. Do not make the
+      // manager UPDATE depend on exists() for an inbox projection: a missing or
+      // stale queue document previously turned a valid manager decision into
+      // permission-denied. Department aliases are canonicalized by the direct
+      // department comparison above (for example Project_Management -> projects).
+      return advisoryManagerDepartmentMatch(data);
     }
 
     function validAdvisoryManagerChange(requestId) {
