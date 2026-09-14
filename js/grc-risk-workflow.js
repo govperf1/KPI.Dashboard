@@ -538,67 +538,48 @@
   window._grcRiskOpenNotifications=function(ev){if(ev){ev.preventDefault();ev.stopPropagation();}start();var old=document.getElementById('_grcRiskNotifPanel');if(old){old.remove();return;}var btn=document.getElementById('grcRiskNotifBtn'),rect=btn&&btn.getBoundingClientRect(),panel=document.createElement('div');panel.id='_grcRiskNotifPanel';panel.className='grc-risk-notif-panel';panel.style.top=((rect&&rect.bottom||70)+8)+'px';panel.style.right=Math.max(12,window.innerWidth-(rect&&rect.right||window.innerWidth-20))+'px';panel.innerHTML='<header><b>'+esc(isAr()?'إشعارات سجل المخاطر والحوادث':'Risk & Incident Register Notifications')+'</b><div class="grc-risk-notif-head-actions"><button type="button" data-grc-mark-all class="grc-risk-notif-mark">'+esc(isAr()?'تحديد الكل كمقروء':'Mark all read')+'</button><button type="button" class="grc-risk-notif-close" onclick="document.getElementById(\'_grcRiskNotifPanel\').remove()">×</button></div></header><div class="grc-risk-notif-list"></div>';document.body.appendChild(panel);renderNotificationPanel(panel);};
   window._grcRiskRefreshUi=function(){start();refreshBadge();scheduleApprovalNotice(false);};
 
-  // v92: restore the original profile behavior. Clicking the account badge opens
-  // the full role-aware profile overlay directly (no intermediate hidden menu).
+  /* v93 PROFILE RESTORE — use the original QUMC profile card, not the
+     Risk & Incident Registers overlay. The role-specific request page is an
+     explicit action inside the original card. */
+  function profileRoleLabel(r){return ({super_admin:'Super Admin',admin:'Admin',department_manager:'Department Manager',dept_manager:'Department Manager',risk_owner:'Risk Owner',grc_owner:'GRC Owner',platform_owner:'Platform Owner',governance_performance_manager:'Governance & Performance Manager',viewer:'Viewer'})[r]||String(r||'—').replace(/_/g,' ');}
+  function profileName(){return String(window._fbName||window.currentUserName||window._fbUser||window.currentUserEmail||'User').split('@')[0];}
+  function profileEmail(){return String(window._fbUser||window.currentUserEmail||window._fbEmail||'—');}
+  function profileDepartment(){return String(window._fbDept||window.currentUserDept||'—')||'—';}
+  function closeOriginalProfile(){var p=document.getElementById('userProfileDrop');if(p){p.style.display='none';p.classList.remove('qumc-profile-open','qumc-final-open');}}
+  function profileAction(){var r=role();
+    if(isManager())return {label:'Department Approval Requests',open:function(){if(typeof window._grcSwitch==='function')window._grcSwitch('advisory');setTimeout(function(){if(typeof window._advSwitchView==='function')window._advSwitchView('requests');},0);}};
+    if(r==='risk_owner'||r==='grc_owner')return {label:'Risk & Incident Register Requests',open:function(){if(typeof window._grcRiskOpenProfile==='function')window._grcRiskOpenProfile();}};
+    if(['super_admin','admin','platform_owner','governance_performance_manager'].indexOf(r)>=0)return {label:'GRC Approval Requests',open:function(){if(typeof window._grcSwitch==='function')window._grcSwitch('advisory');setTimeout(function(){if(typeof window._advSwitchView==='function')window._advSwitchView('requests');},0);}};
+    return null;
+  }
+  function prepareOriginalProfile(){
+    var p=document.getElementById('userProfileDrop');if(!p)return null;
+    var name=profileName(),r=role(),emailValue=profileEmail(),dept=profileDepartment();
+    var values={profileName:name,profileEmail:emailValue,profileNameRow:name,profileRoleRow:profileRoleLabel(r),profileDeptRow:dept,profileLastLoginRow:'Current session',profileAvatar:(name||'U').charAt(0).toUpperCase()};
+    Object.keys(values).forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=values[id];});
+    ['_profileReqBtns','_grcProfileRoleAction'].forEach(function(id){var el=document.getElementById(id);if(el)el.remove();});
+    var action=profileAction();
+    if(action){var wrap=document.createElement('div');wrap.id='_grcProfileRoleAction';wrap.className='qumc-profile-requests-panel';wrap.style.cssText='display:flex;flex-direction:column;gap:8px;padding:12px;border-top:1px solid rgba(15,23,42,.08);margin-top:4px;';wrap.innerHTML='<div class="qumc-profile-section-title" style="margin:0 0 2px">Requests</div><button type="button" class="qumc-profile-request-btn qumc-profile-request-btn-primary" style="width:100%;padding:9px 12px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.28);border-radius:12px;color:#0195af;font-size:10px;font-weight:800;cursor:pointer;text-align:left;">'+esc(action.label)+'</button>';var logout=p.querySelector('#profileLogoutBtn,.qumc-logout-btn');if(logout)logout.parentNode.insertBefore(wrap,logout);else p.appendChild(wrap);wrap.querySelector('button').onclick=function(e){e.preventDefault();e.stopPropagation();closeOriginalProfile();action.open();};}
+    return p;
+  }
   window._grcRiskOpenProfileMenu=function(ev){
-    try{
-      if(ev){
-        ev.preventDefault();ev.stopPropagation();
-        if(ev.__grcProfileOpenHandled)return;
-        try{ev.__grcProfileOpenHandled=true;}catch(_){}
-      }
-      var existing=document.getElementById('_grcUserProfileMenu');
-      if(existing)existing.remove();
-      if(typeof window._grcRiskOpenProfile==='function')return window._grcRiskOpenProfile();
-      console.warn('[GRC Profile] profile overlay is not ready');
-    }catch(err){console.error('[GRC Profile]',err);}
+    try{if(ev){ev.preventDefault();ev.stopPropagation();if(ev.stopImmediatePropagation)ev.stopImmediatePropagation();}
+      var p=prepareOriginalProfile(),anchor=document.querySelector('.grc-profile-trigger');if(!p||!anchor)return false;
+      var open=p.style.display==='block';closeOriginalProfile();if(open)return false;
+      if(p.parentElement!==document.body)document.body.appendChild(p);
+      var rect=anchor.getBoundingClientRect(),width=320;p.style.position='fixed';p.style.width=width+'px';p.style.top=(rect.bottom+10)+'px';p.style.left=Math.max(12,Math.min(window.innerWidth-width-12,rect.right-width))+'px';p.style.right='auto';p.style.zIndex='2147483646';p.style.display='block';p.classList.add('qumc-profile-open','qumc-final-open');return false;
+    }catch(err){console.error('[GRC Original Profile]',err);return false;}
   };
-
-  window._grcRiskBindHeader=function(){
-    var not=document.getElementById('grcRiskNotifBtn'),usr=document.querySelector('.grc-profile-trigger');
-    if(not&&!not.dataset.grcBound){not.dataset.grcBound='1';not.onclick=function(e){e.preventDefault();e.stopPropagation();window._grcRiskOpenNotifications(e);};}
-    if(usr){
-      // Compatibility for stale header handlers that call usr.openProfileMenu().
-      usr.openProfileMenu=function(e){return window._grcRiskOpenProfileMenu(e);};
-      if(!usr.dataset.grcBound){usr.dataset.grcBound='1';usr.onclick=function(e){e.preventDefault();e.stopPropagation();window._grcRiskOpenProfileMenu(e);};}
-    }
-    start();refreshBadge();
-  };
-
-  document.addEventListener('click',function(e){var p=document.getElementById('_grcRiskNotifPanel'),b=document.getElementById('grcRiskNotifBtn');if(p&&(!b||!b.contains(e.target))&&!p.contains(e.target))p.remove();var m=document.getElementById('_grcUserProfileMenu'),u=document.querySelector('.grc-profile-trigger');if(m&&(!u||!u.contains(e.target))&&!m.contains(e.target))m.remove();},true);
+  window._grcRiskBindHeader=function(){var not=document.getElementById('grcRiskNotifBtn'),usr=document.querySelector('.grc-profile-trigger');if(not&&!not.dataset.grcBound){not.dataset.grcBound='1';not.onclick=function(e){e.preventDefault();e.stopPropagation();window._grcRiskOpenNotifications(e);};}if(usr){usr.dataset.grcBound='original-profile';usr.openProfileMenu=function(e){return window._grcRiskOpenProfileMenu(e);};usr.onclick=function(e){return window._grcRiskOpenProfileMenu(e);};}start();refreshBadge();};
+  document.addEventListener('click',function(e){var p=document.getElementById('_grcRiskNotifPanel'),b=document.getElementById('grcRiskNotifBtn');if(p&&(!b||!b.contains(e.target))&&!p.contains(e.target))p.remove();var profile=document.getElementById('userProfileDrop'),u=document.querySelector('.grc-profile-trigger');if(profile&&profile.style.display==='block'&&(!u||!u.contains(e.target))&&!profile.contains(e.target))closeOriginalProfile();},true);
   document.addEventListener('DOMContentLoaded',start);document.addEventListener('grc:portalChanged',start);document.addEventListener('grc:authReady',start);setInterval(refreshBadge,5000);
+
 })();
 
 
 
-// v83 global compatibility for any cached inline markup. The real implementation is
-// defined above inside the workflow closure.
-if(typeof window._grcRiskOpenProfileMenu!=='function'){
-  window._grcRiskOpenProfileMenu=function(ev){
-    if(ev){ev.preventDefault();ev.stopPropagation();}
-    if(typeof window._grcRiskOpenProfile==='function')return window._grcRiskOpenProfile();
-  };
-}
-if(typeof window._grcRiskOpenPrefillMenu!=='function'){
-  window._grcRiskOpenPrefillMenu=function(){
-    try{var el=document.querySelector('[data-grc-risk-prefill], .grc-risk-prefill-menu');if(el&&typeof el.click==='function')el.click();}catch(_){}
-  };
-}
-
-
-/* v92 profile bridge: direct full overlay, one handler only. */
+/* v93 original-profile compatibility */
 (function(){
-  function bind(){
-    document.querySelectorAll('.grc-profile-trigger').forEach(function(el){
-      if(el.dataset&&el.dataset.grcV92Bound==='1')return;
-      if(el.dataset)el.dataset.grcV92Bound='1';
-      try{el.removeAttribute('onclick');}catch(_){}
-      el.openProfileMenu=function(e){return window._grcRiskOpenProfileMenu(e);};
-      el.onclick=function(e){return window._grcRiskOpenProfileMenu(e);};
-    });
-  }
-  document.addEventListener('DOMContentLoaded',bind);
-  document.addEventListener('grc:portalChanged',function(){setTimeout(bind,0);});
-  document.addEventListener('grc:authReady',function(){setTimeout(bind,0);});
-  setInterval(bind,1500);bind();
+  function bind(){document.querySelectorAll('.grc-profile-trigger').forEach(function(el){el.openProfileMenu=function(e){return window._grcRiskOpenProfileMenu&&window._grcRiskOpenProfileMenu(e);};el.onclick=function(e){return window._grcRiskOpenProfileMenu&&window._grcRiskOpenProfileMenu(e);};});}
+  document.addEventListener('DOMContentLoaded',bind);document.addEventListener('grc:portalChanged',function(){setTimeout(bind,0);});document.addEventListener('grc:authReady',function(){setTimeout(bind,0);});bind();
 })();
