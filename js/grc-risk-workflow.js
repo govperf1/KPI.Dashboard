@@ -544,33 +544,100 @@
   // v85: a single physical click could execute both the legacy inline onclick
   // and the header bridge. The second execution removed the menu immediately,
   // making the profile appear to do nothing without any console error.
+  // v86: Restore the original full profile card. v85 replaced the profile with a
+  // one-line action menu; that changed the UI and hid the normal user information.
+  // Keep the original card structure and add only role-authorized GRC actions.
   window._grcRiskOpenProfileMenu=function(ev){
     try{
       if(ev){
-        if(ev.__grcProfileMenuHandled)return;
+        if(ev.__grcProfileMenuHandled)return false;
         try{ev.__grcProfileMenuHandled=true;}catch(_){}
         ev.preventDefault();ev.stopPropagation();
       }
-      var old=document.getElementById('_grcUserProfileMenu');
-      if(old)return;
+      var existing=document.getElementById('_grcUserProfileDrop');
+      if(existing){
+        existing.remove();
+        return false;
+      }
       var trigger=(ev&&ev.currentTarget&&ev.currentTarget.closest&&ev.currentTarget.closest('.grc-profile-trigger'))||document.querySelector('.grc-profile-trigger');
-      var rect=trigger&&trigger.getBoundingClientRect();
+      var name=String((window._fbName||window.currentUserName||email()||'User')).trim();
+      var mail=String(email()||window._fbEmail||window.currentUserEmail||'—').trim();
+      var rawRole=String(role()||window._fbRole||'').trim();
+      var roleMap={super_admin:'Super Admin',admin:'Admin',platform_owner:'Platform Owner',grc_owner:'GRC Owner',risk_owner:'Risk Owner',department_manager:'Department Manager',viewer:'Viewer',governance_performance_manager:'Governance & Performance Manager'};
+      var roleLabel=roleMap[rawRole]||rawRole||'—';
+      var department=String(window._fbDept||window.currentUserDept||'—').replace(/_/g,' ');
+      var initial=(name||'U').charAt(0).toUpperCase();
       var menu=document.createElement('div');
-      menu.id='_grcUserProfileMenu';
-      menu.className='grc-risk-user-profile-menu';
-      menu.style.position='fixed';menu.style.zIndex='2147483000';menu.style.minWidth='300px';menu.style.maxWidth='calc(100vw - 24px)';menu.style.background='#fff';menu.style.border='1px solid #c9dbe1';menu.style.borderRadius='14px';menu.style.boxShadow='0 18px 44px rgba(9,35,48,.24)';menu.style.padding='6px';
-      menu.style.top=((rect&&rect.bottom||70)+8)+'px';
-      menu.style.right=Math.max(12,window.innerWidth-(rect&&rect.right||window.innerWidth-12))+'px';
-      var manager=isManager();
-      var title=manager?'Department Approval Requests':'Risk & Incident Register Requests';
-      var copy=manager?'View all current and previous department requests.':'View all your current and previous register requests.';
-      menu.innerHTML='<button type="button" class="grc-risk-profile-menu-item" data-grc-open-profile style="display:block;width:100%;text-align:left;border:0;background:#fff;color:#17384a;border-radius:10px;padding:12px 14px;cursor:pointer;font-family:inherit"><b style="display:block;font-size:12px">'+esc(title)+'</b><small style="display:block;margin-top:5px;color:#708792;font-size:10px;line-height:1.45">'+esc(copy)+'</small></button>';
-      document.body.appendChild(menu);
-      var open=menu.querySelector('[data-grc-open-profile]');
-      if(open)open.onclick=function(e){e.preventDefault();e.stopPropagation();menu.remove();if(typeof window._grcRiskOpenProfile==='function')window._grcRiskOpenProfile();};
-    }catch(err){console.error('[GRC Profile Menu]',err);}
-  };
+      menu.id='_grcUserProfileDrop';
+      menu.className='qumc-profile-drop qumc-profile-glass';
+      menu.setAttribute('data-grc-profile-card','1');
+      menu.style.display='block';
+      menu.style.zIndex='2147483640';
+      menu.style.maxHeight='calc(100vh - 20px)';
+      menu.style.overflowY='auto';
 
+      var actions='';
+      var manager=isManager();
+      var adminRole=['super_admin','admin','platform_owner','governance_performance_manager'].indexOf(rawRole)>=0;
+      var ownerRole=['grc_owner','risk_owner'].indexOf(rawRole)>=0;
+
+      if(manager){
+        actions='<div id="_profileReqBtns" class="qumc-profile-requests-panel" style="display:flex;flex-direction:column;gap:8px;padding:12px">'+
+          '<div style="font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Requests</div>'+
+          '<button type="button" data-grc-profile-action="approval" class="qumc-profile-request-btn qumc-profile-request-btn-primary" style="width:100%;padding:9px 12px;border-radius:12px;cursor:pointer;text-align:left">📋 Department Approval Requests</button>'+
+          '</div>';
+      }else if(adminRole){
+        actions='<div id="_profileReqBtns" class="qumc-profile-requests-panel" style="display:flex;flex-direction:column;gap:8px;padding:12px">'+
+          '<div style="font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Approvals</div>'+
+          '<button type="button" data-grc-profile-action="approval" class="qumc-profile-request-btn qumc-profile-request-btn-primary" style="width:100%;padding:9px 12px;border-radius:12px;cursor:pointer;text-align:left">📋 GRC Approval Requests</button>'+
+          '</div>';
+      }else if(ownerRole){
+        actions='<div id="_profileReqBtns" class="qumc-profile-requests-panel" style="display:flex;flex-direction:column;gap:8px;padding:12px">'+
+          '<div style="font-size:9px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em">Requests</div>'+
+          '<button type="button" data-grc-profile-action="approval" class="qumc-profile-request-btn qumc-profile-request-btn-primary" style="width:100%;padding:9px 12px;border-radius:12px;cursor:pointer;text-align:left">📋 Risk & Incident Register Requests</button>'+
+          '</div>';
+      }
+
+      menu.innerHTML=
+        '<div class="qumc-profile-head">'+
+          '<div class="qumc-profile-avatar">'+esc(initial)+'</div>'+
+          '<div style="min-width:0"><div class="qumc-profile-name">'+esc(name)+'</div><div class="qumc-profile-email">'+esc(mail)+'</div></div>'+
+        '</div>'+
+        '<div class="qumc-profile-section-title">Profile</div>'+
+        '<div class="qumc-profile-grid">'+
+          '<span>Name</span><b>'+esc(name)+'</b>'+
+          '<span>Role</span><b>'+esc(roleLabel)+'</b>'+
+          '<span>Department</span><b>'+esc(department)+'</b>'+
+          '<span>Last Login</span><b>Current session</b>'+
+        '</div>'+
+        actions+
+        '<button class="qumc-logout-btn" data-grc-profile-logout type="button">↪ Logout</button>';
+
+      document.body.appendChild(menu);
+      var rect=trigger&&trigger.getBoundingClientRect();
+      var width=Math.min(340,window.innerWidth-24);
+      menu.style.width=width+'px';
+      var right=12;
+      if(rect) right=Math.max(12,window.innerWidth-rect.right);
+      menu.style.right=right+'px';
+      menu.style.top=((rect&&rect.bottom)||58)+8+'px';
+
+      var action=menu.querySelector('[data-grc-profile-action="approval"]');
+      if(action)action.onclick=function(e){
+        e.preventDefault();e.stopPropagation();
+        menu.remove();
+        if(typeof window._grcRiskOpenProfile==='function')window._grcRiskOpenProfile();
+      };
+      var logout=menu.querySelector('[data-grc-profile-logout]');
+      if(logout)logout.onclick=function(e){
+        e.preventDefault();e.stopPropagation();
+        menu.remove();
+        if(typeof window.qumcLogoutToLogin==='function')return window.qumcLogoutToLogin(e);
+        if(typeof window._doLogout==='function')return window._doLogout();
+      };
+      return false;
+    }catch(err){console.error('[GRC Profile Menu]',err);return false;}
+  };
   window._grcRiskBindHeader=function(){
     var not=document.getElementById('grcRiskNotifBtn'),usr=document.querySelector('.grc-profile-trigger');
     if(not&&!not.dataset.grcBound){not.dataset.grcBound='1';not.onclick=function(e){e.preventDefault();e.stopPropagation();window._grcRiskOpenNotifications(e);};}
@@ -582,7 +649,7 @@
     start();refreshBadge();
   };
 
-  document.addEventListener('click',function(e){var p=document.getElementById('_grcRiskNotifPanel'),b=document.getElementById('grcRiskNotifBtn');if(p&&(!b||!b.contains(e.target))&&!p.contains(e.target))p.remove();var m=document.getElementById('_grcUserProfileMenu'),u=document.querySelector('.grc-profile-trigger');if(m&&(!u||!u.contains(e.target))&&!m.contains(e.target))m.remove();},true);
+  document.addEventListener('click',function(e){var p=document.getElementById('_grcRiskNotifPanel'),b=document.getElementById('grcRiskNotifBtn');if(p&&(!b||!b.contains(e.target))&&!p.contains(e.target))p.remove();var m=document.getElementById('_grcUserProfileDrop'),u=document.querySelector('.grc-profile-trigger');if(m&&(!u||!u.contains(e.target))&&!m.contains(e.target))m.remove();},true);
   document.addEventListener('DOMContentLoaded',start);document.addEventListener('grc:portalChanged',start);document.addEventListener('grc:authReady',start);setInterval(refreshBadge,5000);
 })();
 
