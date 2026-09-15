@@ -1504,28 +1504,35 @@ window._selectPortal=async portal=>{
       _advOwnSessionCache.forEach(function(r,id){if(r&&id&&!map[id])map[id]=r;});
       return Object.keys(map).map(function(id){return map[id];}).sort(function(a,b){return _advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso);});
     }
-    /* My Requests uses the authenticated UID as the primary identity. Email is
-       only a compatibility fallback for historical requests. This is important
-       when a user's email/account details have been changed: requesterUid remains
-       stable and must not cause the submitted request history to disappear. */
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
-      const me=_advEmail(),uid=_advUid();
-      let primary=[];
-      if(uid){
+      const me=_advEmail(),uid=_advUid(),role=_advRole(),dept=_advDepartmentKey();
+      // Department-scoped GRC owners use the department history, not current
+      // account identity. This keeps historical requests visible after an
+      // account/email change and matches the Risk & Incident register behavior.
+      if(['risk_owner','grc_owner','platform_owner'].includes(role) && dept){
         try{
-          const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
-          primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+          const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)));
+          const rows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+          rows.forEach(_advCacheOwnRow);
+          return _advMergeRows(rows,[],false);
         }catch(err){
-          console.warn('[Review Development] getMine UID path unavailable',err&&err.code||err);
+          console.warn('[Review Development] department history read failed',err&&err.code||err);
         }
       }
-      if(!primary.length){
+      let primary=[];
+      try{
+        const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
+        primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+      }catch(err){
+        console.warn('[Review Development] getMine email path failed',err&&err.code||err);
+      }
+      if(!primary.length&&uid){
         try{
-          const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
+          const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
           primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
         }catch(err){
-          console.warn('[Review Development] getMine email compatibility path unavailable',err&&err.code||err);
+          console.warn('[Review Development] legacy UID fallback unavailable',err&&err.code||err);
         }
       }
       primary.forEach(_advCacheOwnRow);
@@ -1554,16 +1561,12 @@ window._selectPortal=async portal=>{
             try{
               const me=_advEmail(),uid=_advUid();
               let rows=[];
-              if(uid){
+              const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
+              rows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+              if(!rows.length&&uid){
                 try{
-                  const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
-                  rows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
-                }catch(_){}
-              }
-              if(!rows.length){
-                try{
-                  const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
-                  rows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+                  const legacy=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
+                  rows=legacy.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
                 }catch(_){}
               }
               rows.forEach(_advCacheOwnRow);_advisoryManagerLastOwn=_advMergeOwnCache(rows);_advisoryManagerOwnCacheAt=Date.now();return _advisoryManagerLastOwn;
@@ -1687,8 +1690,15 @@ window._selectPortal=async portal=>{
         }else{
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
         }
-      }else if(_advIsAdmin()||_advCanAnalyze()){
-        // Authorized analytics roles read only the authoritative collection.
+      }else if(_advIsAdmin()){
+        // Admin/Super Admin can read the authoritative collection.
+        listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
+      }else if(['risk_owner','grc_owner','platform_owner'].includes(_advRole())&&_advDepartmentKey()){
+        // Department-scoped GRC owners receive the complete request history for
+        // their department. Never use a full collection listener here; Firestore
+        // cannot authorize it for department-scoped roles.
+        listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',_advDepartmentKey())),'advisory_requests');
+      }else if(_advCanAnalyze()){
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
       }else{
         // One exact ownership listener. Compatibility fallbacks were causing
@@ -2450,9 +2460,11 @@ window._selectPortal=async portal=>{
       }
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
       if(_grcRiskIsAdmin())qrefs.push(col);
-      else{
-        // Operational users subscribe only to their own exact canonical request set.
-        // Department-wide approval routing is handled through the manager inbox.
+      else if(['risk_owner','grc_owner','platform_owner'].includes(_grcRiskRole()) && _grcRiskDept()){
+        // Risk/Incident Register Requests are department-scoped for GRC owners:
+        // show the complete request history for the user's department.
+        qrefs.push(query(col,where('departmentKey','==',_grcRiskDept())));
+      }else{
         qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
       }
       const sources={},unsubs=[],failed={};let successCount=0;
