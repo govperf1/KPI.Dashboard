@@ -214,6 +214,20 @@ service cloud.firestore {
       return signedIn() && u.approved == true ? profileDepartmentKeyFrom(u) : '';
     }
 
+    // Direct stored-value aliases used by older request documents. This helper is
+    // intentionally a plain list of literal values so Firestore can prove `in`
+    // queries; canonicalDepartment(resource.data) is not query-proofable.
+    function userDepartmentAliases() {
+      let d = userDepartmentKey();
+      return d == 'projects' ? ['projects','Projects','project','Project','PRJ','PM','PMD','pmd','prj','Project_Management','Project Management','project_management','project-management','project/management','projects_management','Projects Management'] :
+        d == 'maintenance' ? ['maintenance','Maintenance','MNT','mnt','maintenance_management','Maintenance_Management','Maintenance Management'] :
+        d == 'safety' ? ['safety','Safety','SAF','saf','safety_management','Safety_Management','Safety Management'] :
+        d == 'housekeeping' ? ['housekeeping','Housekeeping','HSK','hsk','HK','hk','cleaning','housekeeping_management','Housekeeping_Management','Housekeeping Management'] :
+        d == 'laundry' ? ['laundry','Laundry','LND','lnd','LUND','lund','laundry_management','Laundry_Management','Laundry Management'] :
+        d == 'governance' ? ['governance','Governance','GOV','gov','performance','Performance','governance_performance','Governance_Performance'] :
+        d == 'division' ? ['division','Division','FMS','Facility Management','Facilities Management'] : [d];
+    }
+
     function sameDepartment(value) {
       let u = userData();
       let d = profileDepartmentKeyFrom(u);
@@ -627,7 +641,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // a unique v64 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId in ['v71-canonical-exact-request-reads-20260908','v72-review-manager-decision-20260910','v73-review-workflow-recovery-20260914','v74-authoritative-review-inbox-20260914','v75-manager-approval-source-authoritative-20260914','v76-request-visibility-20260914'];
+      allow get: if approved() && versionId in ['v71-canonical-exact-request-reads-20260908','v72-review-manager-decision-20260910','v73-review-workflow-recovery-20260914','v74-authoritative-review-inbox-20260914','v75-manager-approval-source-authoritative-20260914','v77-department-history-query-proof-20260915'];
       allow list, create, update, delete: if false;
     }
 
@@ -891,9 +905,9 @@ service cloud.firestore {
         (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
       );
       allow get: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
-        ((('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == userDepartmentKey()) ||
-         (('department' in resource.data) && canonicalDepartment(resource.data.department) == userDepartmentKey()) ||
-         (('departmentRaw' in resource.data) && canonicalDepartment(resource.data.departmentRaw) == userDepartmentKey()));
+        ((('departmentKey' in resource.data) && resource.data.departmentKey in userDepartmentAliases()) ||
+         (('department' in resource.data) && resource.data.department in userDepartmentAliases()) ||
+         (('departmentRaw' in resource.data) && resource.data.departmentRaw in userDepartmentAliases()));
       allow get: if advisoryManagerCanRead(resource.data);
       allow get: if departmentManager() && ('departmentKey' in resource.data) &&
         canonicalDepartment(resource.data.departmentKey) == userDepartmentKey();
@@ -911,9 +925,11 @@ service cloud.firestore {
       // submitted by their current account/email. This is the same visibility
       // model used by the Risk & Incident request register.
       allow list: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
-        ((('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == userDepartmentKey()) ||
-         (('department' in resource.data) && canonicalDepartment(resource.data.department) == userDepartmentKey()) ||
-         (('departmentRaw' in resource.data) && canonicalDepartment(resource.data.departmentRaw) == userDepartmentKey()));
+        (('departmentKey' in resource.data) && resource.data.departmentKey in userDepartmentAliases());
+      allow list: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
+        (('department' in resource.data) && resource.data.department in userDepartmentAliases());
+      allow list: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
+        (('departmentRaw' in resource.data) && resource.data.departmentRaw in userDepartmentAliases());
       // Department Manager source history is read through an exact canonical
       // department query; active approval rows are also available from inbox_v3.
       allow list: if departmentManager() && resource.data.departmentKey == userDepartmentKey();
@@ -1028,9 +1044,7 @@ service cloud.firestore {
       let d = profileDepartmentKeyFrom(u);
       return signedIn() && u.approved == true &&
         r in ['department_manager','risk_owner','grc_owner','platform_owner'] && d != '' &&
-        ((('departmentKey' in data) && canonicalDepartment(data.departmentKey) == d) ||
-         (('department' in data) && canonicalDepartment(data.department) == d) ||
-         (('departmentRaw' in data) && canonicalDepartment(data.departmentRaw) == d));
+        ('departmentKey' in data) && data.departmentKey in userDepartmentAliases();
     }
 
     function validRiskStatusOverride(data) {
@@ -1088,7 +1102,11 @@ service cloud.firestore {
 
       // Direct opens retain compatibility with historical aliases.
       allow get: if canReadRiskIncidentWorkflow() && (
-        admin() || riskRequestOwner(resource.data) || riskRequestDepartment(resource.data)
+        admin() || riskRequestOwner(resource.data) || riskRequestDepartment(resource.data) ||
+        (role() in ['risk_owner','grc_owner','platform_owner'] &&
+         (('departmentKey' in resource.data) && resource.data.departmentKey in userDepartmentAliases() ||
+          ('department' in resource.data) && resource.data.department in userDepartmentAliases() ||
+          ('departmentRaw' in resource.data) && resource.data.departmentRaw in userDepartmentAliases()))
       );
       allow get: if departmentManager() && riskRequestDepartment(resource.data);
       // Department Manager approval queues are normally keyed by departmentKey.

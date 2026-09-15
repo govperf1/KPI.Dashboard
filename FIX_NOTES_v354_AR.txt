@@ -1,0 +1,1 @@
+إصلاح v354: إصلاح قراءة تاريخ الطلبات حسب القسم باستخدام استعلامات Firestore قابلة لإثبات الصلاحية، إصلاح فتح Show للمالكين على مستوى القسم، وإصلاح Risk & Incident Register Requests. يجب نشر firestore.rules ثم عمل Hard Refresh.
