@@ -1504,31 +1504,28 @@ window._selectPortal=async portal=>{
       _advOwnSessionCache.forEach(function(r,id){if(r&&id&&!map[id])map[id]=r;});
       return Object.keys(map).map(function(id){return map[id];}).sort(function(a,b){return _advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso);});
     }
+    /* My Requests uses the authenticated UID as the primary identity. Email is
+       only a compatibility fallback for historical requests. This is important
+       when a user's email/account details have been changed: requesterUid remains
+       stable and must not cause the submitted request history to disappear. */
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
-      /* My Requests is identity-based for every role, including Department
-         Managers. A manager's own request can leave the department action queue
-         after it is forwarded to Super Admin, so using the queue as "My Requests"
-         made the requester row disappear even though the source request existed. */
       const me=_advEmail(),uid=_advUid();
       let primary=[];
-      let emailReadFailed=false;
-      try{
-        const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
-        primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
-      }catch(err){
-        emailReadFailed=true;
-        console.warn('[Review Development] getMine email path failed',err&&err.code||err);
-      }
-      /* Only use the legacy UID path when the canonical email query succeeded
-         and simply found no legacy rows. Retrying another denied query produced
-         misleading permission noise and could hide the real authorization fault. */
-      if(!emailReadFailed&&!primary.length&&uid){
+      if(uid){
         try{
-          const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
+          const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
           primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
         }catch(err){
-          console.warn('[Review Development] legacy UID fallback unavailable',err&&err.code||err);
+          console.warn('[Review Development] getMine UID path unavailable',err&&err.code||err);
+        }
+      }
+      if(!primary.length){
+        try{
+          const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
+          primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+        }catch(err){
+          console.warn('[Review Development] getMine email compatibility path unavailable',err&&err.code||err);
         }
       }
       primary.forEach(_advCacheOwnRow);
@@ -1557,12 +1554,16 @@ window._selectPortal=async portal=>{
             try{
               const me=_advEmail(),uid=_advUid();
               let rows=[];
-              const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
-              rows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
-              if(!rows.length&&uid){
+              if(uid){
                 try{
-                  const legacy=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
-                  rows=legacy.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+                  const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
+                  rows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+                }catch(_){}
+              }
+              if(!rows.length){
+                try{
+                  const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
+                  rows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
                 }catch(_){}
               }
               rows.forEach(_advCacheOwnRow);_advisoryManagerLastOwn=_advMergeOwnCache(rows);_advisoryManagerOwnCacheAt=Date.now();return _advisoryManagerLastOwn;
@@ -2449,19 +2450,9 @@ window._selectPortal=async portal=>{
       }
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
       if(_grcRiskIsAdmin())qrefs.push(col);
-      else if(['risk_owner','grc_owner','platform_owner'].includes(_grcRiskRole())){
-        // Risk/Incident Register Requests is a department-scoped register for
-        // authorized owners, not a "My Requests" list. Show the complete
-        // department request history (all statuses) while keeping Firestore
-        // authorization query-compatible. Legacy rows may use department or
-        // departmentRaw, so merge all three exact department paths.
-        const dept=String(window._grcCanonicalDepartment?window._grcCanonicalDepartment(window._fbDept||window.currentUserDept||''):(window._fbDept||window.currentUserDept||'')).trim().toLowerCase();
-        if(dept){
-          qrefs.push(query(col,where('departmentKey','==',dept)));
-          qrefs.push(query(col,where('department','==',dept)));
-        }else qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
-      }else{
-        // Other operational users keep the existing identity-scoped view.
+      else{
+        // Operational users subscribe only to their own exact canonical request set.
+        // Department-wide approval routing is handled through the manager inbox.
         qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
       }
       const sources={},unsubs=[],failed={};let successCount=0;
