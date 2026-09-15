@@ -1,0 +1,1 @@
+v360 root fix: request visibility failures were caused by strict approved==true rules versus legacy approved representations. Normalized approved checks and added historical department query aliases for Review & Development. Only request visibility paths changed; workflow/data schemas untouched.
