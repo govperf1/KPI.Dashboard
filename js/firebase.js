@@ -1535,29 +1535,6 @@ window._selectPortal=async portal=>{
       return _advMergeOwnCache(_advMergeRows(primary,[],false));
     };
     let _advisoryManagerLastQueue=[],_advisoryManagerLastOwn=[],_advisoryManagerLastRisk=[],_advisoryManagerOwnCacheAt=0,_advisoryManagerOwnCachePromise=null;
-    // Department Manager request history is a separate, read-only source from the
-    // pending inbox. The inbox is intentionally cleaned after a decision, while
-    // this history keeps every department request visible at its latest stage.
-    let _advisoryManagerHistory=[],_advisoryManagerHistoryAt=0,_advisoryManagerHistoryPromise=null;
-    window._advisoryGetManagerHistory=async function(force){
-      const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
-      const dept=String(fresh.departmentKey||'').trim();
-      if(!dept||!db)return _advisoryManagerHistory.slice();
-      const now=Date.now();
-      if(!force&&_advisoryManagerHistoryAt&&now-_advisoryManagerHistoryAt<60000)return _advisoryManagerHistory.slice();
-      if(_advisoryManagerHistoryPromise)return _advisoryManagerHistoryPromise;
-      _advisoryManagerHistoryPromise=(async function(){
-        try{
-          const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)));
-          _advisoryManagerHistory=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
-          _advisoryManagerHistoryAt=Date.now();
-        }catch(err){
-          console.warn('[Review Development] manager department history read failed; keeping last verified history',err&&err.code||err);
-        }finally{_advisoryManagerHistoryPromise=null;}
-        return _advisoryManagerHistory.slice();
-      })();
-      return _advisoryManagerHistoryPromise;
-    };
     window._advisoryGetManagerQueue=async function(){
       /* One stable manager snapshot: do not force a fresh server read every UI refresh.
          A transient permission/network failure must never replace visible rows with []. */
@@ -1569,15 +1546,33 @@ window._selectPortal=async portal=>{
       const risk=Array.isArray(bundle&&bundle.risk)?bundle.risk:_advisoryManagerLastRisk;
       if(review.length||!_advisoryManagerLastQueue.length)_advisoryManagerLastQueue=review.slice();
       if(risk.length||!_advisoryManagerLastRisk.length)_advisoryManagerLastRisk=risk.slice();
-      // Keep department history independent from the pending inbox. A manager's
-      // approved/returned/rejected request must not disappear merely because the
-      // routed inbox item is deleted after the action.
-      const history=await window._advisoryGetManagerHistory(false);
-      _advisoryManagerLastOwn=(history||[]).filter(function(r){
-        return String(r.userEmail||'').toLowerCase()===_advEmail() || String(r.requesterUid||'')===_advUid();
-      });
-      _advisoryManagerHistory=(history||[]).slice();
-      const merged=_advMergeRows((_advisoryManagerLastQueue||[]).concat(_advisoryManagerHistory||[]),[],false);
+      /* Manager own history is identity-scoped, not department-query scoped.
+         The previous broad department read could be denied and also caused
+         unnecessary reads. */
+      let own=_advisoryManagerLastOwn;
+      const ownNow=Date.now();
+      if(!_advisoryManagerOwnCacheAt || ownNow-_advisoryManagerOwnCacheAt>=60000){
+        if(!_advisoryManagerOwnCachePromise){
+          _advisoryManagerOwnCachePromise=(async function(){
+            try{
+              const me=_advEmail(),uid=_advUid();
+              let rows=[];
+              const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
+              rows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+              if(!rows.length&&uid){
+                try{
+                  const legacy=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
+                  rows=legacy.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+                }catch(_){}
+              }
+              rows.forEach(_advCacheOwnRow);_advisoryManagerLastOwn=_advMergeOwnCache(rows);_advisoryManagerOwnCacheAt=Date.now();return _advisoryManagerLastOwn;
+            }catch(err){console.warn('[Review Development] manager own identity read failed; keeping last verified rows',err&&err.code||err);return _advisoryManagerLastOwn;}
+            finally{_advisoryManagerOwnCachePromise=null;}
+          })();
+        }
+        own=await _advisoryManagerOwnCachePromise;
+      }else own=_advisoryManagerLastOwn;
+      const merged=_advMergeRows(_advisoryManagerLastQueue||[],own||[],false);
       /* Arrays can carry metadata without changing legacy callers. This gives the
          Review page and the GRC approval panel the exact same Risk queue. */
       merged.review=_advisoryManagerLastQueue.slice();merged.risk=_advisoryManagerLastRisk.slice();merged._grcRiskRecords=_advisoryManagerLastRisk.slice();merged._managerQueueErrors=(bundle&&bundle.errors)||[];
@@ -1628,21 +1623,17 @@ window._selectPortal=async portal=>{
             emitManager();
           }catch(err){queueErrors.manager=String(err&&err.message||err);emitManager();}})();
         }
-        /* One canonical department history listener. Unlike the routed inbox,
-           it keeps completed/forwarded/returned/rejected requests for history.
-           Do not also open an email compatibility listener: that was the source
-           of repeated permission-denied retries and did not provide department history. */
+        /* Exact identity query only. Do not fall back to UID unless email query
+           genuinely returns no rows; a denied UID fallback was producing noise
+           and masking a valid empty My Requests state. */
         try{
-          const dept=_advDepartmentKey();
-          if(dept)ownUnsub=onSnapshot(query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)),function(snap){
-            ownRows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
-            _advisoryManagerHistory=ownRows.slice();_advisoryManagerHistoryAt=Date.now();
-            ownRows.forEach(_advCacheOwnRow);ownError='';emitManager();
+          ownUnsub=onSnapshot(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())),function(snap){
+            ownRows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});ownRows.forEach(_advCacheOwnRow);
+            ownError='';emitManager();
           },function(err){
-            ownError=String(err&&err.code||err&&err.message||err||'listener-failed');
-            console.warn('[Review Development] manager department-history listener failed; keeping queue',err&&err.code||err);emitManager();
+            ownRows=[];ownError=String(err&&err.code||err&&err.message||err||'listener-failed');
+            console.warn('[Review Development] manager own-request listener failed',err&&err.code||err);emitManager();
           });
-          else {ownRows=[];emitManager();}
         }catch(err){ownError=String(err&&err.message||err||'listener-failed');emitManager();}
         return function(){stopped=true;try{if(queueUnsub)queueUnsub();}catch(_){}try{if(ownUnsub)ownUnsub();}catch(_){}};
       }
@@ -1732,11 +1723,25 @@ window._selectPortal=async portal=>{
       const decision=action==='approve'?'approved':action==='return'?'returned':'rejected';
       const nowIso=_advIso();
       const requestRef=doc(db,ADV_REQUESTS_COLLECTION,requestId);
-      /* The manager action is authorized by the authoritative document's
-         department + pending stage in Firestore Rules. Do not preflight GET here:
-         historical requests can legitimately be visible through the routed inbox
-         while their old source schema fails a direct client read. The old GET
-         produced misleading permission-denied noise and did not add safety. */
+      /* v346 — Verify the authoritative source stage before writing. This prevents
+         a stale inbox projection from sending an already-forwarded request through
+         the manager decision path and producing a misleading permission-denied. */
+      try{
+        const source=await getDoc(requestRef);
+        if(source.exists()){
+          const stage=String((source.data()||{}).workflowStage||'').toLowerCase();
+          if(stage!=='pending_department_manager'){
+            try{await deleteDoc(_grcManagerQueueItemRef(freshProfile.departmentKey,'review',requestId));}catch(_){}
+            _grcReviewQueueSourceCache[requestId]=null;_grcReviewQueueSourceCacheAt[requestId]=Date.now();
+            _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
+            throw new Error('This request is no longer awaiting Department Manager approval. The stale inbox entry was removed.');
+          }
+        }
+      }catch(stageError){
+        const msg=String(stageError&&stageError.message||stageError||'');
+        if(msg.indexOf('no longer awaiting Department Manager approval')>=0)throw stageError;
+        /* If GET is temporarily unavailable, proceed with the authorized UPDATE. */
+      }
       const updates={
         status:finalStatus,workflowStage:finalStage,closureReason:closureReason,
         managerDecision:decision,managerComment:managerComment,
@@ -2444,9 +2449,19 @@ window._selectPortal=async portal=>{
       }
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
       if(_grcRiskIsAdmin())qrefs.push(col);
-      else{
-        // Operational users subscribe only to their own exact canonical request set.
-        // Department-wide approval routing is handled through the manager inbox.
+      else if(['risk_owner','grc_owner','platform_owner'].includes(_grcRiskRole())){
+        // Risk/Incident Register Requests is a department-scoped register for
+        // authorized owners, not a "My Requests" list. Show the complete
+        // department request history (all statuses) while keeping Firestore
+        // authorization query-compatible. Legacy rows may use department or
+        // departmentRaw, so merge all three exact department paths.
+        const dept=String(window._grcCanonicalDepartment?window._grcCanonicalDepartment(window._fbDept||window.currentUserDept||''):(window._fbDept||window.currentUserDept||'')).trim().toLowerCase();
+        if(dept){
+          qrefs.push(query(col,where('departmentKey','==',dept)));
+          qrefs.push(query(col,where('department','==',dept)));
+        }else qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
+      }else{
+        // Other operational users keep the existing identity-scoped view.
         qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
       }
       const sources={},unsubs=[],failed={};let successCount=0;
