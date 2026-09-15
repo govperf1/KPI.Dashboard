@@ -1514,7 +1514,7 @@ window._selectPortal=async portal=>{
         try{
           const col=collection(db,ADV_REQUESTS_COLLECTION),raw=String(_advRawDepartment()||'').trim();
           const refs=[query(col,where('departmentKey','==',dept))];
-          if(raw&&raw!==dept)refs.push(query(col,where('department','==',raw)),query(col,where('departmentRaw','==',raw)));
+          if(raw&&raw!==dept)refs.push(query(col,where('departmentKey','==',raw)),query(col,where('department','==',raw)),query(col,where('departmentRaw','==',raw)));
           const snaps=await Promise.all(refs.map(function(q){return getDocsFromServer(q);}));
           const rows=[];snaps.forEach(function(snap){snap.docs.forEach(function(d){rows.push(_advNormalizeRow(d.id,d.data(),'advisory_requests'));});});
           rows.forEach(_advCacheOwnRow);
@@ -1701,6 +1701,8 @@ window._selectPortal=async portal=>{
         // their department. Never use a full collection listener here; Firestore
         // cannot authorize it for department-scoped roles.
         listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',_advDepartmentKey())),'advisory_requests');
+        const rawDept=String(_advRawDepartment()||'').trim();
+        if(rawDept && rawDept.toLowerCase()!==String(_advDepartmentKey()).toLowerCase()) listen('deptRaw',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',rawDept)),'advisory_requests');
       }else if(_advCanAnalyze()){
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
       }else{
@@ -2412,12 +2414,16 @@ window._selectPortal=async portal=>{
       if(!_grcRiskEmail())return[];
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION);
       try{
-        // Canonical exact email query for both historical and current workflow rows.
+        const role=_grcRiskRole(),dept=_grcRiskDept();
+        if(['risk_owner','grc_owner','platform_owner'].includes(role) && dept){
+          const refs=[query(col,where('departmentKey','==',dept))];
+          const rawDept=String(_advRawDepartment&&_advRawDepartment()||'').trim();
+          if(rawDept && rawDept.toLowerCase()!==String(dept).toLowerCase()) refs.push(query(col,where('departmentKey','==',rawDept)));
+          return _grcRiskReadMany(refs);
+        }
         return await _grcRiskRead(query(col,where('submittedByEmail','==',_grcRiskEmail())));
       }catch(err){
-        /* Compatibility fallback for legacy rows; manager approval data comes
-           from the department-scoped queue and remains independent. */
-        console.warn('[GRC Risk Requests] getMine compatibility fallback',err&&err.code||err);
+        console.warn('[GRC Risk Requests] scoped getMine failed',err&&err.code||err);
         return [];
       }
     };
@@ -2467,6 +2473,8 @@ window._selectPortal=async portal=>{
         // Risk/Incident Register Requests are department-scoped for GRC owners:
         // show the complete request history for the user's department.
         qrefs.push(query(col,where('departmentKey','==',_grcRiskDept())));
+        const rawDept=String(_advRawDepartment&&_advRawDepartment()||'').trim();
+        if(rawDept && rawDept.toLowerCase()!==String(_grcRiskDept()).toLowerCase()) qrefs.push(query(col,where('departmentKey','==',rawDept)));
       }else{
         qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
       }
