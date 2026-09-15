@@ -1129,12 +1129,13 @@ window._selectPortal=async portal=>{
     }
     async function _advAuthorizedRequest(requestId,adminAllowed,managerAllowed){
       const loc=await _advLocateRequest(requestId),r=loc.record,owner=String(r.userEmail||'').toLowerCase().trim()===_advEmail();
-      // Firestore get permission already verifies that this request is indexed in
-      // the authenticated manager's department queue. Do not re-hide a valid row
-      // with a second browser-side department comparison.
       const manager=managerAllowed&&_advIsDepartmentManager()&&String(r.workflowStage||r.status||'')==='pending_department_manager'&&r.requiresManagerApproval!==false;
       const analyticsViewer=adminAllowed&&_advCanAnalyze();
-      if(!analyticsViewer&&!owner&&!manager)throw new Error('Access denied.');
+      const scopedOwner=['risk_owner','grc_owner','platform_owner'].includes(_advRole()) && !!_advDepartmentKey() &&
+        _advCanonicalDepartment(r.departmentKey||r.department||r.departmentRaw||'')===_advDepartmentKey();
+      // Department-scoped GRC/Risk/Platform owners may open any request belonging
+      // to their department, not only requests submitted by their current identity.
+      if(!analyticsViewer&&!owner&&!manager&&!scopedOwner)throw new Error('Access denied.');
       return Object.assign(r,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
     }
     async function _advGetSorted(collectionName){
@@ -1711,8 +1712,9 @@ window._selectPortal=async portal=>{
         // Admin/Super Admin can read the authoritative collection.
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
       }else if(['risk_owner','grc_owner','platform_owner'].includes(_advRole())&&_advDepartmentKey()){
-        // Department-scoped GRC owners receive the complete request history for
-        // their department, including legacy department field aliases.
+        // Department-scoped owners receive complete department history. Keep the
+        // query predicates aligned with the Firestore Rules (direct field membership,
+        // not canonicalDepartment(resource.data), which Firestore cannot prove for a query).
         var advAliases=_advDepartmentAliases(_advDepartmentKey());
         listen('deptKey',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','in',advAliases)),'advisory_requests');
         listen('dept',query(collection(db,ADV_REQUESTS_COLLECTION),where('department','in',advAliases)),'advisory_requests');
@@ -2480,8 +2482,8 @@ window._selectPortal=async portal=>{
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
       if(_grcRiskIsAdmin())qrefs.push(col);
       else if(['risk_owner','grc_owner','platform_owner'].includes(_grcRiskRole()) && _grcRiskDept()){
-        // Risk/Incident Register Requests are department-scoped for GRC owners.
-        // Include canonical and historical department field aliases.
+        // Risk/Incident Register Requests are department-scoped for owners.
+        // Query the same direct field membership that Firestore Rules can prove.
         const aliases=_advDepartmentAliases(_grcRiskDept());
         qrefs.push(query(col,where('departmentKey','in',aliases)));
         qrefs.push(query(col,where('department','in',aliases)));
