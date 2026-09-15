@@ -890,6 +890,10 @@ service cloud.firestore {
         (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) ||
         (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
       );
+      allow get: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
+        ((('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == userDepartmentKey()) ||
+         (('department' in resource.data) && canonicalDepartment(resource.data.department) == userDepartmentKey()) ||
+         (('departmentRaw' in resource.data) && canonicalDepartment(resource.data.departmentRaw) == userDepartmentKey()));
       allow get: if advisoryManagerCanRead(resource.data);
       allow get: if departmentManager() && ('departmentKey' in resource.data) &&
         canonicalDepartment(resource.data.departmentKey) == userDepartmentKey();
@@ -907,7 +911,9 @@ service cloud.firestore {
       // submitted by their current account/email. This is the same visibility
       // model used by the Risk & Incident request register.
       allow list: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
-        ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey();
+        ((('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == userDepartmentKey()) ||
+         (('department' in resource.data) && canonicalDepartment(resource.data.department) == userDepartmentKey()) ||
+         (('departmentRaw' in resource.data) && canonicalDepartment(resource.data.departmentRaw) == userDepartmentKey()));
       // Department Manager source history is read through an exact canonical
       // department query; active approval rows are also available from inbox_v3.
       allow list: if departmentManager() && resource.data.departmentKey == userDepartmentKey();
@@ -1021,8 +1027,10 @@ service cloud.firestore {
       let r = profileRoleFrom(u);
       let d = profileDepartmentKeyFrom(u);
       return signedIn() && u.approved == true &&
-        r in ['department_manager','risk_owner','grc_owner','platform_owner'] &&
-        d != '' && ('departmentKey' in data) && data.departmentKey == d;
+        r in ['department_manager','risk_owner','grc_owner','platform_owner'] && d != '' &&
+        ((('departmentKey' in data) && canonicalDepartment(data.departmentKey) == d) ||
+         (('department' in data) && canonicalDepartment(data.department) == d) ||
+         (('departmentRaw' in data) && canonicalDepartment(data.departmentRaw) == d));
     }
 
     function validRiskStatusOverride(data) {
