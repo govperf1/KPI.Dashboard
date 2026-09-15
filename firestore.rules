@@ -906,8 +906,11 @@ service cloud.firestore {
       // Development request history for their own department, not only requests
       // submitted by their current account/email. This is the same visibility
       // model used by the Risk & Incident request register.
-      allow list: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
-        ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey();
+      allow list: if signedIn() && userData().approved == true &&
+        role() in ['risk_owner','grc_owner','platform_owner'] &&
+        profileDepartmentKeyFrom(userData()) != '' &&
+        ('departmentKey' in resource.data) &&
+        resource.data.departmentKey == profileDepartmentKeyFrom(userData());
       allow list: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
         ('department' in resource.data) && resource.data.department == profileDepartmentValueFrom(userData());
       allow list: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
@@ -1111,7 +1114,11 @@ service cloud.firestore {
         (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid);
       allow list: if canReadRiskIncidentWorkflow() &&
         (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail());
-      allow list: if canReadRiskIncidentWorkflow() && riskRequestDepartmentList(resource.data);
+      allow list: if signedIn() && userData().approved == true &&
+        role() in ['risk_owner','grc_owner','platform_owner'] &&
+        profileDepartmentKeyFrom(userData()) != '' &&
+        ('departmentKey' in resource.data) &&
+        resource.data.departmentKey == profileDepartmentKeyFrom(userData());
       allow list: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
         ('department' in resource.data) && resource.data.department == profileDepartmentValueFrom(userData());
       allow list: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
