@@ -1703,7 +1703,11 @@ window._selectPortal=async portal=>{
         // cannot authorize it for department-scoped roles.
         listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',_advDepartmentKey())),'advisory_requests');
         const rawDept=String(_advRawDepartment()||'').trim();
-        if(rawDept && rawDept.toLowerCase()!==String(_advDepartmentKey()).toLowerCase()) listen('deptRaw',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',rawDept)),'advisory_requests');
+        if(rawDept && rawDept.toLowerCase()!==String(_advDepartmentKey()).toLowerCase()){
+          listen('deptKeyLegacy',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',rawDept)),'advisory_requests');
+          listen('deptValue',query(collection(db,ADV_REQUESTS_COLLECTION),where('department','==',rawDept)),'advisory_requests');
+          listen('deptRaw',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentRaw','==',rawDept)),'advisory_requests');
+        }
       }else if(_advCanAnalyze()){
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
       }else{
