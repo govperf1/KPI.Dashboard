@@ -985,18 +985,6 @@ window._selectPortal=async portal=>{
       return ['safety','maintenance','laundry','housekeeping','projects','governance','division'].includes(normalized)?normalized:'';
     }
     function _advDepartmentKey(){return _advCanonicalDepartment(_advRawDepartment());}
-    function _advDepartmentAliases(dept){
-      const d=_advCanonicalDepartment(dept),map={
-        safety:['safety','Safety','SAF','safety_management','Safety_Management','Safety Management'],
-        maintenance:['maintenance','Maintenance','MNT','maintenance_management','Maintenance_Management','Maintenance Management'],
-        housekeeping:['housekeeping','Housekeeping','HSK','HK','housekeeping_management','Housekeeping_Management','Housekeeping Management','cleaning'],
-        laundry:['laundry','Laundry','LND','LUND','laundry_management','Laundry_Management','Laundry Management'],
-        projects:['projects','Projects','PRJ','PM','PMD','project','Project','Project_Management','Project Management','project-management','project/management','project_management'],
-        governance:['governance','Governance','GOV','performance','Performance'],
-        division:['division','Division','FMS','Facility Management','Facilities Management']
-      };
-      return (map[d]||[d]).filter(Boolean).filter(function(v,i,a){return a.indexOf(v)===i;}).slice(0,30);
-    }
     function _advNormalizeRoleValue(value){return _normalizePortalRole(value);}
     function _advMeaningfulDepartment(value){var s=String(value==null?'':value).trim();return !!s&&!/^(null|none|undefined|n\/?a|na|unassigned|not assigned|-|—)$/i.test(s);}
     function _advProfileDepartmentValue(data){
@@ -1129,13 +1117,12 @@ window._selectPortal=async portal=>{
     }
     async function _advAuthorizedRequest(requestId,adminAllowed,managerAllowed){
       const loc=await _advLocateRequest(requestId),r=loc.record,owner=String(r.userEmail||'').toLowerCase().trim()===_advEmail();
+      // Firestore get permission already verifies that this request is indexed in
+      // the authenticated manager's department queue. Do not re-hide a valid row
+      // with a second browser-side department comparison.
       const manager=managerAllowed&&_advIsDepartmentManager()&&String(r.workflowStage||r.status||'')==='pending_department_manager'&&r.requiresManagerApproval!==false;
       const analyticsViewer=adminAllowed&&_advCanAnalyze();
-      const scopedOwner=['risk_owner','grc_owner','platform_owner'].includes(_advRole()) && !!_advDepartmentKey() &&
-        _advCanonicalDepartment(r.departmentKey||r.department||r.departmentRaw||'')===_advDepartmentKey();
-      // Department-scoped GRC/Risk/Platform owners may open any request belonging
-      // to their department, not only requests submitted by their current identity.
-      if(!analyticsViewer&&!owner&&!manager&&!scopedOwner)throw new Error('Access denied.');
+      if(!analyticsViewer&&!owner&&!manager)throw new Error('Access denied.');
       return Object.assign(r,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
     }
     async function _advGetSorted(collectionName){
@@ -1525,11 +1512,9 @@ window._selectPortal=async portal=>{
       // account/email change and matches the Risk & Incident register behavior.
       if(['risk_owner','grc_owner','platform_owner'].includes(role) && dept){
         try{
-          const aliases=_advDepartmentAliases(dept),refs=[
-            query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','in',aliases)),
-            query(collection(db,ADV_REQUESTS_COLLECTION),where('department','in',aliases)),
-            query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentRaw','in',aliases))
-          ];
+          const col=collection(db,ADV_REQUESTS_COLLECTION),raw=String(_advRawDepartment()||'').trim();
+          const refs=[query(col,where('departmentKey','==',dept))];
+          if(raw&&raw!==dept)refs.push(query(col,where('department','==',raw)),query(col,where('departmentRaw','==',raw)));
           const snaps=await Promise.all(refs.map(function(q){return getDocsFromServer(q);}));
           const rows=[];snaps.forEach(function(snap){snap.docs.forEach(function(d){rows.push(_advNormalizeRow(d.id,d.data(),'advisory_requests'));});});
           rows.forEach(_advCacheOwnRow);
@@ -1712,13 +1697,10 @@ window._selectPortal=async portal=>{
         // Admin/Super Admin can read the authoritative collection.
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
       }else if(['risk_owner','grc_owner','platform_owner'].includes(_advRole())&&_advDepartmentKey()){
-        // Department-scoped owners receive complete department history. Keep the
-        // query predicates aligned with the Firestore Rules (direct field membership,
-        // not canonicalDepartment(resource.data), which Firestore cannot prove for a query).
-        var advAliases=_advDepartmentAliases(_advDepartmentKey());
-        listen('deptKey',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','in',advAliases)),'advisory_requests');
-        listen('dept',query(collection(db,ADV_REQUESTS_COLLECTION),where('department','in',advAliases)),'advisory_requests');
-        listen('deptRaw',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentRaw','in',advAliases)),'advisory_requests');
+        // Department-scoped GRC owners receive the complete request history for
+        // their department. Never use a full collection listener here; Firestore
+        // cannot authorize it for department-scoped roles.
+        listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',_advDepartmentKey())),'advisory_requests');
       }else if(_advCanAnalyze()){
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
       }else{
@@ -2482,12 +2464,9 @@ window._selectPortal=async portal=>{
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
       if(_grcRiskIsAdmin())qrefs.push(col);
       else if(['risk_owner','grc_owner','platform_owner'].includes(_grcRiskRole()) && _grcRiskDept()){
-        // Risk/Incident Register Requests are department-scoped for owners.
-        // Query the same direct field membership that Firestore Rules can prove.
-        const aliases=_advDepartmentAliases(_grcRiskDept());
-        qrefs.push(query(col,where('departmentKey','in',aliases)));
-        qrefs.push(query(col,where('department','in',aliases)));
-        qrefs.push(query(col,where('departmentRaw','in',aliases)));
+        // Risk/Incident Register Requests are department-scoped for GRC owners:
+        // show the complete request history for the user's department.
+        qrefs.push(query(col,where('departmentKey','==',_grcRiskDept())));
       }else{
         qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
       }
