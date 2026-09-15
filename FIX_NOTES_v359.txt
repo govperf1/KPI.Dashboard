@@ -1,0 +1,7 @@
+v359 — Request History visibility fix
+
+1. My Requests (GRC system/access requests): load and merge by current email AND immutable Firebase UID, preserving all statuses including approved/rejected/closed records.
+2. Risk & Incident Registers Requests: Super Admin/Admin gets the complete collection; Department Manager and Risk/GRC/Platform owners get complete department history using canonical departmentKey plus historical department/departmentRaw aliases; regular users get their own history by email + UID.
+3. No workflow transitions were changed.
+4. No data is deleted.
+5. index.html cache versions updated so the browser loads v359.
