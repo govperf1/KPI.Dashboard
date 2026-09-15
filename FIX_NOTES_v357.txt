@@ -1,0 +1,11 @@
+v357 - Super Admin Review/Response Root Fix
+
+Fixed only the Super Admin processing permission for Review & Development advisory_requests.
+A Super Admin can now process a request already at workflowStage=pending_super_admin without
+requiring a lookup of the requester's current users/{email} profile. This prevents historical
+requests from failing after requester account/email changes.
+
+Allowed Super Admin target stages: pending_super_admin, closed, returned_requester,
+awaiting_requester_information. Existing workflow and UI were not changed.
+
+Deploy firestore.rules and replace firebase.js, advisory.js, index.html. Hard refresh after deploy.

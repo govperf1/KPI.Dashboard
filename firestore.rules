@@ -787,6 +787,26 @@ service cloud.firestore {
         );
     }
 
+    // v357 ROOT FIX: once the request has reached Pending Super Admin Review,
+    // Super Admin must be able to process the authoritative request directly.
+    // Do not make this decision depend on the requester's current users/{email}
+    // profile: historical requests may contain an old email after an account
+    // change. The Department Manager stage is already enforced by workflowStage.
+    function validAdvisorySuperAdminProcess() {
+      return superAdmin() &&
+        resource.data.workflowStage == 'pending_super_admin' &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status','messages','attachments','attachmentCount',
+          'firstRespondedAt','respondedAt','responseMinutes',
+          'completedAt','closedAt','rating','ratingComment','ratingAt',
+          'workflowStage','closureReason','updatedAt','updatedAtIso','updatedBy'
+        ]) &&
+        request.resource.data.workflowStage in [
+          'pending_super_admin','closed','returned_requester','awaiting_requester_information'
+        ] &&
+        request.resource.data.updatedBy == authEmail();
+    }
+
     // Department Manager decision payload. Keep this aligned with the actual
     // firebase.js transaction and avoid requiring legacy fields that older
     // pending requests may not contain.
@@ -920,6 +940,7 @@ service cloud.firestore {
       allow list: if departmentManager() && resource.data.departmentKey == userDepartmentKey();
 
       allow update: if
+        (validAdvisorySuperAdminProcess()) ||
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
         (validAdvisoryOwnerResubmit()) ||
         (approved() && ownEmail(resource.data.userEmail) &&
