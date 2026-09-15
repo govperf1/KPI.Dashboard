@@ -869,19 +869,20 @@ window._selectPortal=async portal=>{
     window._grcRequestsGetMine=async function(){
       if(!window._fbUser||!db) return [];
       const uid=String(auth.currentUser&&auth.currentUser.uid||window._fbUid||window._fbUserUid||window._fbAuthUid||'').trim();
-      const email=String(window._fbUser||'').toLowerCase().trim();
-      try{
-        // Use the canonical email ownership key. Existing and new request rows are email-keyed in Firestore Rules, so this exact query remains compatible with historical requests.
-        const snap=await getDocs(query(collection(db,'grc_requests'),where('userEmail','==',email)));
-        const rows=snap.docs.map(function(d){return Object.assign({id:d.id},d.data()||{});});
-        rows.sort(function(a,b){return ((b.createdAt&&b.createdAt.seconds)||0)-((a.createdAt&&a.createdAt.seconds)||0);});
-        return rows;
-      }catch(e){
-        /* Compatibility fallback: an unreadable legacy row must not make My
-           Requests fail for the whole user. */
-        console.warn('[GRC Requests] getMine compatibility fallback:',e&&e.code||e&&e.message||e);
-        return [];
+      const email=String(window._fbUser||auth.currentUser&&auth.currentUser.email||'').toLowerCase().trim();
+      const col=collection(db,'grc_requests'),refs=[];
+      if(email)refs.push(query(col,where('userEmail','==',email)));
+      if(uid)refs.push(query(col,where('requesterUid','==',uid)));
+      const map={};
+      for(const ref of refs){
+        try{
+          const snap=await getDocs(ref);
+          snap.docs.forEach(function(d){map[d.id]=Object.assign({id:d.id},d.data()||{});});
+        }catch(e){console.warn('[GRC Requests] getMine path unavailable:',e&&e.code||e&&e.message||e);}
       }
+      const rows=Object.keys(map).map(function(id){return map[id];});
+      rows.sort(function(a,b){return ((b.createdAt&&b.createdAt.seconds)||0)-((a.createdAt&&a.createdAt.seconds)||0);});
+      return rows;
     };
     window._grcRequestsGetAll=async function(){
       if(!window._fbUser||!db) return [];
@@ -936,12 +937,12 @@ window._selectPortal=async portal=>{
     window._grcRequestsSubscribeMine=function(callback){
       if(typeof callback!=='function'||!window._fbUser||!db)return function(){};
       const uid=String(auth.currentUser&&auth.currentUser.uid||window._fbUid||window._fbUserUid||window._fbAuthUid||'').trim();
-      const me=(window._fbUser||'').toLowerCase().trim();
-      return onSnapshot(query(collection(db,'grc_requests'),where(uid?'requesterUid':'userEmail','==',uid||me)),function(snap){
-        const rows=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});
-        rows.sort(function(a,b){return ((b.updatedAt&&b.updatedAt.seconds)||(b.createdAt&&b.createdAt.seconds)||0)-((a.updatedAt&&a.updatedAt.seconds)||(a.createdAt&&a.createdAt.seconds)||0);});
-        callback(rows,null);
-      },function(err){callback([],err);});
+      const me=(window._fbUser||auth.currentUser&&auth.currentUser.email||'').toLowerCase().trim();
+      const refs=[];if(me)refs.push(query(collection(db,'grc_requests'),where('userEmail','==',me)));if(uid)refs.push(query(collection(db,'grc_requests'),where('requesterUid','==',uid)));
+      const sources={};let done=false;
+      const emit=function(){const map={};Object.keys(sources).forEach(function(k){(sources[k]||[]).forEach(function(r){if(r&&r.id)map[r.id]=r;});});const rows=Object.keys(map).map(function(id){return map[id];});rows.sort(function(a,b){return ((b.updatedAt&&b.updatedAt.seconds)||(b.createdAt&&b.createdAt.seconds)||0)-((a.updatedAt&&a.updatedAt.seconds)||(a.createdAt&&a.createdAt.seconds)||0);});callback(rows,null);};
+      const unsubs=refs.map(function(ref,i){return onSnapshot(ref,function(snap){sources[i]=snap.docs.map(function(d){return Object.assign({id:d.id},d.data()||{});});emit();},function(err){console.warn('[GRC Requests] own listener '+i+' failed',err&&err.code||err);if(!Object.keys(sources).length)callback([],err);});});
+      return function(){unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
 
 
@@ -2468,15 +2469,31 @@ window._selectPortal=async portal=>{
         return _grcRiskRequestUnsub;
       }
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
-      if(_grcRiskIsAdmin())qrefs.push(col);
-      else if(['risk_owner','grc_owner','platform_owner'].includes(_grcRiskRole()) && _grcRiskDept()){
-        // Risk/Incident Register Requests are department-scoped for GRC owners:
-        // show the complete request history for the user's department.
+      if(_grcRiskIsAdmin()){
+        // Super Admin/Admin: the All tab is a complete history, not only actionable requests.
+        qrefs.push(col);
+      }else if(_grcRiskIsManager() && _grcRiskDept()){
+        // Department Manager: the profile queue is already authoritative for pending work;
+        // the register history uses exact department keys/aliases below.
         qrefs.push(query(col,where('departmentKey','==',_grcRiskDept())));
         const rawDept=String(_advRawDepartment&&_advRawDepartment()||'').trim();
-        if(rawDept && rawDept.toLowerCase()!==String(_grcRiskDept()).toLowerCase()) qrefs.push(query(col,where('departmentKey','==',rawDept)));
+        if(rawDept){
+          qrefs.push(query(col,where('department','==',rawDept)));
+          qrefs.push(query(col,where('departmentRaw','==',rawDept)));
+        }
+      }else if(['risk_owner','grc_owner','platform_owner'].includes(_grcRiskRole()) && _grcRiskDept()){
+        // Owners: complete history for their department, including historical field aliases.
+        qrefs.push(query(col,where('departmentKey','==',_grcRiskDept())));
+        const rawDept=String(_advRawDepartment&&_advRawDepartment()||'').trim();
+        if(rawDept){
+          qrefs.push(query(col,where('department','==',rawDept)));
+          qrefs.push(query(col,where('departmentRaw','==',rawDept)));
+        }
       }else{
-        qrefs.push(query(col,where('submittedByEmail','==',_grcRiskEmail())));
+        // Regular requester: own request history by both immutable UID and current email.
+        const em=_grcRiskEmail(),uid=String(auth.currentUser&&auth.currentUser.uid||window._fbUid||window._fbUserUid||'').trim();
+        if(em)qrefs.push(query(col,where('submittedByEmail','==',em)));
+        if(uid)qrefs.push(query(col,where('submittedByUid','==',uid)));
       }
       const sources={},unsubs=[],failed={};let successCount=0;
       function emit(){
