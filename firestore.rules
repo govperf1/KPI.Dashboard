@@ -1,5 +1,5 @@
-// v364 — Department Manager source-document approval + decision-state integrity fix.
-// FIRESTORE SECURITY RULES v77 — Request visibility + manager approval fix
+// v365 — Department Manager historical-source compatibility + decision-state integrity fix.
+// FIRESTORE SECURITY RULES v78 — Request visibility + manager approval fix
 // v75: Removes queue-existence dependency from manager decisions and authorizes
 // the manager directly from the authenticated canonical department. The queue is
 // routing-only; a stale/missing projection can never block a valid source update.
@@ -775,12 +775,22 @@ service cloud.firestore {
       let u = userData();
       let r = profileRoleFrom(u);
       let d = profileDepartmentKeyFrom(u);
-      // Requests may contain either the canonical key (projects) or a profile
-      // alias (Project_Management). Compare canonical values on both sides.
+
+      // v78 ROOT FIX: older advisory_requests rows may not contain departmentKey.
+      // The authoritative source is still the request document itself; for
+      // historical rows, safely fall back to department or departmentRaw.
+      // No queue/projection lookup is used for manager authorization.
+      let sourceDept =
+        ('departmentKey' in data) && meaningfulDepartmentValue(data.departmentKey)
+          ? data.departmentKey
+          : (('department' in data) && meaningfulDepartmentValue(data.department)
+              ? data.department
+              : (('departmentRaw' in data) && meaningfulDepartmentValue(data.departmentRaw)
+                  ? data.departmentRaw : ''));
+
       return signedIn() && approvedValue(u.approved) && r == 'department_manager' &&
-        d != '' && ('departmentKey' in data) &&
-        canonicalDepartment(data.departmentKey) != '' &&
-        canonicalDepartment(data.departmentKey) == d;
+        d != '' && canonicalDepartment(sourceDept) != '' &&
+        canonicalDepartment(sourceDept) == d;
     }
 
     function advisoryManagerCanRead(data) {
