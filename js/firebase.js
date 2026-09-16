@@ -1701,13 +1701,11 @@ window._selectPortal=async portal=>{
         // Department-scoped GRC owners receive the complete request history for
         // their department. Never use a full collection listener here; Firestore
         // cannot authorize it for department-scoped roles.
+        // v361: one exact canonical department listener. Legacy aliases are
+        // intentionally not opened as live queries because their Rules cannot
+        // prove those broad/legacy filters consistently. Historical rows should
+        // be migrated to departmentKey once, rather than creating failing listeners.
         listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',_advDepartmentKey())),'advisory_requests');
-        const rawDept=String(_advRawDepartment()||'').trim();
-        if(rawDept && rawDept.toLowerCase()!==String(_advDepartmentKey()).toLowerCase()){
-          listen('deptKeyLegacy',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',rawDept)),'advisory_requests');
-          listen('deptValue',query(collection(db,ADV_REQUESTS_COLLECTION),where('department','==',rawDept)),'advisory_requests');
-          listen('deptRaw',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentRaw','==',rawDept)),'advisory_requests');
-        }
       }else if(_advCanAnalyze()){
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
       }else{
@@ -2480,19 +2478,9 @@ window._selectPortal=async portal=>{
         // Department Manager: the profile queue is already authoritative for pending work;
         // the register history uses exact department keys/aliases below.
         qrefs.push(query(col,where('departmentKey','==',_grcRiskDept())));
-        const rawDept=String(_advRawDepartment&&_advRawDepartment()||'').trim();
-        if(rawDept){
-          qrefs.push(query(col,where('department','==',rawDept)));
-          qrefs.push(query(col,where('departmentRaw','==',rawDept)));
-        }
       }else if(['risk_owner','grc_owner','platform_owner'].includes(_grcRiskRole()) && _grcRiskDept()){
-        // Owners: complete history for their department, including historical field aliases.
+        // v361: one exact canonical department query.
         qrefs.push(query(col,where('departmentKey','==',_grcRiskDept())));
-        const rawDept=String(_advRawDepartment&&_advRawDepartment()||'').trim();
-        if(rawDept){
-          qrefs.push(query(col,where('department','==',rawDept)));
-          qrefs.push(query(col,where('departmentRaw','==',rawDept)));
-        }
       }else{
         // Regular requester: own request history by both immutable UID and current email.
         const em=_grcRiskEmail(),uid=String(auth.currentUser&&auth.currentUser.uid||window._fbUid||window._fbUserUid||'').trim();
@@ -2502,7 +2490,6 @@ window._selectPortal=async portal=>{
       const sources={},unsubs=[],failed={};let successCount=0;
       function emit(){
         let rows=_grcRiskMergeRows(Object.keys(sources).map(k=>sources[k]));
-        if(_grcRiskIsManager())rows=rows.filter(function(r){return ['pending_manager','returned_manager'].includes(String(r&&r.status||'').toLowerCase());});
         callback(rows);
       }
       qrefs.forEach((qref,i)=>{unsubs.push(onSnapshot(qref,{includeMetadataChanges:true},snap=>{
