@@ -1,10 +1,9 @@
-الإصلاح v362 — الملفات المعدلة فقط
+التعديلات:
+1) إصلاح مسار موافقة مدير القسم على advisory_requests ليكون مسار التحديث من الوثيقة المصدر نفسها.
+2) إضافة تحقق صارم من تطابق managerDecision مع workflowStage وstatus وclosureReason.
+3) حذف تكرار validAdvisoryManagerChange في allow update.
+4) تحديث deployment probe إلى v77-manager-decision-state-integrity-20260916 في Firestore Rules وfirebase.js.
 
-1) js/firebase.js
-- توحيد managerEmail قبل إرسال قرار مدير القسم إلى Firestore.
-
-2) firestore.rules
-- السماح بمطابقة بريد المدير بعد التطبيع lowercase مع بريد الحساب المصادق عليه.
-- التعديل محصور في مسار قرار Department Manager ولا يغيّر بقية الـ workflow.
-
-بعد الرفع: انشر firestore.rules ثم اعمل Hard Refresh (Ctrl+Shift+R).
+الملفات المعدلة فقط:
+- firestore.rules
+- firebase.js
