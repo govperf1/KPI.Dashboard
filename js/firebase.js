@@ -1742,25 +1742,9 @@ window._selectPortal=async portal=>{
       const decision=action==='approve'?'approved':action==='return'?'returned':'rejected';
       const nowIso=_advIso();
       const requestRef=doc(db,ADV_REQUESTS_COLLECTION,requestId);
-      /* v346 — Verify the authoritative source stage before writing. This prevents
-         a stale inbox projection from sending an already-forwarded request through
-         the manager decision path and producing a misleading permission-denied. */
-      try{
-        const source=await getDoc(requestRef);
-        if(source.exists()){
-          const stage=String((source.data()||{}).workflowStage||'').toLowerCase();
-          if(stage!=='pending_department_manager'){
-            try{await deleteDoc(_grcManagerQueueItemRef(freshProfile.departmentKey,'review',requestId));}catch(_){}
-            _grcReviewQueueSourceCache[requestId]=null;_grcReviewQueueSourceCacheAt[requestId]=Date.now();
-            _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
-            throw new Error('This request is no longer awaiting Department Manager approval. The stale inbox entry was removed.');
-          }
-        }
-      }catch(stageError){
-        const msg=String(stageError&&stageError.message||stageError||'');
-        if(msg.indexOf('no longer awaiting Department Manager approval')>=0)throw stageError;
-        /* If GET is temporarily unavailable, proceed with the authorized UPDATE. */
-      }
+      /* v362 — Do not preflight-read the source document here. The queue is only
+         a routing projection and the Firestore UPDATE rule is authoritative. A
+         manager action makes exactly one source UPDATE attempt. */
       const updates={
         status:finalStatus,workflowStage:finalStage,closureReason:closureReason,
         managerDecision:decision,managerComment:managerComment,
@@ -1780,7 +1764,15 @@ window._selectPortal=async portal=>{
       try{
         await updateDoc(requestRef,updates);
       }catch(writeErr){
-        console.error('[Review Development] manager decision update failed',writeErr&&writeErr.code||writeErr&&writeErr.message||writeErr);
+        console.error('[Review Development] manager decision update failed',{
+          code:writeErr&&writeErr.code||'',
+          message:writeErr&&writeErr.message||String(writeErr||''),
+          requestId:requestId,
+          managerEmail:managerEmail,
+          managerDepartment:freshProfile.departmentKey,
+          targetStage:finalStage,
+          targetStatus:finalStatus
+        });
         throw writeErr;
       }
       /* Source request is authoritative. Once the decision succeeds, remove the
