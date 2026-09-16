@@ -1,3 +1,4 @@
+// v362 — Department Manager source-document approval authorization root fix.
 // FIRESTORE SECURITY RULES v76 — Request visibility + manager approval fix
 // v75: Removes queue-existence dependency from manager decisions and authorizes
 // the manager directly from the authenticated canonical department. The queue is
@@ -868,9 +869,13 @@ service cloud.firestore {
     }
 
     function validAdvisoryManagerChange(requestId) {
-      return approved() &&
-        role() == 'department_manager' &&
-        advisoryManagerCanAct(requestId, resource.data) &&
+      // v362: Keep the manager UPDATE authorization completely source-document
+      // based. The approval action must not depend on queue/projection documents.
+      // Accept the same approved representations used elsewhere in this ruleset.
+      let u = userData();
+      return signedIn() && userExists() && approvedValue(u.approved) &&
+        profileRoleFrom(u) == 'department_manager' &&
+        advisoryManagerDepartmentMatch(resource.data) &&
         resource.data.workflowStage == 'pending_department_manager' &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status','workflowStage','closureReason',
@@ -998,6 +1003,26 @@ service cloud.firestore {
         (approved() && ownEmail(resource.data.userEmail) &&
           validAdvisoryOwnerChange() && advisoryOwnerRoutePreserved()) ||
         validAdvisoryManagerChange(requestId) ||
+        /* v362: explicit source-document manager decision path. This is intentionally
+           duplicated at the match level so the authorization remains independent of
+           any queue projection and is easy to verify/deploy. */
+        (signedIn() && userExists() && approvedValue(userData().approved) &&
+          profileRoleFrom(userData()) == 'department_manager' &&
+          advisoryManagerDepartmentMatch(resource.data) &&
+          resource.data.workflowStage == 'pending_department_manager' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'status','workflowStage','closureReason',
+            'managerDecision','managerComment','managerName','managerEmail',
+            'managerActionAt','managerActionAtIso','closedAt',
+            'returnFields','returnNote','returnSource','returnedAt',
+            'updatedAt','updatedAtIso','updatedBy'
+          ]) &&
+          request.resource.data.managerEmail is string &&
+          request.resource.data.managerEmail.lower() == authEmail() &&
+          request.resource.data.updatedBy is string &&
+          request.resource.data.updatedBy.lower() == authEmail() &&
+          request.resource.data.managerDecision in ['approved','returned','rejected'] &&
+          request.resource.data.workflowStage in ['pending_super_admin','returned_requester','rejected_manager']) ||
         /* Historical recovery: old source rows can omit optional manager fields.
            Keep the manager decision authorized by canonical department + strict stage
            and actor identity, without depending on an inbox projection. */
