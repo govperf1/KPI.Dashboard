@@ -244,6 +244,14 @@ service cloud.firestore {
         data.schemaVersion == 2;
     }
 
+    // v361: query-safe direct department read. Keep this branch deliberately
+    // simple so Firestore can prove a departmentKey equality query without
+    // evaluating the larger legacy alias/visibility expression.
+    function directDepartmentRead(data) {
+      return approved() && userDepartmentKey() != '' &&
+        ('departmentKey' in data) && data.departmentKey == userDepartmentKey();
+    }
+
     function canListDepartmentGrcRecord(data) {
       let u = userData();
       let r = profileRoleFrom(u);
@@ -457,6 +465,8 @@ service cloud.firestore {
 
     // ── Department-scoped GRC register collections ───────────────────
     match /grc_policies/{recordId} {
+      // v361: simple provable department query for scoped GRC users.
+      allow get, list: if directDepartmentRead(resource.data);
       // Full-register roles use an unconditional read branch. Scoped users use
       // the departmentKey-proved branch below. This prevents the Admin/Super
       // Admin full collection query from being rejected as a resource filter.
@@ -468,6 +478,8 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_plans/{recordId} {
+      // v361: simple provable department query for scoped GRC users.
+      allow get, list: if directDepartmentRead(resource.data);
       // Full-register roles use an unconditional read branch. Scoped users use
       // the departmentKey-proved branch below. This prevents the Admin/Super
       // Admin full collection query from being rejected as a resource filter.
@@ -479,6 +491,8 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_forms/{recordId} {
+      // v361: simple provable department query for scoped GRC users.
+      allow get, list: if directDepartmentRead(resource.data);
       // Full-register roles use an unconditional read branch. Scoped users use
       // the departmentKey-proved branch below. This prevents the Admin/Super
       // Admin full collection query from being rejected as a resource filter.
@@ -496,6 +510,8 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_risks/{recordId} {
+      // v361: simple provable department query for scoped GRC users.
+      allow get, list: if directDepartmentRead(resource.data);
       // Platform-wide Risk readers get an unconditional collection read branch;
       // scoped operational roles use the department-safe branch below. Keeping
       // these paths separate makes full-collection queries provably safe.
@@ -509,6 +525,8 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_incidents/{recordId} {
+      // v361: simple provable department query for scoped GRC users.
+      allow get, list: if directDepartmentRead(resource.data);
       allow get, list: if admin() || role() == 'governance_performance_manager';
       allow get: if canGetDepartmentGrcRecord(resource.data);
       allow list: if canListDepartmentGrcRecord(resource.data);
@@ -617,6 +635,9 @@ service cloud.firestore {
       // analytics reads so an exact userEmail query never depends on a legacy UID.
       allow list: if admin();
       allow list: if permit('view_request_analytics', ['governance_performance_manager']);
+      // v361: exact ownership queries for My Requests.
+      allow list: if canAccessGrc() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
+      allow list: if canAccessGrc() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       allow list: if canAccessGrc() && resource.data.userEmail is string &&
         resource.data.userEmail == authEmail();
       allow list: if canAccessGrc() && ('requesterUid' in resource.data) &&
@@ -921,8 +942,15 @@ service cloud.firestore {
       // Requester ownership reads: current documents use requesterUid and/or
       // userEmail. Keep both independent so one missing historical field never
       // makes My Requests disappear.
+      // v361: simple query-safe branches. These are intentionally independent
+      // from canonicalization helpers so Firestore can prove exact equality.
       allow list: if admin();
       allow list: if role() == 'governance_performance_manager';
+      allow list: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
+        userDepartmentKey() != '' && ('departmentKey' in resource.data) &&
+        resource.data.departmentKey == userDepartmentKey();
+      allow list: if departmentManager() && userDepartmentKey() != '' &&
+        ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey();
       allow list: if permit('view_request_analytics', ['governance_performance_manager']);
       allow list: if approved() && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && resource.data.userEmail == authEmail();
@@ -1132,9 +1160,12 @@ service cloud.firestore {
         resource.data.department == profileDepartmentValueFrom(userData());
       allow list: if departmentManager() && ('departmentRaw' in resource.data) &&
         resource.data.departmentRaw == profileDepartmentValueFrom(userData());
-      // Split owner and department list authorization into independent exact
-      // branches. This is safer for Firestore query authorization than one large OR.
+      // v361: simple exact query branches for Risk/Incident request history.
       allow list: if admin();
+      allow list: if approved() && ('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail();
+      allow list: if approved() && ('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid;
+      allow list: if approved() && role() in ['department_manager','risk_owner','grc_owner','platform_owner'] &&
+        userDepartmentKey() != '' && ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey();
       allow list: if canReadRiskIncidentWorkflow() &&
         (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid);
       allow list: if canReadRiskIncidentWorkflow() &&

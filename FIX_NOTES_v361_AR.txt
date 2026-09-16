@@ -1,0 +1,1 @@
+v361: Root fix for request visibility. Simplified Firestore query authorization for My Requests, Review & Development, Risk & Incident, and department-scoped GRC registers. Removed failing legacy alias live listeners. No workflow or data changes.
