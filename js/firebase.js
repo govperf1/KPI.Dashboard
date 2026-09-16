@@ -1727,7 +1727,7 @@ window._selectPortal=async portal=>{
       const freshProfile=await _grcResolveManagerProfile(await _advFreshProfile(true));
       await _advAssertProfileScope(freshProfile);
       if(freshProfile.role!=='department_manager')throw new Error('Department Manager approval is required.');
-      const managerEmail=freshProfile.email;
+      const managerEmail=String(freshProfile.email||'').trim().toLowerCase();
       const managerName=String(window._fbName||window.currentUserName||managerEmail);
       const managerComment=String(comment||'').trim();
       const returnFields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
