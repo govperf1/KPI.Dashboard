@@ -30,7 +30,8 @@ service cloud.firestore {
     }
 
     function approvedValue(value) {
-      return value == true || value == 'true' || value == 1;
+      return value == true || value == 1 ||
+        (value is string && value.lower() == 'true');
     }
 
     function approved() {
@@ -869,12 +870,13 @@ service cloud.firestore {
     }
 
     function validAdvisoryManagerChange(requestId) {
-      // v362: Keep the manager UPDATE authorization completely source-document
-      // based. The approval action must not depend on queue/projection documents.
-      // Accept the same approved representations used elsewhere in this ruleset.
+      // v363 ROOT FIX: Department Manager approval is authorized only from the
+      // authoritative advisory_requests source document. It must not depend on
+      // any inbox/queue projection, legacy UID fallback, or optional legacy fields.
       let u = userData();
-      return signedIn() && userExists() && approvedValue(u.approved) &&
+      return signedIn() &&
         profileRoleFrom(u) == 'department_manager' &&
+        approvedValue(u.approved) &&
         advisoryManagerDepartmentMatch(resource.data) &&
         resource.data.workflowStage == 'pending_department_manager' &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
@@ -891,12 +893,7 @@ service cloud.firestore {
         request.resource.data.managerDecision in ['approved','returned','rejected'] &&
         request.resource.data.workflowStage in [
           'pending_super_admin','returned_requester','rejected_manager'
-        ] &&
-        (
-          request.resource.data.workflowStage == 'pending_super_admin' ||
-          request.resource.data.workflowStage == 'returned_requester' ||
-          request.resource.data.workflowStage == 'rejected_manager'
-        );
+        ];
     }
     function validAdvisoryOwnerResubmit() {
       return approved() &&
@@ -1003,44 +1000,9 @@ service cloud.firestore {
         (approved() && ownEmail(resource.data.userEmail) &&
           validAdvisoryOwnerChange() && advisoryOwnerRoutePreserved()) ||
         validAdvisoryManagerChange(requestId) ||
-        /* v362: explicit source-document manager decision path. This is intentionally
-           duplicated at the match level so the authorization remains independent of
-           any queue projection and is easy to verify/deploy. */
-        (signedIn() && userExists() && approvedValue(userData().approved) &&
-          profileRoleFrom(userData()) == 'department_manager' &&
-          advisoryManagerDepartmentMatch(resource.data) &&
-          resource.data.workflowStage == 'pending_department_manager' &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'status','workflowStage','closureReason',
-            'managerDecision','managerComment','managerName','managerEmail',
-            'managerActionAt','managerActionAtIso','closedAt',
-            'returnFields','returnNote','returnSource','returnedAt',
-            'updatedAt','updatedAtIso','updatedBy'
-          ]) &&
-          request.resource.data.managerEmail is string &&
-          request.resource.data.managerEmail.lower() == authEmail() &&
-          request.resource.data.updatedBy is string &&
-          request.resource.data.updatedBy.lower() == authEmail() &&
-          request.resource.data.managerDecision in ['approved','returned','rejected'] &&
-          request.resource.data.workflowStage in ['pending_super_admin','returned_requester','rejected_manager']) ||
-        /* Historical recovery: old source rows can omit optional manager fields.
-           Keep the manager decision authorized by canonical department + strict stage
-           and actor identity, without depending on an inbox projection. */
-        (departmentManager() && advisoryManagerDepartmentMatch(resource.data) &&
-          resource.data.workflowStage == 'pending_department_manager' &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-            'status','workflowStage','closureReason',
-            'managerDecision','managerComment','managerName','managerEmail',
-            'managerActionAt','managerActionAtIso','closedAt',
-            'returnFields','returnNote','returnSource','returnedAt',
-            'updatedAt','updatedAtIso','updatedBy'
-          ]) &&
-          request.resource.data.managerEmail is string &&
-          request.resource.data.managerEmail.lower() == authEmail() &&
-          request.resource.data.updatedBy is string &&
-          request.resource.data.updatedBy.lower() == authEmail() &&
-          request.resource.data.managerDecision in ['approved','returned','rejected'] &&
-          request.resource.data.workflowStage in ['pending_super_admin','returned_requester','rejected_manager']);
+        /* v363: single authoritative Department Manager source-update path.
+           No queue/projection lookup is involved in authorization. */
+        validAdvisoryManagerChange(requestId);
       allow delete: if superAdmin();
     }
 
