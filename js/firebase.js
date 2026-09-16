@@ -1030,7 +1030,7 @@ window._selectPortal=async portal=>{
        stopped valid requests before the real write was even attempted. */
     async function _advAssertRulesVersion(){
       if(window.__advRulesV71Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v76-request-visibility-20260914'));window.__advRulesV71Verified=true;return true;}
+      try{await _getServerDoc(doc(db,'system_rule_versions','v77-manager-decision-state-integrity-20260916'));window.__advRulesV71Verified=true;return true;}
       catch(e){console.warn('[GRC Rules Probe] version probe unavailable; continuing with real Firestore authorization',e&&e.code||e&&e.message||e);return false;}
     }
     async function _advAssertProfileScope(profile){
@@ -1991,7 +1991,7 @@ window._selectPortal=async portal=>{
     function _grcRiskCanUpdateStatus(){const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms();return ['risk_owner','grc_owner','platform_owner'].includes(r)||p.includes('update_risk_status')||p.includes('edit_risk_management')||p.includes('*');}
     async function _grcRiskAssertRulesVersion(){
       if(window.__grcRulesV71Verified===true)return true;
-      try{await _getServerDoc(doc(db,'system_rule_versions','v76-request-visibility-20260914'));window.__grcRulesV71Verified=true;return true;}
+      try{await _getServerDoc(doc(db,'system_rule_versions','v77-manager-decision-state-integrity-20260916'));window.__grcRulesV71Verified=true;return true;}
       catch(e){console.warn('[GRC Rules Probe] risk version probe unavailable; continuing with real Firestore authorization',e&&e.code||e&&e.message||e);return false;}
     }
     window._qumcAssertFirestoreRulesV69=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV64=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV43=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV42=_grcRiskAssertRulesVersion;window._qumcAssertFirestoreRulesV41=_grcRiskAssertRulesVersion;
