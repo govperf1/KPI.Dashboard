@@ -879,8 +879,10 @@ service cloud.firestore {
           'returnFields','returnNote','returnSource','returnedAt',
           'updatedAt','updatedAtIso','updatedBy'
         ]) &&
-        request.resource.data.managerEmail == authEmail() &&
-        request.resource.data.updatedBy == authEmail() &&
+        request.resource.data.managerEmail is string &&
+        request.resource.data.managerEmail.lower() == authEmail() &&
+        request.resource.data.updatedBy is string &&
+        request.resource.data.updatedBy.lower() == authEmail() &&
         request.resource.data.managerDecision in ['approved','returned','rejected'] &&
         request.resource.data.workflowStage in [
           'pending_super_admin','returned_requester','rejected_manager'
@@ -1008,8 +1010,10 @@ service cloud.firestore {
             'returnFields','returnNote','returnSource','returnedAt',
             'updatedAt','updatedAtIso','updatedBy'
           ]) &&
-          request.resource.data.managerEmail == authEmail() &&
-          request.resource.data.updatedBy == authEmail() &&
+          request.resource.data.managerEmail is string &&
+          request.resource.data.managerEmail.lower() == authEmail() &&
+          request.resource.data.updatedBy is string &&
+          request.resource.data.updatedBy.lower() == authEmail() &&
           request.resource.data.managerDecision in ['approved','returned','rejected'] &&
           request.resource.data.workflowStage in ['pending_super_admin','returned_requester','rejected_manager']);
       allow delete: if superAdmin();
