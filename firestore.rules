@@ -33,7 +33,13 @@ service cloud.firestore {
     }
 
     function approved() {
-      return userExists() && approvedValue(userData().approved);
+      // Super Admin is a platform-level built-in role and must not lose
+      // Firestore access because the legacy approved flag is missing/stale.
+      // All other roles continue to require the approved flag.
+      return userExists() && (
+        approvedValue(userData().approved) ||
+        profileRoleFrom(userData()) == 'super_admin'
+      );
     }
 
     function normalizedRoleValue(value) {
@@ -465,6 +471,8 @@ service cloud.firestore {
 
     // ── Department-scoped GRC register collections ───────────────────
     match /grc_policies/{recordId} {
+      // v362: Super Admin is platform-wide; short-circuit before scoped branches.
+      allow get, list: if superAdmin();
       // v361: simple provable department query for scoped GRC users.
       allow get, list: if directDepartmentRead(resource.data);
       // Full-register roles use an unconditional read branch. Scoped users use
@@ -478,6 +486,8 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_plans/{recordId} {
+      // v362: Super Admin is platform-wide; short-circuit before scoped branches.
+      allow get, list: if superAdmin();
       // v361: simple provable department query for scoped GRC users.
       allow get, list: if directDepartmentRead(resource.data);
       // Full-register roles use an unconditional read branch. Scoped users use
@@ -491,6 +501,8 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_forms/{recordId} {
+      // v362: Super Admin is platform-wide; short-circuit before scoped branches.
+      allow get, list: if superAdmin();
       // v361: simple provable department query for scoped GRC users.
       allow get, list: if directDepartmentRead(resource.data);
       // Full-register roles use an unconditional read branch. Scoped users use
@@ -510,6 +522,8 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_risks/{recordId} {
+      // v362: Super Admin is platform-wide; short-circuit before scoped branches.
+      allow get, list: if superAdmin();
       // v361: simple provable department query for scoped GRC users.
       allow get, list: if directDepartmentRead(resource.data);
       // Platform-wide Risk readers get an unconditional collection read branch;
@@ -525,6 +539,8 @@ service cloud.firestore {
       allow delete: if canWriteGrcRecord();
     }
     match /grc_incidents/{recordId} {
+      // v362: Super Admin is platform-wide; short-circuit before scoped branches.
+      allow get, list: if superAdmin();
       // v361: simple provable department query for scoped GRC users.
       allow get, list: if directDepartmentRead(resource.data);
       allow get, list: if admin() || role() == 'governance_performance_manager';
@@ -618,6 +634,8 @@ service cloud.firestore {
     }
 
     match /grc_requests/{requestId} {
+      // v362: Super Admin reads the complete request history directly.
+      allow get, list: if superAdmin();
       allow create: if canAccessGrc() && ownEmail(request.resource.data.userEmail) &&
         (!('requesterUid' in request.resource.data) || request.resource.data.requesterUid == request.auth.uid) &&
         (
@@ -1134,6 +1152,8 @@ service cloud.firestore {
 
 
     match /grc_risk_requests/{requestId} {
+      // v362: Super Admin reads the complete Risk/Incident request history directly.
+      allow get, list: if superAdmin();
       // Every new Risk/Incident request is written with canonical identity and
       // department fields taken from the authenticated Firestore profile.
       allow create: if validRiskRequestCreate(request.resource.data);
