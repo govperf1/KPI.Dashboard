@@ -1745,6 +1745,9 @@ window._selectPortal=async portal=>{
       /* v362 — Do not preflight-read the source document here. The queue is only
          a routing projection and the Firestore UPDATE rule is authoritative. A
          manager action makes exactly one source UPDATE attempt. */
+      // v365: Keep each manager decision payload minimal and deterministic.
+      // Approve must not write unrelated return fields; this keeps the UPDATE
+      // request exactly aligned with the approved-state Rules branch.
       const updates={
         status:finalStatus,workflowStage:finalStage,closureReason:closureReason,
         managerDecision:decision,managerComment:managerComment,
@@ -1757,10 +1760,9 @@ window._selectPortal=async portal=>{
         updates.returnSource='department_manager';
         updates.returnFields=returnFields;
         updates.returnedAt=serverTimestamp();
-      }else{
-        updates.returnNote='';updates.returnSource='';updates.returnFields=[];
+      }else if(action==='reject'){
+        updates.closedAt=serverTimestamp();
       }
-      if(action==='reject')updates.closedAt=serverTimestamp();
       try{
         await updateDoc(requestRef,updates);
       }catch(writeErr){
