@@ -657,7 +657,7 @@ service cloud.firestore {
       // still strictly identity-scoped and cannot expose another user's data.
       // v372: exact owner get. No approved/role dependency.
       allow get: if signedIn() && (
-        (('userEmail' in resource.data) && resource.data.userEmail is string && resource.data.userEmail.lower() == authEmail()) ||
+        (('userEmail' in resource.data) && resource.data.userEmail is string && resource.data.userEmail == authEmail()) ||
         (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid)
       );
 
