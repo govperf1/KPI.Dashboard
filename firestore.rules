@@ -1,5 +1,5 @@
 // v367 — Direct manager authorization + complete Review & Development history.
-// FIRESTORE SECURITY RULES v80 — Request visibility + manager approval + history fix
+// FIRESTORE SECURITY RULES v80.1 — Manager approval legacy department fallback + history fix
 // v75: Removes queue-existence dependency from manager decisions and authorizes
 // the manager directly from the authenticated canonical department. The queue is
 // routing-only; a stale/missing projection can never block a valid source update.
@@ -678,7 +678,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // a unique v64 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId in ['v71-canonical-exact-request-reads-20260908','v72-review-manager-decision-20260910','v73-review-workflow-recovery-20260914','v74-authoritative-review-inbox-20260914','v75-manager-approval-source-authoritative-20260914','v76-request-visibility-20260914','v77-manager-decision-state-integrity-20260916'];
+      allow get: if approved() && versionId in ['v71-canonical-exact-request-reads-20260908','v72-review-manager-decision-20260910','v73-review-workflow-recovery-20260914','v74-authoritative-review-inbox-20260914','v75-manager-approval-source-authoritative-20260914','v76-request-visibility-20260914','v77-manager-decision-state-integrity-20260916','v80-manager-legacy-department-update-20260917'];
       allow list, create, update, delete: if false;
     }
 
@@ -790,6 +790,24 @@ service cloud.firestore {
       return advisoryManagerDepartmentMatch(data);
     }
 
+    // Manager UPDATE authorization must also support historical Review &
+    // Development source rows that were created before departmentKey became
+    // mandatory. Reads/lists remain exact departmentKey queries for Firestore
+    // query safety; this fallback is used only against the single source
+    // document being updated. If departmentKey exists, it remains authoritative
+    // and must match the authenticated manager department.
+    function advisoryManagerUpdateDepartmentMatch(data) {
+      return departmentManager() &&
+        userDepartmentKey() != '' &&
+        (
+          (('departmentKey' in data) && data.departmentKey == userDepartmentKey()) ||
+          (!(('departmentKey' in data)) && ('department' in data) &&
+            canonicalDepartment(data.department) == userDepartmentKey()) ||
+          (!(('departmentKey' in data)) && ('departmentRaw' in data) &&
+            canonicalDepartment(data.departmentRaw) == userDepartmentKey())
+        );
+    }
+
     function validAdvisoryOwnerChange() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'status','messages','attachments','attachmentCount',
@@ -880,7 +898,7 @@ service cloud.firestore {
       return signedIn() &&
         profileRoleFrom(u) == 'department_manager' &&
         approvedValue(u.approved) &&
-        advisoryManagerDepartmentMatch(resource.data) &&
+        advisoryManagerUpdateDepartmentMatch(resource.data) &&
         resource.data.workflowStage == 'pending_department_manager' &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status','workflowStage','closureReason',
