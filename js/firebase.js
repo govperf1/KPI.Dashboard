@@ -867,25 +867,31 @@ window._selectPortal=async portal=>{
       return ref.id;
     };
     window._grcRequestsGetMine=async function(){
-      /* v370 ROOT FIX: My Requests ownership must use the authenticated Firebase
-         identity directly. Do not gate this read on the cached portal label
-         (window._fbUser), which can be temporarily empty/stale for normal users. */
+      /* v371 ROOT FIX: My Requests is an owner view. Use the authoritative
+         Firebase Auth identity and query only exact owner keys. This keeps
+         normal users independent from the GRC role/permission matrix. */
       const activeUser=auth&&auth.currentUser;
-      if(!activeUser||!db) return [];
-      const uid=String(activeUser.uid||window._fbUid||window._fbUserUid||window._fbAuthUid||'').trim();
-      const email=String(activeUser.email||window._fbUser||window.currentUserEmail||'').toLowerCase().trim();
+      if(!activeUser||!db)return[];
+      const uid=String(activeUser.uid||'').trim();
+      const email=String(activeUser.email||'').toLowerCase().trim();
       const col=collection(db,'grc_requests'),refs=[];
       if(email)refs.push(query(col,where('userEmail','==',email)));
       if(uid)refs.push(query(col,where('requesterUid','==',uid)));
       const map={};
       for(const ref of refs){
         try{
-          const snap=await getDocs(ref);
+          const snap=await getDocsFromServer(ref);
           snap.docs.forEach(function(d){map[d.id]=Object.assign({id:d.id},d.data()||{});});
-        }catch(e){console.warn('[GRC Requests] getMine path unavailable:',e&&e.code||e&&e.message||e);}
+        }catch(e){
+          console.warn('[GRC Requests] owner query failed:',e&&e.code||e&&e.message||e);
+        }
       }
       const rows=Object.keys(map).map(function(id){return map[id];});
-      rows.sort(function(a,b){return ((b.createdAt&&b.createdAt.seconds)||0)-((a.createdAt&&a.createdAt.seconds)||0);});
+      rows.sort(function(a,b){
+        const at=a.createdAt&&a.createdAt.seconds?Number(a.createdAt.seconds):0;
+        const bt=b.createdAt&&b.createdAt.seconds?Number(b.createdAt.seconds):0;
+        return bt-at;
+      });
       return rows;
     };
     window._grcRequestsGetAll=async function(){
