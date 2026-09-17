@@ -620,6 +620,9 @@ service cloud.firestore {
         (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) &&
         (('isReviewDevelopmentRequest' in resource.data && resource.data.isReviewDevelopmentRequest == true) ||
          ('requestDomain' in resource.data && resource.data.requestDomain == 'review_development'));
+      // Department Managers may query their own historical fallback requests by identity.
+      allow list: if departmentManager() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
+      allow list: if departmentManager() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
       // Generic Performance User Requests are admin-controlled after submit.
       // Requester-side workflow updates remain only for historical Review &
       // Development fallback rows; new R&D requests use advisory_requests.
@@ -800,7 +803,7 @@ service cloud.firestore {
       return departmentManager() &&
         userDepartmentKey() != '' &&
         (
-          (('departmentKey' in data) && data.departmentKey == userDepartmentKey()) ||
+          (('departmentKey' in data) && canonicalDepartment(data.departmentKey) == userDepartmentKey()) ||
           (!(('departmentKey' in data)) && ('department' in data) &&
             canonicalDepartment(data.department) == userDepartmentKey()) ||
           (!(('departmentKey' in data)) && ('departmentRaw' in data) &&
@@ -1034,7 +1037,11 @@ service cloud.firestore {
         ('departmentRaw' in resource.data) && resource.data.departmentRaw == profileDepartmentValueFrom(userData());
       // Department Manager source history is read through an exact canonical
       // department query; active approval rows are also available from inbox_v3.
-      allow list: if departmentManager() && userDepartmentKey() != '' && ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey();
+      allow list: if departmentManager() && userDepartmentKey() != '' && ('departmentKey' in resource.data) && canonicalDepartment(resource.data.departmentKey) == userDepartmentKey();
+      // Department Manager My Requests uses exact identity queries. These branches
+      // are query-safe and do not grant access to other users' requests.
+      allow list: if departmentManager() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail();
+      allow list: if departmentManager() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
 
       allow update: if
         (validAdvisorySuperAdminProcess()) ||
