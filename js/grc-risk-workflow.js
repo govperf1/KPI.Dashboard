@@ -428,13 +428,13 @@
   function renderProfileBody(){
     var body=document.getElementById('_grcRiskProfileBody');if(!body)return;
     if(isManager()){
-      var riskRows=managerRiskAllRows.filter(function(r){return managerDepartmentRequest(r);});
-      var reviewRows=managerReviewAllRows.filter(function(r){return String(r&&r.platform||'grc').toLowerCase()==='grc' && !!r;});
-      var combined=riskRows.map(function(r){return{kind:'risk',row:r,time:new Date(r.updatedAtIso||r.createdAtIso||r.createdAt||0).getTime()||0};})
-        .concat(reviewRows.map(function(r){return{kind:'review',row:r,time:reviewRequestTime(r)};}))
+      // Department Approval Requests is reserved for Risk & Incident only.
+      // Review & Development has its own dedicated approval area in the GRC portal.
+      var riskRows=managerRiskAllRows.filter(function(r){return managerDepartmentRequest(r);})
+        .map(function(r){return{kind:'risk',row:r,time:new Date(r.updatedAtIso||r.createdAtIso||r.createdAt||0).getTime()||0};})
         .sort(function(a,b){return b.time-a.time;});
-      var total=combined.length;
-      body.innerHTML='<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Department Approval Requests</h3><p>All Risk & Incident and Review & Development requests for your department. Current status is shown for every request; approval actions appear only when manager action is required.</p></div><span>'+total+'</span></div>'+(combined.length?combined.map(function(x){return x.kind==='review'?reviewProfileCard(x.row):card(x.row);}).join(''):'<div class="grc-risk-empty">No Risk, Incident, or Review & Development requests are available for your department.</div>')+'</section>';
+      var total=riskRows.length;
+      body.innerHTML='<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Department Approval Requests</h3><p>All Risk & Incident requests for your department. Current status is shown for every request; approval actions appear only when manager action is required.</p></div><span>'+total+'</span></div>'+(riskRows.length?riskRows.map(function(x){return card(x.row);}).join(''):'<div class="grc-risk-empty">No Risk & Incident requests are available for your department.</div>')+'</section>';
       var count=document.getElementById('_grcRiskProfileCount');if(count)count.textContent=total+' request(s)';
       return;
     }
