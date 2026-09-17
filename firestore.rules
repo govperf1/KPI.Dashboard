@@ -670,7 +670,7 @@ service cloud.firestore {
       // normal approved user cannot lose visibility because of role/permission
       // matrix state. Firestore still proves the query is owner-only.
       allow list: if signedIn() && ('userEmail' in resource.data) &&
-        resource.data.userEmail is string && resource.data.userEmail.lower() == authEmail();
+        resource.data.userEmail is string && resource.data.userEmail == authEmail();
       allow list: if signedIn() && ('requesterUid' in resource.data) &&
         resource.data.requesterUid == request.auth.uid;
 
@@ -1023,7 +1023,7 @@ service cloud.firestore {
       allow list: if signedIn() && ('requesterUid' in resource.data) &&
         resource.data.requesterUid == request.auth.uid;
       allow list: if signedIn() && ('userEmail' in resource.data) &&
-        resource.data.userEmail is string && resource.data.userEmail.lower() == authEmail();
+        resource.data.userEmail is string && resource.data.userEmail == authEmail();
       // Department-scoped GRC owners must be able to see the complete Review &
       // Development request history for their own department, not only requests
       // submitted by their current account/email. This is the same visibility
