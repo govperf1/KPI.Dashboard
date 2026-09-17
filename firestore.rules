@@ -1,5 +1,5 @@
-// v379 — Canonical owner-email query fix + historical request visibility.
-// FIRESTORE SECURITY RULES v83 — Owner list reads use one canonical exact-email key.
+// v380 — Canonical owner UID+email history visibility fix.
+// FIRESTORE SECURITY RULES v84 — Owner list/get reads support UID and canonical email.
 // v75: Removes queue-existence dependency from manager decisions and authorizes
 // the manager directly from the authenticated canonical department. The queue is
 // routing-only; a stale/missing projection can never block a valid source update.
@@ -673,9 +673,13 @@ service cloud.firestore {
       // userEmail, so Firestore can prove the complete result set without
       // evaluating the legacy UID branch. UID remains audit metadata.
       allow list: if signedIn() &&
+        ('requesterUid' in resource.data) &&
+        resource.data.requesterUid is string &&
+        resource.data.requesterUid == request.auth.uid;
+      allow list: if signedIn() &&
         ('userEmail' in resource.data) &&
         resource.data.userEmail is string &&
-        resource.data.userEmail == request.auth.token.email;
+        resource.data.userEmail == authEmail();
 
       allow update: if admin() ||
         (canAccessGrc() && ownEmail(resource.data.userEmail) && validGrcRequestRatingChange());
@@ -686,7 +690,7 @@ service cloud.firestore {
     // Read-only rules deployment probe. The document does not need to exist;
     // a unique v64 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId in ['v71-canonical-exact-request-reads-20260908','v72-review-manager-decision-20260910','v73-review-workflow-recovery-20260914','v74-authoritative-review-inbox-20260914','v75-manager-approval-source-authoritative-20260914','v76-request-visibility-20260914','v77-manager-decision-state-integrity-20260916','v79-canonical-owner-email-query-20260918'];
+      allow get: if approved() && versionId in ['v71-canonical-exact-request-reads-20260908','v72-review-manager-decision-20260910','v73-review-workflow-recovery-20260914','v74-authoritative-review-inbox-20260914','v75-manager-approval-source-authoritative-20260914','v76-request-visibility-20260914','v77-manager-decision-state-integrity-20260916','v79-canonical-owner-email-query-20260918','v80-owner-uid-email-history-20260918'];
       allow list, create, update, delete: if false;
     }
 
@@ -1026,9 +1030,13 @@ service cloud.firestore {
       // v379: canonical owner history query. The client uses only userEmail
       // for the owner listener, so this branch exactly mirrors that query.
       allow list: if signedIn() &&
+        ('requesterUid' in resource.data) &&
+        resource.data.requesterUid is string &&
+        resource.data.requesterUid == request.auth.uid;
+      allow list: if signedIn() &&
         ('userEmail' in resource.data) &&
         resource.data.userEmail is string &&
-        resource.data.userEmail == request.auth.token.email;
+        resource.data.userEmail == authEmail();
       // Department-scoped GRC owners must be able to see the complete Review &
       // Development request history for their own department, not only requests
       // submitted by their current account/email. This is the same visibility
@@ -1208,6 +1216,13 @@ service cloud.firestore {
       // department fields taken from the authenticated Firestore profile.
       allow create: if validRiskRequestCreate(request.resource.data);
 
+      // v380: request owners can open every state, including closed/published,
+      // without depending on the role/permission matrix. Identity is exact.
+      allow get: if signedIn() && (
+        (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid) ||
+        (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail())
+      );
+
       // Direct opens retain compatibility with historical aliases.
       allow get: if canReadRiskIncidentWorkflow() && (
         admin() || riskRequestOwner(resource.data) || riskRequestDepartment(resource.data)
@@ -1230,6 +1245,12 @@ service cloud.firestore {
         resource.data.department == profileDepartmentValueFrom(userData());
       allow list: if departmentManager() && ('departmentRaw' in resource.data) &&
         resource.data.departmentRaw == profileDepartmentValueFrom(userData());
+      // v380: owner history queries are identity-scoped and remain available
+      // for every request status, including returned/rejected/published/closed.
+      allow list: if signedIn() && ('submittedByUid' in resource.data) &&
+        resource.data.submittedByUid is string && resource.data.submittedByUid == request.auth.uid;
+      allow list: if signedIn() && ('submittedByEmail' in resource.data) &&
+        resource.data.submittedByEmail is string && resource.data.submittedByEmail == authEmail();
       // v361: simple exact query branches for Risk/Incident request history.
       allow list: if admin();
       allow list: if approved() && ('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail();
