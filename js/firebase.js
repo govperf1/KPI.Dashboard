@@ -377,7 +377,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       window._fbRole='viewer';window.currentUserRole='viewer';
       window._fbDept=null;window.currentUserDept=null;
       window._fbPerms=[];window._fbName='';window.currentUserName='';
-      window._fbAssignedKpis=null;window._fbProfile=null;window._fbProfileResolved=false;
+      window._fbAssignedKpis=null;window._fbProfileResolved=false;
     }
     const showLogin=()=>{
       console.log('[Auth] showLogin');
@@ -635,7 +635,7 @@ window._selectPortal=async portal=>{
       console.log('[Auth] onAuthStateChanged — user:',user?user.email:'none');
       window._fbProfileResolved=false;
       if(!user){
-        window.__qumcAuditLoginLoggedFor='';window._fbUser='';window._fbEmail='';window.currentUserEmail='';window._fbRole='viewer';window.currentUserRole='viewer';window._fbDept=null;window.currentUserDept=null;window._fbProfile=null;window._fbPerms=[];window._fbName='';window.currentUserName='';window._fbAssignedKpis=null;window._fbProfileResolved=false;
+        window.__qumcAuditLoginLoggedFor='';window._fbUser='';window._fbEmail='';window.currentUserEmail='';window._fbRole='viewer';window.currentUserRole='viewer';window._fbDept=null;window.currentUserDept=null;window._fbPerms=[];window._fbName='';window.currentUserName='';window._fbAssignedKpis=null;window._fbProfileResolved=false;
         try{window._stopAuditListener&&window._stopAuditListener();}catch(_){}try{window._stopReadListener&&window._stopReadListener();}catch(_){}try{window._grcRiskRequestsStop&&window._grcRiskRequestsStop();}catch(_){}try{window._grcStopSecureSync&&window._grcStopSecureSync();}catch(_){}showLogin();return;
       }
       const email=String(user.email||'').toLowerCase().trim();
@@ -664,7 +664,7 @@ window._selectPortal=async portal=>{
         if(d.extraPermissions)perms=[...new Set([...perms,...d.extraPermissions])];
         if(d.revokedPermissions)perms=perms.filter(p=>!d.revokedPermissions.includes(p));
         const realName=accountNameFrom(d,user,email);
-        window._fbUser=email;window._fbEmail=email;window.currentUserEmail=email;window._fbRole=role;window.currentUserRole=role;window._fbDept=accountDept;window.currentUserDept=accountDept;window._fbPerms=perms;window._fbProfile=d;window._fbName=realName;window.currentUserName=realName;window._fbAssignedKpis=d.assignedKpis||null;window._fbProfileResolved=true;
+        window._fbUser=email;window._fbEmail=email;window.currentUserEmail=email;window._fbRole=role;window.currentUserRole=role;window._fbDept=accountDept;window.currentUserDept=accountDept;window._fbPerms=perms;window._fbName=realName;window.currentUserName=realName;window._fbAssignedKpis=d.assignedKpis||null;window._fbProfileResolved=true;
         /* The GRC register listeners must bind only after the resolved user
            profile is known. Otherwise Auth may start them with an empty
            department and approved register changes never reach the dashboard. */
@@ -867,9 +867,13 @@ window._selectPortal=async portal=>{
       return ref.id;
     };
     window._grcRequestsGetMine=async function(){
-      if(!window._fbUser||!db) return [];
-      const uid=String(auth.currentUser&&auth.currentUser.uid||window._fbUid||window._fbUserUid||window._fbAuthUid||'').trim();
-      const email=String(window._fbUser||auth.currentUser&&auth.currentUser.email||'').toLowerCase().trim();
+      /* v370 ROOT FIX: My Requests ownership must use the authenticated Firebase
+         identity directly. Do not gate this read on the cached portal label
+         (window._fbUser), which can be temporarily empty/stale for normal users. */
+      const activeUser=auth&&auth.currentUser;
+      if(!activeUser||!db) return [];
+      const uid=String(activeUser.uid||window._fbUid||window._fbUserUid||window._fbAuthUid||'').trim();
+      const email=String(activeUser.email||window._fbUser||window.currentUserEmail||'').toLowerCase().trim();
       const col=collection(db,'grc_requests'),refs=[];
       if(email)refs.push(query(col,where('userEmail','==',email)));
       if(uid)refs.push(query(col,where('requesterUid','==',uid)));
@@ -1355,12 +1359,20 @@ window._selectPortal=async portal=>{
       _grcManagerLiveStartPromise=(async function(){
         const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
         _grcManagerLiveProfile=fresh;
-        // Department Manager operational data comes from the department-scoped
-        // approval inbox. Do not open an additional advisory_requests history
-        // query here; it is not needed for approval actions and can generate a
-        // permission-denied warning during reconnects.
-        _grcManagerLiveSources.reviewHistory=[];
-        delete _grcManagerLiveErrors.reviewHistory;
+        // One-time department history reads keep the profile complete even when
+        // an item has already left the action inbox. Queries are exact and each
+        // source is isolated so a denied legacy path cannot erase valid rows.
+        try{
+          const col=collection(db,ADV_REQUESTS_COLLECTION),dept=fresh.departmentKey,raw=String(fresh.rawDepartment||'').trim();
+          const qs=[query(col,where('departmentKey','==',dept))];
+          if(raw&&raw.toLowerCase()!==String(dept).toLowerCase()){
+            qs.push(query(col,where('department','==',raw)),query(col,where('departmentRaw','==',raw)));
+          }
+          const snaps=await Promise.all(qs.map(function(q){return getDocsFromServer(q);}));
+          const map={};snaps.forEach(function(s){s.docs.forEach(function(d){map[d.id]=_advNormalizeRow(d.id,d.data()||{},'advisory_requests');});});
+          _grcManagerLiveSources.reviewHistory=Object.keys(map).map(function(k){return map[k];});
+          delete _grcManagerLiveErrors.reviewHistory;
+        }catch(err){_grcManagerLiveErrors.reviewHistory=String(err&&err.code||err&&err.message||err);}
         try{
           const riskSnap=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));
           _grcManagerLiveSources.riskHistory=riskSnap.docs.map(function(d){return _grcRiskRequestData(d);});
