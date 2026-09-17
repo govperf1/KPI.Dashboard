@@ -867,34 +867,30 @@ window._selectPortal=async portal=>{
       return ref.id;
     };
     window._grcRequestsGetMine=async function(){
-      /* v371 ROOT FIX: My Requests is an owner view. Use the authoritative
-         Firebase Auth identity and query only exact owner keys. This keeps
-         normal users independent from the GRC role/permission matrix. */
+      /* v380: owner history is identity-scoped. Query both canonical identity
+         keys independently so current UID-based rows and older email-based
+         rows are both visible. A failure in one compatibility path never
+         erases rows returned by the other. */
       const activeUser=auth&&auth.currentUser;
       if(!activeUser||!db)return[];
       const email=String(activeUser.email||'').toLowerCase().trim();
-      // v379: use the same single canonical key that the Firestore owner rule
-      // authorizes. Do not add a UID query here; old request rows are not
-      // guaranteed to contain requesterUid, while userEmail is required by
-      // the GRC request creation contract.
+      const uid=String(activeUser.uid||'').trim();
       const col=collection(db,'grc_requests');
-      const refs=email?[query(col,where('userEmail','==',email))]:[];
+      const queries=[];
+      if(uid)queries.push({key:'uid',q:query(col,where('requesterUid','==',uid))});
+      if(email)queries.push({key:'email',q:query(col,where('userEmail','==',email))});
       const map={};
-      for(const ref of refs){
+      for(const item of queries){
         try{
-          const snap=await getDocsFromServer(ref);
+          const snap=await getDocsFromServer(item.q);
           snap.docs.forEach(function(d){map[d.id]=Object.assign({id:d.id},d.data()||{});});
-        }catch(e){
-          console.warn('[GRC Requests] owner query failed:',e&&e.code||e&&e.message||e);
-        }
+        }catch(e){console.warn('[GRC Requests] owner '+item.key+' query failed:',e&&e.code||e&&e.message||e);}
       }
-      const rows=Object.keys(map).map(function(id){return map[id];});
-      rows.sort(function(a,b){
+      return Object.keys(map).map(function(id){return map[id];}).sort(function(a,b){
         const at=a.createdAt&&a.createdAt.seconds?Number(a.createdAt.seconds):0;
         const bt=b.createdAt&&b.createdAt.seconds?Number(b.createdAt.seconds):0;
         return bt-at;
       });
-      return rows;
     };
     window._grcRequestsGetAll=async function(){
       if(!window._fbUser||!db) return [];
@@ -1570,8 +1566,10 @@ window._selectPortal=async portal=>{
       // v379: canonical owner history query. Keep UID for auditing, but do not
       // issue a second UID query that can fail against historical mixed-schema
       // rows and flood the console.
+      if(uid)pushQuery(ADV_REQUESTS_COLLECTION,query(primaryCol,where('requesterUid','==',uid)));
       if(me)pushQuery(ADV_REQUESTS_COLLECTION,query(primaryCol,where('userEmail','==',me)));
       const legacyCol=collection(db,ADV_FALLBACK_COLLECTION);
+      if(uid)pushQuery(ADV_FALLBACK_COLLECTION,query(legacyCol,where('requesterUid','==',uid)));
       if(me)pushQuery(ADV_FALLBACK_COLLECTION,query(legacyCol,where('userEmail','==',me)));
 
       const allRows=[];
@@ -1616,7 +1614,9 @@ window._selectPortal=async portal=>{
               const primaryCol=collection(db,ADV_REQUESTS_COLLECTION);
               const legacyCol=collection(db,ADV_FALLBACK_COLLECTION);
               // v379: canonical owner-email reads only.
+              if(_advUid())queries.push({col:ADV_REQUESTS_COLLECTION,q:query(primaryCol,where('requesterUid','==',_advUid()))});
               if(me)queries.push({col:ADV_REQUESTS_COLLECTION,q:query(primaryCol,where('userEmail','==',me))});
+              if(_advUid())queries.push({col:ADV_FALLBACK_COLLECTION,q:query(legacyCol,where('requesterUid','==',_advUid())});
               if(me)queries.push({col:ADV_FALLBACK_COLLECTION,q:query(legacyCol,where('userEmail','==',me))});
               const rows=[];
               for(const item of queries){
@@ -1694,6 +1694,7 @@ window._selectPortal=async portal=>{
         try{
           // v379: one canonical owner listener; UID is audit-only.
           const ownRefs=[];
+          if(_advUid())ownRefs.push(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid())));
           if(_advEmail())ownRefs.push(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
           const ownSources={};let ownActive=true;
           const emitOwn=function(){
@@ -2473,7 +2474,7 @@ window._selectPortal=async portal=>{
     function _grcRiskMergeRows(groups){const map={};(groups||[]).forEach(rows=>(rows||[]).forEach(r=>{if(r&&r.id)map[r.id]=r;}));return _grcRiskSort(Object.keys(map).map(id=>map[id]));}
     async function _grcRiskReadMany(qrefs){const groups=await Promise.all((qrefs||[]).map(async qref=>{try{return await _grcRiskRead(qref);}catch(err){console.warn('[GRC Risk Requests] scoped read failed',err&&err.code||err);return[];}}));return _grcRiskMergeRows(groups);}
     window._grcRiskRequestsGetMine=async function(){
-      if(!_grcRiskEmail())return[];
+      if(!_grcRiskEmail()||!db)return[];
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION);
       try{
         const role=_grcRiskRole(),dept=_grcRiskDept();
@@ -2483,7 +2484,12 @@ window._selectPortal=async portal=>{
           if(rawDept && rawDept.toLowerCase()!==String(dept).toLowerCase()) refs.push(query(col,where('departmentKey','==',rawDept)));
           return _grcRiskReadMany(refs);
         }
-        return await _grcRiskRead(query(col,where('submittedByEmail','==',_grcRiskEmail())));
+        const qrefs=[];
+        const uid=String(auth&&auth.currentUser&&auth.currentUser.uid||'').trim();
+        const email=_grcRiskEmail();
+        if(uid)qrefs.push(query(col,where('submittedByUid','==',uid)));
+        if(email)qrefs.push(query(col,where('submittedByEmail','==',email)));
+        return _grcRiskReadMany(qrefs);
       }catch(err){
         console.warn('[GRC Risk Requests] scoped getMine failed',err&&err.code||err);
         return [];
