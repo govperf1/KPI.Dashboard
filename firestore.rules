@@ -1,5 +1,5 @@
-// v366 — Review & Development history visibility + full requester history fix.
-// FIRESTORE SECURITY RULES v79 — Request visibility + manager approval + history fix
+// v367 — Direct manager authorization + complete Review & Development history.
+// FIRESTORE SECURITY RULES v80 — Request visibility + manager approval + history fix
 // v75: Removes queue-existence dependency from manager decisions and authorizes
 // the manager directly from the authenticated canonical department. The queue is
 // routing-only; a stale/missing projection can never block a valid source update.
@@ -778,25 +778,12 @@ service cloud.firestore {
 
     // ── Review & Development Center ──────────────────────────────────
     function advisoryManagerDepartmentMatch(data) {
-      let u = userData();
-      let r = profileRoleFrom(u);
-      let d = profileDepartmentKeyFrom(u);
-
-      // v78 ROOT FIX: older advisory_requests rows may not contain departmentKey.
-      // The authoritative source is still the request document itself; for
-      // historical rows, safely fall back to department or departmentRaw.
-      // No queue/projection lookup is used for manager authorization.
-      let sourceDept =
-        ('departmentKey' in data) && meaningfulDepartmentValue(data.departmentKey)
-          ? data.departmentKey
-          : (('department' in data) && meaningfulDepartmentValue(data.department)
-              ? data.department
-              : (('departmentRaw' in data) && meaningfulDepartmentValue(data.departmentRaw)
-                  ? data.departmentRaw : ''));
-
-      return signedIn() && approvedValue(u.approved) && r == 'department_manager' &&
-        d != '' && canonicalDepartment(sourceDept) != '' &&
-        canonicalDepartment(sourceDept) == d;
+      // v367 ROOT FIX: exact canonical departmentKey match only. This keeps
+      // manager reads and updates query-safe and avoids legacy alias evaluation.
+      return departmentManager() &&
+        userDepartmentKey() != '' &&
+        ('departmentKey' in data) &&
+        data.departmentKey == userDepartmentKey();
     }
 
     function advisoryManagerCanRead(data) {
@@ -989,9 +976,9 @@ service cloud.firestore {
         (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) ||
         (('userEmail' in resource.data) && ownEmail(resource.data.userEmail))
       );
-      allow get: if advisoryManagerCanRead(resource.data);
-      allow get: if departmentManager() && ('departmentKey' in resource.data) &&
-        canonicalDepartment(resource.data.departmentKey) == userDepartmentKey();
+      allow get: if departmentManager() && userDepartmentKey() != '' && ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey();
+      allow get: if departmentManager() && userDepartmentKey() != '' &&
+        ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey();
 
       // Requester ownership reads: current documents use requesterUid and/or
       // userEmail. Keep both independent so one missing historical field never
@@ -1029,7 +1016,7 @@ service cloud.firestore {
         ('departmentRaw' in resource.data) && resource.data.departmentRaw == profileDepartmentValueFrom(userData());
       // Department Manager source history is read through an exact canonical
       // department query; active approval rows are also available from inbox_v3.
-      allow list: if departmentManager() && resource.data.departmentKey == userDepartmentKey();
+      allow list: if departmentManager() && userDepartmentKey() != '' && ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey();
 
       allow update: if
         (validAdvisorySuperAdminProcess()) ||
