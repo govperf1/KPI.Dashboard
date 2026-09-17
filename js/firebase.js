@@ -1333,7 +1333,7 @@ window._selectPortal=async portal=>{
         review:Object.keys(reviewMap).map(function(k){return reviewMap[k];}).sort(function(a,b){return _advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso);}),
         reviewAll:Object.keys(reviewAllMap).map(function(k){return reviewAllMap[k];}).sort(function(a,b){return _advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso);}),
         risk:_grcRiskSort(Object.keys(riskMap).map(function(k){return riskMap[k];})),
-        riskAll:_grcRiskSort(Object.keys(riskMap).map(function(k){return riskMap[k];})),
+        riskAll:_grcRiskSort(Object.keys(riskAllMap).map(function(k){return riskAllMap[k];})),
         errors:Object.keys(_grcManagerLiveErrors).map(function(k){return k+': '+_grcManagerLiveErrors[k];})
       };
       _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();
@@ -1564,6 +1564,7 @@ window._selectPortal=async portal=>{
       if(uid)pushQuery(ADV_REQUESTS_COLLECTION,query(primaryCol,where('requesterUid','==',uid)));
       const legacyCol=collection(db,ADV_FALLBACK_COLLECTION);
       if(me)pushQuery(ADV_FALLBACK_COLLECTION,query(legacyCol,where('userEmail','==',me)));
+      if(uid)pushQuery(ADV_FALLBACK_COLLECTION,query(legacyCol,where('requesterUid','==',uid)));
 
       const allRows=[];
       for(const item of groups){
@@ -1603,9 +1604,24 @@ window._selectPortal=async portal=>{
           _advisoryManagerOwnCachePromise=(async function(){
             try{
               const me=_advEmail(),uid=_advUid();
-              let rows=[];
-              const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
-              rows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+              const queries=[];
+              const primaryCol=collection(db,ADV_REQUESTS_COLLECTION);
+              const legacyCol=collection(db,ADV_FALLBACK_COLLECTION);
+              if(me)queries.push({col:ADV_REQUESTS_COLLECTION,q:query(primaryCol,where('userEmail','==',me))});
+              if(uid)queries.push({col:ADV_REQUESTS_COLLECTION,q:query(primaryCol,where('requesterUid','==',uid))});
+              if(me)queries.push({col:ADV_FALLBACK_COLLECTION,q:query(legacyCol,where('userEmail','==',me))});
+              if(uid)queries.push({col:ADV_FALLBACK_COLLECTION,q:query(legacyCol,where('requesterUid','==',uid))});
+              const rows=[];
+              for(const item of queries){
+                try{
+                  const snap=await getDocsFromServer(item.q);
+                  snap.docs.forEach(function(d){
+                    const raw=d.data()||{};
+                    if(item.col===ADV_FALLBACK_COLLECTION&&!_advIsFallbackRow(raw))return;
+                    rows.push(_advNormalizeRow(d.id,raw,item.col));
+                  });
+                }catch(_){}
+              }
               if(!rows.length&&uid){
                 try{
                   const legacy=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
