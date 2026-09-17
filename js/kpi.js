@@ -241,8 +241,35 @@ function initSecurity(){
 /* == AUTH PERMISSIONS == */
 function hasPermission(p){const pr=window._fbPerms||[];return pr.includes('*')||pr.includes(p);}
 window.hasPermission=hasPermission;
+function canSeeReviewDevelopmentCenter(role,dept,profile){
+  role=String(role||window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_');
+  if(role==='superadmin')role='super_admin';
+  if(['department_manager','super_admin','admin','governance_performance_manager'].includes(role))return true;
+  if(role!=='viewer')return false;
+  var d=dept!=null?String(dept).trim():String(window._fbDept||window.currentUserDept||'').trim();
+  var prof=profile||window._fbProfile||{};
+  var manager=String(prof.managerEmail||prof.managerUid||prof.directManager||prof.directManagerEmail||prof.managerName||prof.supervisorEmail||prof.supervisorUid||'').trim();
+  return !d && !manager;
+}
+window.canSeeReviewDevelopmentCenter=canSeeReviewDevelopmentCenter;
+
 function applyRolePermissions(role,dept,perms){
   window._fbPerms=perms||[];
+  /* Review & Development Center is a controlled module. It is visible only to
+     Department Managers, Super Admin/Admin, Governance & Performance Manager,
+     and unassigned viewers with no direct manager. */
+  setTimeout(function(){
+    var allowed=canSeeReviewDevelopmentCenter(role,dept);
+    var tab=document.querySelector('.tab[onclick*="switchTab(\'advisory\'"]');
+    var page=document.getElementById('page-advisory');
+    if(tab){tab.style.setProperty('display',allowed?'':'none','important');tab.setAttribute('aria-hidden',allowed?'false':'true');}
+    if(page&&!allowed){page.classList.remove('on');page.setAttribute('aria-hidden','true');}
+    if(!allowed&&String(window.curPage||'')==='advisory'){
+      window.curPage='exec';
+      var ep=document.getElementById('page-exec');if(ep)ep.classList.add('on');
+      document.querySelectorAll('.tab').forEach(function(x){x.classList.toggle('on',x!==tab&&String(x.getAttribute('onclick')||'').indexOf("switchTab('exec'")>=0);});
+    }
+  },0);
   const isAdmin=role==='super_admin'||role==='admin';
   const isAnalyticsManager=role==='governance_performance_manager';
   try{document.getElementById('_rolePencilStyle')?.remove();}catch(_){}

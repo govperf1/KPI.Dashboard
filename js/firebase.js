@@ -377,7 +377,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       window._fbRole='viewer';window.currentUserRole='viewer';
       window._fbDept=null;window.currentUserDept=null;
       window._fbPerms=[];window._fbName='';window.currentUserName='';
-      window._fbAssignedKpis=null;window._fbProfileResolved=false;
+      window._fbAssignedKpis=null;window._fbProfile=null;window._fbProfileResolved=false;
     }
     const showLogin=()=>{
       console.log('[Auth] showLogin');
@@ -635,7 +635,7 @@ window._selectPortal=async portal=>{
       console.log('[Auth] onAuthStateChanged — user:',user?user.email:'none');
       window._fbProfileResolved=false;
       if(!user){
-        window.__qumcAuditLoginLoggedFor='';window._fbUser='';window._fbEmail='';window.currentUserEmail='';window._fbRole='viewer';window.currentUserRole='viewer';window._fbDept=null;window.currentUserDept=null;window._fbPerms=[];window._fbName='';window.currentUserName='';window._fbAssignedKpis=null;window._fbProfileResolved=false;
+        window.__qumcAuditLoginLoggedFor='';window._fbUser='';window._fbEmail='';window.currentUserEmail='';window._fbRole='viewer';window.currentUserRole='viewer';window._fbDept=null;window.currentUserDept=null;window._fbProfile=null;window._fbPerms=[];window._fbName='';window.currentUserName='';window._fbAssignedKpis=null;window._fbProfileResolved=false;
         try{window._stopAuditListener&&window._stopAuditListener();}catch(_){}try{window._stopReadListener&&window._stopReadListener();}catch(_){}try{window._grcRiskRequestsStop&&window._grcRiskRequestsStop();}catch(_){}try{window._grcStopSecureSync&&window._grcStopSecureSync();}catch(_){}showLogin();return;
       }
       const email=String(user.email||'').toLowerCase().trim();
@@ -664,7 +664,7 @@ window._selectPortal=async portal=>{
         if(d.extraPermissions)perms=[...new Set([...perms,...d.extraPermissions])];
         if(d.revokedPermissions)perms=perms.filter(p=>!d.revokedPermissions.includes(p));
         const realName=accountNameFrom(d,user,email);
-        window._fbUser=email;window._fbEmail=email;window.currentUserEmail=email;window._fbRole=role;window.currentUserRole=role;window._fbDept=accountDept;window.currentUserDept=accountDept;window._fbPerms=perms;window._fbName=realName;window.currentUserName=realName;window._fbAssignedKpis=d.assignedKpis||null;window._fbProfileResolved=true;
+        window._fbUser=email;window._fbEmail=email;window.currentUserEmail=email;window._fbRole=role;window.currentUserRole=role;window._fbDept=accountDept;window.currentUserDept=accountDept;window._fbPerms=perms;window._fbProfile=d;window._fbName=realName;window.currentUserName=realName;window._fbAssignedKpis=d.assignedKpis||null;window._fbProfileResolved=true;
         /* The GRC register listeners must bind only after the resolved user
            profile is known. Otherwise Auth may start them with an empty
            department and approved register changes never reach the dashboard. */

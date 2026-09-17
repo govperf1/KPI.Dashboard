@@ -743,6 +743,7 @@ function updateExecTrend(yr){
   }
   function handleNotificationOpen(n){
     if(n && n.type === 'grc_approval'){
+      if(typeof window.canSeeReviewDevelopmentCenter==='function'&&!window.canSeeReviewDevelopmentCenter(window._fbRole,window._fbDept,window._fbProfile)){showModal(n);return;}
       try{
         var nav=document.querySelector('[data-tab="advisory"], [data-module="advisory"]');
         if(nav&&typeof nav.click==='function')nav.click();

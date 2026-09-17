@@ -148,8 +148,8 @@
       '<div id="advViewHost"><div class="adv-loading">Loading Review & Development Center…</div></div></div></div>';
   }
   window._grcAdvisoryPage=function(){return pageSkeleton('grc','advRootGrc');};
-  window._grcAdvisoryMount=function(){mount('grc','advRootGrc');};
-  window._performanceAdvisoryMount=function(){var h=document.getElementById('performanceAdvisoryRoot');if(!h)return;if(!h.querySelector('#advRootPerformance'))h.innerHTML=pageSkeleton('performance','advRootPerformance');mount('performance','advRootPerformance');};
+  window._grcAdvisoryMount=function(){if(typeof window.canSeeReviewDevelopmentCenter==='function'&&!window.canSeeReviewDevelopmentCenter(window._fbRole,window._fbDept,window._fbProfile))return;mount('grc','advRootGrc');};
+  window._performanceAdvisoryMount=function(){if(typeof window.canSeeReviewDevelopmentCenter==='function'&&!window.canSeeReviewDevelopmentCenter(window._fbRole,window._fbDept,window._fbProfile))return;var h=document.getElementById('performanceAdvisoryRoot');if(!h)return;if(!h.querySelector('#advRootPerformance'))h.innerHTML=pageSkeleton('performance','advRootPerformance');mount('performance','advRootPerformance');};
   function applyLivePayload(payload){if(!payload||!root())return;livePayload=payload;if(isDepartmentManager()&&Array.isArray(payload.managerRiskRecords))managerRiskRecords=payload.managerRiskRecords;var next=currentView==='dashboard'?payload.publicRecords:payload.records;if(!Array.isArray(next))return;var incoming=next.filter(isRelevantRecord),errs=payload.errors||{},keys=currentView==='dashboard'?['primary']:((isDepartmentManager()?['manager']:['primary'])),messages=keys.filter(function(k){return !!errs[k];}).map(function(k){return k+': '+String(errs[k]);});
     /* Manager polling must not rebuild the table when Firebase returned the same
        queue. Rebuilding the DOM was clearing the Return/Reject panel while the

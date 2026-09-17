@@ -322,6 +322,10 @@ function toggleLang() {
 window.toggleLang = toggleLang;
 
 function switchTab(id, el) {
+  if(id==='advisory' && typeof window.canSeeReviewDevelopmentCenter==='function' && !window.canSeeReviewDevelopmentCenter(window._fbRole,window._fbDept,window._fbProfile)){
+    id='exec';
+    el=document.querySelectorAll('.tab')[0]||null;
+  }
   document.querySelectorAll('.tab').forEach(function(tab) { tab.classList.remove('on'); });
   document.querySelectorAll('.page').forEach(function(pg) { pg.classList.remove('on'); });
   if (el) el.classList.add('on');
