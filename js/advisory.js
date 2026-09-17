@@ -206,6 +206,16 @@
   window._advResetFilters=function(){dashboardFilter='all';departmentFilter='';dashboardSearch='';dashboardStatus='';renderView();};
 
   function requestsHtml(){return'<section class="adv-view is-active"><div class="grc-section-head"><div><div class="grc-section-title">Review & Development Requests</div><div class="grc-section-sub">'+(isAdmin()?'Review and respond to '+PLATFORM_LABELS[currentPlatform]+' requests.':isDepartmentManager()?'Track your own submitted Review & Development requests below.':'Submit an Existing Item Review & Update request or a New Item Request.')+'</div></div><button class="grc-primary-btn" onclick="window._advOpenGuidanceRequest()">＋ Submit Request</button></div>'+(isAdmin()?adminRequestsHtml():ownRequestsHtml())+'</section>';}
+  function ownRequestsHtml(){
+    /* Requester history is intentionally rendered from the already-authorized
+       identity-scoped records. Department Managers may also see their own
+       submitted R&D requests here; approval of Risk/Incident requests remains
+       in the GRC Department Approval center. */
+    var list=(records||[]).filter(function(r){
+      return r&&recordPlatform(r)===currentPlatform&&isManagerOwnRequest(r);
+    }).slice().sort(function(a,b){return timeMs(b.createdAt)-timeMs(a.createdAt);});
+    return '<div class="adv-card"><div class="adv-register-toolbar"><div><h3>Submitted Review & Development Requests</h3><p>Track every Review & Development request submitted by you.</p></div><button class="adv-btn ghost" onclick="window._advReload()">Refresh</button></div><div class="adv-table-wrap"><table class="adv-table" style="min-width:980px"><thead><tr><th>Request Code</th><th>Request Type</th><th>Item Type</th><th>Related Record(s)</th><th>Submitted</th><th>Status</th><th>Approval Stage</th><th>Last Update</th><th>Rating</th><th></th></tr></thead><tbody>'+(list.length?list.map(function(r){return '<tr><td class="adv-code">'+esc(r.code||r.id)+'</td><td>'+esc(typeLabel(r))+'</td><td>'+esc(r.category||r.relatedType||'—')+'</td><td>'+esc(relatedText(r))+'</td><td>'+formatDate(r.createdAt,true)+'</td><td>'+statusBadge(r.status)+'</td><td><span class="adv-workflow-stage">'+esc(workflowLabel(r))+'</span></td><td>'+formatDate(r.updatedAt||r.respondedAt||r.createdAt,true)+'</td><td>'+stars(r.rating)+(r.ratingComment?'<div class="adv-rating-comment-mini">'+esc(r.ratingComment)+'</div>':'')+'</td><td><button class="adv-btn secondary" onclick="window._advOpenRequest(\''+esc(r.id)+'\')">Show</button></td></tr>';}).join(''):'<tr><td colspan="10"><div class="adv-empty">No requests have been submitted yet.</div></td></tr>')+'</tbody></table></div></div>';
+  }
   function managerQuickSlot(btn){var row=btn&&btn.closest&&btn.closest('[data-adv-manager-review-row]');return row&&row.querySelector?row.querySelector('.adv-manager-inline-decision-slot'):null;}
   function clearManagerQuickPanels(){document.querySelectorAll('.adv-manager-inline-decision-slot').forEach(function(slot){slot.innerHTML='';});}
   window._advManagerQuickCancel=function(btn){var panel=btn&&btn.closest&&btn.closest('.adv-manager-inline-decision');if(panel)panel.remove();};
