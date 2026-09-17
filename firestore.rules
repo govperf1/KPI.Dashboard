@@ -652,8 +652,8 @@ service cloud.firestore {
           sameDepartment(request.resource.data.department)
         );
 
-      // v370 ROOT FIX: an authenticated requester must be able to read their
-      // own request regardless of the cached/legacy GRC role matrix. This is
+      // v371 ROOT FIX: an authenticated requester can read their own request
+      // regardless of the cached/legacy GRC role matrix. This is
       // still strictly identity-scoped and cannot expose another user's data.
       allow get: if signedIn() && (
         (('userEmail' in resource.data) && resource.data.userEmail is string && resource.data.userEmail.lower() == authEmail()) ||
@@ -668,7 +668,7 @@ service cloud.firestore {
       // These branches intentionally use only Firebase Auth identity, so a
       // normal approved user cannot lose visibility because of role/permission
       // matrix state. Firestore still proves the query is owner-only.
-      allow list: if signedIn() && ('userEmail' in resource.data) && resource.data.userEmail is string && resource.data.userEmail.lower() == authEmail();
+      allow list: if signedIn() && ('userEmail' in resource.data) && resource.data.userEmail is string && resource.data.userEmail == authEmail();
       allow list: if signedIn() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid;
 
       allow update: if admin() ||
