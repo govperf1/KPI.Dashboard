@@ -108,6 +108,26 @@
     }
   };
 
+  /*
+   * Review & Development Center visibility
+   * Visible only to: Super Admin, Admin, Governance/Performance Manager,
+   * and Viewers who have no assigned department/manager.
+   * Department Managers and department-assigned users must not see this module.
+   */
+  window.canSeeReviewDevelopmentCenter=function(role,department,profile){
+    var r=String(role||window._fbRole||window.currentUserRole||'').toLowerCase().trim();
+    var p=profile||window._fbProfile||{};
+    if(r==='super_admin'||r==='admin'||r==='governance_performance_manager')return true;
+    if(r!=='viewer')return false;
+    var rawDept=department;
+    if(rawDept===undefined||rawDept===null)rawDept=p.department;
+    var rawManager=p.managerEmail||p.managerId||p.departmentManagerEmail||p.managerUid||'';
+    var dept=String(rawDept===undefined||rawDept===null?'':rawDept).trim().toLowerCase();
+    var manager=String(rawManager||'').trim();
+    var noDept=!dept||['null','none','undefined','n/a','na','unassigned','not assigned','-','—'].indexOf(dept)>=0;
+    return noDept||!manager;
+  };
+
   var modules=[
     {id:'executive',icon:'⌂'},
     {id:'governance',icon:'▦',count:'governance'},
