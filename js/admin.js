@@ -3861,22 +3861,6 @@ window._fillQtrFormFromPci = _fillQtrFormFromPci;
     };
   }
 
-  function runLaunchCleanup(){
-    try{
-      if(!window.ST)window.ST={};
-      if(ST._launchCleanupGapApprovalsRequestsV1)return;
-      var r=role(); if(r!=='super_admin'&&r!=='admin')return;
-      if(Array.isArray(ST.gapApprovals))ST.gapApprovals=[];
-      if(Array.isArray(ST.requests))ST.requests=[];
-      ST._launchCleanupGapApprovalsRequestsV1=true;
-      save('PRE_LAUNCH_TEST_DATA_CLEANUP','Cleared pre-launch Gap Analysis Approval Status and local User Requests test data');
-      if(typeof window._kpiRequestsClearAllForLaunch==='function'){
-        window._kpiRequestsClearAllForLaunch().then(function(n){try{if(typeof window.addAudit==='function')window.addAudit('PRE_LAUNCH_USER_REQUESTS_CLEANUP','Cleared '+n+' pre-launch User Requests from Firestore');}catch(_){}}).catch(function(e){console.warn('[Launch cleanup requests]',e&&e.message);});
-      }
-    }catch(e){console.warn('[Launch cleanup]',e);}
-  }
-  setTimeout(runLaunchCleanup,1800);
-  setTimeout(runLaunchCleanup,4200);
 })();
 
 

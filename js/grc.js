@@ -108,26 +108,6 @@
     }
   };
 
-  /*
-   * Review & Development Center visibility
-   * Visible only to: Super Admin, Admin, Governance/Performance Manager,
-   * and Viewers who have no assigned department/manager.
-   * Department Managers and department-assigned users must not see this module.
-   */
-  window.canSeeReviewDevelopmentCenter=function(role,department,profile){
-    var r=String(role||window._fbRole||window.currentUserRole||'').toLowerCase().trim();
-    var p=profile||window._fbProfile||{};
-    if(r==='super_admin'||r==='admin'||r==='governance_performance_manager')return true;
-    if(r!=='viewer')return false;
-    var rawDept=department;
-    if(rawDept===undefined||rawDept===null)rawDept=p.department;
-    var rawManager=p.managerEmail||p.managerId||p.departmentManagerEmail||p.managerUid||'';
-    var dept=String(rawDept===undefined||rawDept===null?'':rawDept).trim().toLowerCase();
-    var manager=String(rawManager||'').trim();
-    var noDept=!dept||['null','none','undefined','n/a','na','unassigned','not assigned','-','—'].indexOf(dept)>=0;
-    return noDept||!manager;
-  };
-
   var modules=[
     {id:'executive',icon:'⌂'},
     {id:'governance',icon:'▦',count:'governance'},
@@ -4768,16 +4748,31 @@
     var nav=(analyticsOnly?'':'<button id="_grcAcTabRequests" class="grc-ac-tab" onclick="window._grcAdminSwitchPage(\'requests\')">'+(isAr()?'طلبات المستخدمين':'User Requests')+'</button>')+
       '<button id="_grcAcTabRequestAnalytics" class="grc-ac-tab" onclick="window._grcAdminSwitchPage(\'requestAnalytics\')">'+(isAr()?'تحليلات الطلبات':'Request Analytics')+'</button>'+
       '<button id="_grcAcTabReviewAnalytics" class="grc-ac-tab" onclick="window._grcAdminSwitchPage(\'reviewAnalytics\')">'+(isAr()?'تحليلات المراجعة والتطوير':'Review Analytics')+'</button>'+
-      (analyticsOnly?'':'<button id="_grcAcTabAudit" class="grc-ac-tab" onclick="window._grcAdminSwitchPage(\'audit\')">'+(isAr()?'سجل تدقيق GRC':'GRC Audit Trail')+'</button>');
-    ov.innerHTML='<div class="grc-ac-shell"><header class="grc-ac-head"><div><div class="grc-ac-title">'+(analyticsOnly?(isAr()?'تحليلات الحوكمة والأداء':'Governance & Performance Analytics'):(isAr()?'إدارة منصة GRC':'GRC Administration'))+'</div><div class="grc-ac-sub">'+(analyticsOnly?(isAr()?'تحليلات طلبات المستخدمين والمراجعة والتطوير':'User request and Review & Development analytics'):(isAr()?'إدارة الطلبات، التحليلات والتقييمات وسجل التدقيق':'Requests, analytics, ratings and GRC-only audit activity'))+'</div></div><button class="grc-ac-close" onclick="window._grcCloseAdminCenter()">×</button></header><nav class="grc-ac-tabs">'+nav+'</nav><div class="grc-ac-body"><section id="_grcAcPageRequests" class="grc-ac-page"></section><section id="_grcAcPageRequestAnalytics" class="grc-ac-page"></section><section id="_grcAcPageReviewAnalytics" class="grc-ac-page"></section><section id="_grcAcPageAudit" class="grc-ac-page"></section></div></div>';
+      (analyticsOnly?'':'<button id="_grcAcTabAudit" class="grc-ac-tab" onclick="window._grcAdminSwitchPage(\'audit\')">'+(isAr()?'سجل تدقيق GRC':'GRC Audit Trail')+'</button>')+
+      (analyticsOnly||!isGrcSuperAdmin()?'':'<button id="_grcAcTabLaunchCleanup" class="grc-ac-tab" onclick="window._grcAdminSwitchPage(\'launchCleanup\')">'+(isAr()?'تنظيف ما قبل الإطلاق':'Launch Cleanup')+'</button>');
+    ov.innerHTML='<div class="grc-ac-shell"><header class="grc-ac-head"><div><div class="grc-ac-title">'+(analyticsOnly?(isAr()?'تحليلات الحوكمة والأداء':'Governance & Performance Analytics'):(isAr()?'إدارة منصة GRC':'GRC Administration'))+'</div><div class="grc-ac-sub">'+(analyticsOnly?(isAr()?'تحليلات طلبات المستخدمين والمراجعة والتطوير':'User request and Review & Development analytics'):(isAr()?'إدارة الطلبات، التحليلات والتقييمات وسجل التدقيق':'Requests, analytics, ratings and GRC-only audit activity'))+'</div></div><button class="grc-ac-close" onclick="window._grcCloseAdminCenter()">×</button></header><nav class="grc-ac-tabs">'+nav+'</nav><div class="grc-ac-body"><section id="_grcAcPageRequests" class="grc-ac-page"></section><section id="_grcAcPageRequestAnalytics" class="grc-ac-page"></section><section id="_grcAcPageReviewAnalytics" class="grc-ac-page"></section><section id="_grcAcPageAudit" class="grc-ac-page"></section><section id="_grcAcPageLaunchCleanup" class="grc-ac-page"></section></div></div>';
     document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)window._grcCloseAdminCenter();});window._grcAdminSwitchPage(analyticsOnly?(tab==='reviewAnalytics'?'reviewAnalytics':'requestAnalytics'):(tab||'requests'));
     try{if(typeof window.addAudit==='function')window.addAudit('GRC_ADMIN_OPEN',analyticsOnly?'Opened Governance & Performance Analytics':'Opened GRC Administration');}catch(_e){}
   };
   window._grcAdminSwitchPage=function(tab){
-    var allowed=(isGrcAnalyticsManager()&&!isGrcAdmin())?['requestAnalytics','reviewAnalytics']:['requests','requestAnalytics','reviewAnalytics','audit'];if(allowed.indexOf(tab)<0)tab=allowed[0];
-    var map={requests:'Requests',requestAnalytics:'RequestAnalytics',reviewAnalytics:'ReviewAnalytics',audit:'Audit'};
+    var allowed=(isGrcAnalyticsManager()&&!isGrcAdmin())?['requestAnalytics','reviewAnalytics']:['requests','requestAnalytics','reviewAnalytics','audit','launchCleanup'];if(allowed.indexOf(tab)<0)tab=allowed[0];
+    var map={requests:'Requests',requestAnalytics:'RequestAnalytics',reviewAnalytics:'ReviewAnalytics',audit:'Audit',launchCleanup:'LaunchCleanup'};
     allowed.forEach(function(k){var t=document.getElementById('_grcAcTab'+map[k]),p=document.getElementById('_grcAcPage'+map[k]);if(t)t.classList.toggle('on',k===tab);if(p)p.classList.toggle('on',k===tab);});
-    if(tab==='audit')window._grcAdminRenderAudit();else if(tab==='requestAnalytics')window._grcAdminLoadRequestAnalytics();else if(tab==='reviewAnalytics')window._grcAdminLoadReviewAnalytics();else window._grcAdminLoadRequests();
+    if(tab==='audit')window._grcAdminRenderAudit();else if(tab==='requestAnalytics')window._grcAdminLoadRequestAnalytics();else if(tab==='reviewAnalytics')window._grcAdminLoadReviewAnalytics();else if(tab==='launchCleanup')window._grcAdminRenderLaunchCleanup();else window._grcAdminLoadRequests();
+  };
+  window._grcAdminRenderLaunchCleanup=function(){
+    var page=document.getElementById('_grcAcPageLaunchCleanup');if(!page)return;
+    page.innerHTML='<div class="grc-ac-page-head"><div><h2>'+(isAr()?'تنظيف طلبات ما قبل إطلاق المنصة':'Pre-Launch Request Cleanup')+'</h2><p>'+(isAr()?'حذف بيانات الطلبات التجريبية فقط قبل الإطلاق.':'Permanently remove test request data before platform launch.')+'</p></div></div>'+
+      '<div style="border:1px solid rgba(220,38,38,.28);background:rgba(220,38,38,.07);border-radius:12px;padding:14px;margin-bottom:14px;color:#fda4af;font-size:10px;line-height:1.7"><b>⚠ '+(isAr()?'عملية دائمة':'Permanent action')+'</b><br>'+(isAr()?'سيتم حذف طلبات Risk & Incident وReview & Development وMy Requests ونسخ قوائم الموافقة المرتبطة بها. لن يتم حذف سجلات المخاطر المنشورة أو المستخدمين أو مؤشرات KPI.':'Deletes test Risk & Incident, Review & Development and My Requests records plus their approval/queue copies. Published Risk/Incident registers, users and KPI data are not deleted.')+'</div>'+
+      '<button id="_grcLaunchCleanupBtn" class="grc-ac-btn danger" type="button" onclick="window._grcRunLaunchCleanup()">🗑 '+(isAr()?'حذف جميع طلبات الاختبار':'Delete All Test Requests')+'</button>'+
+      '<div id="_grcLaunchCleanupResult" style="display:none;margin-top:12px;padding:10px;border-radius:9px;font-size:10px;font-weight:800"></div>';
+  };
+  window._grcRunLaunchCleanup=function(){
+    if(!isGrcAdmin()||!isGrcSuperAdmin()){window.alert(isAr()?'التنظيف متاح للسوبر أدمن فقط.':'Only Super Admin can run launch cleanup.');return;}
+    if(!window._grcRequestsClearAllForLaunch){window.alert(isAr()?'خدمة التنظيف غير جاهزة.':'Cleanup service is not ready.');return;}
+    if(!window.confirm(isAr()?'سيتم حذف جميع بيانات طلبات الاختبار بشكل نهائي. هل أنت متأكد؟':'This will permanently delete all TEST request records. Continue?'))return;
+    var btn=document.getElementById('_grcLaunchCleanupBtn'),box=document.getElementById('_grcLaunchCleanupResult');if(btn)btn.disabled=true;if(box){box.style.display='block';box.textContent=isAr()?'جاري حذف بيانات الطلبات التجريبية…':'Deleting test request data…';box.style.background='rgba(1,149,175,.10)';box.style.color='#31c5dc';}
+    window._grcRequestsClearAllForLaunch().then(function(result){if(box){box.textContent=(isAr()?'تم التنظيف بنجاح. تم حذف ':'Cleanup completed. Deleted ')+(result.deleted||0)+(isAr()?' سجل طلب.':' request records.');box.style.background='rgba(22,163,74,.12)';box.style.color='#4ade80';}}).catch(function(err){if(box){box.textContent=String(err&&err.message||err);box.style.background='rgba(220,38,38,.12)';box.style.color='#fb7185';}}).finally(function(){if(btn)btn.disabled=false;});
   };
   window._grcAdminLoadRequests=function(){
     var page=document.getElementById('_grcAcPageRequests');if(!page)return;page.innerHTML='<div class="grc-ac-empty">'+(isAr()?'جاري تحميل الطلبات…':'Loading requests…')+'</div>';
