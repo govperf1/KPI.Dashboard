@@ -1,5 +1,5 @@
-// v365 — Department Manager historical-source compatibility + decision-state integrity fix.
-// FIRESTORE SECURITY RULES v78 — Request visibility + manager approval fix
+// v366 — Review & Development history visibility + full requester history fix.
+// FIRESTORE SECURITY RULES v79 — Request visibility + manager approval + history fix
 // v75: Removes queue-existence dependency from manager decisions and authorizes
 // the manager directly from the authenticated canonical department. The queue is
 // routing-only; a stale/missing projection can never block a valid source update.
@@ -614,6 +614,12 @@ service cloud.firestore {
         admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']) ||
         (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
       );
+      // Historical Review & Development fallback rows may identify the requester
+      // by immutable Firebase UID rather than the current email.
+      allow list: if approved() &&
+        (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) &&
+        (('isReviewDevelopmentRequest' in resource.data && resource.data.isReviewDevelopmentRequest == true) ||
+         ('requestDomain' in resource.data && resource.data.requestDomain == 'review_development'));
       // Generic Performance User Requests are admin-controlled after submit.
       // Requester-side workflow updates remain only for historical Review &
       // Development fallback rows; new R&D requests use advisory_requests.
@@ -981,7 +987,7 @@ service cloud.firestore {
       allow get: if admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']);
       allow get: if approved() && (
         (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) ||
-        (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
+        (('userEmail' in resource.data) && ownEmail(resource.data.userEmail))
       );
       allow get: if advisoryManagerCanRead(resource.data);
       allow get: if departmentManager() && ('departmentKey' in resource.data) &&
@@ -999,6 +1005,12 @@ service cloud.firestore {
         resource.data.departmentKey == userDepartmentKey();
       allow list: if departmentManager() && userDepartmentKey() != '' &&
         ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey();
+      // Historical manager visibility: older Review & Development rows may
+      // carry the department in department/departmentRaw instead of departmentKey.
+      allow list: if departmentManager() && userDepartmentKey() != '' &&
+        ('department' in resource.data) && canonicalDepartment(resource.data.department) == userDepartmentKey();
+      allow list: if departmentManager() && userDepartmentKey() != '' &&
+        ('departmentRaw' in resource.data) && canonicalDepartment(resource.data.departmentRaw) == userDepartmentKey();
       allow list: if permit('view_request_analytics', ['governance_performance_manager']);
       allow list: if approved() && resource.data.requesterUid == request.auth.uid;
       allow list: if approved() && resource.data.userEmail == authEmail();
