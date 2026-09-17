@@ -1131,7 +1131,12 @@ window._selectPortal=async portal=>{
       // Firestore get permission already verifies that this request is indexed in
       // the authenticated manager's department queue. Do not re-hide a valid row
       // with a second browser-side department comparison.
-      const manager=managerAllowed&&_advIsDepartmentManager()&&String(r.workflowStage||r.status||'')==='pending_department_manager'&&r.requiresManagerApproval!==false;
+      /* A Department Manager may open the complete request record for their own
+         department, regardless of workflow stage.  The workflow stage controls
+         which ACTIONS are rendered in advisory.js; it must not prevent a read of
+         a closed/returned/rejected historical request. */
+      const manager=managerAllowed&&_advIsDepartmentManager()&&
+        String(r.departmentKey||'').trim()===String(_advDepartmentKey()||'').trim();
       const analyticsViewer=adminAllowed&&_advCanAnalyze();
       if(!analyticsViewer&&!owner&&!manager)throw new Error('Access denied.');
       return Object.assign(r,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
