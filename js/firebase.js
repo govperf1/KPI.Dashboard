@@ -872,11 +872,13 @@ window._selectPortal=async portal=>{
          normal users independent from the GRC role/permission matrix. */
       const activeUser=auth&&auth.currentUser;
       if(!activeUser||!db)return[];
-      const uid=String(activeUser.uid||'').trim();
       const email=String(activeUser.email||'').toLowerCase().trim();
-      const col=collection(db,'grc_requests'),refs=[];
-      if(email)refs.push(query(col,where('userEmail','==',email)));
-      if(uid)refs.push(query(col,where('requesterUid','==',uid)));
+      // v379: use the same single canonical key that the Firestore owner rule
+      // authorizes. Do not add a UID query here; old request rows are not
+      // guaranteed to contain requesterUid, while userEmail is required by
+      // the GRC request creation contract.
+      const col=collection(db,'grc_requests');
+      const refs=email?[query(col,where('userEmail','==',email))]:[];
       const map={};
       for(const ref of refs){
         try{
@@ -946,9 +948,11 @@ window._selectPortal=async portal=>{
     };
     window._grcRequestsSubscribeMine=function(callback){
       if(typeof callback!=='function'||!window._fbUser||!db)return function(){};
-      const uid=String(auth.currentUser&&auth.currentUser.uid||window._fbUid||window._fbUserUid||window._fbAuthUid||'').trim();
       const me=(window._fbUser||auth.currentUser&&auth.currentUser.email||'').toLowerCase().trim();
-      const refs=[];if(me)refs.push(query(collection(db,'grc_requests'),where('userEmail','==',me)));if(uid)refs.push(query(collection(db,'grc_requests'),where('requesterUid','==',uid)));
+      // v379: one canonical owner listener. New GRC requests always persist
+      // userEmail; requesterUid remains audit metadata and is not used for the
+      // owner query because historical rows are mixed-schema.
+      const refs=[];if(me)refs.push(query(collection(db,'grc_requests'),where('userEmail','==',me)));
       const sources={};let done=false;
       const emit=function(){const map={};Object.keys(sources).forEach(function(k){(sources[k]||[]).forEach(function(r){if(r&&r.id)map[r.id]=r;});});const rows=Object.keys(map).map(function(id){return map[id];});rows.sort(function(a,b){return ((b.updatedAt&&b.updatedAt.seconds)||(b.createdAt&&b.createdAt.seconds)||0)-((a.updatedAt&&a.updatedAt.seconds)||(a.createdAt&&a.createdAt.seconds)||0);});callback(rows,null);};
       const unsubs=refs.map(function(ref,i){return onSnapshot(ref,function(snap){sources[i]=snap.docs.map(function(d){return Object.assign({id:d.id},d.data()||{});});emit();},function(err){console.warn('[GRC Requests] own listener '+i+' failed',err&&err.code||err);if(!Object.keys(sources).length)callback([],err);});});
@@ -1131,12 +1135,7 @@ window._selectPortal=async portal=>{
       // Firestore get permission already verifies that this request is indexed in
       // the authenticated manager's department queue. Do not re-hide a valid row
       // with a second browser-side department comparison.
-      /* A Department Manager may open the complete request record for their own
-         department, regardless of workflow stage.  The workflow stage controls
-         which ACTIONS are rendered in advisory.js; it must not prevent a read of
-         a closed/returned/rejected historical request. */
-      const manager=managerAllowed&&_advIsDepartmentManager()&&
-        String(r.departmentKey||'').trim()===String(_advDepartmentKey()||'').trim();
+      const manager=managerAllowed&&_advIsDepartmentManager()&&String(r.workflowStage||r.status||'')==='pending_department_manager'&&r.requiresManagerApproval!==false;
       const analyticsViewer=adminAllowed&&_advCanAnalyze();
       if(!analyticsViewer&&!owner&&!manager)throw new Error('Access denied.');
       return Object.assign(r,{_requestRef:loc.requestRef,_publicRef:loc.publicRef});
@@ -1568,11 +1567,12 @@ window._selectPortal=async portal=>{
       const groups=[];
       const pushQuery=function(collectionName,q){groups.push({collectionName:collectionName,q:q});};
       const primaryCol=collection(db,ADV_REQUESTS_COLLECTION);
+      // v379: canonical owner history query. Keep UID for auditing, but do not
+      // issue a second UID query that can fail against historical mixed-schema
+      // rows and flood the console.
       if(me)pushQuery(ADV_REQUESTS_COLLECTION,query(primaryCol,where('userEmail','==',me)));
-      if(uid)pushQuery(ADV_REQUESTS_COLLECTION,query(primaryCol,where('requesterUid','==',uid)));
       const legacyCol=collection(db,ADV_FALLBACK_COLLECTION);
       if(me)pushQuery(ADV_FALLBACK_COLLECTION,query(legacyCol,where('userEmail','==',me)));
-      if(uid)pushQuery(ADV_FALLBACK_COLLECTION,query(legacyCol,where('requesterUid','==',uid)));
 
       const allRows=[];
       for(const item of groups){
@@ -1611,14 +1611,13 @@ window._selectPortal=async portal=>{
         if(!_advisoryManagerOwnCachePromise){
           _advisoryManagerOwnCachePromise=(async function(){
             try{
-              const me=_advEmail(),uid=_advUid();
+              const me=_advEmail();
               const queries=[];
               const primaryCol=collection(db,ADV_REQUESTS_COLLECTION);
               const legacyCol=collection(db,ADV_FALLBACK_COLLECTION);
+              // v379: canonical owner-email reads only.
               if(me)queries.push({col:ADV_REQUESTS_COLLECTION,q:query(primaryCol,where('userEmail','==',me))});
-              if(uid)queries.push({col:ADV_REQUESTS_COLLECTION,q:query(primaryCol,where('requesterUid','==',uid))});
               if(me)queries.push({col:ADV_FALLBACK_COLLECTION,q:query(legacyCol,where('userEmail','==',me))});
-              if(uid)queries.push({col:ADV_FALLBACK_COLLECTION,q:query(legacyCol,where('requesterUid','==',uid))});
               const rows=[];
               for(const item of queries){
                 try{
@@ -1628,12 +1627,6 @@ window._selectPortal=async portal=>{
                     if(item.col===ADV_FALLBACK_COLLECTION&&!_advIsFallbackRow(raw))return;
                     rows.push(_advNormalizeRow(d.id,raw,item.col));
                   });
-                }catch(_){}
-              }
-              if(!rows.length&&uid){
-                try{
-                  const legacy=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
-                  rows=legacy.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
                 }catch(_){}
               }
               rows.forEach(_advCacheOwnRow);_advisoryManagerLastOwn=_advMergeOwnCache(rows);_advisoryManagerOwnCacheAt=Date.now();return _advisoryManagerLastOwn;
@@ -1699,9 +1692,9 @@ window._selectPortal=async portal=>{
            requests can be UID-only while current requests carry userEmail; one
            denied/missing key must never hide the other. */
         try{
+          // v379: one canonical owner listener; UID is audit-only.
           const ownRefs=[];
           if(_advEmail())ownRefs.push(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
-          if(_advUid())ownRefs.push(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid())));
           const ownSources={};let ownActive=true;
           const emitOwn=function(){
             if(!ownActive)return;
@@ -1766,7 +1759,7 @@ window._selectPortal=async portal=>{
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)),'advisory_requests');
           listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
         }else{
-          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
+          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
         }
       }else if(_advIsAdmin()){
         // Admin/Super Admin can read the authoritative collection.
@@ -1785,7 +1778,7 @@ window._selectPortal=async portal=>{
       }else{
         // One exact ownership listener. Compatibility fallbacks were causing
         // permission-denied noise and could overwrite a valid empty/loaded view.
-        listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||me)),'advisory_requests');
+        listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
       }
       return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
