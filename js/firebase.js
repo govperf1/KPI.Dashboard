@@ -1325,7 +1325,16 @@ window._selectPortal=async portal=>{
         const x=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});
         if(!x)return;
         if(_advCanonicalDepartment(x.departmentKey||x.department||x.departmentRaw||'')!==fresh.departmentKey)return;
+        const st=String(x.status||'').toLowerCase();
+        if(!['pending_manager','returned_manager'].includes(st))return;
         x._managerAssigned=true;riskMap[key]=x;
+      };
+      const addRiskAll=function(id,row){
+        const key=String(id||row&&row.id||'');if(!key)return;
+        const x=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});
+        if(!x)return;
+        if(_advCanonicalDepartment(x.departmentKey||x.department||x.departmentRaw||'')!==fresh.departmentKey)return;
+        x._managerAssigned=true;riskAllMap[key]=x;
       };
       (_grcManagerLiveSources.review||[]).forEach(function(v){addReview(v.requestId||v.id,v.snapshot||v);});
       (_grcManagerLiveSources.reviewHistory||[]).forEach(function(v){
@@ -1336,8 +1345,8 @@ window._selectPortal=async portal=>{
       });
       Object.keys(reviewMap).forEach(function(k){if(!reviewAllMap[k])reviewAllMap[k]=reviewMap[k];});
       (_grcManagerLiveSources.risk||[]).forEach(function(v){addRisk(v.requestId||v.id,v.snapshot||v);});
-      (_grcManagerLiveSources.history||[]).forEach(function(v){addRisk(v.id,v);});
-      (_grcManagerLiveSources.riskHistory||[]).forEach(function(v){addRisk(v.id,v);});
+      (_grcManagerLiveSources.history||[]).forEach(function(v){addRiskAll(v.id,v);});
+      (_grcManagerLiveSources.riskHistory||[]).forEach(function(v){addRiskAll(v.id,v);});
       const result={
         profile:fresh,
         review:Object.keys(reviewMap).map(function(k){return reviewMap[k];}).sort(function(a,b){return _advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso);}),
@@ -1365,25 +1374,11 @@ window._selectPortal=async portal=>{
       _grcManagerLiveStartPromise=(async function(){
         const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
         _grcManagerLiveProfile=fresh;
-        // One-time department history reads keep the profile complete even when
-        // an item has already left the action inbox. Queries are exact and each
-        // source is isolated so a denied legacy path cannot erase valid rows.
-        try{
-          const col=collection(db,ADV_REQUESTS_COLLECTION),dept=fresh.departmentKey,raw=String(fresh.rawDepartment||'').trim();
-          const qs=[query(col,where('departmentKey','==',dept))];
-          if(raw&&raw.toLowerCase()!==String(dept).toLowerCase()){
-            qs.push(query(col,where('department','==',raw)),query(col,where('departmentRaw','==',raw)));
-          }
-          const snaps=await Promise.all(qs.map(function(q){return getDocsFromServer(q);}));
-          const map={};snaps.forEach(function(s){s.docs.forEach(function(d){map[d.id]=_advNormalizeRow(d.id,d.data()||{},'advisory_requests');});});
-          _grcManagerLiveSources.reviewHistory=Object.keys(map).map(function(k){return map[k];});
-          delete _grcManagerLiveErrors.reviewHistory;
-        }catch(err){_grcManagerLiveErrors.reviewHistory=String(err&&err.code||err&&err.message||err);}
-        try{
-          const riskSnap=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));
-          _grcManagerLiveSources.riskHistory=riskSnap.docs.map(function(d){return _grcRiskRequestData(d);});
-          delete _grcManagerLiveErrors.riskHistory;
-        }catch(err){_grcManagerLiveErrors.riskHistory=String(err&&err.code||err&&err.message||err);}
+        // v376: use the authoritative source collections for the manager live queue.
+        // The current Rules explicitly authorize exact departmentKey queries, so
+        // this no longer depends on inbox projections or one-time history reads.
+        // This also restores existing requests when their inbox projection is old,
+        // missing, or was never created.
         const listen=function(name,qref,map){
           try{
             const unsub=onSnapshot(qref,{includeMetadataChanges:false},async function(snap){
@@ -1406,13 +1401,11 @@ window._selectPortal=async portal=>{
             _grcManagerLiveUnsubs.push(unsub);
           }catch(err){_grcManagerLiveErrors[name]=String(err&&err.message||err);_grcManagerLiveEmit();}
         };
-        listen('review',_grcManagerQueueCollection(fresh.departmentKey,'review'),function(d){return Object.assign({id:d.id},d.data()||{});});
-        listen('risk',_grcManagerQueueCollection(fresh.departmentKey,'risk'),function(d){return Object.assign({id:d.id},d.data()||{});});
-        /* Manager workflow is driven by the department-scoped inbox_v3.
-           Do not open a second source-history listener here: Firestore can reject
-           a collection query even when every routed inbox row is authorized. The
-           queue snapshots are updated after each Risk/Incident decision and are
-           the canonical manager view for this screen. */
+        listen('review',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)),function(d){return Object.assign({id:d.id},d.data()||{});});
+        listen('risk',query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)),function(d){return Object.assign({id:d.id},d.data()||{});});
+        /* Source collections are authoritative for manager visibility. Client-side
+           status filtering in _grcManagerLiveBuild limits actions to the correct
+           pending stage while preserving the complete department history. */
         window.__grcManagerQueueLiveActive=true;
         return _grcManagerLiveBuild();
       })();
@@ -1696,17 +1689,28 @@ window._selectPortal=async portal=>{
             emitManager();
           }catch(err){queueErrors.manager=String(err&&err.message||err);emitManager();}})();
         }
-        /* Exact identity query only. Do not fall back to UID unless email query
-           genuinely returns no rows; a denied UID fallback was producing noise
-           and masking a valid empty My Requests state. */
+
+        /* v376: merge both canonical owner identities in real-time. Historical
+           requests can be UID-only while current requests carry userEmail; one
+           denied/missing key must never hide the other. */
         try{
-          ownUnsub=onSnapshot(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())),function(snap){
-            ownRows=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});ownRows.forEach(_advCacheOwnRow);
-            ownError='';emitManager();
+          const ownRefs=[];
+          if(_advEmail())ownRefs.push(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
+          if(_advUid())ownRefs.push(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid())));
+          const ownSources={};let ownActive=true;
+          const emitOwn=function(){
+            if(!ownActive)return;
+            const map={};Object.keys(ownSources).forEach(function(k){(ownSources[k]||[]).forEach(function(r){if(r&&r.id)map[r.id]=r;});});
+            ownRows=Object.keys(map).map(function(k){return map[k];});
+            ownRows.forEach(_advCacheOwnRow);ownError='';emitManager();
+          };
+          const ownUnsubs=ownRefs.map(function(ref,i){return onSnapshot(ref,function(snap){
+            ownSources[i]=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});emitOwn();
           },function(err){
-            ownRows=[];ownError=String(err&&err.code||err&&err.message||err||'listener-failed');
-            console.warn('[Review Development] manager own-request listener failed',err&&err.code||err);emitManager();
-          });
+            ownSources[i]=[];ownError=String(err&&err.code||err&&err.message||err||'listener-failed');
+            console.warn('[Review Development] manager own-request listener '+i+' failed',err&&err.code||err);emitManager();
+          });});
+          ownUnsub=function(){ownActive=false;ownUnsubs.forEach(function(u){try{u();}catch(_){}});};
         }catch(err){ownError=String(err&&err.message||err||'listener-failed');emitManager();}
         return function(){stopped=true;try{if(queueUnsub)queueUnsub();}catch(_){}try{if(ownUnsub)ownUnsub();}catch(_){}};
       }
