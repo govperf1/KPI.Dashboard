@@ -263,10 +263,11 @@
        no requests. */
     cache=(Array.isArray(riskRows)?riskRows:[]).filter(managerDepartmentRequest);
     reviewApprovalRows=(Array.isArray(reviewRows)?reviewRows:[]).filter(reviewManagerRequest);
-    managerRiskAllRows=cache.slice();
-    managerReviewAllRows=reviewApprovalRows.slice();
+    var mergeHistory=function(existing,incoming){var m={};(Array.isArray(existing)?existing:[]).concat(Array.isArray(incoming)?incoming:[]).forEach(function(r){if(r&&r.id)m[String(r.id)]=r;});return Object.keys(m).map(function(k){return m[k];});};
+    managerRiskAllRows=mergeHistory(managerRiskAllRows,Array.isArray(riskRows&&riskRows._allRecords)?riskRows._allRecords:cache);
+    managerReviewAllRows=mergeHistory(managerReviewAllRows,Array.isArray(reviewRows&&reviewRows._allRecords)?reviewRows._allRecords:reviewApprovalRows);
     window.__grcRiskRequestCache=cache;
-    window.__grcManagerReviewPayload={records:reviewApprovalRows,allRecords:reviewApprovalRows,risk:cache};
+    window.__grcManagerReviewPayload={records:reviewApprovalRows,allRecords:managerReviewAllRows,risk:cache,riskAll:managerRiskAllRows};
     refreshBadge();
     if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
     if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();
@@ -293,9 +294,10 @@
           if(!bundle)return;
           cache=(Array.isArray(bundle.risk)?bundle.risk:[]).filter(managerDepartmentRequest);
           reviewApprovalRows=(Array.isArray(bundle.review)?bundle.review:[]).filter(reviewManagerRequest);
-          managerRiskAllRows=cache.slice();managerReviewAllRows=reviewApprovalRows.slice();
+          managerRiskAllRows=Array.isArray(bundle.riskAll)?bundle.riskAll.filter(managerDepartmentRequest):cache.slice();
+          managerReviewAllRows=Array.isArray(bundle.reviewAll)?bundle.reviewAll.slice():reviewApprovalRows.slice();
           window.__grcRiskRequestCache=cache;
-          window.__grcManagerReviewPayload={records:reviewApprovalRows,allRecords:reviewApprovalRows,risk:cache};
+          window.__grcManagerReviewPayload={records:reviewApprovalRows,allRecords:managerReviewAllRows,risk:cache,riskAll:managerRiskAllRows};
           window.__grcManagerApprovalError=(bundle.errors&&bundle.errors.length)?bundle.errors.join(' · '):'';
           try{
             document.dispatchEvent(new CustomEvent('grc:riskRequestsUpdated',{detail:{rows:cache}}));
@@ -313,7 +315,8 @@
           if(!bundle)return;
           cache=(Array.isArray(bundle.risk)?bundle.risk:[]).filter(managerDepartmentRequest);
           reviewApprovalRows=(Array.isArray(bundle.review)?bundle.review:[]).filter(reviewManagerRequest);
-          managerRiskAllRows=cache.slice();managerReviewAllRows=reviewApprovalRows.slice();refreshBadge();
+          managerRiskAllRows=Array.isArray(bundle.riskAll)?bundle.riskAll.filter(managerDepartmentRequest):cache.slice();
+          managerReviewAllRows=Array.isArray(bundle.reviewAll)?bundle.reviewAll.slice():reviewApprovalRows.slice();refreshBadge();
         }catch(err){console.warn('[GRC Manager Approval Queue] initial pull failed',err&&err.code||err);}})();
       }
       return;
@@ -425,9 +428,13 @@
   function renderProfileBody(){
     var body=document.getElementById('_grcRiskProfileBody');if(!body)return;
     if(isManager()){
-      var riskRows=managerRiskAllRows.filter(function(r){return managerDepartmentRequest(r);}).sort(function(a,b){return (new Date(b.updatedAtIso||b.createdAtIso||b.createdAt||0).getTime()||0)-(new Date(a.updatedAtIso||a.createdAtIso||a.createdAt||0).getTime()||0);});
-      var total=riskRows.length;
-      body.innerHTML='<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Risk & Incident Register Requests</h3><p>All Risk & Incident requests submitted by the responsible owner for your department.</p></div><span>'+riskRows.length+'</span></div>'+(riskRows.length?riskRows.map(function(r){return card(r);}).join(''):'<div class="grc-risk-empty">No Risk or Incident requests are available for your department.</div>')+'</section>';
+      var riskRows=managerRiskAllRows.filter(function(r){return managerDepartmentRequest(r);});
+      var reviewRows=managerReviewAllRows.filter(function(r){return String(r&&r.platform||'grc').toLowerCase()==='grc' && !!r;});
+      var combined=riskRows.map(function(r){return{kind:'risk',row:r,time:new Date(r.updatedAtIso||r.createdAtIso||r.createdAt||0).getTime()||0};})
+        .concat(reviewRows.map(function(r){return{kind:'review',row:r,time:reviewRequestTime(r)};}))
+        .sort(function(a,b){return b.time-a.time;});
+      var total=combined.length;
+      body.innerHTML='<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Department Approval Requests</h3><p>All Risk & Incident and Review & Development requests for your department. Current status is shown for every request; approval actions appear only when manager action is required.</p></div><span>'+total+'</span></div>'+(combined.length?combined.map(function(x){return x.kind==='review'?reviewProfileCard(x.row):card(x.row);}).join(''):'<div class="grc-risk-empty">No Risk, Incident, or Review & Development requests are available for your department.</div>')+'</section>';
       var count=document.getElementById('_grcRiskProfileCount');if(count)count.textContent=total+' request(s)';
       return;
     }

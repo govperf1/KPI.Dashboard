@@ -1295,13 +1295,13 @@ window._selectPortal=async portal=>{
        All manager UI surfaces subscribe to this broker and reuse one cache.
        ══════════════════════════════════════════════════════ */
     let _grcManagerLiveProfile=null,_grcManagerLiveUnsubs=[],_grcManagerLiveCallbacks=new Set(),
-        _grcManagerLiveSources={review:null,risk:null,history:null},_grcManagerLiveErrors={},
+        _grcManagerLiveSources={review:null,risk:null,history:null,reviewHistory:null,riskHistory:null},_grcManagerLiveErrors={},
         _grcManagerLiveStartPromise=null;
 
     function _grcManagerLiveBuild(){
       const fresh=_grcManagerLiveProfile;
       if(!fresh)return _grcManagerQueueCache||{profile:null,review:[],risk:[],errors:[]};
-      const reviewMap={},riskMap={};
+      const reviewMap={},reviewAllMap={},riskMap={},riskAllMap={};
       const addReview=function(id,row){
         const key=String(id||row&&row.id||'');if(!key)return;
         const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;
@@ -1318,12 +1318,22 @@ window._selectPortal=async portal=>{
         x._managerAssigned=true;riskMap[key]=x;
       };
       (_grcManagerLiveSources.review||[]).forEach(function(v){addReview(v.requestId||v.id,v.snapshot||v);});
+      (_grcManagerLiveSources.reviewHistory||[]).forEach(function(v){
+        const key=String(v&&v.id||'');if(!key)return;
+        const x=_advNormalizeRow(key,v||{},'advisory_requests');
+        if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;
+        x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');x._managerAssigned=true;reviewAllMap[key]=x;
+      });
+      Object.keys(reviewMap).forEach(function(k){if(!reviewAllMap[k])reviewAllMap[k]=reviewMap[k];});
       (_grcManagerLiveSources.risk||[]).forEach(function(v){addRisk(v.requestId||v.id,v.snapshot||v);});
       (_grcManagerLiveSources.history||[]).forEach(function(v){addRisk(v.id,v);});
+      (_grcManagerLiveSources.riskHistory||[]).forEach(function(v){addRisk(v.id,v);});
       const result={
         profile:fresh,
         review:Object.keys(reviewMap).map(function(k){return reviewMap[k];}).sort(function(a,b){return _advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso);}),
+        reviewAll:Object.keys(reviewAllMap).map(function(k){return reviewAllMap[k];}).sort(function(a,b){return _advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso);}),
         risk:_grcRiskSort(Object.keys(riskMap).map(function(k){return riskMap[k];})),
+        riskAll:_grcRiskSort(Object.keys(riskMap).map(function(k){return riskMap[k];})),
         errors:Object.keys(_grcManagerLiveErrors).map(function(k){return k+': '+_grcManagerLiveErrors[k];})
       };
       _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();
@@ -1336,7 +1346,7 @@ window._selectPortal=async portal=>{
     function _grcManagerLiveStopIfUnused(){
       if(_grcManagerLiveCallbacks.size)return;
       _grcManagerLiveUnsubs.forEach(function(u){try{u();}catch(_){}});_grcManagerLiveUnsubs=[];
-      _grcManagerLiveSources={review:null,risk:null,history:null};_grcManagerLiveErrors={};
+      _grcManagerLiveSources={review:null,risk:null,history:null,reviewHistory:null,riskHistory:null};_grcManagerLiveErrors={};
       _grcManagerLiveProfile=null;_grcManagerLiveStartPromise=null;window.__grcManagerQueueLiveActive=false;
     }
     async function _grcManagerLiveEnsure(){
@@ -1345,6 +1355,25 @@ window._selectPortal=async portal=>{
       _grcManagerLiveStartPromise=(async function(){
         const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
         _grcManagerLiveProfile=fresh;
+        // One-time department history reads keep the profile complete even when
+        // an item has already left the action inbox. Queries are exact and each
+        // source is isolated so a denied legacy path cannot erase valid rows.
+        try{
+          const col=collection(db,ADV_REQUESTS_COLLECTION),dept=fresh.departmentKey,raw=String(fresh.rawDepartment||'').trim();
+          const qs=[query(col,where('departmentKey','==',dept))];
+          if(raw&&raw.toLowerCase()!==String(dept).toLowerCase()){
+            qs.push(query(col,where('department','==',raw)),query(col,where('departmentRaw','==',raw)));
+          }
+          const snaps=await Promise.all(qs.map(function(q){return getDocsFromServer(q);}));
+          const map={};snaps.forEach(function(s){s.docs.forEach(function(d){map[d.id]=_advNormalizeRow(d.id,d.data()||{},'advisory_requests');});});
+          _grcManagerLiveSources.reviewHistory=Object.keys(map).map(function(k){return map[k];});
+          delete _grcManagerLiveErrors.reviewHistory;
+        }catch(err){_grcManagerLiveErrors.reviewHistory=String(err&&err.code||err&&err.message||err);}
+        try{
+          const riskSnap=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));
+          _grcManagerLiveSources.riskHistory=riskSnap.docs.map(function(d){return _grcRiskRequestData(d);});
+          delete _grcManagerLiveErrors.riskHistory;
+        }catch(err){_grcManagerLiveErrors.riskHistory=String(err&&err.code||err&&err.message||err);}
         const listen=function(name,qref,map){
           try{
             const unsub=onSnapshot(qref,{includeMetadataChanges:false},async function(snap){
@@ -1524,23 +1553,33 @@ window._selectPortal=async portal=>{
           console.warn('[Review Development] department history read failed',err&&err.code||err);
         }
       }
-      let primary=[];
-      try{
-        const snap=await getDocsFromServer(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)));
-        primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
-      }catch(err){
-        console.warn('[Review Development] getMine email path failed',err&&err.code||err);
-      }
-      if(!primary.length&&uid){
+
+      // Personal history must merge ALL compatible identity keys. The previous
+      // implementation only queried requesterUid when the email query returned
+      // zero rows, so one visible new request could hide older UID-only rows.
+      const groups=[];
+      const pushQuery=function(collectionName,q){groups.push({collectionName:collectionName,q:q});};
+      const primaryCol=collection(db,ADV_REQUESTS_COLLECTION);
+      if(me)pushQuery(ADV_REQUESTS_COLLECTION,query(primaryCol,where('userEmail','==',me)));
+      if(uid)pushQuery(ADV_REQUESTS_COLLECTION,query(primaryCol,where('requesterUid','==',uid)));
+      const legacyCol=collection(db,ADV_FALLBACK_COLLECTION);
+      if(me)pushQuery(ADV_FALLBACK_COLLECTION,query(legacyCol,where('userEmail','==',me)));
+
+      const allRows=[];
+      for(const item of groups){
         try{
-          const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid)));
-          primary=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});
+          const snap=await getDocsFromServer(item.q);
+          snap.docs.forEach(function(d){
+            const row=_advNormalizeRow(d.id,d.data(),item.collectionName);
+            if(item.collectionName===ADV_FALLBACK_COLLECTION && !_advIsFallbackRow(d.data()||{}))return;
+            allRows.push(row);
+          });
         }catch(err){
-          console.warn('[Review Development] legacy UID fallback unavailable',err&&err.code||err);
+          console.warn('[Review Development] getMine '+item.collectionName+' identity path failed',err&&err.code||err);
         }
       }
-      primary.forEach(_advCacheOwnRow);
-      return _advMergeOwnCache(_advMergeRows(primary,[],false));
+      allRows.forEach(_advCacheOwnRow);
+      return _advMergeOwnCache(_advMergeRows(allRows,[],false));
     };
     let _advisoryManagerLastQueue=[],_advisoryManagerLastOwn=[],_advisoryManagerLastRisk=[],_advisoryManagerOwnCacheAt=0,_advisoryManagerOwnCachePromise=null;
     window._advisoryGetManagerQueue=async function(){
@@ -1745,9 +1784,6 @@ window._selectPortal=async portal=>{
       /* v362 — Do not preflight-read the source document here. The queue is only
          a routing projection and the Firestore UPDATE rule is authoritative. A
          manager action makes exactly one source UPDATE attempt. */
-      // v365: Keep each manager decision payload minimal and deterministic.
-      // Approve must not write unrelated return fields; this keeps the UPDATE
-      // request exactly aligned with the approved-state Rules branch.
       const updates={
         status:finalStatus,workflowStage:finalStage,closureReason:closureReason,
         managerDecision:decision,managerComment:managerComment,
@@ -1760,9 +1796,10 @@ window._selectPortal=async portal=>{
         updates.returnSource='department_manager';
         updates.returnFields=returnFields;
         updates.returnedAt=serverTimestamp();
-      }else if(action==='reject'){
-        updates.closedAt=serverTimestamp();
+      }else{
+        updates.returnNote='';updates.returnSource='';updates.returnFields=[];
       }
+      if(action==='reject')updates.closedAt=serverTimestamp();
       try{
         await updateDoc(requestRef,updates);
       }catch(writeErr){
