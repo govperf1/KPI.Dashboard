@@ -1355,20 +1355,12 @@ window._selectPortal=async portal=>{
       _grcManagerLiveStartPromise=(async function(){
         const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
         _grcManagerLiveProfile=fresh;
-        // One-time department history reads keep the profile complete even when
-        // an item has already left the action inbox. Queries are exact and each
-        // source is isolated so a denied legacy path cannot erase valid rows.
-        try{
-          const col=collection(db,ADV_REQUESTS_COLLECTION),dept=fresh.departmentKey,raw=String(fresh.rawDepartment||'').trim();
-          const qs=[query(col,where('departmentKey','==',dept))];
-          if(raw&&raw.toLowerCase()!==String(dept).toLowerCase()){
-            qs.push(query(col,where('department','==',raw)),query(col,where('departmentRaw','==',raw)));
-          }
-          const snaps=await Promise.all(qs.map(function(q){return getDocsFromServer(q);}));
-          const map={};snaps.forEach(function(s){s.docs.forEach(function(d){map[d.id]=_advNormalizeRow(d.id,d.data()||{},'advisory_requests');});});
-          _grcManagerLiveSources.reviewHistory=Object.keys(map).map(function(k){return map[k];});
-          delete _grcManagerLiveErrors.reviewHistory;
-        }catch(err){_grcManagerLiveErrors.reviewHistory=String(err&&err.code||err&&err.message||err);}
+        // Department Manager operational data comes from the department-scoped
+        // approval inbox. Do not open an additional advisory_requests history
+        // query here; it is not needed for approval actions and can generate a
+        // permission-denied warning during reconnects.
+        _grcManagerLiveSources.reviewHistory=[];
+        delete _grcManagerLiveErrors.reviewHistory;
         try{
           const riskSnap=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));
           _grcManagerLiveSources.riskHistory=riskSnap.docs.map(function(d){return _grcRiskRequestData(d);});
