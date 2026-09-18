@@ -1616,7 +1616,7 @@ window._selectPortal=async portal=>{
               // v379: canonical owner-email reads only.
               if(_advUid())queries.push({col:ADV_REQUESTS_COLLECTION,q:query(primaryCol,where('requesterUid','==',_advUid()))});
               if(me)queries.push({col:ADV_REQUESTS_COLLECTION,q:query(primaryCol,where('userEmail','==',me))});
-              if(_advUid())queries.push({col:ADV_FALLBACK_COLLECTION,q:query(legacyCol,where('requesterUid','==',_advUid())});
+              if(_advUid())queries.push({col:ADV_FALLBACK_COLLECTION,q:query(legacyCol,where('requesterUid','==',_advUid()))});
               if(me)queries.push({col:ADV_FALLBACK_COLLECTION,q:query(legacyCol,where('userEmail','==',me))});
               const rows=[];
               for(const item of queries){
