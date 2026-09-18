@@ -1171,8 +1171,10 @@ service cloud.firestore {
 
     function riskRequesterChange() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-        'proposedRecord','changedFields','requesterNote','managerNote',
-        'superAdminNote','status','updatedAt','updatedAtIso','history'
+        'proposedRecord','changedFields','requesterNote',
+        'managerNote','superAdminNote','assignedManagerEmail',
+        'returnFields','returnNote','returnSource',
+        'status','updatedAt','updatedAtIso','history'
       ]);
     }
 
