@@ -1169,6 +1169,33 @@ service cloud.firestore {
         data.schemaVersion == 1;
     }
 
+    // v381: GRC/Risk/Platform owners are authenticated by their canonical
+    // role + request identity for request-history and returned-request resubmission.
+    // Do not make this path depend on legacy approved representations.
+    function grcRiskRequestOwner(data) {
+      let u = userData();
+      let r = profileRoleFrom(u);
+      return signedIn() && userExists() &&
+        r in ['risk_owner','grc_owner','platform_owner'] &&
+        (
+          (('submittedByUid' in data) && data.submittedByUid == request.auth.uid) ||
+          (('submittedByEmail' in data) && data.submittedByEmail is string &&
+            data.submittedByEmail.lower() == authEmail())
+        );
+    }
+
+    function validGrcRiskRequesterResubmit() {
+      return grcRiskRequestOwner(resource.data) &&
+        resource.data.status == 'returned_requester' &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'proposedRecord','changedFields','requesterNote',
+          'managerNote','superAdminNote','assignedManagerEmail',
+          'returnFields','returnNote','returnSource',
+          'status','updatedAt','updatedAtIso','history'
+        ]) &&
+        request.resource.data.status == 'pending_manager';
+    }
+
     function riskRequesterChange() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'proposedRecord','changedFields','requesterNote',
@@ -1218,6 +1245,10 @@ service cloud.firestore {
       // department fields taken from the authenticated Firestore profile.
       allow create: if validRiskRequestCreate(request.resource.data);
 
+      // v381: explicit GRC/Risk/Platform owner identity access for historical
+      // returned requests. This is intentionally identity-scoped.
+      allow get: if grcRiskRequestOwner(resource.data);
+
       // v380: request owners can open every state, including closed/published,
       // without depending on the role/permission matrix. Identity is exact.
       allow get: if signedIn() && (
@@ -1247,6 +1278,15 @@ service cloud.firestore {
         resource.data.department == profileDepartmentValueFrom(userData());
       allow list: if departmentManager() && ('departmentRaw' in resource.data) &&
         resource.data.departmentRaw == profileDepartmentValueFrom(userData());
+      // v381: explicit owner history query for returned/closed requests.
+      allow list: if signedIn() && userExists() &&
+        profileRoleFrom(userData()) in ['risk_owner','grc_owner','platform_owner'] &&
+        (
+          (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid) ||
+          (('submittedByEmail' in resource.data) && resource.data.submittedByEmail is string &&
+            resource.data.submittedByEmail.lower() == authEmail())
+        );
+
       // v380: owner history queries are identity-scoped and remain available
       // for every request status, including returned/rejected/published/closed.
       allow list: if signedIn() && ('submittedByUid' in resource.data) &&
@@ -1273,7 +1313,7 @@ service cloud.firestore {
       allow list: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
         ('departmentRaw' in resource.data) && resource.data.departmentRaw == profileDepartmentValueFrom(userData());
 
-      allow update: if
+      allow update: if validGrcRiskRequesterResubmit() ||
         (
           approved() && riskRequestOwner(resource.data) &&
           riskRequesterChange() && validRequesterRiskTransition()
