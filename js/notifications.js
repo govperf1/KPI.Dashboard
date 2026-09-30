@@ -979,10 +979,10 @@ function updateExecTrend(yr){
     var ov=document.createElement('div'); ov.id='myReqOv'; ov.className='qumc-request-overlay qumc-my-requests-overlay';
     ov.style.cssText='position:fixed;inset:0;z-index:9200;background:rgba(0,8,20,.84);backdrop-filter:blur(6px);display:flex;align-items:center;justify-content:center;padding:20px;';
     var box=document.createElement('div');
-    box.className='qumc-request-card qumc-my-requests-card'; box.style.cssText='background:linear-gradient(135deg,#0d1b2e,#0a2040);border:1px solid rgba(1,149,175,.25);border-radius:18px;padding:28px;width:min(700px,100%);max-height:80vh;display:flex;flex-direction:column;gap:16px;';
+    box.className='qumc-request-card qumc-my-requests-card'; box.style.cssText='background:linear-gradient(135deg,#0d1b2e,#0a2040);border:1px solid rgba(1,149,175,.25);border-radius:18px;padding:28px;width:min(900px,100%);max-height:82vh;display:flex;flex-direction:column;gap:16px;';
     box.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between">'
       +'<div><div style="font-size:14px;font-weight:800;color:#e2e8f0">'+(isAr?'طلباتي':'My Requests')+'</div>'
-      +'<div style="font-size:10px;color:#64748b;margin-top:2px">'+(isAr?'جميع طلباتك والردود عليها':'All your submitted requests and responses')+'</div></div>'
+      +'<div style="font-size:10px;color:#64748b;margin-top:2px">'+(isAr?'جميع الطلبات التي أرسلتها وحالاتها وتحديثاتها':'All requests you submitted, including Review & Development, GRC and Performance requests')+'</div></div>'
       +'<div style="display:flex;gap:8px">'
       +'<button onclick="var e=document.getElementById(\'myReqOv\');if(e)e.remove();window._showSubmitRequestForm();" style="padding:6px 14px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.3);border-radius:8px;color:#0195af;font-size:10px;font-weight:700;cursor:pointer">+ '+(isAr?'طلب جديد':'New Request')+'</button>'
       +'<button onclick="document.getElementById(\'myReqOv\').remove()" style="width:30px;height:30px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:7px;color:#94a3b8;cursor:pointer;font-size:15px">&#x2715;</button>'
@@ -993,51 +993,61 @@ function updateExecTrend(yr){
     document.body.appendChild(ov);
     ov.onclick=function(e){if(e.target===ov)ov.remove();};
 
-    if(typeof window._kpiRequestsGetMine!=='function'){
+    var api=window._getUnifiedMyRequests;
+    if(typeof api!=='function'){
       var b=document.getElementById('myReqBody');
-      if(b) b.innerHTML='<div style="color:#DC2626;font-size:11px">Requests not available.</div>';
+      if(b)b.innerHTML='<div style="color:#DC2626;font-size:11px">'+(isAr?'خدمة الطلبات غير متاحة حالياً.':'Requests service is not available.')+'</div>';
       return;
     }
-    window._kpiRequestsGetMine().then(function(reqs){
-      var body=document.getElementById('myReqBody'); if(!body) return;
-      var isAr=(typeof lang!=='undefined'&&lang==='ar');
+
+    api().then(function(reqs){
+      var body=document.getElementById('myReqBody'); if(!body)return;
       if(!reqs||!reqs.length){
-        body.innerHTML='<div style="color:#64748b;font-size:11px;text-align:center;padding:32px">'+(isAr?'لم تقم بإرسال أي طلبات بعد':'You have not submitted any requests yet')+'</div>';
+        body.innerHTML='<div style="color:#64748b;font-size:11px;text-align:center;padding:32px">'+(isAr?'لا توجد طلبات مسجلة حتى الآن':'You have not submitted any requests yet')+'</div>';
         return;
       }
-      var statusColor={pending:'#D97706',approved:'#16A34A',rejected:'#DC2626'};
-      var statusLabel={
-        pending:isAr?'معلق':'Pending',
-        approved:isAr?'موافق عليه':'Approved',
-        rejected:isAr?'مرفوض':'Rejected'
+
+      var statusMeta=function(r){
+        var raw=String(r._requestStatus||r.status||'pending').toLowerCase();
+        var stage=String(r._requestStage||r.workflowStage||'').toLowerCase();
+        if(stage==='pending_department_manager')return {label:isAr?'بانتظار موافقة مدير القسم':'Pending Department Manager',color:'#D97706'};
+        if(stage==='pending_super_admin')return {label:isAr?'بانتظار السوبر أدمن':'Pending Super Admin',color:'#2563EB'};
+        if(stage==='returned_requester'||raw==='returned')return {label:isAr?'معاد للتعديل':'Returned for Update',color:'#CA8A04'};
+        if(stage==='rejected_manager')return {label:isAr?'مرفوض من مدير القسم':'Rejected by Department Manager',color:'#DC2626'};
+        if(raw==='approved'||stage==='approved_by_super_admin'||stage==='closed'&&String(r.closureReason||'').indexOf('approved')>=0)return {label:isAr?'موافق عليه':'Approved',color:'#16A34A'};
+        if(raw==='rejected'||String(r.closureReason||'').indexOf('rejected')>=0)return {label:isAr?'مرفوض':'Rejected',color:'#DC2626'};
+        if(raw==='closed'||raw==='completed')return {label:isAr?'مغلق':'Closed',color:'#64748B'};
+        if(raw==='in_progress'||raw==='awaiting_requester_information')return {label:isAr?'قيد المعالجة':'In Progress',color:'#2563EB'};
+        return {label:isAr?'معلق':'Pending',color:'#D97706'};
       };
+
       var html='<div style="display:flex;flex-direction:column;gap:10px;padding:2px;">';
       reqs.forEach(function(r){
-        var sc=statusColor[r.status]||'#64748b';
-        var sl=statusLabel[r.status]||r.status||'—';
-        var ts=typeof window._fmtTs==='function'?window._fmtTs(r.createdAt):'—';
+        var sm=statusMeta(r),source=String(r._requestSource||r.requestDomain||'Request');
+        var ts=typeof window._fmtTs==='function'?window._fmtTs(r._requestCreatedAt||r.createdAt):'—';
+        var updated=typeof window._fmtTs==='function'?window._fmtTs(r._requestUpdatedAt||r.updatedAt||r.respondedAt||r.createdAt):'—';
+        var response=String(r._requestResponse||r.superAdminComment||r.adminComment||'').trim();
+        var stage=String(r._requestStage||r.workflowStage||'').trim();
         html+='<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px">'
           +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
-          +'<div style="display:flex;align-items:center;gap:8px">'
-          +'<span style="font-size:10px;font-weight:700;color:#e2e8f0">'+htmlEsc(r.requestType||'—')+'</span>'
-          +'<span style="padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;background:'+sc+'22;color:'+sc+'">'+sl+'</span>'
+          +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+          +'<span style="padding:2px 8px;border-radius:20px;font-size:8.5px;font-weight:800;background:rgba(1,149,175,.10);color:#67e8f9">'+htmlEsc(source)+'</span>'
+          +'<span style="font-size:10px;font-weight:700;color:#e2e8f0">'+htmlEsc(r._requestTitle||r.requestType||'—')+'</span>'
+          +'<span style="padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;background:'+sm.color+'22;color:'+sm.color+'">'+htmlEsc(sm.label)+'</span>'
           +'</div>'
           +'<span style="font-size:9px;color:#475569;white-space:nowrap">'+htmlEsc(ts)+'</span></div>'
-          +'<div style="font-size:10.5px;color:#94a3b8;line-height:1.5">'+htmlEsc(r.message||'')+'</div>'
-          +(r.superAdminComment
-            ?'<div style="background:rgba(1,149,175,.08);border:1px solid rgba(1,149,175,.2);border-radius:7px;padding:8px 10px">'
-              +'<div style="font-size:9px;font-weight:700;color:#0195af;margin-bottom:3px">'+(isAr?'رد المسؤول:':'Admin Response:')+'</div>'
-              +'<div style="font-size:10.5px;color:#e2e8f0">'+htmlEsc(r.superAdminComment)+'</div></div>'
-            :(r.status==='pending'
-              ?'<div style="font-size:9px;color:#475569;font-style:italic">'+(isAr?'في انتظار الرد...':'Awaiting response...')+'</div>'
-              :''))
+          +(r.code?'<div style="font-size:9px;color:#64748b">Code: '+htmlEsc(r.code)+'</div>':'')
+          +'<div style="font-size:10.5px;color:#94a3b8;line-height:1.5">'+htmlEsc(r._requestMessage||r.message||r.details||'')+'</div>'
+          +(stage?'<div style="font-size:9px;color:#64748b">'+(isAr?'مرحلة الطلب: ':'Workflow Stage: ')+htmlEsc(stage)+'</div>':'')
+          +(response?'<div style="background:rgba(1,149,175,.08);border:1px solid rgba(1,149,175,.2);border-radius:7px;padding:8px 10px"><div style="font-size:9px;font-weight:700;color:#0195af;margin-bottom:3px">'+(isAr?'آخر تحديث / رد:':'Latest Response / Update:')+'</div><div style="font-size:10.5px;color:#e2e8f0">'+htmlEsc(response)+'</div></div>':'')
+          +'<div style="font-size:8.5px;color:#475569">'+(isAr?'آخر تحديث: ':'Last updated: ')+htmlEsc(updated)+'</div>'
           +'</div>';
       });
       html+='</div>';
       body.innerHTML=html;
     }).catch(function(e){
       var body=document.getElementById('myReqBody');
-      if(body) body.innerHTML='<div style="color:#DC2626;font-size:11px">Error: '+htmlEsc(e.message)+'</div>';
+      if(body)body.innerHTML='<div style="color:#DC2626;font-size:11px">Error: '+htmlEsc(e.message||e)+'</div>';
     });
   };
 

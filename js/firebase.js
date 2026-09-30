@@ -892,6 +892,102 @@ window._selectPortal=async portal=>{
         return bt-at;
       });
     };
+    /* Unified profile history: My Requests must include every request domain
+       submitted by the signed-in user:
+       - GRC system requests (grc_requests)
+       - Performance user requests (kpi_requests)
+       - Review & Development requests (advisory_requests)
+       Each source keeps its own authoritative status/workflow fields. */
+    window._getUnifiedMyRequests=async function(){
+      const activeUser=auth&&auth.currentUser;
+      if(!activeUser||!db)return[];
+      const email=String(activeUser.email||'').toLowerCase().trim();
+      const uid=String(activeUser.uid||'').trim();
+      const result=[];
+
+      const pushRows=async function(collectionName, queries, mapper){
+        const map={};
+        for(const item of queries){
+          try{
+            const snap=await getDocsFromServer(item.q);
+            snap.docs.forEach(function(d){map[d.id]=mapper(d);});
+          }catch(e){
+            console.warn('[Unified My Requests] '+collectionName+' '+item.key+' query failed:',e&&e.code||e&&e.message||e);
+          }
+        }
+        Object.keys(map).forEach(function(id){result.push(map[id]);});
+      };
+
+      const identityQueries=function(col){
+        const qs=[];
+        if(uid)qs.push({key:'uid',q:query(col,where('requesterUid','==',uid))});
+        if(email)qs.push({key:'email',q:query(col,where('userEmail','==',email))});
+        return qs;
+      };
+
+      await pushRows('grc_requests',identityQueries(collection(db,'grc_requests')),function(d){
+        const r=d.data()||{};
+        return Object.assign({id:d.id,_requestSource:'GRC',_requestDomain:'grc'},r,{
+          _requestTitle:String(r.requestType||'GRC Request'),
+          _requestMessage:String(r.message||r.details||''),
+          _requestStatus:String(r.status||'pending'),
+          _requestResponse:String(r.adminComment||''),
+          _requestStage:'',
+          _requestCreatedAt:r.createdAt,
+          _requestUpdatedAt:r.updatedAt||r.respondedAt||r.createdAt
+        });
+      });
+
+      await pushRows('kpi_requests',identityQueries(collection(db,'kpi_requests')),function(d){
+        const r=d.data()||{};
+        if(_isReviewDevelopmentRequestDoc(r))return Object.assign({id:d.id,_requestSource:'Review & Development',_requestDomain:'review_development'},r,{
+          _requestTitle:String(r.code||r.requestTypeLabel||r.requestType||'Review & Development Request'),
+          _requestMessage:String(r.details||r.message||''),
+          _requestStatus:String(r.status||'open'),
+          _requestResponse:String(r.superAdminComment||r.adminComment||''),
+          _requestStage:String(r.workflowStage||''),
+          _requestCreatedAt:r.createdAt,
+          _requestUpdatedAt:r.updatedAt||r.respondedAt||r.createdAt
+        });
+        return Object.assign({id:d.id,_requestSource:'Performance',_requestDomain:'performance'},r,{
+          _requestTitle:String(r.requestType||'Performance Request'),
+          _requestMessage:String(r.message||r.details||''),
+          _requestStatus:String(r.status||'pending'),
+          _requestResponse:String(r.superAdminComment||''),
+          _requestStage:'',
+          _requestCreatedAt:r.createdAt,
+          _requestUpdatedAt:r.respondedAt||r.createdAt
+        });
+      });
+
+      await pushRows('advisory_requests',identityQueries(collection(db,'advisory_requests')),function(d){
+        const r=_advNormalizeRow(d.id,d.data()||{},'advisory_requests');
+        return Object.assign(r,{
+          _requestSource:'Review & Development',
+          _requestDomain:'review_development',
+          _requestTitle:String(r.code||r.requestTypeLabel||r.requestType||'Review & Development Request'),
+          _requestMessage:String(r.details||r.message||''),
+          _requestStatus:String(r.status||'open'),
+          _requestResponse:String(r.adminComment||r.superAdminComment||r.managerComment||''),
+          _requestStage:String(r.workflowStage||''),
+          _requestCreatedAt:r.createdAt,
+          _requestUpdatedAt:r.updatedAt||r.respondedAt||r.createdAt
+        });
+      });
+
+      /* De-duplicate mirrors/legacy copies using the strongest available identity. */
+      const unique={},out=[];
+      result.forEach(function(r){
+        const key=String(r.id||'')+'|'+String(r._requestDomain||'');
+        if(unique[key])return;
+        unique[key]=true;out.push(r);
+      });
+      out.sort(function(a,b){
+        return _advTsMs(b._requestCreatedAt||b.createdAt||b._requestUpdatedAt)-_advTsMs(a._requestCreatedAt||a.createdAt||a._requestUpdatedAt);
+      });
+      return out;
+    };
+
     window._grcRequestsGetAll=async function(){
       if(!window._fbUser||!db) return [];
       if(!_grcSystemRequestCanAnalyze()) throw new Error('Access denied.');

@@ -242,22 +242,16 @@ function initSecurity(){
 function hasPermission(p){const pr=window._fbPerms||[];return pr.includes('*')||pr.includes(p);}
 window.hasPermission=hasPermission;
 function canSeeReviewDevelopmentCenter(role,dept,profile){
-  role=String(role||window._fbRole||window.currentUserRole||'viewer').trim().toLowerCase().replace(/[\s-]+/g,'_');
-  if(role==='superadmin')role='super_admin';
-  if(['department_manager','super_admin','admin','governance_performance_manager'].includes(role))return true;
-  if(role!=='viewer')return false;
-  var d=dept!=null?String(dept).trim():String(window._fbDept||window.currentUserDept||'').trim();
-  var prof=profile||window._fbProfile||{};
-  var manager=String(prof.managerEmail||prof.managerUid||prof.directManager||prof.directManagerEmail||prof.managerName||prof.supervisorEmail||prof.supervisorUid||'').trim();
-  return !d && !manager;
+  /* Review & Development Center is available to every authenticated portal
+     user. Department assignment controls routing/approval, not module visibility. */
+  return !!(window._fbUser || window.currentUserEmail || window.firebaseAuthUser || (window._fbUser && window._fbUser.email));
 }
 window.canSeeReviewDevelopmentCenter=canSeeReviewDevelopmentCenter;
 
 function applyRolePermissions(role,dept,perms){
   window._fbPerms=perms||[];
-  /* Review & Development Center is a controlled module. It is visible only to
-     Department Managers, Super Admin/Admin, Governance & Performance Manager,
-     and unassigned viewers with no direct manager. */
+  /* Review & Development Center is visible to all authenticated users.
+     Department assignment controls the approval route, not visibility. */
   setTimeout(function(){
     var allowed=canSeeReviewDevelopmentCenter(role,dept);
     var tab=document.querySelector('.tab[onclick*="switchTab(\'advisory\'"]');

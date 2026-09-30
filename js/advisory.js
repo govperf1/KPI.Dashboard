@@ -212,7 +212,9 @@
        submitted R&D requests here; approval of Risk/Incident requests remains
        in the GRC Department Approval center. */
     var list=(records||[]).filter(function(r){
-      return r&&recordPlatform(r)===currentPlatform&&isManagerOwnRequest(r);
+      /* Submitted history belongs to the requester, not only to Department Managers.
+         Managers still see the same request in their approval queue when applicable. */
+      return r&&recordPlatform(r)===currentPlatform&&isOwnRequest(r);
     }).slice().sort(function(a,b){return timeMs(b.createdAt)-timeMs(a.createdAt);});
     return '<div class="adv-card"><div class="adv-register-toolbar"><div><h3>Submitted Review & Development Requests</h3><p>Track every Review & Development request submitted by you.</p></div><button class="adv-btn ghost" onclick="window._advReload()">Refresh</button></div><div class="adv-table-wrap"><table class="adv-table" style="min-width:980px"><thead><tr><th>Request Code</th><th>Request Type</th><th>Item Type</th><th>Related Record(s)</th><th>Submitted</th><th>Status</th><th>Approval Stage</th><th>Last Update</th><th>Rating</th><th></th></tr></thead><tbody>'+(list.length?list.map(function(r){return '<tr><td class="adv-code">'+esc(r.code||r.id)+'</td><td>'+esc(typeLabel(r))+'</td><td>'+esc(r.category||r.relatedType||'—')+'</td><td>'+esc(relatedText(r))+'</td><td>'+formatDate(r.createdAt,true)+'</td><td>'+statusBadge(r.status)+'</td><td><span class="adv-workflow-stage">'+esc(workflowLabel(r))+'</span></td><td>'+formatDate(r.updatedAt||r.respondedAt||r.createdAt,true)+'</td><td>'+stars(r.rating)+(r.ratingComment?'<div class="adv-rating-comment-mini">'+esc(r.ratingComment)+'</div>':'')+'</td><td><button class="adv-btn secondary" onclick="window._advOpenRequest(\''+esc(r.id)+'\')">Show</button></td></tr>';}).join(''):'<tr><td colspan="10"><div class="adv-empty">No requests have been submitted yet.</div></td></tr>')+'</tbody></table></div></div>';
   }
