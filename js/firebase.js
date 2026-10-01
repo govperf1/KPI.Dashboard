@@ -841,6 +841,17 @@ window._selectPortal=async portal=>{
     function _grcSystemRequestRole(){return _normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');}
     function _grcSystemRequestIsAdmin(){const r=_grcSystemRequestRole();return r==='admin'||r==='super_admin';}
     function _grcSystemRequestCanAnalyze(){return _grcSystemRequestIsAdmin()||_clientHasPerm('view_request_analytics')||_grcSystemRequestRole()==='governance_performance_manager';}
+    const _grcOwnSessionCache=new Map();
+    const _grcOwnLocalKey=function(){const uid=String((auth&&auth.currentUser&&auth.currentUser.uid)||window._fbUid||'').trim();const email=String((auth&&auth.currentUser&&auth.currentUser.email)||window._fbUser||'').toLowerCase().trim();return 'qumc_grc_my_requests_v2_'+(uid||email||'unknown');};
+    function _grcLoadLocalCache(){try{const raw=localStorage.getItem(_grcOwnLocalKey());const rows=raw?JSON.parse(raw):[];(Array.isArray(rows)?rows:[]).forEach(function(r){if(r&&r.id)_grcOwnSessionCache.set(String(r.id),r);});}catch(_){}return _grcOwnSessionCache;}
+    function _grcPersistLocalCache(){try{const rows=Array.from(_grcOwnSessionCache.values()).slice(0,100);localStorage.setItem(_grcOwnLocalKey(),JSON.stringify(rows));}catch(_){} }
+    function _grcCacheOwnRow(row){
+      if(!row||!row.id)return;
+      const email=String(row.userEmail||'').toLowerCase().trim(),uid=String(row.requesterUid||'').trim();
+      const me=String((auth&&auth.currentUser&&auth.currentUser.email)||window._fbUser||'').toLowerCase().trim();
+      const myUid=String((auth&&auth.currentUser&&auth.currentUser.uid)||window._fbUid||'').trim();
+      if((email&&email===me)||(uid&&myUid&&uid===myUid)){_grcOwnSessionCache.set(String(row.id),row);_grcPersistLocalCache();}
+    }
     window._grcRequestsSubmit=async function(requestType,message){
       if(!window._fbUser||!db) throw new Error('not authenticated');
       const ref=await addDoc(collection(db,'grc_requests'),{
@@ -863,6 +874,7 @@ window._selectPortal=async portal=>{
         updatedAt: serverTimestamp(),
         updatedAtIso: new Date().toISOString()
       });
+      _grcCacheOwnRow({id:ref.id,platform:'grc',userName:window._fbName||window._fbUser.split('@')[0],userEmail:(window._fbUser||'').toLowerCase().trim(),requesterUid:String(window._fbUid||window._fbUserUid||window._fbAuthUid||auth.currentUser&&auth.currentUser.uid||''),department:String(window._fbDept||window.currentUserDept||'').trim(),requestType:String(requestType||'General GRC Request').trim(),message:String(message||'').trim(),status:'pending',adminComment:'',rating:null,ratingComment:'',createdAt:new Date(),updatedAt:new Date()});
       try{await window._recordAuditDirect('GRC_USER_REQUEST_SUBMIT','Submitted GRC user request: '+String(requestType||'General GRC Request'),null,{requestId:ref.id,requestType:String(requestType||'General GRC Request')},{portal:'grc'});}catch(_){}
       return ref.id;
     };
@@ -879,16 +891,20 @@ window._selectPortal=async portal=>{
       const queries=[];
       if(uid)queries.push({key:'uid',q:query(col,where('requesterUid','==',uid))});
       if(email)queries.push({key:'email',q:query(col,where('userEmail','==',email))});
+      _grcLoadLocalCache();
       const map={};
+      _grcOwnSessionCache.forEach(function(row,id){if(row)map[id]=row;});
       for(const item of queries){
         try{
           const snap=await getDocsFromServer(item.q);
           snap.docs.forEach(function(d){map[d.id]=Object.assign({id:d.id},d.data()||{});});
         }catch(e){console.warn('[GRC Requests] owner '+item.key+' query failed:',e&&e.code||e&&e.message||e);}
       }
+      Object.keys(map).forEach(function(id){_grcCacheOwnRow(map[id]);});
+      _grcOwnSessionCache.forEach(function(row,id){if(row&&!map[id])map[id]=row;});
       return Object.keys(map).map(function(id){return map[id];}).sort(function(a,b){
-        const at=a.createdAt&&a.createdAt.seconds?Number(a.createdAt.seconds):0;
-        const bt=b.createdAt&&b.createdAt.seconds?Number(b.createdAt.seconds):0;
+        const at=a.createdAt&&a.createdAt.seconds?Number(a.createdAt.seconds):new Date(a.createdAt||0).getTime()||0;
+        const bt=b.createdAt&&b.createdAt.seconds?Number(b.createdAt.seconds):new Date(b.createdAt||0).getTime()||0;
         return bt-at;
       });
     };
@@ -937,6 +953,25 @@ window._selectPortal=async portal=>{
           _requestUpdatedAt:r.updatedAt||r.respondedAt||r.createdAt
         });
       });
+
+      /* If a deployed Rules version temporarily blocks the collection list,
+         _grcRequestsGetMine still has the owner-only local/server recovery path.
+         Merge it rather than converting a real submitted request into an empty UI. */
+      try{
+        const directMine=typeof window._grcRequestsGetMine==='function'?await window._grcRequestsGetMine():[];
+        (directMine||[]).forEach(function(r){
+          const x=Object.assign({_requestSource:'GRC',_requestDomain:'grc'},r,{
+            _requestTitle:String(r.requestType||'GRC Request'),
+            _requestMessage:String(r.message||r.details||''),
+            _requestStatus:String(r.status||'pending'),
+            _requestResponse:String(r.adminComment||''),
+            _requestStage:'',
+            _requestCreatedAt:r.createdAt,
+            _requestUpdatedAt:r.updatedAt||r.respondedAt||r.createdAt
+          });
+          result.push(x);
+        });
+      }catch(e){console.warn('[Unified My Requests] GRC recovery path failed:',e&&e.code||e&&e.message||e);}
 
       await pushRows('kpi_requests',identityQueries(collection(db,'kpi_requests')),function(d){
         const r=d.data()||{};
