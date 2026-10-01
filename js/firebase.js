@@ -886,10 +886,8 @@ window._selectPortal=async portal=>{
       const activeUser=auth&&auth.currentUser;
       if(!activeUser||!db)return[];
       const email=String(activeUser.email||'').toLowerCase().trim();
-      const uid=String(activeUser.uid||'').trim();
       const col=collection(db,'grc_requests');
       const queries=[];
-      if(uid)queries.push({key:'uid',q:query(col,where('requesterUid','==',uid))});
       if(email)queries.push({key:'email',q:query(col,where('userEmail','==',email))});
       _grcLoadLocalCache();
       const map={};
@@ -918,7 +916,6 @@ window._selectPortal=async portal=>{
       const activeUser=auth&&auth.currentUser;
       if(!activeUser||!db)return[];
       const email=String(activeUser.email||'').toLowerCase().trim();
-      const uid=String(activeUser.uid||'').trim();
       const result=[];
 
       const pushRows=async function(collectionName, queries, mapper){
@@ -936,7 +933,6 @@ window._selectPortal=async portal=>{
 
       const identityQueries=function(col){
         const qs=[];
-        if(uid)qs.push({key:'uid',q:query(col,where('requesterUid','==',uid))});
         if(email)qs.push({key:'email',q:query(col,where('userEmail','==',email))});
         return qs;
       };
@@ -1030,7 +1026,7 @@ window._selectPortal=async portal=>{
        same owner identity keys used by _getUnifiedMyRequests. */
     window._subscribeUnifiedMyRequests=function(callback){
       if(typeof callback!=='function'||!auth||!auth.currentUser||!db)return function(){};
-      const activeUser=auth.currentUser,email=String(activeUser.email||'').toLowerCase().trim(),uid=String(activeUser.uid||'').trim();
+      const activeUser=auth.currentUser,email=String(activeUser.email||'').toLowerCase().trim();
       let stopped=false,timer=null,unsubs=[],sources={},lastKey='';
       const addSource=function(key,colName,q,mapper){
         if(!q)return;
@@ -1063,7 +1059,6 @@ window._selectPortal=async portal=>{
       };
       const makeQueries=function(colName){
         const col=collection(db,colName),out=[];
-        if(uid)out.push({key:colName+'_uid',q:query(col,where('requesterUid','==',uid))});
         if(email)out.push({key:colName+'_email',q:query(col,where('userEmail','==',email))});
         return out;
       };
