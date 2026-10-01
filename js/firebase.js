@@ -1023,6 +1023,56 @@ window._selectPortal=async portal=>{
       return out;
     };
 
+    /* Unified My Requests live stream.
+       The profile history is not a one-time report: it must react when a
+       Department Manager or Super Admin changes a request after the profile
+       modal has already been opened. Each source is listened to through the
+       same owner identity keys used by _getUnifiedMyRequests. */
+    window._subscribeUnifiedMyRequests=function(callback){
+      if(typeof callback!=='function'||!auth||!auth.currentUser||!db)return function(){};
+      const activeUser=auth.currentUser,email=String(activeUser.email||'').toLowerCase().trim(),uid=String(activeUser.uid||'').trim();
+      let stopped=false,timer=null,unsubs=[],sources={},lastKey='';
+      const addSource=function(key,colName,q,mapper){
+        if(!q)return;
+        try{
+          const unsub=onSnapshot(q,function(snap){
+            sources[key]=(snap.docs||[]).map(function(d){return mapper(d);});emit();
+          },function(err){
+            console.warn('[Unified My Requests] live listener failed '+key,err&&err.code||err);
+            sources[key]=sources[key]||[];emit();
+          });
+          unsubs.push(unsub);
+        }catch(err){console.warn('[Unified My Requests] live listener setup failed '+key,err&&err.message||err);}
+      };
+      const advMapper=function(d){
+        const r=_advNormalizeRow(d.id,d.data()||{},'advisory_requests');
+        return Object.assign(r,{_requestSource:'Review & Development',_requestDomain:'review_development',_requestTitle:String(r.code||r.requestTypeLabel||r.requestType||'Review & Development Request'),_requestMessage:String(r.details||r.message||''),_requestStatus:String(r.status||'open'),_requestResponse:String(r.adminComment||r.superAdminComment||r.managerComment||''),_requestStage:String(r.workflowStage||''),_requestCreatedAt:r.createdAt,_requestUpdatedAt:r.updatedAt||r.respondedAt||r.createdAt});
+      };
+      const grcMapper=function(d){const r=d.data()||{};return Object.assign({id:d.id,_requestSource:'GRC',_requestDomain:'grc'},r,{_requestTitle:String(r.requestType||'GRC Request'),_requestMessage:String(r.message||r.details||''),_requestStatus:String(r.status||'pending'),_requestResponse:String(r.adminComment||''),_requestStage:'',_requestCreatedAt:r.createdAt,_requestUpdatedAt:r.updatedAt||r.respondedAt||r.createdAt});};
+      const perfMapper=function(d){const r=d.data()||{};if(_isReviewDevelopmentRequestDoc(r))return advMapper(d);return Object.assign({id:d.id,_requestSource:'Performance',_requestDomain:'performance'},r,{_requestTitle:String(r.requestType||'Performance Request'),_requestMessage:String(r.message||r.details||''),_requestStatus:String(r.status||'pending'),_requestResponse:String(r.superAdminComment||r.adminComment||''),_requestStage:'',_requestCreatedAt:r.createdAt,_requestUpdatedAt:r.respondedAt||r.updatedAt||r.createdAt});};
+      const emit=function(){
+        if(stopped)return;
+        clearTimeout(timer);timer=setTimeout(function(){
+          if(stopped)return;
+          const map={};Object.keys(sources).forEach(function(k){(sources[k]||[]).forEach(function(r){if(r&&r.id)map[String(r._requestDomain||k)+'|'+r.id]=r;});});
+          const rows=Object.keys(map).map(function(k){return map[k];});
+          rows.sort(function(a,b){return _advTsMs(b._requestCreatedAt||b.createdAt||b._requestUpdatedAt)-_advTsMs(a._requestCreatedAt||a.createdAt||a._requestUpdatedAt);});
+          const key=rows.map(function(r){return [r._requestDomain,r.id,r._requestStatus,r._requestStage,r.updatedAtIso||'',r.managerActionAtIso||'',r.rating||'',r.ratingAt||''].join('|');}).join('~');
+          if(key===lastKey)return;lastKey=key;callback(rows);
+        },60);
+      };
+      const makeQueries=function(colName){
+        const col=collection(db,colName),out=[];
+        if(uid)out.push({key:colName+'_uid',q:query(col,where('requesterUid','==',uid))});
+        if(email)out.push({key:colName+'_email',q:query(col,where('userEmail','==',email))});
+        return out;
+      };
+      makeQueries('grc_requests').forEach(function(x){addSource(x.key,'grc_requests',x.q,grcMapper);});
+      makeQueries('kpi_requests').forEach(function(x){addSource(x.key,'kpi_requests',x.q,perfMapper);});
+      makeQueries('advisory_requests').forEach(function(x){addSource(x.key,'advisory_requests',x.q,advMapper);});
+      return function(){stopped=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
+    };
+
     window._grcRequestsGetAll=async function(){
       if(!window._fbUser||!db) return [];
       if(!_grcSystemRequestCanAnalyze()) throw new Error('Access denied.');

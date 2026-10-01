@@ -985,70 +985,68 @@ function updateExecTrend(yr){
       +'<div style="font-size:10px;color:#64748b;margin-top:2px">'+(isAr?'جميع الطلبات التي أرسلتها وحالاتها وتحديثاتها':'All requests you submitted, including Review & Development, GRC and Performance requests')+'</div></div>'
       +'<div style="display:flex;gap:8px">'
       +'<button onclick="var e=document.getElementById(\'myReqOv\');if(e)e.remove();window._showSubmitRequestForm();" style="padding:6px 14px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.3);border-radius:8px;color:#0195af;font-size:10px;font-weight:700;cursor:pointer">+ '+(isAr?'طلب جديد':'New Request')+'</button>'
-      +'<button onclick="document.getElementById(\'myReqOv\').remove()" style="width:30px;height:30px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:7px;color:#94a3b8;cursor:pointer;font-size:15px">&#x2715;</button>'
+      +'<button onclick="window._closeMyRequestsLive&&window._closeMyRequestsLive();document.getElementById(\'myReqOv\').remove()" style="width:30px;height:30px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:7px;color:#94a3b8;cursor:pointer;font-size:15px">&#x2715;</button>'
       +'</div></div>'
       +'<div id="myReqBody" style="overflow-y:auto;flex:1;min-height:160px;display:flex;align-items:center;justify-content:center">'
       +'<div style="color:#64748b;font-size:11px">'+(isAr?'جاري التحميل...':'Loading...')+'</div></div>';
-    ov.appendChild(box);
-    document.body.appendChild(ov);
-    ov.onclick=function(e){if(e.target===ov)ov.remove();};
+    ov.appendChild(box);document.body.appendChild(ov);ov.onclick=function(e){if(e.target===ov){window._closeMyRequestsLive&&window._closeMyRequestsLive();ov.remove();}};
 
-    var api=window._getUnifiedMyRequests;
-    if(typeof api!=='function'){
-      var b=document.getElementById('myReqBody');
-      if(b)b.innerHTML='<div style="color:#DC2626;font-size:11px">'+(isAr?'خدمة الطلبات غير متاحة حالياً.':'Requests service is not available.')+'</div>';
-      return;
-    }
-
-    api().then(function(reqs){
-      var body=document.getElementById('myReqBody'); if(!body)return;
-      if(!reqs||!reqs.length){
-        body.innerHTML='<div style="color:#64748b;font-size:11px;text-align:center;padding:32px">'+(isAr?'لا توجد طلبات مسجلة حتى الآن':'You have not submitted any requests yet')+'</div>';
-        return;
-      }
-
+    var render=function(reqs){
+      var body=document.getElementById('myReqBody');if(!body)return;
+      if(!reqs||!reqs.length){body.innerHTML='<div style="color:#64748b;font-size:11px;text-align:center;padding:32px">'+(isAr?'لا توجد طلبات مسجلة حتى الآن':'You have not submitted any requests yet')+'</div>';return;}
       var statusMeta=function(r){
-        var raw=String(r._requestStatus||r.status||'pending').toLowerCase();
-        var stage=String(r._requestStage||r.workflowStage||'').toLowerCase();
+        var raw=String(r._requestStatus||r.status||'pending').toLowerCase(),stage=String(r._requestStage||r.workflowStage||'').toLowerCase();
         if(stage==='pending_department_manager')return {label:isAr?'بانتظار موافقة مدير القسم':'Pending Department Manager',color:'#D97706'};
         if(stage==='pending_super_admin')return {label:isAr?'بانتظار السوبر أدمن':'Pending Super Admin',color:'#2563EB'};
         if(stage==='returned_requester'||raw==='returned')return {label:isAr?'معاد للتعديل':'Returned for Update',color:'#CA8A04'};
         if(stage==='rejected_manager')return {label:isAr?'مرفوض من مدير القسم':'Rejected by Department Manager',color:'#DC2626'};
-        if(raw==='approved'||stage==='approved_by_super_admin'||stage==='closed'&&String(r.closureReason||'').indexOf('approved')>=0)return {label:isAr?'موافق عليه':'Approved',color:'#16A34A'};
+        if(raw==='approved'||stage==='approved_by_super_admin'||(stage==='closed'&&String(r.closureReason||'').indexOf('approved')>=0))return {label:isAr?'موافق عليه':'Approved',color:'#16A34A'};
         if(raw==='rejected'||String(r.closureReason||'').indexOf('rejected')>=0)return {label:isAr?'مرفوض':'Rejected',color:'#DC2626'};
         if(raw==='closed'||raw==='completed')return {label:isAr?'مغلق':'Closed',color:'#64748B'};
         if(raw==='in_progress'||raw==='awaiting_requester_information')return {label:isAr?'قيد المعالجة':'In Progress',color:'#2563EB'};
         return {label:isAr?'معلق':'Pending',color:'#D97706'};
       };
-
       var html='<div style="display:flex;flex-direction:column;gap:10px;padding:2px;">';
       reqs.forEach(function(r){
-        var sm=statusMeta(r),source=String(r._requestSource||r.requestDomain||'Request');
-        var ts=typeof window._fmtTs==='function'?window._fmtTs(r._requestCreatedAt||r.createdAt):'—';
-        var updated=typeof window._fmtTs==='function'?window._fmtTs(r._requestUpdatedAt||r.updatedAt||r.respondedAt||r.createdAt):'—';
-        var response=String(r._requestResponse||r.superAdminComment||r.adminComment||'').trim();
-        var stage=String(r._requestStage||r.workflowStage||'').trim();
+        var sm=statusMeta(r),source=String(r._requestSource||r.requestDomain||'Request'),ts=typeof window._fmtTs==='function'?window._fmtTs(r._requestCreatedAt||r.createdAt):'—',updated=typeof window._fmtTs==='function'?window._fmtTs(r._requestUpdatedAt||r.updatedAt||r.respondedAt||r.createdAt):'—',response=String(r._requestResponse||r.superAdminComment||r.adminComment||r.managerComment||'').trim(),stage=String(r._requestStage||r.workflowStage||'').trim();
+        var isRD=String(r._requestDomain||r.requestDomain||'').toLowerCase()==='review_development',closed=['closed','completed','approved','rejected'].indexOf(String(r._requestStatus||r.status||'').toLowerCase())>=0,unrated=isRD&&closed&&!Number(r.rating||0);
+        var action='';
+        if(unrated){action='<button type="button" onclick="window._openRequestForRating&&window._openRequestForRating(&quot;'+htmlEsc(String(r.id||''))+'&quot;)" style="align-self:flex-start;padding:7px 12px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.3);border-radius:8px;color:#67e8f9;font-size:9px;font-weight:800;cursor:pointer">★ '+(isAr?'تقييم الطلب':'Rate this request')+'</button>';}else if(isRD){action='<button type="button" onclick="window._openRequestForRating&&window._openRequestForRating(&quot;'+htmlEsc(String(r.id||''))+'&quot;)" style="align-self:flex-start;padding:6px 11px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.10);border-radius:8px;color:#94a3b8;font-size:9px;font-weight:700;cursor:pointer">'+(isAr?'عرض الطلب':'View request')+'</button>'; }
         html+='<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px">'
-          +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
-          +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+          +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
           +'<span style="padding:2px 8px;border-radius:20px;font-size:8.5px;font-weight:800;background:rgba(1,149,175,.10);color:#67e8f9">'+htmlEsc(source)+'</span>'
           +'<span style="font-size:10px;font-weight:700;color:#e2e8f0">'+htmlEsc(r._requestTitle||r.requestType||'—')+'</span>'
           +'<span style="padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;background:'+sm.color+'22;color:'+sm.color+'">'+htmlEsc(sm.label)+'</span>'
-          +'</div>'
-          +'<span style="font-size:9px;color:#475569;white-space:nowrap">'+htmlEsc(ts)+'</span></div>'
+          +'</div><span style="font-size:9px;color:#475569;white-space:nowrap">'+htmlEsc(ts)+'</span></div>'
           +(r.code?'<div style="font-size:9px;color:#64748b">Code: '+htmlEsc(r.code)+'</div>':'')
           +'<div style="font-size:10.5px;color:#94a3b8;line-height:1.5">'+htmlEsc(r._requestMessage||r.message||r.details||'')+'</div>'
           +(stage?'<div style="font-size:9px;color:#64748b">'+(isAr?'مرحلة الطلب: ':'Workflow Stage: ')+htmlEsc(stage)+'</div>':'')
           +(response?'<div style="background:rgba(1,149,175,.08);border:1px solid rgba(1,149,175,.2);border-radius:7px;padding:8px 10px"><div style="font-size:9px;font-weight:700;color:#0195af;margin-bottom:3px">'+(isAr?'آخر تحديث / رد:':'Latest Response / Update:')+'</div><div style="font-size:10.5px;color:#e2e8f0">'+htmlEsc(response)+'</div></div>':'')
-          +'<div style="font-size:8.5px;color:#475569">'+(isAr?'آخر تحديث: ':'Last updated: ')+htmlEsc(updated)+'</div>'
-          +'</div>';
+          +(unrated?'<div style="background:rgba(217,119,6,.10);border:1px solid rgba(217,119,6,.25);border-radius:7px;padding:8px 10px;color:#fbbf24;font-size:9.5px;font-weight:700">'+(isAr?'تم إغلاق الطلب. يرجى تقييم الخدمة.':'This request is closed. Please rate the service.')+'</div>':'')
+          +action
+          +'<div style="font-size:8.5px;color:#475569">'+(isAr?'آخر تحديث: ':'Last updated: ')+htmlEsc(updated)+'</div></div>';
       });
-      html+='</div>';
-      body.innerHTML=html;
-    }).catch(function(e){
-      var body=document.getElementById('myReqBody');
-      if(body)body.innerHTML='<div style="color:#DC2626;font-size:11px">Error: '+htmlEsc(e.message||e)+'</div>';
-    });
+      html+='</div>';body.innerHTML=html;
+    };
+    window._closeMyRequestsLive=function(){if(window.__myRequestsUnsub){try{window.__myRequestsUnsub();}catch(_){ }window.__myRequestsUnsub=null;}};
+    window._openRequestForRating=function(id){
+      var row=null;try{row=(window.__myRequestsRows||[]).find(function(x){return String(x.id||'')===String(id||'');});}catch(_){ }
+      if(String(row&&row._requestDomain||'')==='review_development'&&typeof window._advOpenRequest==='function'){
+        window._closeMyRequestsLive();var x=document.getElementById('myReqOv');if(x)x.remove();window._advOpenRequest(id);return;
+      }
+    };
+    var liveApi=window._subscribeUnifiedMyRequests;
+    if(typeof liveApi==='function'){
+      window.__myRequestsRows=[];
+      window.__myRequestsUnsub=liveApi(function(rows){window.__myRequestsRows=rows||[];render(rows||[]);});
+      /* If the live listener is briefly denied, retain the server snapshot as a
+         recovery path rather than showing a false empty state. */
+      if(typeof window._getUnifiedMyRequests==='function')window._getUnifiedMyRequests().then(function(rows){if(!window.__myRequestsRows||!window.__myRequestsRows.length){window.__myRequestsRows=rows||[];render(rows||[]);}}).catch(function(e){console.warn('[My Requests] initial recovery failed',e&&e.message||e);});
+    }else if(typeof window._getUnifiedMyRequests==='function'){
+      window._getUnifiedMyRequests().then(function(rows){window.__myRequestsRows=rows||[];render(rows||[]);}).catch(function(e){var body=document.getElementById('myReqBody');if(body)body.innerHTML='<div style="color:#DC2626;font-size:11px">Error: '+htmlEsc(e.message||e)+'</div>';});
+    }else{
+      var b=document.getElementById('myReqBody');if(b)b.innerHTML='<div style="color:#DC2626;font-size:11px">'+(isAr?'خدمة الطلبات غير متاحة حالياً.':'Requests service is not available.')+'</div>';
+    }
   };
 
 })();
