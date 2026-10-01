@@ -627,10 +627,10 @@ service cloud.firestore {
         ownRoleScope(resource.data)
       );
       // Legacy role-isolated history for documents created before requesterScopeKey.
-      allow list: if signedIn() && ('requesterScopeKey' not in resource.data) &&
+      allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
         ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid &&
         ('requesterRole' in resource.data) && resource.data.requesterRole == role();
-      allow get: if signedIn() && ('requesterScopeKey' not in resource.data) &&
+      allow get: if signedIn() && !('requesterScopeKey' in resource.data) &&
         ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid &&
         ('requesterRole' in resource.data) && resource.data.requesterRole == role();
 
@@ -694,10 +694,10 @@ service cloud.firestore {
       allow list: if ownRoleScope(resource.data);
       // Legacy role-isolated history: older documents may not contain
       // requesterScopeKey, but they do contain immutable UID + requesterRole.
-      allow list: if signedIn() && ('requesterScopeKey' not in resource.data) &&
+      allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
         ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid &&
         ('requesterRole' in resource.data) && resource.data.requesterRole == role();
-      allow get: if signedIn() && ('requesterScopeKey' not in resource.data) &&
+      allow get: if signedIn() && !('requesterScopeKey' in resource.data) &&
         ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid &&
         ('requesterRole' in resource.data) && resource.data.requesterRole == role();
 
@@ -1058,10 +1058,10 @@ service cloud.firestore {
       allow list: if ownRoleScope(resource.data);
       // Legacy R&D history created before requesterScopeKey: isolate by immutable
       // UID + requesterRole so the shared test account remains role-separated.
-      allow list: if signedIn() && ('requesterScopeKey' not in resource.data) &&
+      allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
         ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid &&
         ('requesterRole' in resource.data) && resource.data.requesterRole == role();
-      allow get: if signedIn() && ('requesterScopeKey' not in resource.data) &&
+      allow get: if signedIn() && !('requesterScopeKey' in resource.data) &&
         ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid &&
         ('requesterRole' in resource.data) && resource.data.requesterRole == role();
 
@@ -1287,13 +1287,13 @@ service cloud.firestore {
       // department fields taken from the authenticated Firestore profile.
       allow create: if validRiskRequestCreate(request.resource.data);
 
-      // v386: modern owner reads are isolated by UID + role scope. Legacy
+      // v387: modern owner reads are isolated by UID + role scope. Legacy
       // records without requesterScopeKey use the compatibility branches below.
       allow get: if signedIn() && ('requesterScopeKey' in resource.data) &&
         resource.data.requesterScopeKey == (request.auth.uid + '::' + role());
       allow list: if signedIn() && ('requesterScopeKey' in resource.data) &&
         resource.data.requesterScopeKey == (request.auth.uid + '::' + role());
-      allow list: if signedIn() && ('requesterScopeKey' not in resource.data) &&
+      allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
         ('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid &&
         ('submittedByRole' in resource.data) && normalizedRoleValue(resource.data.submittedByRole) == role();
 
@@ -1343,11 +1343,11 @@ service cloud.firestore {
             resource.data.submittedByEmail.lower() == authEmail())
         );
 
-      // v386: owner history queries are role-scoped. The shared test account
+      // v387: owner history queries are role-scoped. The shared test account
       // must not merge requests created under another portal role.
       allow list: if signedIn() && ('requesterScopeKey' in resource.data) &&
         resource.data.requesterScopeKey == (request.auth.uid + '::' + role());
-      allow list: if signedIn() && ('requesterScopeKey' not in resource.data) &&
+      allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
         ('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid &&
         ('submittedByRole' in resource.data) &&
         normalizedRoleValue(resource.data.submittedByRole) == role();
@@ -1355,7 +1355,7 @@ service cloud.firestore {
       allow list: if admin();
       allow list: if approved() && ('requesterScopeKey' in resource.data) &&
         resource.data.requesterScopeKey == (request.auth.uid + '::' + role());
-      allow list: if approved() && ('requesterScopeKey' not in resource.data) &&
+      allow list: if approved() && !('requesterScopeKey' in resource.data) &&
         ('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid &&
         ('submittedByRole' in resource.data) &&
         normalizedRoleValue(resource.data.submittedByRole) == role();
@@ -1365,7 +1365,7 @@ service cloud.firestore {
         (('requesterScopeKey' in resource.data) &&
          resource.data.requesterScopeKey == (request.auth.uid + '::' + role()));
       allow list: if canReadRiskIncidentWorkflow() &&
-        (('requesterScopeKey' not in resource.data) &&
+        (!('requesterScopeKey' in resource.data) &&
          ('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid &&
          ('submittedByRole' in resource.data) &&
          normalizedRoleValue(resource.data.submittedByRole) == role());

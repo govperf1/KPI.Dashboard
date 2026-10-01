@@ -1,0 +1,11 @@
+v387 Firestore Rules syntax fix
+
+Root cause: v386 contained invalid Firestore Rules syntax such as:
+  ('requesterScopeKey' not in resource.data)
+Firestore Rules does not support `not in` in this form.
+
+Replaced every occurrence with the valid equivalent:
+  !('requesterScopeKey' in resource.data)
+
+No workflow authorization logic was intentionally changed by this syntax-only fix.
+Deploy this firestore.rules to project qumc-kpi-dashboard-f10dd, then hard refresh the site.
