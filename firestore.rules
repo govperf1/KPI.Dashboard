@@ -1,5 +1,5 @@
-// v380 — Canonical owner UID+email history visibility fix.
-// FIRESTORE SECURITY RULES v84 — Owner list/get reads support UID and canonical email.
+// v381 — Canonical owner-email history visibility fix; UID is audit metadata.
+// FIRESTORE SECURITY RULES v85 — Owner list/get reads support UID and canonical email.
 // v75: Removes queue-existence dependency from manager decisions and authorizes
 // the manager directly from the authenticated canonical department. The queue is
 // routing-only; a stale/missing projection can never block a valid source update.
