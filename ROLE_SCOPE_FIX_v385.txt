@@ -1,0 +1,14 @@
+ROOT FIX v385 — Shared test account role isolation
+
+Request identity is now scoped by Firebase Auth UID + the portal role active at submission time.
+A single email can therefore be reused for GRC Owner, Department Manager, etc. without mixing request history.
+
+New request fields:
+- requesterUid
+- requesterRole
+- requesterScopeKey = <auth uid>::<normalized role>
+
+My Requests, Review & Development own-history listeners, GRC requests, Performance requests, rating ownership,
+and manager own-request listeners use requesterScopeKey instead of email.
+Department Manager queue excludes requests submitted by the same Firebase UID, preventing a shared test account
+from approving its own prior-role request.
