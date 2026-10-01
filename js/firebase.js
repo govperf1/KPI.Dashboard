@@ -61,6 +61,15 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       return aliases[r]||r;
     }
     window._normalizePortalRole=_normalizePortalRole;
+    // v385: request ownership is scoped by the authenticated UID + CURRENT portal role.
+    // The same Firebase Auth email may be reused while testing different roles; requests
+    // created as GRC Owner must never be mixed with requests created as Department Manager.
+    function _currentRequesterScope(uid, role){
+      const u=String(uid||auth.currentUser&&auth.currentUser.uid||'').trim();
+      const r=_normalizePortalRole(role||window._fbRole||window.currentUserRole||'viewer');
+      return u+'::'+r;
+    }
+    window._currentRequesterScope=_currentRequesterScope;
     function _clientHasPerm(perm){const p=Array.isArray(window._fbPerms)?window._fbPerms:[];return p.includes('*')||p.includes(perm);}
     function _canAccessPortal(portal){
       portal=portal==='governance'?'grc':String(portal||'').toLowerCase();
@@ -774,6 +783,8 @@ window._selectPortal=async portal=>{
         userName: window._fbName||window.currentUserName||email.split('@')[0],
         userEmail: email,
         requesterUid: uid,
+        requesterRole: _normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'),
+        requesterScopeKey: _currentRequesterScope(uid,_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer')),
         department: String(window._fbDept||window.currentUserDept||'').trim(),
         requestType: String(requestType||'General').trim(),
         message: String(message||'').trim(),
@@ -842,15 +853,13 @@ window._selectPortal=async portal=>{
     function _grcSystemRequestIsAdmin(){const r=_grcSystemRequestRole();return r==='admin'||r==='super_admin';}
     function _grcSystemRequestCanAnalyze(){return _grcSystemRequestIsAdmin()||_clientHasPerm('view_request_analytics')||_grcSystemRequestRole()==='governance_performance_manager';}
     const _grcOwnSessionCache=new Map();
-    const _grcOwnLocalKey=function(){const uid=String((auth&&auth.currentUser&&auth.currentUser.uid)||window._fbUid||'').trim();const email=String((auth&&auth.currentUser&&auth.currentUser.email)||window._fbUser||'').toLowerCase().trim();return 'qumc_grc_my_requests_v2_'+(uid||email||'unknown');};
+    const _grcOwnLocalKey=function(){const uid=String((auth&&auth.currentUser&&auth.currentUser.uid)||window._fbUid||'').trim();const role=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');return 'qumc_grc_my_requests_v3_'+(uid||'unknown')+'_'+role;};
     function _grcLoadLocalCache(){try{const raw=localStorage.getItem(_grcOwnLocalKey());const rows=raw?JSON.parse(raw):[];(Array.isArray(rows)?rows:[]).forEach(function(r){if(r&&r.id)_grcOwnSessionCache.set(String(r.id),r);});}catch(_){}return _grcOwnSessionCache;}
     function _grcPersistLocalCache(){try{const rows=Array.from(_grcOwnSessionCache.values()).slice(0,100);localStorage.setItem(_grcOwnLocalKey(),JSON.stringify(rows));}catch(_){} }
     function _grcCacheOwnRow(row){
       if(!row||!row.id)return;
-      const email=String(row.userEmail||'').toLowerCase().trim(),uid=String(row.requesterUid||'').trim();
-      const me=String((auth&&auth.currentUser&&auth.currentUser.email)||window._fbUser||'').toLowerCase().trim();
-      const myUid=String((auth&&auth.currentUser&&auth.currentUser.uid)||window._fbUid||'').trim();
-      if((email&&email===me)||(uid&&myUid&&uid===myUid)){_grcOwnSessionCache.set(String(row.id),row);_grcPersistLocalCache();}
+      const scope=String(row.requesterScopeKey||'').trim(),myScope=_currentRequesterScope();
+      if(scope&&scope===myScope){_grcOwnSessionCache.set(String(row.id),row);_grcPersistLocalCache();}
     }
     window._grcRequestsSubmit=async function(requestType,message){
       if(!window._fbUser||!db) throw new Error('not authenticated');
@@ -861,6 +870,8 @@ window._selectPortal=async portal=>{
         // Keep ownership fields aligned with the authenticated user. Email is
         // the canonical read key; UID is retained for immutable auditing.
         requesterUid: String(window._fbUid||window._fbUserUid||window._fbAuthUid||auth.currentUser&&auth.currentUser.uid||''),
+        requesterRole: _normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'),
+        requesterScopeKey: _currentRequesterScope(),
         department: String(window._fbDept||window.currentUserDept||'').trim(),
         requestType: String(requestType||'General GRC Request').trim(),
         message: String(message||'').trim(),
@@ -874,7 +885,7 @@ window._selectPortal=async portal=>{
         updatedAt: serverTimestamp(),
         updatedAtIso: new Date().toISOString()
       });
-      _grcCacheOwnRow({id:ref.id,platform:'grc',userName:window._fbName||window._fbUser.split('@')[0],userEmail:(window._fbUser||'').toLowerCase().trim(),requesterUid:String(window._fbUid||window._fbUserUid||window._fbAuthUid||auth.currentUser&&auth.currentUser.uid||''),department:String(window._fbDept||window.currentUserDept||'').trim(),requestType:String(requestType||'General GRC Request').trim(),message:String(message||'').trim(),status:'pending',adminComment:'',rating:null,ratingComment:'',createdAt:new Date(),updatedAt:new Date()});
+      _grcCacheOwnRow({id:ref.id,platform:'grc',userName:window._fbName||window._fbUser.split('@')[0],userEmail:(window._fbUser||'').toLowerCase().trim(),requesterUid:String(window._fbUid||window._fbUserUid||window._fbAuthUid||auth.currentUser&&auth.currentUser.uid||''),requesterRole:_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'),requesterScopeKey:_currentRequesterScope(),department:String(window._fbDept||window.currentUserDept||'').trim(),requestType:String(requestType||'General GRC Request').trim(),message:String(message||'').trim(),status:'pending',adminComment:'',rating:null,ratingComment:'',createdAt:new Date(),updatedAt:new Date()});
       try{await window._recordAuditDirect('GRC_USER_REQUEST_SUBMIT','Submitted GRC user request: '+String(requestType||'General GRC Request'),null,{requestId:ref.id,requestType:String(requestType||'General GRC Request')},{portal:'grc'});}catch(_){}
       return ref.id;
     };
@@ -885,10 +896,10 @@ window._selectPortal=async portal=>{
          erases rows returned by the other. */
       const activeUser=auth&&auth.currentUser;
       if(!activeUser||!db)return[];
-      const email=String(activeUser.email||'').toLowerCase().trim();
+      const scope=_currentRequesterScope(activeUser.uid,_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'));
       const col=collection(db,'grc_requests');
       const queries=[];
-      if(email)queries.push({key:'email',q:query(col,where('userEmail','==',email))});
+      if(scope)queries.push({key:'scope',q:query(col,where('requesterScopeKey','==',scope))});
       _grcLoadLocalCache();
       const map={};
       _grcOwnSessionCache.forEach(function(row,id){if(row)map[id]=row;});
@@ -915,7 +926,7 @@ window._selectPortal=async portal=>{
     window._getUnifiedMyRequests=async function(){
       const activeUser=auth&&auth.currentUser;
       if(!activeUser||!db)return[];
-      const email=String(activeUser.email||'').toLowerCase().trim();
+      const scope=_currentRequesterScope(activeUser.uid,_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'));
       const result=[];
 
       const pushRows=async function(collectionName, queries, mapper){
@@ -933,7 +944,7 @@ window._selectPortal=async portal=>{
 
       const identityQueries=function(col){
         const qs=[];
-        if(email)qs.push({key:'email',q:query(col,where('userEmail','==',email))});
+        if(scope)qs.push({key:'roleScope',q:query(col,where('requesterScopeKey','==',scope))});
         return qs;
       };
 
@@ -1026,7 +1037,7 @@ window._selectPortal=async portal=>{
        same owner identity keys used by _getUnifiedMyRequests. */
     window._subscribeUnifiedMyRequests=function(callback){
       if(typeof callback!=='function'||!auth||!auth.currentUser||!db)return function(){};
-      const activeUser=auth.currentUser,email=String(activeUser.email||'').toLowerCase().trim();
+      const activeUser=auth.currentUser,scope=_currentRequesterScope(activeUser.uid,_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'));
       let stopped=false,timer=null,unsubs=[],sources={},lastKey='';
       const addSource=function(key,colName,q,mapper){
         if(!q)return;
@@ -1059,7 +1070,7 @@ window._selectPortal=async portal=>{
       };
       const makeQueries=function(colName){
         const col=collection(db,colName),out=[];
-        if(email)out.push({key:colName+'_email',q:query(col,where('userEmail','==',email))});
+        if(scope)out.push({key:colName+'_roleScope',q:query(col,where('requesterScopeKey','==',scope))});
         return out;
       };
       makeQueries('grc_requests').forEach(function(x){addSource(x.key,'grc_requests',x.q,grcMapper);});
@@ -1102,10 +1113,8 @@ window._selectPortal=async portal=>{
       if(!activeUser||!activeUser.email||!db)throw new Error('not authenticated');
       const ref=doc(db,'grc_requests',requestId),snap=await getDoc(ref);
       if(!snap.exists())throw new Error('Request not found.');
-      const row=snap.data()||{},me=String(activeUser.email||'').toLowerCase().trim(),uid=String(activeUser.uid||'');
-      const ownsByEmail=String(row.userEmail||'').toLowerCase().trim()===me;
-      const ownsByUid=uid&&String(row.requesterUid||'')===uid;
-      if(!ownsByEmail&&!ownsByUid)throw new Error('Access denied.');
+      const row=snap.data()||{},scope=_currentRequesterScope(activeUser.uid,_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'));
+      if(String(row.requesterScopeKey||'')!==scope)throw new Error('Access denied.');
       const status=String(row.status||'').toLowerCase();
       if(!['approved','rejected'].includes(status))throw new Error('Only completed requests can be rated.');
       if(Number(row.rating||0))throw new Error('This request has already been rated.');
@@ -1303,7 +1312,7 @@ window._selectPortal=async portal=>{
       return {record:_advNormalizeRow(fallback.id,fallback.data(),'kpi_requests'),requestRef:fallback.ref,publicRef:null,storage:'kpi_requests'};
     }
     async function _advAuthorizedRequest(requestId,adminAllowed,managerAllowed){
-      const loc=await _advLocateRequest(requestId),r=loc.record,owner=String(r.userEmail||'').toLowerCase().trim()===_advEmail();
+      const loc=await _advLocateRequest(requestId),r=loc.record,owner=String(r.requesterScopeKey||'')===_currentRequesterScope(_advUid(),_advRole());
       // Firestore get permission already verifies that this request is indexed in
       // the authenticated manager's department queue. Do not re-hide a valid row
       // with a second browser-side department comparison.
@@ -1435,7 +1444,7 @@ window._selectPortal=async portal=>{
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         const result={profile:fresh,review:[],risk:[],errors:[]},reviewMap={},riskMap={};
-        const addReview=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;/* Do NOT drop a routed request merely because the current manager account has the same email. Historical test accounts can submit as User/Owner and later be promoted to Department Manager; routing is determined by the queue path and the role stamped on the request. */if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');x._managerAssigned=true;reviewMap[key]=x;};
+        const addReview=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;/* v385: the same Firebase account may be tested under multiple roles. A manager must never receive requests created by this same UID under any role in the manager approval queue. */if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;if(String(x.requesterUid||'').trim()===String(fresh.uid||'').trim())return;if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');x._managerAssigned=true;reviewMap[key]=x;};
         const addRisk=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});if(!x)return;/* Same-email requests must remain visible. The action layer blocks a true self-manager request, but hiding here made a valid department queue appear as 0 requests. */if(_advCanonicalDepartment(x.departmentKey||x.department||x.departmentRaw||'')!==fresh.departmentKey)return;/* Keep the full department history in the manager profile. The entry notification separately filters only rows that still require a manager action, so completed/published/rejected requests must not disappear from the manager's request list. */x._managerAssigned=true;riskMap[key]=x;};
         /* The department queue path is the manager's authoritative read model.
            Do not probe source collections here: historical rows can lack the
@@ -1491,7 +1500,7 @@ window._selectPortal=async portal=>{
       const addReview=function(id,row){
         const key=String(id||row&&row.id||'');if(!key)return;
         const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;
-        if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;
+        if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;if(String(x.requesterUid||'').trim()===String(fresh.uid||'').trim())return;
         if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;
         x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');
         x._managerAssigned=true;reviewMap[key]=x;
@@ -1705,8 +1714,8 @@ window._selectPortal=async portal=>{
     const _advOwnSessionCache=new Map();
     function _advCacheOwnRow(row){
       if(!row||!row.id)return;
-      const email=String(row.userEmail||'').toLowerCase().trim(),uid=String(row.requesterUid||'').trim();
-      if((email&&email===_advEmail())||(uid&&uid===_advUid()))_advOwnSessionCache.set(String(row.id),row);
+      const scope=String(row.requesterScopeKey||'').trim();
+      if(scope&&scope===_currentRequesterScope(_advUid(),_advRole()))_advOwnSessionCache.set(String(row.id),row);
     }
     function _advMergeOwnCache(rows){
       const map={};(rows||[]).forEach(function(r){if(r&&r.id)map[String(r.id)]=r;});
@@ -1716,22 +1725,8 @@ window._selectPortal=async portal=>{
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
       const me=_advEmail(),uid=_advUid(),role=_advRole(),dept=_advDepartmentKey();
-      // Department-scoped GRC owners use the department history, not current
-      // account identity. This keeps historical requests visible after an
-      // account/email change and matches the Risk & Incident register behavior.
-      if(['risk_owner','grc_owner','platform_owner'].includes(role) && dept){
-        try{
-          const col=collection(db,ADV_REQUESTS_COLLECTION),raw=String(_advRawDepartment()||'').trim();
-          const refs=[query(col,where('departmentKey','==',dept))];
-          if(raw&&raw!==dept)refs.push(query(col,where('departmentKey','==',raw)),query(col,where('department','==',raw)),query(col,where('departmentRaw','==',raw)));
-          const snaps=await Promise.all(refs.map(function(q){return getDocsFromServer(q);}));
-          const rows=[];snaps.forEach(function(snap){snap.docs.forEach(function(d){rows.push(_advNormalizeRow(d.id,d.data(),'advisory_requests'));});});
-          rows.forEach(_advCacheOwnRow);
-          return _advMergeRows(rows,[],false);
-        }catch(err){
-          console.warn('[Review Development] department history read failed',err&&err.code||err);
-        }
-      }
+      // v385: My Requests is always role-scoped. Department history belongs to
+      // the manager/owner inbox, not to the requester's personal history.
 
       // Personal history must merge ALL compatible identity keys. The previous
       // implementation only queried requesterUid when the email query returned
@@ -1739,14 +1734,10 @@ window._selectPortal=async portal=>{
       const groups=[];
       const pushQuery=function(collectionName,q){groups.push({collectionName:collectionName,q:q});};
       const primaryCol=collection(db,ADV_REQUESTS_COLLECTION);
-      // v379: canonical owner history query. Keep UID for auditing, but do not
-      // issue a second UID query that can fail against historical mixed-schema
-      // rows and flood the console.
-      if(uid)pushQuery(ADV_REQUESTS_COLLECTION,query(primaryCol,where('requesterUid','==',uid)));
-      if(me)pushQuery(ADV_REQUESTS_COLLECTION,query(primaryCol,where('userEmail','==',me)));
+      const scope=_currentRequesterScope(uid,role);
+      if(scope)pushQuery(ADV_REQUESTS_COLLECTION,query(primaryCol,where('requesterScopeKey','==',scope)));
       const legacyCol=collection(db,ADV_FALLBACK_COLLECTION);
-      if(uid)pushQuery(ADV_FALLBACK_COLLECTION,query(legacyCol,where('requesterUid','==',uid)));
-      if(me)pushQuery(ADV_FALLBACK_COLLECTION,query(legacyCol,where('userEmail','==',me)));
+      if(scope)pushQuery(ADV_FALLBACK_COLLECTION,query(legacyCol,where('requesterScopeKey','==',scope)));
 
       const allRows=[];
       for(const item of groups){
@@ -1785,15 +1776,12 @@ window._selectPortal=async portal=>{
         if(!_advisoryManagerOwnCachePromise){
           _advisoryManagerOwnCachePromise=(async function(){
             try{
-              const me=_advEmail();
               const queries=[];
               const primaryCol=collection(db,ADV_REQUESTS_COLLECTION);
               const legacyCol=collection(db,ADV_FALLBACK_COLLECTION);
-              // v379: canonical owner-email reads only.
-              if(_advUid())queries.push({col:ADV_REQUESTS_COLLECTION,q:query(primaryCol,where('requesterUid','==',_advUid()))});
-              if(me)queries.push({col:ADV_REQUESTS_COLLECTION,q:query(primaryCol,where('userEmail','==',me))});
-              if(_advUid())queries.push({col:ADV_FALLBACK_COLLECTION,q:query(legacyCol,where('requesterUid','==',_advUid()))});
-              if(me)queries.push({col:ADV_FALLBACK_COLLECTION,q:query(legacyCol,where('userEmail','==',me))});
+              const scope=_currentRequesterScope(_advUid(),_advRole());
+              if(scope)queries.push({col:ADV_REQUESTS_COLLECTION,q:query(primaryCol,where('requesterScopeKey','==',scope))});
+              if(scope)queries.push({col:ADV_FALLBACK_COLLECTION,q:query(legacyCol,where('requesterScopeKey','==',scope))});
               const rows=[];
               for(const item of queries){
                 try{
@@ -1870,8 +1858,8 @@ window._selectPortal=async portal=>{
         try{
           // v379: one canonical owner listener; UID is audit-only.
           const ownRefs=[];
-          if(_advUid())ownRefs.push(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid())));
-          if(_advEmail())ownRefs.push(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
+          const ownScope=_currentRequesterScope(_advUid(),_advRole());
+          if(ownScope)ownRefs.push(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterScopeKey','==',ownScope)));
           const ownSources={};let ownActive=true;
           const emitOwn=function(){
             if(!ownActive)return;
@@ -1934,9 +1922,9 @@ window._selectPortal=async portal=>{
       if(_advIsDepartmentManager()){
         if(dept){
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)),'advisory_requests');
-          listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
+          listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterScopeKey','==',_currentRequesterScope(_advUid(),_advRole()))),'advisory_requests');
         }else{
-          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
+          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterScopeKey','==',_currentRequesterScope(_advUid(),_advRole()))),'advisory_requests');
         }
       }else if(_advIsAdmin()){
         // Admin/Super Admin can read the authoritative collection.
@@ -1955,7 +1943,7 @@ window._selectPortal=async portal=>{
       }else{
         // One exact ownership listener. Compatibility fallbacks were causing
         // permission-denied noise and could overwrite a valid empty/loaded view.
-        listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
+        listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterScopeKey','==',_currentRequesterScope(_advUid(),_advRole()))),'advisory_requests');
       }
       return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
@@ -2393,7 +2381,7 @@ window._selectPortal=async portal=>{
         console.warn('[GRC Risk Workflow] counter unavailable; using collision-safe fallback code',counterError&&counterError.code||counterError);
         requestCode=kindCode+'-REQ-'+deptCode+'-'+year+'-'+String(Date.now()).slice(-7);
       }
-      const requestData={requestCode,recordType,operation,department,departmentKey:department,departmentRaw:departmentRaw,assignedManagerEmail:'',targetRiskId:String(payload.targetRiskId||payload.targetRecordId||current&&current.id||current&&current.code||proposed&&proposed.id||''),targetRecordId:String(payload.targetRecordId||payload.targetRiskId||current&&current.id||current&&current.code||proposed&&proposed.id||''),currentRecord:current,proposedRecord:proposed,changedFields:_grcRiskChangedFields(current,proposed),deleteReason:String(payload.deleteReason||''),requesterNote:String(payload.note||''),returnFields:[],returnNote:'',returnSource:'',status:'pending_manager',submittedByName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]),submittedByEmail:freshProfile.email,submittedByUid:freshProfile.uid,submittedByRole:freshProfile.role,managerName:'',managerEmail:'',managerNote:'',superAdminName:'',superAdminEmail:'',superAdminNote:'',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:nowIso,updatedAtIso:nowIso,history:[{status:'pending_manager',by:freshProfile.email,role:freshProfile.role,at:nowIso,note:String(payload.note||'')}]};
+      const requestData={requestCode,recordType,operation,department,departmentKey:department,departmentRaw:departmentRaw,assignedManagerEmail:'',targetRiskId:String(payload.targetRiskId||payload.targetRecordId||current&&current.id||current&&current.code||proposed&&proposed.id||''),targetRecordId:String(payload.targetRecordId||payload.targetRiskId||current&&current.id||current&&current.code||proposed&&proposed.id||''),currentRecord:current,proposedRecord:proposed,changedFields:_grcRiskChangedFields(current,proposed),deleteReason:String(payload.deleteReason||''),requesterNote:String(payload.note||''),returnFields:[],returnNote:'',returnSource:'',status:'pending_manager',submittedByName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]),submittedByEmail:freshProfile.email,submittedByUid:freshProfile.uid,submittedByRole:freshProfile.role,requesterScopeKey:_currentRequesterScope(freshProfile.uid,freshProfile.role),managerName:'',managerEmail:'',managerNote:'',superAdminName:'',superAdminEmail:'',superAdminNote:'',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:nowIso,updatedAtIso:nowIso,history:[{status:'pending_manager',by:freshProfile.email,role:freshProfile.role,at:nowIso,note:String(payload.note||'')}]};
       try{
         /* The workflow request is the source of truth. Never lose it because a
            secondary manager-inbox index is unavailable under an older ruleset. */
