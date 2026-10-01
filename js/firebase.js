@@ -1444,8 +1444,14 @@ window._selectPortal=async portal=>{
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
         const result={profile:fresh,review:[],risk:[],errors:[]},reviewMap={},riskMap={};
-        const addReview=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;/* v385: the same Firebase account may be tested under multiple roles. A manager must never receive requests created by this same UID under any role in the manager approval queue. */if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;if(String(x.requesterUid||'').trim()===String(fresh.uid||'').trim())return;if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');x._managerAssigned=true;reviewMap[key]=x;};
-        const addRisk=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});if(!x)return;/* Same-email requests must remain visible. The action layer blocks a true self-manager request, but hiding here made a valid department queue appear as 0 requests. */if(_advCanonicalDepartment(x.departmentKey||x.department||x.departmentRaw||'')!==fresh.departmentKey)return;/* Keep the full department history in the manager profile. The entry notification separately filters only rows that still require a manager action, so completed/published/rejected requests must not disappear from the manager's request list. */x._managerAssigned=true;riskMap[key]=x;};
+        const addReview=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;/* v385: the same Firebase account may be tested under multiple roles. A manager must never receive requests created by this same UID under any role in the manager approval queue. */if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;
+          const scope=String(x.requesterScopeKey||'').trim();
+          const ownManagerScope=String(fresh.uid||'').trim()+'::department_manager';
+          if(scope===ownManagerScope || (!scope && String(x.requesterRole||x.submittedByRole||'').toLowerCase().replace(/[\s-]+/g,'_')==='department_manager'))return;
+          if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');x._managerAssigned=true;reviewMap[key]=x;};
+        const addRisk=function(id,row){const key=String(id||row&&row.id||'');if(!key)return;const x=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});if(!x)return;if(_advCanonicalDepartment(x.departmentKey||x.department||x.departmentRaw||'')!==fresh.departmentKey)return;
+        const scope=String(x.requesterScopeKey||'').trim(),ownManagerScope=String(fresh.uid||'').trim()+'::department_manager';
+        if(scope===ownManagerScope || (!scope && String(x.submittedByRole||'').toLowerCase().replace(/[\s-]+/g,'_')==='department_manager'))return;/* Keep the full department history in the manager profile. The entry notification separately filters only rows that still require a manager action, so completed/published/rejected requests must not disappear from the manager's request list. */x._managerAssigned=true;riskMap[key]=x;};
         /* The department queue path is the manager's authoritative read model.
            Do not probe source collections here: historical rows can lack the
            canonical fields required for a Firestore query, causing permission-
@@ -1510,6 +1516,9 @@ window._selectPortal=async portal=>{
         const x=_grcRiskRequestData({id:key,exists:function(){return true;},data:function(){return row||{};}});
         if(!x)return;
         if(_advCanonicalDepartment(x.departmentKey||x.department||x.departmentRaw||'')!==fresh.departmentKey)return;
+        const scope=String(x.requesterScopeKey||'').trim();
+        const ownManagerScope=String(fresh.uid||'').trim()+'::department_manager';
+        if(scope===ownManagerScope || (!scope && String(x.submittedByRole||'').toLowerCase().replace(/[\s-]+/g,'_')==='department_manager'))return;
         const st=String(x.status||'').toLowerCase();
         if(!['pending_manager','returned_manager'].includes(st))return;
         x._managerAssigned=true;riskMap[key]=x;
@@ -1640,7 +1649,7 @@ window._selectPortal=async portal=>{
         await runTransaction(db,async tx=>{const c=await tx.get(counterRef),next=Number(c.exists()&&c.data().next||0)+1;code=requestPrefix+'-REQ-'+deptCode+'-'+year+'-'+String(next).padStart(3,'0');tx.set(counterRef,{next,updatedAt:serverTimestamp()},{merge:true});});
       }catch(_){counterFallback=true;code=requestPrefix+'-REQ-'+deptCode+'-'+year+'-'+String(Date.now()).slice(-6)+Math.random().toString(36).slice(2,4).toUpperCase();}
       const nowIso=_advIso(),base={
-        userName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]||'User'),userEmail:freshProfile.email,requesterUid:freshProfile.uid,requesterRole:freshProfile.role,
+        userName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]||'User'),userEmail:freshProfile.email,requesterUid:freshProfile.uid,requesterRole:freshProfile.role,requesterScopeKey:_currentRequesterScope(freshProfile.uid,freshProfile.role),
         departmentKey:departmentKey,departmentRaw:String(freshProfile.rawDepartment==null?'':freshProfile.rawDepartment).trim(),departmentCode:deptCode,gender:String(payload.gender||''),priority:String(payload.priority||'Medium'),
         platform:String(payload.platform||'grc'),serviceType:String(payload.serviceType||'record_request_review'),requestType:String(payload.requestType||''),requestTypeLabel:String(payload.requestTypeLabel||''),
         category:String(payload.category||''),relatedType:String(payload.relatedType||''),
@@ -2648,12 +2657,19 @@ window._selectPortal=async portal=>{
           if(rawDept && rawDept.toLowerCase()!==String(dept).toLowerCase()) refs.push(query(col,where('departmentKey','==',rawDept)));
           return _grcRiskReadMany(refs);
         }
-        const qrefs=[];
-        const uid=String(auth&&auth.currentUser&&auth.currentUser.uid||'').trim();
-        const email=_grcRiskEmail();
-        if(uid)qrefs.push(query(col,where('submittedByUid','==',uid)));
-        if(email)qrefs.push(query(col,where('submittedByEmail','==',email)));
-        return _grcRiskReadMany(qrefs);
+        const scope=_currentRequesterScope(
+          String(auth&&auth.currentUser&&auth.currentUser.uid||'').trim(),
+          role
+        );
+        if(scope){
+          try{
+            return await _grcRiskRead(query(col,where('requesterScopeKey','==',scope)));
+          }catch(scopeErr){
+            console.warn('[GRC Risk Requests] roleScope query failed; legacy owner fallback skipped for role isolation',scopeErr&&scopeErr.code||scopeErr);
+            return [];
+          }
+        }
+        return [];
       }catch(err){
         console.warn('[GRC Risk Requests] scoped getMine failed',err&&err.code||err);
         return [];
