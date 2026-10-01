@@ -1,3 +1,4 @@
+// v388 — deployed-source alignment: valid role-scoped rules + manager workflow.
 // v385 — Canonical requester UID + role scope; shared test emails are isolated by role.
 // FIRESTORE SECURITY RULES v85 — Owner list/get reads support UID and canonical email.
 // v75: Removes queue-existence dependency from manager decisions and authorizes

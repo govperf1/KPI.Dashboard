@@ -1,0 +1,14 @@
+v388 ROOT FIX — QUMC GRC role-scoped workflow
+
+1. Firestore Rules source is the v387 syntax-correct ruleset; no `not in` syntax remains.
+2. Browser cache/build tokens are bumped to v388 so the deployed site cannot silently reuse the v386 request code.
+3. Workflow-critical actions now force-read users/{email} from the Firestore server before resolving role/department. This is required for shared test accounts where the same Firebase Auth email is switched between GRC Owner and Department Manager.
+4. Risk/Incident request history derives role + department from the fresh server profile.
+5. Unified My Requests role-scoped listeners derive requesterScopeKey from the fresh server profile, preventing a previous role's scope from being reused.
+6. Department Manager approval remains authorized against the authoritative source request; queue documents are routing/history only.
+
+DEPLOY ORDER
+- Publish firestore.rules to project qumc-kpi-dashboard-f10dd.
+- Deploy the project containing index.html + js/firebase.js.
+- Hard refresh / clear site cache once.
+- Test with the same Firebase Auth email first as GRC Owner, then switch the users/{email}.role to department_manager and re-enter the portal.
