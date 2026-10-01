@@ -47,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20260824-v216-grc-authoritative-workflow');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20261001-v388-role-scoped-workflow');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -1037,7 +1037,7 @@ window._selectPortal=async portal=>{
        same owner identity keys used by _getUnifiedMyRequests. */
     window._subscribeUnifiedMyRequests=function(callback){
       if(typeof callback!=='function'||!auth||!auth.currentUser||!db)return function(){};
-      const activeUser=auth.currentUser,scope=_currentRequesterScope(activeUser.uid,_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'));
+      const activeUser=auth.currentUser;
       let stopped=false,timer=null,unsubs=[],sources={},lastKey='';
       const addSource=function(key,colName,q,mapper){
         if(!q)return;
@@ -1068,14 +1068,19 @@ window._selectPortal=async portal=>{
           if(key===lastKey)return;lastKey=key;callback(rows);
         },60);
       };
-      const makeQueries=function(colName){
-        const col=collection(db,colName),out=[];
-        if(scope)out.push({key:colName+'_roleScope',q:query(col,where('requesterScopeKey','==',scope))});
-        return out;
+      const setupRoleScopedSources=function(scope){
+        if(!scope)return;
+        addSource('grc_requests_roleScope','grc_requests',query(collection(db,'grc_requests'),where('requesterScopeKey','==',scope)),grcMapper);
+        addSource('kpi_requests_roleScope','kpi_requests',query(collection(db,'kpi_requests'),where('requesterScopeKey','==',scope)),perfMapper);
+        addSource('advisory_requests_roleScope','advisory_requests',query(collection(db,'advisory_requests'),where('requesterScopeKey','==',scope)),advMapper);
       };
-      makeQueries('grc_requests').forEach(function(x){addSource(x.key,'grc_requests',x.q,grcMapper);});
-      makeQueries('kpi_requests').forEach(function(x){addSource(x.key,'kpi_requests',x.q,perfMapper);});
-      makeQueries('advisory_requests').forEach(function(x){addSource(x.key,'advisory_requests',x.q,advMapper);});
+      _advFreshProfile(true).then(function(profile){
+        if(stopped)return;
+        setupRoleScopedSources(_currentRequesterScope(activeUser.uid,profile.role));
+      }).catch(function(err){
+        console.warn('[Unified My Requests] fresh profile resolution failed; using current session role',err&&err.code||err&&err.message||err);
+        if(!stopped)setupRoleScopedSources(_currentRequesterScope(activeUser.uid,_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer')));
+      });
       return function(){stopped=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
 
@@ -1439,7 +1444,7 @@ window._selectPortal=async portal=>{
       /* If the live department queue is active, it is the authoritative cache.
          Never bypass it with another server read just because a caller passes true. */
       if(window.__grcManagerQueueLiveActive&&_grcManagerQueueCache)return _grcManagerQueueCache;
-      const fresh=await _grcResolveManagerProfile(await _advFreshProfile()),now=Date.now();
+      const fresh=await _grcResolveManagerProfile(await _advFreshProfile(true)),now=Date.now();
       if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<30000)return _grcManagerQueueCache;
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
@@ -1566,7 +1571,7 @@ window._selectPortal=async portal=>{
       if(_grcManagerLiveStartPromise)return _grcManagerLiveStartPromise;
       if(window.__grcManagerQueueLiveActive&&_grcManagerLiveProfile)return _grcManagerQueueCache;
       _grcManagerLiveStartPromise=(async function(){
-        const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
+        const fresh=await _grcResolveManagerProfile(await _advFreshProfile(true));
         _grcManagerLiveProfile=fresh;
         // v376: use the authoritative source collections for the manager live queue.
         // The current Rules explicitly authorize exact departmentKey queries, so
@@ -1634,7 +1639,7 @@ window._selectPortal=async portal=>{
          evaluate and prevents stale department/role values from causing false
          permission denials after an account was edited while the session stayed open. */
       await _advAssertRulesVersion();
-      const freshProfile=await _advFreshProfile();await _advAssertProfileScope(freshProfile);const departmentKey=freshProfile.departmentKey;
+      const freshProfile=await _advFreshProfile(true);await _advAssertProfileScope(freshProfile);const departmentKey=freshProfile.departmentKey;
       const isFreshManager=freshProfile.role==='department_manager';
       const isFreshPlatformManager=freshProfile.role==='governance_performance_manager';
       const isFreshAdmin=['admin','super_admin'].includes(freshProfile.role);
@@ -1733,7 +1738,7 @@ window._selectPortal=async portal=>{
     }
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
-      const me=_advEmail(),uid=_advUid(),role=_advRole(),dept=_advDepartmentKey();
+      const me=_advEmail(),uid=_advUid(),freshProfile=await _advFreshProfile(true),role=freshProfile.role,dept=freshProfile.departmentKey;
       // v385: My Requests is always role-scoped. Department history belongs to
       // the manager/owner inbox, not to the requester's personal history.
 
@@ -2254,7 +2259,7 @@ window._selectPortal=async portal=>{
     }
     window._grcRiskDirectStatusUpdate=async function(record,nextStatus){
       await _grcRiskAssertRulesVersion();
-      const freshProfile=await _advFreshProfile();await _advAssertProfileScope(freshProfile);
+      const freshProfile=await _advFreshProfile(true);await _advAssertProfileScope(freshProfile);
       const allowedRoles=['risk_owner','grc_owner','platform_owner'];
       const canByRole=allowedRoles.includes(freshProfile.role),canByPerm=_grcRiskCanUpdateStatus();
       if(freshProfile.role==='governance_performance_manager'||(!canByRole&&!canByPerm))throw new Error('You do not have permission to update Risk status.');
@@ -2367,7 +2372,7 @@ window._selectPortal=async portal=>{
     window._grcRiskRequestSubmit=async function(operation,payload){
       if(!_grcRiskEmail()||!db)throw new Error('not authenticated');
       await _grcRiskAssertRulesVersion();
-      const freshProfile=await _advFreshProfile();await _advAssertProfileScope(freshProfile);
+      const freshProfile=await _advFreshProfile(true);await _advAssertProfileScope(freshProfile);
       payload=payload||{};const recordType=String(payload.recordType||'risk').toLowerCase();
       const freshOwner=['risk_owner','grc_owner','platform_owner'].includes(freshProfile.role);
       if(!['risk','incident'].includes(recordType)||freshProfile.role==='governance_performance_manager'||(!freshOwner&&!_grcRiskCanSubmit(recordType)))throw new Error('Access denied.');
@@ -2543,7 +2548,7 @@ window._selectPortal=async portal=>{
 
     window._grcRiskRequestManagerAction=async function(requestId,action,note,fields){
       await _grcRiskAssertRulesVersion();
-      const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
+      const fresh=await _grcResolveManagerProfile(await _advFreshProfile(true));
       await _advAssertProfileScope(fresh);
       const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId);
       /* Read the routed inbox snapshot first. Managers are guaranteed access to
@@ -2650,7 +2655,8 @@ window._selectPortal=async portal=>{
       if(!_grcRiskEmail()||!db)return[];
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION);
       try{
-        const role=_grcRiskRole(),dept=_grcRiskDept();
+        const freshProfile=await _advFreshProfile(true);
+        const role=freshProfile.role,dept=freshProfile.departmentKey;
         if(['risk_owner','grc_owner','platform_owner'].includes(role) && dept){
           const refs=[query(col,where('departmentKey','==',dept))];
           const rawDept=String(_advRawDepartment&&_advRawDepartment()||'').trim();
@@ -2676,7 +2682,7 @@ window._selectPortal=async portal=>{
       }
     };
     window._grcRiskRequestGetManagerOne=async function(requestId){
-      const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
+      const fresh=await _grcResolveManagerProfile(await _advFreshProfile(true));
       const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,String(requestId||''));
       const snap=await getDoc(ref);
       if(!snap.exists()){try{await deleteDoc(_grcManagerQueueItemRef(fresh.departmentKey,'risk',String(requestId||'')));}catch(_){};throw new Error('This request no longer exists. The approval list has been refreshed.');}
