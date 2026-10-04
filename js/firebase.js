@@ -47,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20261001-v388-role-scoped-workflow');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20261004-v391-domain-separated-requests');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -861,68 +861,84 @@ window._selectPortal=async portal=>{
       const scope=String(row.requesterScopeKey||'').trim(),myScope=_currentRequesterScope();
       if(scope&&scope===myScope){_grcOwnSessionCache.set(String(row.id),row);_grcPersistLocalCache();}
     }
+    /* v391: the same Firebase Auth account may be switched between portal roles during testing.
+       Never use the browser's cached role/email labels as workflow identity. The Firestore user
+       profile is the source of truth for the active role at the exact moment a request is created
+       or read. UID + that server role form the requester's immutable role scope. */
+    let _grcFreshProfileCache=null,_grcFreshProfileCacheAt=0,_grcFreshProfilePromise=null;
+    async function _grcFreshProfile(force){
+      const u=auth&&auth.currentUser;if(!u||!u.email)throw new Error('Not authenticated.');
+      const email=String(u.email||'').toLowerCase().trim(),now=Date.now();
+      if(!force&&_grcFreshProfileCache&&_grcFreshProfileCache.email===email&&now-_grcFreshProfileCacheAt<10000)return _grcFreshProfileCache;
+      if(!force&&_grcFreshProfilePromise)return _grcFreshProfilePromise;
+      _grcFreshProfilePromise=(async function(){
+        try{
+          const snap=await getDocFromServer(doc(db,'users',email));
+          if(!snap.exists())throw new Error('Your user profile could not be found in Firestore.');
+          const d=snap.data()||{};
+          const approved=d.approved===true||d.approved===1||(typeof d.approved==='string'&&d.approved.toLowerCase()==='true');
+          const role=_normalizePortalRole(d.role||'viewer');
+          if(!approved&&role!=='super_admin')throw new Error('Your account is not approved.');
+          const department=String(d.department||d.departmentKey||d.departmentName||'').trim();
+          const profile={email,uid:String(u.uid||''),role,department,raw:d};
+          _grcFreshProfileCache=profile;_grcFreshProfileCacheAt=Date.now();
+          return profile;
+        }finally{_grcFreshProfilePromise=null;}
+      })();
+      return _grcFreshProfilePromise;
+    }
+    window._grcFreshProfile=_grcFreshProfile;
+
     window._grcRequestsSubmit=async function(requestType,message){
-      if(!window._fbUser||!db) throw new Error('not authenticated');
+      if(!auth||!auth.currentUser||!db) throw new Error('not authenticated');
+      const profile=await _grcFreshProfile(true);
+      const role=profile.role,uid=profile.uid,scope=_currentRequesterScope(uid,role);
+      const email=profile.email,department=profile.department;
+      if(!['super_admin','admin','executive','department_manager','risk_owner','grc_owner','platform_owner','governance_performance_manager','viewer','user'].includes(role))throw new Error('Your current role is not allowed to submit GRC requests.');
       const ref=await addDoc(collection(db,'grc_requests'),{
         platform:'grc',
-        userName: window._fbName||window._fbUser.split('@')[0],
-        userEmail: (window._fbUser||'').toLowerCase().trim(),
-        // Keep ownership fields aligned with the authenticated user. Email is
-        // the canonical read key; UID is retained for immutable auditing.
-        requesterUid: String(window._fbUid||window._fbUserUid||window._fbAuthUid||auth.currentUser&&auth.currentUser.uid||''),
-        requesterRole: _normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'),
-        requesterScopeKey: _currentRequesterScope(),
-        department: String(window._fbDept||window.currentUserDept||'').trim(),
+        userName: cleanAccountName(profile.raw&& (profile.raw.userName||profile.raw.name||profile.raw.fullName||profile.raw.displayName)) || email.split('@')[0],
+        userEmail: email,
+        requesterUid: uid,
+        requesterRole: role,
+        requesterScopeKey: scope,
+        department: department,
         requestType: String(requestType||'General GRC Request').trim(),
         message: String(message||'').trim(),
-        status: 'pending',
-        adminComment: '',
-        rating: null,
-        ratingComment: '',
-        ratingAt: null,
-        createdAt: serverTimestamp(),
-        respondedAt: null,
-        updatedAt: serverTimestamp(),
-        updatedAtIso: new Date().toISOString()
+        status:'pending',
+        adminComment:'',
+        rating:null,
+        ratingComment:'',
+        ratingAt:null,
+        createdAt:serverTimestamp(),
+        respondedAt:null,
+        updatedAt:serverTimestamp(),
+        updatedAtIso:new Date().toISOString()
       });
-      _grcCacheOwnRow({id:ref.id,platform:'grc',userName:window._fbName||window._fbUser.split('@')[0],userEmail:(window._fbUser||'').toLowerCase().trim(),requesterUid:String(window._fbUid||window._fbUserUid||window._fbAuthUid||auth.currentUser&&auth.currentUser.uid||''),requesterRole:_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'),requesterScopeKey:_currentRequesterScope(),department:String(window._fbDept||window.currentUserDept||'').trim(),requestType:String(requestType||'General GRC Request').trim(),message:String(message||'').trim(),status:'pending',adminComment:'',rating:null,ratingComment:'',createdAt:new Date(),updatedAt:new Date()});
-      try{await window._recordAuditDirect('GRC_USER_REQUEST_SUBMIT','Submitted GRC user request: '+String(requestType||'General GRC Request'),null,{requestId:ref.id,requestType:String(requestType||'General GRC Request')},{portal:'grc'});}catch(_){}
+      _grcCacheOwnRow({id:ref.id,platform:'grc',userName:profile.raw&&profile.raw.userName||email.split('@')[0],userEmail:email,requesterUid:uid,requesterRole:role,requesterScopeKey:scope,department:department,requestType:String(requestType||'General GRC Request').trim(),message:String(message||'').trim(),status:'pending',adminComment:'',rating:null,ratingComment:'',createdAt:new Date(),updatedAt:new Date()});
+      try{await window._recordAuditDirect('GRC_USER_REQUEST_SUBMIT','Submitted GRC user request: '+String(requestType||'General GRC Request'),null,{requestId:ref.id,requestType:String(requestType||'General GRC Request'),requesterRole:role,requesterScopeKey:scope},{portal:'grc'});}catch(_){}
       return ref.id;
     };
     window._grcRequestsGetMine=async function(){
-      /* v380: owner history is identity-scoped. Query both canonical identity
-         keys independently so current UID-based rows and older email-based
-         rows are both visible. A failure in one compatibility path never
-         erases rows returned by the other. */
-      const activeUser=auth&&auth.currentUser;
-      if(!activeUser||!db)return[];
-      const scope=_currentRequesterScope(activeUser.uid,_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'));
-      const col=collection(db,'grc_requests');
-      const queries=[];
-      if(scope)queries.push({key:'scope',q:query(col,where('requesterScopeKey','==',scope))});
-      _grcLoadLocalCache();
+      /* v391: My Requests is ONLY the GRC Submit a Request domain.
+         Never read advisory_requests, grc_risk_requests, kpi_requests, or request_history here.
+         The request document itself is the complete history for this domain. */
+      const activeUser=auth&&auth.currentUser;if(!activeUser||!db)return[];
+      const profile=await _grcFreshProfile(true);
+      const scope=_currentRequesterScope(activeUser.uid,profile.role),col=collection(db,'grc_requests');
       const map={};
-      _grcOwnSessionCache.forEach(function(row,id){if(row)map[id]=row;});
-      for(const item of queries){
-        try{
-          const snap=await getDocsFromServer(item.q);
-          snap.docs.forEach(function(d){map[d.id]=Object.assign({id:d.id},d.data()||{});});
-        }catch(e){console.warn('[GRC Requests] owner '+item.key+' query failed:',e&&e.code||e&&e.message||e);}
+      _grcOwnSessionCache.clear();_grcLoadLocalCache();
+      _grcOwnSessionCache.forEach(function(row,id){if(row&&String(row.requesterScopeKey||'')===scope)map[id]=row;});
+      try{
+        const snap=await getDocsFromServer(query(col,where('requesterScopeKey','==',scope)));
+        snap.docs.forEach(function(d){map[d.id]=Object.assign({id:d.id,_requestSource:'GRC',_requestDomain:'grc'},d.data()||{});});
+      }catch(e){
+        console.warn('[My Requests] GRC owner query failed:',e&&e.code||e&&e.message||e);
       }
-      Object.keys(map).forEach(function(id){_grcCacheOwnRow(map[id]);});
-      _grcOwnSessionCache.forEach(function(row,id){if(row&&!map[id])map[id]=row;});
       return Object.keys(map).map(function(id){return map[id];}).sort(function(a,b){
-        const at=a.createdAt&&a.createdAt.seconds?Number(a.createdAt.seconds):new Date(a.createdAt||0).getTime()||0;
-        const bt=b.createdAt&&b.createdAt.seconds?Number(b.createdAt.seconds):new Date(b.createdAt||0).getTime()||0;
-        return bt-at;
+        return _advTsMs(b.updatedAt||b.createdAt)-_advTsMs(a.updatedAt||a.createdAt);
       });
     };
-    /* Unified profile history: My Requests must include every request domain
-       submitted by the signed-in user:
-       - GRC system requests (grc_requests)
-       - Performance user requests (kpi_requests)
-       - Review & Development requests (advisory_requests)
-       Each source keeps its own authoritative status/workflow fields. */
     /* My Requests is intentionally limited to GRC system/access/permission requests.
        Review & Development, Risk & Incident, and Register requests remain in their
        own dedicated pages. The request itself is the history record; no duplicate
@@ -938,34 +954,29 @@ window._selectPortal=async portal=>{
       }
     };
 
-    /* Unified My Requests live stream.
-       The profile history is not a one-time report: it must react when a
-       Department Manager or Super Admin changes a request after the profile
-       modal has already been opened. Each source is listened to through the
-       same owner identity keys used by _getUnifiedMyRequests. */
     /* Live My Requests stream: GRC system/access/permission requests only. */
+    /* v391: live My Requests stream is GRC-only. */
     window._subscribeUnifiedMyRequests=function(callback){
       if(typeof callback!=='function'||!auth||!auth.currentUser||!db)return function(){};
-      const activeUser=auth.currentUser;
-      const scope=_currentRequesterScope(activeUser.uid,_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'));
-      if(!scope)return function(){};
-      let stopped=false;
-      let unsub=function(){};
-      const emit=function(snap){
+      let stopped=false,unsub=function(){};
+      _grcFreshProfile(true).then(function(profile){
         if(stopped)return;
-        const rows=(snap&&snap.docs||[]).map(function(d){return Object.assign({id:d.id},d.data()||{}, {_requestSource:'GRC',_requestDomain:'grc'});});
-        rows.sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt)-_advTsMs(a.updatedAt||a.createdAt);});
-        callback(rows,null);
-      };
-      try{
-        unsub=onSnapshot(query(collection(db,'grc_requests'),where('requesterScopeKey','==',scope)),emit,function(err){
-          console.warn('[My Requests] GRC live listener failed',err&&err.code||err);
+        const scope=_currentRequesterScope(auth.currentUser.uid,profile.role);
+        try{
+          unsub=onSnapshot(query(collection(db,'grc_requests'),where('requesterScopeKey','==',scope)),function(snap){
+            if(stopped)return;
+            const rows=snap.docs.map(function(d){return Object.assign({id:d.id,_requestSource:'GRC',_requestDomain:'grc'},d.data()||{});});
+            rows.sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt)-_advTsMs(a.updatedAt||a.createdAt);});
+            rows.forEach(_grcCacheOwnRow);callback(rows,null);
+          },function(err){
+            console.warn('[My Requests] GRC live listener failed',err&&err.code||err);
+            if(!stopped)callback([],err);
+          });
+        }catch(err){
+          console.warn('[My Requests] GRC live listener setup failed',err&&err.message||err);
           if(!stopped)callback([],err);
-        });
-      }catch(err){
-        console.warn('[My Requests] GRC live listener setup failed',err&&err.message||err);
-        callback([],err);
-      }
+        }
+      }).catch(function(err){if(!stopped){console.warn('[My Requests] profile resolution failed',err&&err.message||err);callback([],err);}});
       return function(){stopped=true;try{unsub();}catch(_){} };
     };
 
@@ -1003,7 +1014,7 @@ window._selectPortal=async portal=>{
       if(!activeUser||!activeUser.email||!db)throw new Error('not authenticated');
       const ref=doc(db,'grc_requests',requestId),snap=await getDoc(ref);
       if(!snap.exists())throw new Error('Request not found.');
-      const row=snap.data()||{},scope=_currentRequesterScope(activeUser.uid,_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'));
+      const profile=await _grcFreshProfile(true),row=snap.data()||{},scope=_currentRequesterScope(activeUser.uid,profile.role);
       if(String(row.requesterScopeKey||'')!==scope)throw new Error('Access denied.');
       const status=String(row.status||'').toLowerCase();
       if(status!=='closed')throw new Error('Only closed requests can be rated.');

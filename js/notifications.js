@@ -982,7 +982,7 @@ function updateExecTrend(yr){
     box.className='qumc-request-card qumc-my-requests-card'; box.style.cssText='background:linear-gradient(135deg,#0d1b2e,#0a2040);border:1px solid rgba(1,149,175,.25);border-radius:18px;padding:28px;width:min(900px,100%);max-height:82vh;display:flex;flex-direction:column;gap:16px;';
     box.innerHTML='<div style="display:flex;align-items:center;justify-content:space-between">'
       +'<div><div style="font-size:14px;font-weight:800;color:#e2e8f0">'+(isAr?'طلباتي':'My Requests')+'</div>'
-      +'<div style="font-size:10px;color:#64748b;margin-top:2px">'+(isAr?'جميع الطلبات التي أرسلتها وحالاتها وتحديثاتها':'All requests you submitted, including Review & Development, GRC and Performance requests')+'</div></div>'
+      +'<div style="font-size:10px;color:#64748b;margin-top:2px">'+(isAr?'جميع الطلبات التي أرسلتها وحالاتها وتحديثاتها':'GRC access, permission and system requests submitted by you')+'</div></div>'
       +'<div style="display:flex;gap:8px">'
       +'<button onclick="var e=document.getElementById(\'myReqOv\');if(e)e.remove();window._showSubmitRequestForm();" style="padding:6px 14px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.3);border-radius:8px;color:#0195af;font-size:10px;font-weight:700;cursor:pointer">+ '+(isAr?'طلب جديد':'New Request')+'</button>'
       +'<button onclick="window._closeMyRequestsLive&&window._closeMyRequestsLive();document.getElementById(\'myReqOv\').remove()" style="width:30px;height:30px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:7px;color:#94a3b8;cursor:pointer;font-size:15px">&#x2715;</button>'
@@ -1011,9 +1011,9 @@ function updateExecTrend(yr){
         var sm=statusMeta(r),source=String(r._requestSource||r.requestDomain||'Request'),ts=typeof window._fmtTs==='function'?window._fmtTs(r._requestCreatedAt||r.createdAt):'—',updated=typeof window._fmtTs==='function'?window._fmtTs(r._requestUpdatedAt||r.updatedAt||r.respondedAt||r.createdAt):'—',response=String(r._requestResponse||r.superAdminComment||r.adminComment||r.managerComment||'').trim(),stage=String(r._requestStage||r.workflowStage||'').trim(),requesterRole=String(r.requesterRole||'').trim();
         var roleLabels={super_admin:isAr?'سوبر أدمن':'Super Admin',admin:isAr?'مدير نظام':'Admin',department_manager:isAr?'مدير قسم':'Department Manager',grc_owner:isAr?'مالك GRC':'GRC Owner',risk_owner:isAr?'مالك GRC':'GRC Owner',platform_owner:isAr?'مالك الأداء وGRC':'Performance & GRC Owner',governance_performance_manager:isAr?'مدير الحوكمة والأداء':'Governance & Performance Manager',kpi_owner:isAr?'مالك مؤشرات الأداء':'KPI Owner',viewer:isAr?'مشاهد':'Viewer',user:isAr?'مستخدم':'User'};
         var roleLabel=roleLabels[requesterRole]||requesterRole;
-        var isRD=String(r._requestDomain||r.requestDomain||'').toLowerCase()==='review_development',closed=['closed','completed','approved','rejected'].indexOf(String(r._requestStatus||r.status||'').toLowerCase())>=0,unrated=isRD&&closed&&!Number(r.rating||0);
+        var isRD=false,closed=String(r._requestStatus||r.status||'').toLowerCase()==='closed',unrated=closed&&!Number(r.rating||0);
         var action='';
-        if(unrated){action='<button type="button" onclick="window._openRequestForRating&&window._openRequestForRating(&quot;'+htmlEsc(String(r.id||''))+'&quot;)" style="align-self:flex-start;padding:7px 12px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.3);border-radius:8px;color:#67e8f9;font-size:9px;font-weight:800;cursor:pointer">★ '+(isAr?'تقييم الطلب':'Rate this request')+'</button>';}else if(isRD){action='<button type="button" onclick="window._openRequestForRating&&window._openRequestForRating(&quot;'+htmlEsc(String(r.id||''))+'&quot;)" style="align-self:flex-start;padding:6px 11px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.10);border-radius:8px;color:#94a3b8;font-size:9px;font-weight:700;cursor:pointer">'+(isAr?'عرض الطلب':'View request')+'</button>'; }
+        if(unrated){action='<button type="button" onclick="window._openGrcRequestForRating&&window._openGrcRequestForRating(&quot;'+htmlEsc(String(r.id||''))+'&quot;)" style="align-self:flex-start;padding:7px 12px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.3);border-radius:8px;color:#007f95;font-size:9px;font-weight:800;cursor:pointer">★ '+(isAr?'تقييم الطلب':'Rate this request')+'</button>';}else if(closed){action='<span style="font-size:9px;color:#64748b">'+(isAr?'تم إغلاق الطلب':'Request closed')+'</span>';}
         html+='<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px">'
           +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
           +'<span style="padding:2px 8px;border-radius:20px;font-size:8.5px;font-weight:800;background:rgba(1,149,175,.10);color:#67e8f9">'+htmlEsc(source)+'</span>'
@@ -1034,8 +1034,12 @@ function updateExecTrend(yr){
     window._closeMyRequestsLive=function(){if(window.__myRequestsUnsub){try{window.__myRequestsUnsub();}catch(_){ }window.__myRequestsUnsub=null;}};
     window._openRequestForRating=function(id){
       var row=null;try{row=(window.__myRequestsRows||[]).find(function(x){return String(x.id||'')===String(id||'');});}catch(_){ }
-      if(String(row&&row._requestDomain||'')==='review_development'&&typeof window._advOpenRequest==='function'){
-        window._closeMyRequestsLive();var x=document.getElementById('myReqOv');if(x)x.remove();window._advOpenRequest(id);return;
+      if(!row)return;
+      /* GRC requests are rendered by the dedicated GRC My Requests modal. */
+      if(typeof window._grcShowMyRequests==='function'){
+        window._closeMyRequestsLive&&window._closeMyRequestsLive();
+        var x=document.getElementById('myReqOv');if(x)x.remove();
+        window._grcShowMyRequests();
       }
     };
     var liveApi=window._subscribeUnifiedMyRequests;

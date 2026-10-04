@@ -502,6 +502,14 @@
       return;
     }
     api().then(function(reqs){
+      /* v391: this modal is strictly the Submit a Request domain.
+         Never render Review & Development, Risk & Incident, Performance, or register requests here,
+         even if an old cached array is still present in the browser. */
+      reqs=(Array.isArray(reqs)?reqs:[]).filter(function(r){
+        var domain=String((r&&r._requestDomain)|| (r&&r.requestDomain)||'').toLowerCase();
+        var source=String(r&&r._requestSource||'').toLowerCase();
+        return source==='grc'||domain==='grc';
+      });
       var body=document.getElementById('grcMyReqBody');if(!body)return;
       if(!reqs||!reqs.length){
         body.innerHTML='<div style="color:#64748b;font-size:11px;text-align:center;padding:32px">'+(isAr?'لا توجد طلبات مسجلة لهذا الحساب.':'No requests were found for this account.')+'</div>';return;
