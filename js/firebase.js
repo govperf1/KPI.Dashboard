@@ -47,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20261004-v389-canonical-request-history');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20261001-v388-role-scoped-workflow');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -70,84 +70,6 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
       return u+'::'+r;
     }
     window._currentRequesterScope=_currentRequesterScope;
-
-    /* v389 — canonical request-history index.
-       Firestore collection queries over the mixed request collections were the
-       recurring source of permission-denied/empty-history failures.  Keep the
-       workflow source documents authoritative, but give every UID+role scope a
-       dedicated subcollection whose path itself proves ownership.  The same
-       Firebase Auth email may therefore be reused across roles without mixing
-       history. */
-    const REQUEST_HISTORY_ROOT='request_history';
-    function _requestHistoryScopePath(uid,role){
-      const u=String(uid||auth.currentUser&&auth.currentUser.uid||'').trim();
-      const r=_normalizePortalRole(role||window._fbRole||window.currentUserRole||'viewer');
-      return {uid:u,role:r};
-    }
-    function _requestHistoryCollection(uid,role){
-      const s=_requestHistoryScopePath(uid,role);
-      return collection(db,REQUEST_HISTORY_ROOT,s.uid,s.role);
-    }
-    async function _writeRequestHistoryIndex(domain,sourceCollection,requestId,createdAt,updatedAt,uid,role){
-      const s=_requestHistoryScopePath(uid,role);
-      if(!s.uid||!requestId)return;
-      const entryId=String(domain||'request')+'__'+String(requestId);
-      try{
-        await setDoc(doc(db,REQUEST_HISTORY_ROOT,s.uid,s.role,entryId),{
-          domain:String(domain||''),sourceCollection:String(sourceCollection||''),requestId:String(requestId),
-          requesterUid:s.uid,requesterRole:s.role,createdAt:createdAt||serverTimestamp(),
-          updatedAt:updatedAt||serverTimestamp(),updatedAtIso:new Date().toISOString()
-        },{merge:true});
-      }catch(e){console.warn('[Request History] index write skipped',domain,requestId,e&&e.code||e&&e.message||e);}
-    }
-    async function _readRequestHistoryIndex(domain,uid,role){
-      const s=_requestHistoryScopePath(uid,role);if(!s.uid)return[];
-      try{
-        const snap=await getDocsFromServer(_requestHistoryCollection(s.uid,s.role));
-        return snap.docs.map(function(d){return Object.assign({id:d.id},d.data()||{});})
-          .filter(function(r){return !domain||String(r.domain||'')===String(domain);})
-          .sort(function(a,b){return _advTsMs(b.updatedAt||b.updatedAtIso||b.createdAt)-_advTsMs(a.updatedAt||a.updatedAtIso||a.createdAt);});
-      }catch(e){console.warn('[Request History] index read failed',domain,e&&e.code||e&&e.message||e);return[];}
-    }
-    async function _loadIndexedRequestRows(domain,uid,role){
-      const entries=await _readRequestHistoryIndex(domain,uid,role),rows=[];
-      for(const entry of entries){
-        const col=String(entry.sourceCollection||''),id=String(entry.requestId||'');
-        if(!col||!id)continue;
-        try{
-          const snap=await getDocFromServer(doc(db,col,id));
-          if(snap.exists())rows.push(Object.assign({id:snap.id},snap.data()||{}, {_requestSourceCollection:col}));
-        }catch(e){console.warn('[Request History] source read failed',col,id,e&&e.code||e&&e.message||e);}
-      }
-      return rows;
-    }
-    async function _touchRequestHistoryIndex(domain,sourceCollection,requestId,uid,role){
-      const s=_requestHistoryScopePath(uid,role);if(!s.uid||!requestId)return;
-      const entryId=String(domain||'request')+'__'+String(requestId);
-      try{await updateDoc(doc(db,REQUEST_HISTORY_ROOT,s.uid,s.role,entryId),{updatedAt:serverTimestamp(),updatedAtIso:new Date().toISOString()});}
-      catch(e){try{await _writeRequestHistoryIndex(domain,sourceCollection,requestId,null,null,s.uid,s.role);}catch(_){} }
-    }
-    window._writeRequestHistoryIndex=_writeRequestHistoryIndex;
-    window._loadIndexedRequestRows=_loadIndexedRequestRows;
-    window._touchRequestHistoryIndex=_touchRequestHistoryIndex;
-    window._rebuildRequestHistoryIndexes=async function(){
-      const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
-      if(activeRole!=='super_admin'||!db)return 0;
-      const sources=[['grc','grc_requests'],['performance','kpi_requests'],['review_development','advisory_requests'],['risk_incident','grc_risk_requests']];
-      let written=0;
-      for(const pair of sources){
-        try{
-          const snap=await getDocsFromServer(collection(db,pair[1])),groups={};
-          snap.docs.forEach(function(d){const r=d.data()||{},uid=String(r.requesterUid||r.submittedByUid||'').trim(),rr=_normalizePortalRole(r.requesterRole||r.submittedByRole||'');if(!uid||!rr)return;const key=uid+'::'+rr;(groups[key]||(groups[key]=[])).push(d);});
-          for(const key of Object.keys(groups)){
-            const parts=key.split('::'),uid=parts.shift(),rr=parts.join('::'),batch=writeBatch(db);
-            groups[key].forEach(function(d){const r=d.data()||{};batch.set(doc(db,REQUEST_HISTORY_ROOT,uid,rr,String(pair[0])+'__'+d.id),{domain:pair[0],sourceCollection:pair[1],requestId:d.id,requesterUid:uid,requesterRole:rr,createdAt:r.createdAt||serverTimestamp(),updatedAt:r.updatedAt||r.respondedAt||r.createdAt||serverTimestamp(),updatedAtIso:String(r.updatedAtIso||r.createdAtIso||new Date().toISOString())},{merge:true});});
-            await batch.commit();written+=groups[key].length;
-          }
-        }catch(e){console.warn('[Request History] backfill failed',pair[1],e&&e.code||e&&e.message||e);}
-      }
-      return written;
-    };
     function _clientHasPerm(perm){const p=Array.isArray(window._fbPerms)?window._fbPerms:[];return p.includes('*')||p.includes(perm);}
     function _canAccessPortal(portal){
       portal=portal==='governance'?'grc':String(portal||'').toLowerCase();
@@ -752,7 +674,6 @@ window._selectPortal=async portal=>{
         if(d.revokedPermissions)perms=perms.filter(p=>!d.revokedPermissions.includes(p));
         const realName=accountNameFrom(d,user,email);
         window._fbUser=email;window._fbEmail=email;window.currentUserEmail=email;window._fbRole=role;window.currentUserRole=role;window._fbDept=accountDept;window.currentUserDept=accountDept;window._fbPerms=perms;window._fbName=realName;window.currentUserName=realName;window._fbAssignedKpis=d.assignedKpis||null;window._fbProfileResolved=true;
-        if(role==='super_admin'&&typeof window._rebuildRequestHistoryIndexes==='function'){setTimeout(function(){window._rebuildRequestHistoryIndexes().catch(function(e){console.warn('[Request History] automatic backfill skipped',e&&e.code||e&&e.message||e);});},700);}
         /* The GRC register listeners must bind only after the resolved user
            profile is known. Otherwise Auth may start them with an empty
            department and approved register changes never reach the dashboard. */
@@ -858,14 +779,13 @@ window._selectPortal=async portal=>{
       const email=String((au&&au.email)||window._fbUser||window.currentUserEmail||'').toLowerCase().trim();
       const uid=String((au&&au.uid)||window._fbUid||window._fbUserUid||window._fbAuthUid||'').trim();
       if(!email||!db) throw new Error('not authenticated');
-      const freshProfile=await _advFreshProfile(true),activeRole=freshProfile.role,activeDept=String(freshProfile.rawDepartment==null?'':freshProfile.rawDepartment).trim();
       const ref=await addDoc(collection(db,'kpi_requests'),{
         userName: window._fbName||window.currentUserName||email.split('@')[0],
         userEmail: email,
         requesterUid: uid,
-        requesterRole: activeRole,
-        requesterScopeKey: _currentRequesterScope(uid,activeRole),
-        department: activeDept,
+        requesterRole: _normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'),
+        requesterScopeKey: _currentRequesterScope(uid,_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer')),
+        department: String(window._fbDept||window.currentUserDept||'').trim(),
         requestType: String(requestType||'General').trim(),
         message: String(message||'').trim(),
         status: 'pending',
@@ -873,7 +793,6 @@ window._selectPortal=async portal=>{
         createdAt: serverTimestamp(),
         respondedAt: null
       });
-      await _writeRequestHistoryIndex('performance','kpi_requests',ref.id,null,null,uid,activeRole);
       try{await window._recordAuditDirect('USER_REQUEST_SUBMIT','Submitted Performance user request: '+String(requestType||'General'),null,{requestId:ref.id,requestType:String(requestType||'General')},{portal:'performance'});}catch(_){}
       return ref.id;
     };
@@ -889,20 +808,27 @@ window._selectPortal=async portal=>{
 
     /* User: get own requests */
     window._kpiRequestsGetMine=async function(){
-      const activeUser=auth&&auth.currentUser;if(!activeUser||!db)return[];
-      const role=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
-      let rows=await _loadIndexedRequestRows('performance',activeUser.uid,role);
-      rows=rows.filter(function(r){return !_isReviewDevelopmentRequestDoc(r);});
-      if(rows.length)return rows.sort(function(a,b){return _advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso);});
-      /* Compatibility for records created before v389. Keep the old query isolated
-         and never let its failure erase the indexed history. */
+      if(!window._fbUser||!db) return [];
       try{
-        const scope=_currentRequesterScope(activeUser.uid,role);
-        const snap=await getDocs(query(collection(db,'kpi_requests'),where('requesterScopeKey','==',scope)));
-        rows=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());}).filter(function(r){return !_isReviewDevelopmentRequestDoc(r);});
-        rows.forEach(function(r){_writeRequestHistoryIndex('performance','kpi_requests',r.id,r.createdAt,r.updatedAt,activeUser.uid,role);});
-      }catch(e){console.warn('[Requests] role-scope recovery failed:',e&&e.code||e&&e.message||e);}
-      rows.sort(function(a,b){return _advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso);});return rows;
+        /* Filter only by email — avoids composite index requirement.
+           Sort newest-first on client. */
+        const _uid=String(auth.currentUser&&auth.currentUser.uid||window._fbUid||window._fbUserUid||window._fbAuthUid||'').trim();
+        const _email=(window._fbUser||'').toLowerCase().trim();
+        const snap=await getDocs(query(collection(db,'kpi_requests'),
+          where(_uid?'requesterUid':'userEmail','==',_uid||_email)));
+        const rows=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());}).filter(function(r){return !_isReviewDevelopmentRequestDoc(r);});
+        rows.sort(function(a,b){
+          var ta=(a.createdAt&&a.createdAt.seconds)||0;
+          var tb=(b.createdAt&&b.createdAt.seconds)||0;
+          return tb-ta;
+        });
+        return rows;
+      }catch(e){
+        console.warn('[Requests] getMine error:',e.code||'',e.message);
+        if(e.message&&e.message.indexOf('index')>-1)
+          console.info('[Requests] Tip: remove orderBy or create composite index in Firebase Console');
+        return [];
+      }
     }
 
     /* SA: respond to a request */
@@ -915,7 +841,6 @@ window._selectPortal=async portal=>{
         superAdminComment: String(comment||'').trim(),
         respondedAt: serverTimestamp()
       });
-      await _touchRequestHistoryIndex('performance','kpi_requests',requestId,String(before&&before.requesterUid||''),String(before&&before.requesterRole||'viewer'));
       try{await window._recordAuditDirect('USER_REQUEST_RESPONSE','Performance user request '+String(status||'updated')+' · '+requestId,before,{requestId:requestId,status:String(status||''),comment:String(comment||'')},{portal:'performance'});}catch(_){}
     };
 
@@ -938,15 +863,16 @@ window._selectPortal=async portal=>{
     }
     window._grcRequestsSubmit=async function(requestType,message){
       if(!window._fbUser||!db) throw new Error('not authenticated');
-      const freshProfile=await _advFreshProfile(true),uid=String(freshProfile.uid||auth.currentUser&&auth.currentUser.uid||'').trim(),activeRole=freshProfile.role,activeEmail=freshProfile.email,activeDept=String(freshProfile.rawDepartment==null?'':freshProfile.rawDepartment).trim();
       const ref=await addDoc(collection(db,'grc_requests'),{
         platform:'grc',
         userName: window._fbName||window._fbUser.split('@')[0],
-        userEmail: activeEmail,
-        requesterUid: uid,
-        requesterRole: activeRole,
-        requesterScopeKey: _currentRequesterScope(uid,activeRole),
-        department: activeDept,
+        userEmail: (window._fbUser||'').toLowerCase().trim(),
+        // Keep ownership fields aligned with the authenticated user. Email is
+        // the canonical read key; UID is retained for immutable auditing.
+        requesterUid: String(window._fbUid||window._fbUserUid||window._fbAuthUid||auth.currentUser&&auth.currentUser.uid||''),
+        requesterRole: _normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'),
+        requesterScopeKey: _currentRequesterScope(),
+        department: String(window._fbDept||window.currentUserDept||'').trim(),
         requestType: String(requestType||'General GRC Request').trim(),
         message: String(message||'').trim(),
         status: 'pending',
@@ -960,47 +886,56 @@ window._selectPortal=async portal=>{
         updatedAtIso: new Date().toISOString()
       });
       _grcCacheOwnRow({id:ref.id,platform:'grc',userName:window._fbName||window._fbUser.split('@')[0],userEmail:(window._fbUser||'').toLowerCase().trim(),requesterUid:String(window._fbUid||window._fbUserUid||window._fbAuthUid||auth.currentUser&&auth.currentUser.uid||''),requesterRole:_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'),requesterScopeKey:_currentRequesterScope(),department:String(window._fbDept||window.currentUserDept||'').trim(),requestType:String(requestType||'General GRC Request').trim(),message:String(message||'').trim(),status:'pending',adminComment:'',rating:null,ratingComment:'',createdAt:new Date(),updatedAt:new Date()});
-      await _writeRequestHistoryIndex('grc','grc_requests',ref.id,null,null,uid,activeRole);
       try{await window._recordAuditDirect('GRC_USER_REQUEST_SUBMIT','Submitted GRC user request: '+String(requestType||'General GRC Request'),null,{requestId:ref.id,requestType:String(requestType||'General GRC Request')},{portal:'grc'});}catch(_){}
       return ref.id;
     };
     window._grcRequestsGetMine=async function(){
-      const activeUser=auth&&auth.currentUser;if(!activeUser||!db)return[];
-      const role=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
-      let rows=await _loadIndexedRequestRows('grc',activeUser.uid,role);
-      if(!rows.length){
-        try{const scope=_currentRequesterScope(activeUser.uid,role),snap=await getDocs(query(collection(db,'grc_requests'),where('requesterScopeKey','==',scope)));rows=snap.docs.map(function(d){return Object.assign({id:d.id},d.data()||{});});rows.forEach(function(r){_writeRequestHistoryIndex('grc','grc_requests',r.id,r.createdAt,r.updatedAt,activeUser.uid,role);});}
-        catch(e){console.warn('[GRC Requests] role-scope recovery failed:',e&&e.code||e&&e.message||e);}
+      /* v380: owner history is identity-scoped. Query both canonical identity
+         keys independently so current UID-based rows and older email-based
+         rows are both visible. A failure in one compatibility path never
+         erases rows returned by the other. */
+      const activeUser=auth&&auth.currentUser;
+      if(!activeUser||!db)return[];
+      const scope=_currentRequesterScope(activeUser.uid,_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'));
+      const col=collection(db,'grc_requests');
+      const queries=[];
+      if(scope)queries.push({key:'scope',q:query(col,where('requesterScopeKey','==',scope))});
+      _grcLoadLocalCache();
+      const map={};
+      _grcOwnSessionCache.forEach(function(row,id){if(row)map[id]=row;});
+      for(const item of queries){
+        try{
+          const snap=await getDocsFromServer(item.q);
+          snap.docs.forEach(function(d){map[d.id]=Object.assign({id:d.id},d.data()||{});});
+        }catch(e){console.warn('[GRC Requests] owner '+item.key+' query failed:',e&&e.code||e&&e.message||e);}
       }
-      rows.forEach(function(r){_grcCacheOwnRow(r);});
-      return rows.sort(function(a,b){return _advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso);});
+      Object.keys(map).forEach(function(id){_grcCacheOwnRow(map[id]);});
+      _grcOwnSessionCache.forEach(function(row,id){if(row&&!map[id])map[id]=row;});
+      return Object.keys(map).map(function(id){return map[id];}).sort(function(a,b){
+        const at=a.createdAt&&a.createdAt.seconds?Number(a.createdAt.seconds):new Date(a.createdAt||0).getTime()||0;
+        const bt=b.createdAt&&b.createdAt.seconds?Number(b.createdAt.seconds):new Date(b.createdAt||0).getTime()||0;
+        return bt-at;
+      });
     };
-
     /* Unified profile history: My Requests must include every request domain
        submitted by the signed-in user:
        - GRC system requests (grc_requests)
        - Performance user requests (kpi_requests)
        - Review & Development requests (advisory_requests)
        Each source keeps its own authoritative status/workflow fields. */
+    /* My Requests is intentionally limited to GRC system/access/permission requests.
+       Review & Development, Risk & Incident, and Register requests remain in their
+       own dedicated pages. The request itself is the history record; no duplicate
+       cross-domain history is created here. */
     window._getUnifiedMyRequests=async function(){
-      const activeUser=auth&&auth.currentUser;if(!activeUser||!db)return[];
-      const profile=await _advFreshProfile(true),uid=activeUser.uid,role=profile.role,result=[];
-      const normalize=function(domain,r){r=r||{};
-        if(domain==='grc')return Object.assign({id:r.id,_requestSource:'GRC',_requestDomain:'grc'},r,{_requestTitle:String(r.requestType||'GRC Request'),_requestMessage:String(r.message||r.details||''),_requestStatus:String(r.status||'pending'),_requestResponse:String(r.adminComment||''),_requestStage:'',_requestCreatedAt:r.createdAt,_requestUpdatedAt:r.updatedAt||r.respondedAt||r.createdAt});
-        if(domain==='performance'){if(_isReviewDevelopmentRequestDoc(r))domain='review_development';else return Object.assign({id:r.id,_requestSource:'Performance',_requestDomain:'performance'},r,{_requestTitle:String(r.requestType||'Performance Request'),_requestMessage:String(r.message||r.details||''),_requestStatus:String(r.status||'pending'),_requestResponse:String(r.superAdminComment||''),_requestStage:'',_requestCreatedAt:r.createdAt,_requestUpdatedAt:r.respondedAt||r.updatedAt||r.createdAt});}
-        if(domain==='review_development'){const x=_advNormalizeRow(r.id,r,'advisory_requests');return Object.assign(x,{_requestSource:'Review & Development',_requestDomain:'review_development',_requestTitle:String(x.code||x.requestTypeLabel||x.requestType||'Review & Development Request'),_requestMessage:String(x.details||x.message||''),_requestStatus:String(x.status||'open'),_requestResponse:String(x.adminComment||x.superAdminComment||x.managerComment||''),_requestStage:String(x.workflowStage||''),_requestCreatedAt:x.createdAt,_requestUpdatedAt:x.updatedAt||x.respondedAt||x.createdAt});}
-        return Object.assign({id:r.id,_requestSource:'Risk & Incident',_requestDomain:'risk_incident'},r,{_requestTitle:String(r.requestCode||r.operation||'Risk / Incident Request'),_requestMessage:String(r.requesterNote||r.message||r.recordType||''),_requestStatus:String(r.status||'pending_manager'),_requestResponse:String(r.managerNote||r.superAdminNote||''),_requestStage:String(r.status||''),_requestCreatedAt:r.createdAt,_requestUpdatedAt:r.updatedAt||r.createdAt});
-      };
-      const domains=[['grc',_grcRequestsGetMine],['performance',_kpiRequestsGetMine],['review_development',_advisoryGetMine],['risk_incident',_grcRiskRequestsGetMine]];
-      for(const pair of domains){
-        let rows=await _loadIndexedRequestRows(pair[0],uid,role);
-        if(!rows.length){
-          try{rows=await pair[1]();}catch(e){console.warn('[Unified My Requests] '+pair[0]+' recovery failed',e&&e.code||e&&e.message||e);rows=[];}
-        }
-        rows.forEach(function(r){result.push(normalize(pair[0],r));});
+      const activeUser=auth&&auth.currentUser;
+      if(!activeUser||!db)return[];
+      try{
+        return await window._grcRequestsGetMine();
+      }catch(e){
+        console.warn('[My Requests] GRC-only owner load failed:',e&&e.code||e&&e.message||e);
+        return[];
       }
-      const map={};result.forEach(function(r){if(r&&r.id)map[String(r._requestDomain)+'|'+String(r.id)]=r;});
-      return Object.keys(map).map(function(k){return map[k];}).sort(function(a,b){return _advTsMs(b._requestCreatedAt||b.createdAt||b._requestUpdatedAt)-_advTsMs(a._requestCreatedAt||a.createdAt||a._requestUpdatedAt);});
     };
 
     /* Unified My Requests live stream.
@@ -1008,58 +943,30 @@ window._selectPortal=async portal=>{
        Department Manager or Super Admin changes a request after the profile
        modal has already been opened. Each source is listened to through the
        same owner identity keys used by _getUnifiedMyRequests. */
+    /* Live My Requests stream: GRC system/access/permission requests only. */
     window._subscribeUnifiedMyRequests=function(callback){
       if(typeof callback!=='function'||!auth||!auth.currentUser||!db)return function(){};
       const activeUser=auth.currentUser;
-      let stopped=false,timer=null,unsubs=[],sources={},lastKey='';
-      const addSource=function(key,colName,q,mapper){
-        if(!q)return;
-        try{
-          const unsub=onSnapshot(q,function(snap){
-            sources[key]=(snap.docs||[]).map(function(d){return mapper(d);});emit();
-          },function(err){
-            console.warn('[Unified My Requests] live listener failed '+key,err&&err.code||err);
-            sources[key]=sources[key]||[];emit();
-          });
-          unsubs.push(unsub);
-        }catch(err){console.warn('[Unified My Requests] live listener setup failed '+key,err&&err.message||err);}
-      };
-      const advMapper=function(d){
-        const r=_advNormalizeRow(d.id,d.data()||{},'advisory_requests');
-        return Object.assign(r,{_requestSource:'Review & Development',_requestDomain:'review_development',_requestTitle:String(r.code||r.requestTypeLabel||r.requestType||'Review & Development Request'),_requestMessage:String(r.details||r.message||''),_requestStatus:String(r.status||'open'),_requestResponse:String(r.adminComment||r.superAdminComment||r.managerComment||''),_requestStage:String(r.workflowStage||''),_requestCreatedAt:r.createdAt,_requestUpdatedAt:r.updatedAt||r.respondedAt||r.createdAt});
-      };
-      const grcMapper=function(d){const r=d.data()||{};return Object.assign({id:d.id,_requestSource:'GRC',_requestDomain:'grc'},r,{_requestTitle:String(r.requestType||'GRC Request'),_requestMessage:String(r.message||r.details||''),_requestStatus:String(r.status||'pending'),_requestResponse:String(r.adminComment||''),_requestStage:'',_requestCreatedAt:r.createdAt,_requestUpdatedAt:r.updatedAt||r.respondedAt||r.createdAt});};
-      const perfMapper=function(d){const r=d.data()||{};if(_isReviewDevelopmentRequestDoc(r))return advMapper(d);return Object.assign({id:d.id,_requestSource:'Performance',_requestDomain:'performance'},r,{_requestTitle:String(r.requestType||'Performance Request'),_requestMessage:String(r.message||r.details||''),_requestStatus:String(r.status||'pending'),_requestResponse:String(r.superAdminComment||r.adminComment||''),_requestStage:'',_requestCreatedAt:r.createdAt,_requestUpdatedAt:r.respondedAt||r.updatedAt||r.createdAt});};
-      const emit=function(){
+      const scope=_currentRequesterScope(activeUser.uid,_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'));
+      if(!scope)return function(){};
+      let stopped=false;
+      let unsub=function(){};
+      const emit=function(snap){
         if(stopped)return;
-        clearTimeout(timer);timer=setTimeout(function(){
-          if(stopped)return;
-          const map={};Object.keys(sources).forEach(function(k){(sources[k]||[]).forEach(function(r){if(r&&r.id)map[String(r._requestDomain||k)+'|'+r.id]=r;});});
-          const rows=Object.keys(map).map(function(k){return map[k];});
-          rows.sort(function(a,b){return _advTsMs(b._requestCreatedAt||b.createdAt||b._requestUpdatedAt)-_advTsMs(a._requestCreatedAt||a.createdAt||a._requestUpdatedAt);});
-          const key=rows.map(function(r){return [r._requestDomain,r.id,r._requestStatus,r._requestStage,r.updatedAtIso||'',r.managerActionAtIso||'',r.rating||'',r.ratingAt||''].join('|');}).join('~');
-          if(key===lastKey)return;lastKey=key;callback(rows);
-        },60);
+        const rows=(snap&&snap.docs||[]).map(function(d){return Object.assign({id:d.id},d.data()||{}, {_requestSource:'GRC',_requestDomain:'grc'});});
+        rows.sort(function(a,b){return _advTsMs(b.updatedAt||b.createdAt)-_advTsMs(a.updatedAt||a.createdAt);});
+        callback(rows,null);
       };
-      const addIndexedSource=async function(key,domain,mapper){
-        if(stopped)return;
-        const role=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
-        try{
-          const unsub=onSnapshot(_requestHistoryCollection(activeUser.uid,role),async function(){
-            try{const rows=await _loadIndexedRequestRows(domain,activeUser.uid,role);sources[key]=rows.map(function(r){return mapper({id:r.id,data:function(){return r;}});});sources[key].error=null;emit();}
-            catch(e){sources[key]=sources[key]||[];sources[key].error=e&&e.code||e&&e.message||e;emit();}
-          },function(err){sources[key]=sources[key]||[];sources[key].error=err&&err.code||err&&err.message||err;console.warn('[Unified My Requests] history listener failed '+key,err&&err.code||err);emit();});
-          unsubs.push(unsub);
-        }catch(err){sources[key]=sources[key]||[];sources[key].error=err&&err.message||err;emit();}
-      };
-      const setupRoleScopedSources=function(){
-        addIndexedSource('grc_requests_history','grc','grcMapper');
-        addIndexedSource('kpi_requests_history','performance','perfMapper');
-        addIndexedSource('advisory_requests_history','review_development','advMapper');
-        addIndexedSource('risk_requests_history','risk_incident',function(d){const r=d.data()||{};return Object.assign({id:d.id,_requestSource:'Risk & Incident',_requestDomain:'risk_incident'},r,{_requestTitle:String(r.requestCode||r.operation||'Risk / Incident Request'),_requestMessage:String(r.requesterNote||r.message||''),_requestStatus:String(r.status||'pending_manager'),_requestResponse:String(r.managerNote||r.superAdminNote||''),_requestStage:String(r.status||''),_requestCreatedAt:r.createdAt,_requestUpdatedAt:r.updatedAt||r.createdAt});});
-      };
-      _advFreshProfile(true).then(function(profile){if(stopped)return;setupRoleScopedSources();}).catch(function(err){console.warn('[Unified My Requests] fresh profile resolution failed; using current session role',err&&err.code||err&&err.message||err);if(!stopped)setupRoleScopedSources();});
-      return function(){stopped=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
+      try{
+        unsub=onSnapshot(query(collection(db,'grc_requests'),where('requesterScopeKey','==',scope)),emit,function(err){
+          console.warn('[My Requests] GRC live listener failed',err&&err.code||err);
+          if(!stopped)callback([],err);
+        });
+      }catch(err){
+        console.warn('[My Requests] GRC live listener setup failed',err&&err.message||err);
+        callback([],err);
+      }
+      return function(){stopped=true;try{unsub();}catch(_){} };
     };
 
     window._grcRequestsGetAll=async function(){
@@ -1085,7 +992,6 @@ window._selectPortal=async portal=>{
         updatedAt:serverTimestamp(),
         updatedAtIso:nowIso
       });
-      await _touchRequestHistoryIndex('grc','grc_requests',requestId,String(before&&before.requesterUid||''),String(before&&before.requesterRole||'viewer'));
       try{await window._recordAuditDirect('GRC_USER_REQUEST_RESPONSE','GRC user request '+String(status||'updated')+' · '+requestId,before,{requestId:requestId,status:String(status||''),comment:String(comment||'')},{portal:'grc'});}catch(_){}
     };
     window._grcRequestsRate=async function(requestId,rating,comment){
@@ -1100,7 +1006,7 @@ window._selectPortal=async portal=>{
       const row=snap.data()||{},scope=_currentRequesterScope(activeUser.uid,_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'));
       if(String(row.requesterScopeKey||'')!==scope)throw new Error('Access denied.');
       const status=String(row.status||'').toLowerCase();
-      if(!['approved','rejected'].includes(status))throw new Error('Only completed requests can be rated.');
+      if(status!=='closed')throw new Error('Only closed requests can be rated.');
       if(Number(row.rating||0))throw new Error('This request has already been rated.');
       const n=Math.max(1,Math.min(5,Number(rating||0)));
       if(!Number.isFinite(n)||n<1)throw new Error('Select a star rating before submitting.');
@@ -1108,17 +1014,22 @@ window._selectPortal=async portal=>{
       // This avoids mixing a rating with workflow timestamps/fields that may
       // require admin permissions under the security rules.
       await updateDoc(ref,{rating:n,ratingComment:String(comment||'').trim(),ratingAt:serverTimestamp()});
-      await _touchRequestHistoryIndex('grc','grc_requests',requestId,String(row.requesterUid||''),String(row.requesterRole||'viewer'));
       try{await window._recordAuditDirect('GRC_USER_REQUEST_RATING','Rated GRC user request '+requestId+' · '+n+'/5',null,{requestId:requestId,rating:n,comment:String(comment||'')},{portal:'grc'});}catch(_){}
       return true;
     };
     window._grcRequestsSubscribeMine=function(callback){
-      if(typeof callback!=='function'||!auth.currentUser||!db)return function(){};
-      const uid=auth.currentUser.uid,role=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');let stopped=false;
-      const emit=async function(){if(stopped)return;const rows=await _loadIndexedRequestRows('grc',uid,role);if(!stopped)callback(rows,null);};
-      const unsub=onSnapshot(_requestHistoryCollection(uid,role),function(){emit();},function(err){console.warn('[GRC Requests] history listener failed',err&&err.code||err);emit();});
-      return function(){stopped=true;try{unsub();}catch(_){}};
+      if(typeof callback!=='function'||!window._fbUser||!db)return function(){};
+      const me=(window._fbUser||auth.currentUser&&auth.currentUser.email||'').toLowerCase().trim();
+      // v379: one canonical owner listener. New GRC requests always persist
+      // userEmail; requesterUid remains audit metadata and is not used for the
+      // owner query because historical rows are mixed-schema.
+      const refs=[];if(me)refs.push(query(collection(db,'grc_requests'),where('userEmail','==',me)));
+      const sources={};let done=false;
+      const emit=function(){const map={};Object.keys(sources).forEach(function(k){(sources[k]||[]).forEach(function(r){if(r&&r.id)map[r.id]=r;});});const rows=Object.keys(map).map(function(id){return map[id];});rows.sort(function(a,b){return ((b.updatedAt&&b.updatedAt.seconds)||(b.createdAt&&b.createdAt.seconds)||0)-((a.updatedAt&&a.updatedAt.seconds)||(a.createdAt&&a.createdAt.seconds)||0);});callback(rows,null);};
+      const unsubs=refs.map(function(ref,i){return onSnapshot(ref,function(snap){sources[i]=snap.docs.map(function(d){return Object.assign({id:d.id},d.data()||{});});emit();},function(err){console.warn('[GRC Requests] own listener '+i+' failed',err&&err.code||err);if(!Object.keys(sources).length)callback([],err);});});
+      return function(){unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
+
 
     /* ══════════════════════════════════════════════════════
        Review & Development Center requests
@@ -1392,10 +1303,27 @@ window._selectPortal=async portal=>{
     async function _grcReconcileReviewQueueEntry(profile,entry){
       const queueRow=entry&&entry.row,requestId=String(entry&&entry.requestId||'').trim();
       if(!requestId||!queueRow)return queueRow;
-      const stage=String(queueRow.workflowStage||queueRow.status||'').toLowerCase();
-      if(!['pending_department_manager','pending_super_admin','returned_requester','rejected_manager','rejected_super_admin','closed'].includes(stage))return queueRow;
-      if(_grcQueueDepartmentKey(queueRow.departmentKey||queueRow.department||queueRow.departmentRaw||'')!==_grcQueueDepartmentKey(profile.departmentKey))return null;
-      queueRow.id=requestId;queueRow.departmentKey=_grcQueueDepartmentKey(queueRow.departmentKey||queueRow.department||queueRow.departmentRaw||'');queueRow._managerAssigned=true;return queueRow;
+      const now=Date.now(),cachedAt=Number(_grcReviewQueueSourceCacheAt[requestId]||0);
+      if(cachedAt&&now-cachedAt<15000&&_grcReviewQueueSourceCache[requestId])return _grcReviewQueueSourceCache[requestId];
+      try{
+        const source=await getDoc(doc(db,ADV_REQUESTS_COLLECTION,requestId));
+        if(!source.exists()){
+          try{await deleteDoc(_grcManagerQueueItemRef(profile.departmentKey,'review',requestId));}catch(_){}
+          _grcReviewQueueSourceCache[requestId]=null;_grcReviewQueueSourceCacheAt[requestId]=now;return null;
+        }
+        const live=_advNormalizeRow(source.id,source.data()||{},'advisory_requests');
+        const stage=String(live.workflowStage||live.status||'').toLowerCase();
+        if(stage!=='pending_department_manager'){
+          try{await deleteDoc(_grcManagerQueueItemRef(profile.departmentKey,'review',requestId));}catch(_){}
+          _grcReviewQueueSourceCache[requestId]=null;_grcReviewQueueSourceCacheAt[requestId]=now;return null;
+        }
+        if(_grcQueueDepartmentKey(live.departmentKey||live.department||live.departmentRaw||'')!==_grcQueueDepartmentKey(profile.departmentKey))return null;
+        live.departmentKey=_grcQueueDepartmentKey(live.departmentKey||live.department||live.departmentRaw||'');live._managerAssigned=true;
+        _grcReviewQueueSourceCache[requestId]=live;_grcReviewQueueSourceCacheAt[requestId]=now;return live;
+      }catch(err){
+        /* Keep the queue snapshot on a transient Rules/network failure. */
+        return queueRow;
+      }
     }
     window._grcGetDepartmentApprovalQueue=async function(force){
       /* If the live department queue is active, it is the authoritative cache.
@@ -1420,9 +1348,26 @@ window._selectPortal=async portal=>{
            denied warnings even while the manager's queue is valid. */
         try{const q=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review'));const entries=q.docs.map(function(d){const v=d.data()||{},x=Object.assign({},v.snapshot||{});x.departmentKey=x.departmentKey||v.departmentKey;return {requestId:v.requestId||d.id,row:x};});const verified=await Promise.all(entries.map(function(entry){return _grcReconcileReviewQueueEntry(fresh,entry);}));verified.forEach(function(x){if(x)addReview(x.id||'',x);});}catch(e){result.errors.push('Review queue: '+String(e&&e.code||e&&e.message||e));}
         try{const q=await getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'));q.forEach(function(d){const v=d.data()||{},x=Object.assign({},v.snapshot||{});x.departmentKey=x.departmentKey||v.departmentKey;addRisk(v.requestId||d.id,x);});}catch(e){result.errors.push('Risk queue: '+String(e&&e.code||e&&e.message||e));}
-        /* v389: queue snapshots are now the manager history projection as well.
-           Do not query advisory_requests/grc_risk_requests directly here; doing so
-           was the source of the repeated permission-denied history warnings. */
+        /* Keep the inbox as the authoritative ACTION queue, but also recover the
+           manager's department history from the source collection. Older completed
+           requests may predate the inbox index and must remain visible in the manager
+           profile. This read is cached separately to avoid repeated Firestore reads. */
+        const historyNow=Date.now();
+        if(!_grcManagerRiskHistoryAt || historyNow-_grcManagerRiskHistoryAt>300000){
+          try{
+            const src=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));
+            const sourceMap={};src.forEach(function(d){const x=_grcRiskRequestData(d);if(x){x._managerAssigned=true;sourceMap[d.id]=x;addRisk(d.id,x);}});
+            _grcManagerRiskHistoryCache=_grcRiskSort(Object.keys(sourceMap).map(k=>sourceMap[k]));
+            _grcManagerRiskHistoryAt=Date.now();
+          }catch(e){
+            result.errors.push('Risk history: '+String(e&&e.code||e&&e.message||e));
+          }
+        }else{
+          _grcManagerRiskHistoryCache.forEach(function(x){if(x)addRisk(x.id,x);});
+        }
+        /* If the source history read is temporarily unavailable, keep the last
+           verified history instead of replacing the manager view with an empty list. */
+        _grcManagerRiskHistoryCache.forEach(function(x){if(x)addRisk(x.id,x);});
         result.review=Object.keys(reviewMap).map(k=>reviewMap[k]).sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
         result.risk=_grcRiskSort(Object.keys(riskMap).map(k=>riskMap[k]));
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();
@@ -1451,9 +1396,7 @@ window._selectPortal=async portal=>{
       const addReview=function(id,row){
         const key=String(id||row&&row.id||'');if(!key)return;
         const x=_advNormalizeRow(key,row||{},'advisory_requests');x.id=key;
-        if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;
-        const scope=String(x.requesterScopeKey||'').trim(),ownManagerScope=String(fresh.uid||'').trim()+'::department_manager';
-        if(scope===ownManagerScope || (!scope && String(x.requesterRole||x.submittedByRole||'').toLowerCase().replace(/[\s-]+/g,'_')==='department_manager'))return;
+        if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')!==_grcQueueDepartmentKey(fresh.departmentKey))return;if(String(x.requesterUid||'').trim()===String(fresh.uid||'').trim())return;
         if(String(x.workflowStage||x.status||'').toLowerCase()!=='pending_department_manager')return;
         x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');
         x._managerAssigned=true;reviewMap[key]=x;
@@ -1477,13 +1420,7 @@ window._selectPortal=async portal=>{
         if(_advCanonicalDepartment(x.departmentKey||x.department||x.departmentRaw||'')!==fresh.departmentKey)return;
         x._managerAssigned=true;riskAllMap[key]=x;
       };
-      (_grcManagerLiveSources.review||[]).forEach(function(v){
-        const row=v.snapshot||v,key=String(v.requestId||v.id||'');if(key){
-          const x=_advNormalizeRow(key,row,'advisory_requests');x.id=key;
-          if(_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'')===_grcQueueDepartmentKey(fresh.departmentKey)){x.departmentKey=_grcQueueDepartmentKey(x.departmentKey||x.department||x.departmentRaw||'');x._managerAssigned=true;reviewAllMap[key]=x;}
-        }
-        addReview(v.requestId||v.id,row);
-      });
+      (_grcManagerLiveSources.review||[]).forEach(function(v){addReview(v.requestId||v.id,v.snapshot||v);});
       (_grcManagerLiveSources.reviewHistory||[]).forEach(function(v){
         const key=String(v&&v.id||'');if(!key)return;
         const x=_advNormalizeRow(key,v||{},'advisory_requests');
@@ -1548,8 +1485,8 @@ window._selectPortal=async portal=>{
             _grcManagerLiveUnsubs.push(unsub);
           }catch(err){_grcManagerLiveErrors[name]=String(err&&err.message||err);_grcManagerLiveEmit();}
         };
-        listen('review',_grcManagerQueueCollection(fresh.departmentKey,'review'),function(d){const v=d.data()||{};return {id:d.id,requestId:v.requestId||d.id,snapshot:v.snapshot||{},queueStatus:v.status||'',queueStage:v.workflowStage||''};});
-        listen('risk',_grcManagerQueueCollection(fresh.departmentKey,'risk'),function(d){const v=d.data()||{};return {id:d.id,requestId:v.requestId||d.id,snapshot:v.snapshot||{},queueStatus:v.status||'',queueStage:v.workflowStage||''};});
+        listen('review',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)),function(d){return Object.assign({id:d.id},d.data()||{});});
+        listen('risk',query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)),function(d){return Object.assign({id:d.id},d.data()||{});});
         /* Source collections are authoritative for manager visibility. Client-side
            status filtering in _grcManagerLiveBuild limits actions to the correct
            pending stage while preserving the complete department history. */
@@ -1638,7 +1575,6 @@ window._selectPortal=async portal=>{
         throw saveError;
       }
       _advCacheOwnRow(Object.assign({id:requestId},base));
-      await _writeRequestHistoryIndex('review_development','advisory_requests',requestId,base.createdAt,base.updatedAt,freshProfile.uid,freshProfile.role);
       if(file){try{
         const meta=await _advUploadFile(requestId,file,_advEmail()),attachmentUpdates={attachments:arrayUnion(meta),attachmentCount:1,updatedAt:serverTimestamp(),updatedAtIso:_advIso(),updatedBy:_advEmail()};
         await updateDoc(primaryRef,attachmentUpdates);
@@ -1687,12 +1623,33 @@ window._selectPortal=async portal=>{
     }
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
-      const freshProfile=await _advFreshProfile(true),role=freshProfile.role,uid=freshProfile.uid;
-      let allRows=await _loadIndexedRequestRows('review_development',uid,role);
-      if(!allRows.length){
-        const groups=[query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterScopeKey','==',_currentRequesterScope(uid,role))),query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterScopeKey','==',_currentRequesterScope(uid,role)))];
-        for(const q of groups){try{const snap=await getDocsFromServer(q);snap.docs.forEach(function(d){const raw=d.data()||{};if(d.ref.parent.id===ADV_FALLBACK_COLLECTION&&!_advIsFallbackRow(raw))return;allRows.push(_advNormalizeRow(d.id,raw,d.ref.parent.id));});}catch(err){console.warn('[Review Development] role-scope recovery failed',err&&err.code||err);}}
-        allRows.forEach(function(r){_writeRequestHistoryIndex('review_development',r._storage||ADV_REQUESTS_COLLECTION,r.id,r.createdAt,r.updatedAt,uid,role);});
+      const me=_advEmail(),uid=_advUid(),freshProfile=await _advFreshProfile(true),role=freshProfile.role,dept=freshProfile.departmentKey;
+      // v385: My Requests is always role-scoped. Department history belongs to
+      // the manager/owner inbox, not to the requester's personal history.
+
+      // Personal history must merge ALL compatible identity keys. The previous
+      // implementation only queried requesterUid when the email query returned
+      // zero rows, so one visible new request could hide older UID-only rows.
+      const groups=[];
+      const pushQuery=function(collectionName,q){groups.push({collectionName:collectionName,q:q});};
+      const primaryCol=collection(db,ADV_REQUESTS_COLLECTION);
+      const scope=_currentRequesterScope(uid,role);
+      if(scope)pushQuery(ADV_REQUESTS_COLLECTION,query(primaryCol,where('requesterScopeKey','==',scope)));
+      const legacyCol=collection(db,ADV_FALLBACK_COLLECTION);
+      if(scope)pushQuery(ADV_FALLBACK_COLLECTION,query(legacyCol,where('requesterScopeKey','==',scope)));
+
+      const allRows=[];
+      for(const item of groups){
+        try{
+          const snap=await getDocsFromServer(item.q);
+          snap.docs.forEach(function(d){
+            const row=_advNormalizeRow(d.id,d.data(),item.collectionName);
+            if(item.collectionName===ADV_FALLBACK_COLLECTION && !_advIsFallbackRow(d.data()||{}))return;
+            allRows.push(row);
+          });
+        }catch(err){
+          console.warn('[Review Development] getMine '+item.collectionName+' identity path failed',err&&err.code||err);
+        }
       }
       allRows.forEach(_advCacheOwnRow);
       return _advMergeOwnCache(_advMergeRows(allRows,[],false));
@@ -1752,13 +1709,6 @@ window._selectPortal=async portal=>{
     window._advisoryGetOne=async function(requestId){return _advAuthorizedRequest(requestId,true,true);};
     window._advisorySubscribe=function(callback){
       if(typeof callback!=='function'||!_advEmail()||!db)return function(){};
-      if(!_advIsAdmin()&&!_advIsDepartmentManager()&&!_advCanAnalyze()) {
-        const uid=_advUid(),role=_advRole();let stopped=false,timer=null;
-        const emitIndexed=async function(){if(stopped)return;try{const rows=await _loadIndexedRequestRows('review_development',uid,role),records=rows.map(function(r){return _advNormalizeRow(r.id,r,'advisory_requests');});const dashboardRows=records.map(function(r){const x=_advPublicShape(r);x.id=r.id;x._storage=r._storage;return x;});callback({records:records,publicRecords:dashboardRows,errors:{},source:'request-history-index'});}catch(e){console.warn('[Review Development] indexed owner history failed',e&&e.code||e);callback({records:[],publicRecords:[],errors:{history:e&&e.code||e&&e.message||e},source:'request-history-index'});}};
-        const unsub=onSnapshot(_requestHistoryCollection(uid,role),function(){clearTimeout(timer);timer=setTimeout(emitIndexed,20);},function(err){console.warn('[Review Development] owner history listener failed',err&&err.code||err);emitIndexed();});
-        emitIndexed();
-        return function(){stopped=true;clearTimeout(timer);try{unsub();}catch(_){}};
-      }
       if(_advIsDepartmentManager()){
         /* Department Manager has TWO independent views:
            1) department approval inbox (assigned requests)
@@ -1805,15 +1755,24 @@ window._selectPortal=async portal=>{
            requests can be UID-only while current requests carry userEmail; one
            denied/missing key must never hide the other. */
         try{
-          const ownUid=_advUid(),ownRole=_advRole();let ownActive=true,ownTimer=null;
-          const emitOwn=async function(){
+          // v379: one canonical owner listener; UID is audit-only.
+          const ownRefs=[];
+          const ownScope=_currentRequesterScope(_advUid(),_advRole());
+          if(ownScope)ownRefs.push(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterScopeKey','==',ownScope)));
+          const ownSources={};let ownActive=true;
+          const emitOwn=function(){
             if(!ownActive)return;
-            try{const rows=await _loadIndexedRequestRows('review_development',ownUid,ownRole);ownRows=rows.map(function(r){return _advNormalizeRow(r.id,r,'advisory_requests');});ownRows.forEach(_advCacheOwnRow);ownError='';emitManager();}
-            catch(err){ownError=String(err&&err.code||err&&err.message||err||'history-failed');emitManager();}
+            const map={};Object.keys(ownSources).forEach(function(k){(ownSources[k]||[]).forEach(function(r){if(r&&r.id)map[r.id]=r;});});
+            ownRows=Object.keys(map).map(function(k){return map[k];});
+            ownRows.forEach(_advCacheOwnRow);ownError='';emitManager();
           };
-          const realOwnUnsub=onSnapshot(_requestHistoryCollection(ownUid,ownRole),function(){clearTimeout(ownTimer);ownTimer=setTimeout(emitOwn,20);},function(err){ownError=String(err&&err.code||err&&err.message||err||'listener-failed');console.warn('[Review Development] manager own history listener failed',err&&err.code||err);emitManager();});
-          emitOwn();
-          ownUnsub=function(){ownActive=false;clearTimeout(ownTimer);try{realOwnUnsub();}catch(_){}};
+          const ownUnsubs=ownRefs.map(function(ref,i){return onSnapshot(ref,function(snap){
+            ownSources[i]=snap.docs.map(function(d){return _advNormalizeRow(d.id,d.data(),'advisory_requests');});emitOwn();
+          },function(err){
+            ownSources[i]=[];ownError=String(err&&err.code||err&&err.message||err||'listener-failed');
+            console.warn('[Review Development] manager own-request listener '+i+' failed',err&&err.code||err);emitManager();
+          });});
+          ownUnsub=function(){ownActive=false;ownUnsubs.forEach(function(u){try{u();}catch(_){}});};
         }catch(err){ownError=String(err&&err.message||err||'listener-failed');emitManager();}
         return function(){stopped=true;try{if(queueUnsub)queueUnsub();}catch(_){}try{if(ownUnsub)ownUnsub();}catch(_){}};
       }
@@ -1935,7 +1894,6 @@ window._selectPortal=async portal=>{
       if(action==='reject')updates.closedAt=serverTimestamp();
       try{
         await updateDoc(requestRef,updates);
-        await _touchRequestHistoryIndex('review_development','advisory_requests',requestId,String(freshProfile.uid||''),String(freshProfile.role||'department_manager'));
       }catch(writeErr){
         console.error('[Review Development] manager decision update failed',{
           code:writeErr&&writeErr.code||'',
@@ -1948,13 +1906,12 @@ window._selectPortal=async portal=>{
         });
         throw writeErr;
       }
-      /* Keep the queue row as the manager's request-history projection.  Active
-         approval code is filtered by workflowStage, while completed/returned rows
-         remain available in Department Approval Requests history. */
-      try{
-        const historySnapshot=_grcReviewQueueSnapshot(Object.assign({},current||{},updates,{id:requestId,departmentKey:freshProfile.departmentKey}),requestId);
-        await setDoc(_grcManagerQueueItemRef(freshProfile.departmentKey,'review',requestId),_grcQueueItem('review',requestId,freshProfile.departmentKey,String(current&&current.userEmail||''),historySnapshot),{merge:true});
-      }catch(queueHistoryErr){console.warn('[Review Development] manager inbox history sync skipped',queueHistoryErr&&queueHistoryErr.code||queueHistoryErr);}
+      /* Source request is authoritative. Once the decision succeeds, remove the
+         active inbox item so the manager cannot keep seeing a stale pending copy.
+         Queue cleanup is intentionally non-blocking: a cleanup failure must never
+         undo a valid manager decision or prevent Super Admin from receiving it. */
+      try{await deleteDoc(_grcManagerQueueItemRef(freshProfile.departmentKey,'review',requestId));}
+      catch(queueCleanupErr){console.warn('[Review Development] manager inbox cleanup skipped',queueCleanupErr&&queueCleanupErr.code||queueCleanupErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('REVIEW_DEVELOPMENT_MANAGER_APPROVAL',(action==='approve'?'Approved and forwarded ':action==='return'?'Returned for update ':'Rejected ')+requestId,{workflowStage:'pending_department_manager'},{workflowStage:finalStage,managerDecision:decision,comment:managerComment},{portal:'grc'});}catch(_){ }
       return true;
@@ -1994,7 +1951,6 @@ window._selectPortal=async portal=>{
       updates.status=status;updates.workflowStage=workflowStage;updates.closureReason=closureReason;publicUpdates.status=status;publicUpdates.workflowStage=workflowStage;publicUpdates.closureReason=closureReason;
       if(messageText||messageAttachments.length)updates.messages=arrayUnion({id:'msg_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),senderRole:_advRole(),senderName:String(window._fbName||'Admin'),senderEmail:_advEmail(),text:messageText,attachments:messageAttachments,createdAt:nowIso});
       await updateDoc(requestRef,updates);
-      await _touchRequestHistoryIndex('review_development','advisory_requests',requestId,String(current.requesterUid||''),String(current.requesterRole||'viewer'));
       try{
         const queueSnapshot=_grcReviewQueueSnapshot(Object.assign({},current,updates,{
           id:requestId,status:status,workflowStage:workflowStage,updatedAtIso:nowIso
@@ -2345,7 +2301,6 @@ window._selectPortal=async portal=>{
         if(codeText.toLowerCase().includes('permission'))throw new Error('permission-denied: role='+freshProfile.role+'; department='+departmentRaw+'; departmentKey='+userDepartment+'; recordType='+recordType+'; operation='+operation);
         throw saveError;
       }
-      await _writeRequestHistoryIndex('risk_incident',GRC_RISK_REQUESTS_COLLECTION,requestRef.id,requestData.createdAt,requestData.updatedAt,freshProfile.uid,freshProfile.role);
       try{window._recordAuditDirect&&window._recordAuditDirect('GRC_REGISTER_REQUEST_SUBMIT',operation.toUpperCase()+' '+recordType+' request submitted',current,proposed,{portal:'grc',dept:department,recordType});}catch(_){}
       return{requestId:requestRef.id,requestCode:requestCode};
     };
@@ -2382,7 +2337,6 @@ window._selectPortal=async portal=>{
          index; a stale/mismatched inbox must not turn a successful resubmission
          into a false permission error. */
       await updateDoc(ref,updates);
-      await _touchRequestHistoryIndex('risk_incident',GRC_RISK_REQUESTS_COLLECTION,requestId,String(r.submittedByUid||''),String(r.submittedByRole||'viewer'));
       const snapshot=_grcRiskQueueSnapshot(Object.assign({},r,updates,{updatedAtIso:now}),requestId);
       try{
         await setDoc(
@@ -2413,7 +2367,6 @@ window._selectPortal=async portal=>{
       const updates={status:'cancelled',updatedAt:serverTimestamp(),updatedAtIso:now,history},dept=String(r.departmentKey||r.department||''),batch=writeBatch(db);
       batch.update(ref,updates);if(dept)batch.delete(_grcManagerQueueItemRef(dept,'risk',requestId));
       await batch.commit();
-      await _touchRequestHistoryIndex('risk_incident',GRC_RISK_REQUESTS_COLLECTION,requestId,String(r.submittedByUid||''),String(r.submittedByRole||'viewer'));
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('GRC_REGISTER_REQUEST_CANCEL','Cancelled '+String(r.recordType||'risk')+' request '+String(r.requestCode||requestId),{status:r.status},{status:'cancelled'},{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
       return true;
@@ -2478,22 +2431,7 @@ window._selectPortal=async portal=>{
       _grcPublishedRepairFor=who;if(repaired&&typeof window._grcRestartSecureSync==='function')window._grcRestartSecureSync(true);return repaired;
     };
 
-    window._grcRiskRequestRate=async function(requestId,rating,comment){
-      const active=auth&&auth.currentUser;if(!active||!db)throw new Error('Not authenticated.');
-      const role=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'),scope=_currentRequesterScope(active.uid,role);
-      const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,String(requestId||'')),snap=await getDocFromServer(ref);
-      if(!snap.exists())throw new Error('Request not found.');
-      const r=snap.data()||{};if(String(r.requesterScopeKey||'')!==scope)throw new Error('Access denied.');
-      if(!['published','rejected_manager','rejected_super_admin','closed','cancelled'].includes(String(r.status||'')))throw new Error('Only completed requests can be rated.');
-      if(Number(r.rating||0))throw new Error('This request has already been rated.');
-      const n=Math.max(1,Math.min(5,Number(rating||0)));if(!Number.isFinite(n)||n<1)throw new Error('Select a star rating before submitting.');
-      await updateDoc(ref,{rating:n,ratingComment:String(comment||'').trim(),ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:_grcRiskIso()});
-      await _touchRequestHistoryIndex('risk_incident',GRC_RISK_REQUESTS_COLLECTION,requestId,active.uid,role);
-      try{await window._recordAuditDirect('GRC_RISK_REQUEST_RATING','Rated Risk/Incident request '+requestId+' · '+n+'/5',null,{requestId:requestId,rating:n,comment:String(comment||'')},{portal:'grc'});}catch(_){}
-      return true;
-    };
-
-        window._grcRiskRequestManagerAction=async function(requestId,action,note,fields){
+    window._grcRiskRequestManagerAction=async function(requestId,action,note,fields){
       await _grcRiskAssertRulesVersion();
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile(true));
       await _advAssertProfileScope(fresh);
@@ -2528,7 +2466,6 @@ window._selectPortal=async portal=>{
          Keep the department index as a historical record so the manager can
          still see the request under All / Returned / Published after deciding. */
       await updateDoc(ref,updates);
-      await _touchRequestHistoryIndex('risk_incident',GRC_RISK_REQUESTS_COLLECTION,requestId,String(r.submittedByUid||''),String(r.submittedByRole||'viewer'));
       try{
         const queueSnapshot=_grcRiskQueueSnapshot(Object.assign({},r,updates,{
           status:status,updatedAtIso:now
@@ -2601,13 +2538,33 @@ window._selectPortal=async portal=>{
     async function _grcRiskReadMany(qrefs){const groups=await Promise.all((qrefs||[]).map(async qref=>{try{return await _grcRiskRead(qref);}catch(err){console.warn('[GRC Risk Requests] scoped read failed',err&&err.code||err);return[];}}));return _grcRiskMergeRows(groups);}
     window._grcRiskRequestsGetMine=async function(){
       if(!_grcRiskEmail()||!db)return[];
-      const freshProfile=await _advFreshProfile(true),role=freshProfile.role,uid=freshProfile.uid;
-      let rows=await _loadIndexedRequestRows('risk_incident',uid,role);
-      if(!rows.length){
-        try{const scope=_currentRequesterScope(uid,role),snap=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('requesterScopeKey','==',scope)));rows=snap.docs.map(function(d){return _grcRiskRequestData(d);}).filter(Boolean);rows.forEach(function(r){_writeRequestHistoryIndex('risk_incident',GRC_RISK_REQUESTS_COLLECTION,r.id,r.createdAt,r.updatedAt,uid,role);});}
-        catch(scopeErr){console.warn('[GRC Risk Requests] role-scope recovery failed',scopeErr&&scopeErr.code||scopeErr&&scopeErr.message||scopeErr);}
+      const col=collection(db,GRC_RISK_REQUESTS_COLLECTION);
+      try{
+        const freshProfile=await _advFreshProfile(true);
+        const role=freshProfile.role,dept=freshProfile.departmentKey;
+        if(['risk_owner','grc_owner','platform_owner'].includes(role) && dept){
+          const refs=[query(col,where('departmentKey','==',dept))];
+          const rawDept=String(_advRawDepartment&&_advRawDepartment()||'').trim();
+          if(rawDept && rawDept.toLowerCase()!==String(dept).toLowerCase()) refs.push(query(col,where('departmentKey','==',rawDept)));
+          return _grcRiskReadMany(refs);
+        }
+        const scope=_currentRequesterScope(
+          String(auth&&auth.currentUser&&auth.currentUser.uid||'').trim(),
+          role
+        );
+        if(scope){
+          try{
+            return await _grcRiskRead(query(col,where('requesterScopeKey','==',scope)));
+          }catch(scopeErr){
+            console.warn('[GRC Risk Requests] roleScope query failed; legacy owner fallback skipped for role isolation',scopeErr&&scopeErr.code||scopeErr);
+            return [];
+          }
+        }
+        return [];
+      }catch(err){
+        console.warn('[GRC Risk Requests] scoped getMine failed',err&&err.code||err);
+        return [];
       }
-      return _grcRiskSort(rows);
     };
     window._grcRiskRequestGetManagerOne=async function(requestId){
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile(true));
@@ -2649,23 +2606,22 @@ window._selectPortal=async portal=>{
         _grcRiskRequestUnsub=function(){};
         return _grcRiskRequestUnsub;
       }
-      if(['risk_owner','grc_owner','platform_owner'].includes(_grcRiskRole())){
-        const uid=String(auth.currentUser&&auth.currentUser.uid||'').trim(),rr=_grcRiskRole();let active=true;
-        const emit=async function(){if(!active)return;try{const rows=await _grcRiskRequestsGetMine();if(active)callback(rows,null);}catch(e){if(active)callback([],e);}};
-        const un=onSnapshot(_requestHistoryCollection(uid,rr),function(){emit();},function(err){console.warn('[GRC Risk Requests] owner history listener failed',err&&err.code||err);emit();});
-        emit();_grcRiskRequestUnsub=function(){active=false;try{un();}catch(_){}};return _grcRiskRequestUnsub;
-      }
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
       if(_grcRiskIsAdmin()){
+        // Super Admin/Admin: the All tab is a complete history, not only actionable requests.
         qrefs.push(col);
       }else if(_grcRiskIsManager() && _grcRiskDept()){
-        /* Department Manager approval/history is a department queue, not a personal
-           request history. Keep this branch separate from requester scope. */
+        // Department Manager: the profile queue is already authoritative for pending work;
+        // the register history uses exact department keys/aliases below.
+        qrefs.push(query(col,where('departmentKey','==',_grcRiskDept())));
+      }else if(['risk_owner','grc_owner','platform_owner'].includes(_grcRiskRole()) && _grcRiskDept()){
+        // v361: one exact canonical department query.
         qrefs.push(query(col,where('departmentKey','==',_grcRiskDept())));
       }else{
-        /* Every non-manager requester gets only its UID + active-role scope. */
-        const uid=String(auth.currentUser&&auth.currentUser.uid||'').trim(),role=_grcRiskRole(),scope=_currentRequesterScope(uid,role);
-        if(scope)qrefs.push(query(col,where('requesterScopeKey','==',scope)));
+        // Regular requester: own request history by both immutable UID and current email.
+        const em=_grcRiskEmail(),uid=String(auth.currentUser&&auth.currentUser.uid||window._fbUid||window._fbUserUid||'').trim();
+        if(em)qrefs.push(query(col,where('submittedByEmail','==',em)));
+        if(uid)qrefs.push(query(col,where('submittedByUid','==',uid)));
       }
       const sources={},unsubs=[],failed={};let successCount=0;
       function emit(){
