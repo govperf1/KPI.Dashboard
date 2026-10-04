@@ -656,7 +656,7 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'rating', 'ratingComment', 'ratingAt', 'updatedAt', 'updatedAtIso'
       ]) &&
-      resource.data.status in ['approved', 'rejected'] &&
+      resource.data.status in ['approved', 'rejected', 'closed'] &&
       (!('rating' in resource.data) || resource.data.rating == null || resource.data.rating == 0) &&
       request.resource.data.rating is number &&
       request.resource.data.rating >= 1 && request.resource.data.rating <= 5;
@@ -708,7 +708,7 @@ service cloud.firestore {
     }
 
 
-    // v389 canonical requester history index. The collection path itself carries
+    // Legacy compatibility only. v391 does not create or read this index; each request document is its own history. The collection path itself carries
     // the immutable Firebase UID and the active portal role, so a shared test
     // email can safely reuse one Auth account without mixing histories.
     match /request_history/{uid}/{roleId}/{entryId} {
