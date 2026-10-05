@@ -1,12 +1,12 @@
-// v380 — Canonical owner UID+email history visibility fix.
-// FIRESTORE SECURITY RULES v84 — Owner list/get reads support UID and canonical email.
+// v388 — deployed-source alignment: valid role-scoped rules + manager workflow.
+// v385 — Canonical requester UID + role scope; shared test emails are isolated by role.
+// FIRESTORE SECURITY RULES v85 — Owner list/get reads support UID and canonical email.
 // v75: Removes queue-existence dependency from manager decisions and authorizes
 // the manager directly from the authenticated canonical department. The queue is
 // routing-only; a stale/missing projection can never block a valid source update.
 // Rules keep manager decisions restricted to pending_department_manager source rows.
 // Production rules for Performance + GRC. Keep this file as the single rules source.
 rules_version = '2';
-// v392 — Closed requester rating + one-time login prompt (20261004)
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -220,6 +220,15 @@ service cloud.firestore {
 
     function role() {
       return profileRoleFrom(userData());
+    }
+
+    // v385: one Firebase Auth account can be reused for multiple portal roles
+    // during testing. A request belongs to the exact UID + role scope stamped
+    // when it was created, not merely to the shared email address.
+    function ownRoleScope(data) {
+      return signedIn() &&
+        ('requesterScopeKey' in data) && data.requesterScopeKey is string &&
+        data.requesterScopeKey == (request.auth.uid + '::' + role());
     }
 
     function userDepartmentKey() {
@@ -607,14 +616,25 @@ service cloud.firestore {
     match /kpi_requests/{requestId} {
       allow create: if approved() &&
         request.resource.data.userEmail is string &&
-        request.resource.data.userEmail == authEmail();
+        request.resource.data.userEmail == authEmail() &&
+        request.resource.data.requesterUid == request.auth.uid &&
+        request.resource.data.requesterRole == role() &&
+        request.resource.data.requesterScopeKey == (request.auth.uid + '::' + role());
       // Single-document reads keep compatibility with old mixed-case emails.
-      allow get: if approved() && (admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']) || ownEmail(resource.data.userEmail));
+      allow get: if approved() && (admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']) || ownRoleScope(resource.data));
       // List/query authorization must be provable from the actual query field.
       allow list: if approved() && (
         admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']) ||
-        (('userEmail' in resource.data) && resource.data.userEmail == authEmail())
+        ownRoleScope(resource.data)
       );
+      // Legacy role-isolated history for documents created before requesterScopeKey.
+      allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
+        ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid &&
+        ('requesterRole' in resource.data) && resource.data.requesterRole == role();
+      allow get: if signedIn() && !('requesterScopeKey' in resource.data) &&
+        ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid &&
+        ('requesterRole' in resource.data) && resource.data.requesterRole == role();
+
       // Historical Review & Development fallback rows may identify the requester
       // by immutable Firebase UID rather than the current email.
       allow list: if approved() &&
@@ -625,7 +645,7 @@ service cloud.firestore {
       // Requester-side workflow updates remain only for historical Review &
       // Development fallback rows; new R&D requests use advisory_requests.
       allow update: if admin() ||
-        (approved() && ownEmail(resource.data.userEmail) &&
+        (approved() && ownRoleScope(resource.data) &&
           (('isReviewDevelopmentRequest' in resource.data && resource.data.isReviewDevelopmentRequest == true) ||
            ('requestDomain' in resource.data && resource.data.requestDomain == 'review_development')) &&
           requesterFieldsOnly());
@@ -633,23 +653,22 @@ service cloud.firestore {
     }
 
     function validGrcRequestRatingChange() {
-      let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return (resource.data.status == 'closed' || resource.data.workflowStage == 'closed') &&
-        (
-          (changed.hasOnly(['rating','ratingComment','ratingAt']) &&
-            (!('rating' in resource.data) || resource.data.rating == null || resource.data.rating == 0) &&
-            request.resource.data.rating is number &&
-            request.resource.data.rating >= 1 && request.resource.data.rating <= 5) ||
-          (changed.hasOnly(['ratingPromptDismissedAt']) &&
-            request.resource.data.ratingPromptDismissedAt is timestamp)
-        );
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+        'rating', 'ratingComment', 'ratingAt', 'updatedAt', 'updatedAtIso'
+      ]) &&
+      resource.data.status in ['approved', 'rejected', 'closed'] &&
+      (!('rating' in resource.data) || resource.data.rating == null || resource.data.rating == 0) &&
+      request.resource.data.rating is number &&
+      request.resource.data.rating >= 1 && request.resource.data.rating <= 5;
     }
 
     match /grc_requests/{requestId} {
       // v362: Super Admin reads the complete request history directly.
       allow get, list: if superAdmin();
       allow create: if canAccessGrc() && ownEmail(request.resource.data.userEmail) &&
-        (!('requesterUid' in request.resource.data) || request.resource.data.requesterUid == request.auth.uid) &&
+        request.resource.data.requesterUid == request.auth.uid &&
+        request.resource.data.requesterRole == role() &&
+        request.resource.data.requesterScopeKey == (request.auth.uid + '::' + role()) &&
         (
           !('department' in request.resource.data) ||
           request.resource.data.department == '' ||
@@ -660,10 +679,7 @@ service cloud.firestore {
       // regardless of the cached/legacy GRC role matrix. This is
       // still strictly identity-scoped and cannot expose another user's data.
       // v372: exact owner get. No approved/role dependency.
-      allow get: if signedIn() && (
-        (('userEmail' in resource.data) && resource.data.userEmail is string && resource.data.userEmail == authEmail()) ||
-        (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid)
-      );
+      allow get: if ownRoleScope(resource.data);
 
       // Exact query-safe list branches. Keep ownership reads separate from
       // analytics reads so an exact userEmail query never depends on a legacy UID.
@@ -676,25 +692,42 @@ service cloud.firestore {
       // v379: My Requests uses ONE canonical query key. The UI queries only
       // userEmail, so Firestore can prove the complete result set without
       // evaluating the legacy UID branch. UID remains audit metadata.
-      allow list: if signedIn() &&
-        ('requesterUid' in resource.data) &&
-        resource.data.requesterUid is string &&
-        resource.data.requesterUid == request.auth.uid;
-      allow list: if signedIn() &&
-        ('userEmail' in resource.data) &&
-        resource.data.userEmail is string &&
-        resource.data.userEmail == authEmail();
+      allow list: if ownRoleScope(resource.data);
+      // Legacy role-isolated history: older documents may not contain
+      // requesterScopeKey, but they do contain immutable UID + requesterRole.
+      allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
+        ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid &&
+        ('requesterRole' in resource.data) && resource.data.requesterRole == role();
+      allow get: if signedIn() && !('requesterScopeKey' in resource.data) &&
+        ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid &&
+        ('requesterRole' in resource.data) && resource.data.requesterRole == role();
 
       allow update: if admin() ||
-        (canAccessGrc() && ownEmail(resource.data.userEmail) && validGrcRequestRatingChange());
+        (canAccessGrc() && ownRoleScope(resource.data) && validGrcRequestRatingChange());
       allow delete: if superAdmin();
     }
 
 
+    // Legacy compatibility only. v391 does not create or read this index; each request document is its own history. The collection path itself carries
+    // the immutable Firebase UID and the active portal role, so a shared test
+    // email can safely reuse one Auth account without mixing histories.
+    match /request_history/{uid}/{roleId}/{entryId} {
+      allow get, list: if signedIn() && uid == request.auth.uid && roleId == role();
+      allow create, update: if superAdmin() || (
+        signedIn() && uid == request.auth.uid && roleId == role() &&
+        request.resource.data.requestId is string &&
+        request.resource.data.sourceCollection is string &&
+        request.resource.data.domain is string &&
+        request.resource.data.requesterUid == request.auth.uid &&
+        request.resource.data.requesterRole == role()
+      );
+      allow delete: if (signedIn() && uid == request.auth.uid && roleId == role()) || superAdmin();
+    }
+
     // Read-only rules deployment probe. The document does not need to exist;
     // a unique v64 path prevents an older ruleset from being mistaken for this build.
     match /system_rule_versions/{versionId} {
-      allow get: if approved() && versionId in ['v71-canonical-exact-request-reads-20260908','v72-review-manager-decision-20260910','v73-review-workflow-recovery-20260914','v74-authoritative-review-inbox-20260914','v75-manager-approval-source-authoritative-20260914','v76-request-visibility-20260914','v77-manager-decision-state-integrity-20260916','v79-canonical-owner-email-query-20260918','v80-owner-uid-email-history-20260918'];
+      allow get: if approved() && versionId in ['v71-canonical-exact-request-reads-20260908','v72-review-manager-decision-20260910','v73-review-workflow-recovery-20260914','v74-authoritative-review-inbox-20260914','v75-manager-approval-source-authoritative-20260914','v76-request-visibility-20260914','v77-manager-decision-state-integrity-20260916','v79-canonical-owner-email-query-20260918','v80-owner-uid-email-history-20260918','v81-canonical-request-history-index-20261004'];
       allow list, create, update, delete: if false;
     }
 
@@ -809,23 +842,9 @@ service cloud.firestore {
     function validAdvisoryOwnerChange() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'status','messages','attachments','attachmentCount',
-        'completedAt','closedAt',
+        'completedAt','closedAt','rating','ratingComment','ratingAt',
         'workflowStage','closureReason','updatedAt','updatedAtIso','updatedBy'
       ]);
-    }
-
-    function validAdvisoryRequesterFeedbackChange() {
-      let changed = request.resource.data.diff(resource.data).affectedKeys();
-      return ownEmail(resource.data.userEmail) &&
-        (resource.data.status == 'closed' || resource.data.workflowStage == 'closed') &&
-        (
-          (changed.hasOnly(['rating','ratingComment','ratingAt','updatedAt','updatedAtIso','updatedBy']) &&
-            (!('rating' in resource.data) || resource.data.rating == null || resource.data.rating == 0) &&
-            request.resource.data.rating is number &&
-            request.resource.data.rating >= 1 && request.resource.data.rating <= 5) ||
-          (changed.hasOnly(['ratingPromptDismissedAt']) &&
-            request.resource.data.ratingPromptDismissedAt is timestamp)
-        );
     }
 
     function advisoryOwnerRoutePreserved() {
@@ -916,6 +935,12 @@ service cloud.firestore {
         ('departmentKey' in resource.data) &&
         resource.data.departmentKey == profileDepartmentKeyFrom(u) &&
         resource.data.workflowStage == 'pending_department_manager' &&
+        // Shared test accounts are isolated by requesterScopeKey. A Department
+        // Manager cannot action a request created while this same UID was
+        // operating as Department Manager; requests created under another role
+        // remain actionable by the current Department Manager.
+        !(('requesterScopeKey' in resource.data) &&
+          resource.data.requesterScopeKey == (request.auth.uid + '::department_manager')) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status','workflowStage','closureReason',
           'managerDecision','managerComment','managerName','managerEmail',
@@ -950,7 +975,7 @@ service cloud.firestore {
     }
     function validAdvisoryOwnerResubmit() {
       return approved() &&
-        ownEmail(resource.data.userEmail) &&
+        ownRoleScope(resource.data) &&
         resource.data.workflowStage == 'returned_requester' &&
         request.resource.data.workflowStage == 'pending_department_manager' &&
         request.resource.data.status == 'open' &&
@@ -989,6 +1014,9 @@ service cloud.firestore {
       let expectedDept = r in ['governance_performance_manager'] ? '' : profileDepartmentKeyFrom(u);
       return approved() &&
         data.userEmail is string && ownEmail(data.userEmail) &&
+        data.requesterUid == request.auth.uid &&
+        data.requesterRole == r &&
+        data.requesterScopeKey == (request.auth.uid + '::' + r) &&
         data.departmentKey is string && data.departmentKey == expectedDept &&
         data.workflowStage is string &&
         data.workflowStage in ['pending_department_manager','pending_super_admin'] &&
@@ -1008,10 +1036,7 @@ service cloud.firestore {
       allow get: if admin() || role() == 'governance_performance_manager' || permit('view_request_analytics', ['governance_performance_manager']);
       // v372: My Requests / rating reads are strictly identity-scoped and do
       // not depend on the user's legacy approved flag or GRC role matrix.
-      allow get: if signedIn() && (
-        (('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid) ||
-        (('userEmail' in resource.data) && ownEmail(resource.data.userEmail))
-      );
+      allow get: if ownRoleScope(resource.data);
       // v372: direct Department Manager source reads. These are restricted to
       // the authenticated manager's canonical department.
       allow get: if signedIn() &&
@@ -1047,14 +1072,16 @@ service cloud.firestore {
       // the authenticated Firebase Auth identity.
       // v379: canonical owner history query. The client uses only userEmail
       // for the owner listener, so this branch exactly mirrors that query.
-      allow list: if signedIn() &&
-        ('requesterUid' in resource.data) &&
-        resource.data.requesterUid is string &&
-        resource.data.requesterUid == request.auth.uid;
-      allow list: if signedIn() &&
-        ('userEmail' in resource.data) &&
-        resource.data.userEmail is string &&
-        resource.data.userEmail == authEmail();
+      allow list: if ownRoleScope(resource.data);
+      // Legacy R&D history created before requesterScopeKey: isolate by immutable
+      // UID + requesterRole so the shared test account remains role-separated.
+      allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
+        ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid &&
+        ('requesterRole' in resource.data) && resource.data.requesterRole == role();
+      allow get: if signedIn() && !('requesterScopeKey' in resource.data) &&
+        ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid &&
+        ('requesterRole' in resource.data) && resource.data.requesterRole == role();
+
       // Department-scoped GRC owners must be able to see the complete Review &
       // Development request history for their own department, not only requests
       // submitted by their current account/email. This is the same visibility
@@ -1083,8 +1110,7 @@ service cloud.firestore {
         (validAdvisorySuperAdminProcess()) ||
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
         (validAdvisoryOwnerResubmit()) ||
-        (validAdvisoryRequesterFeedbackChange()) ||
-        (approved() && ownEmail(resource.data.userEmail) &&
+        (approved() && ownRoleScope(resource.data) &&
           validAdvisoryOwnerChange() && advisoryOwnerRoutePreserved()) ||
         /* v363: single authoritative Department Manager source-update path.
            No queue/projection lookup is involved in authorization. */
@@ -1148,17 +1174,26 @@ service cloud.firestore {
       return signedIn() && approvedValue(u.approved) &&
         r in ['risk_owner','grc_owner','platform_owner'] &&
         data.submittedByEmail is string && ownEmail(data.submittedByEmail) &&
+        data.submittedByUid == request.auth.uid &&
+        data.submittedByRole == r &&
+        data.requesterScopeKey == (request.auth.uid + '::' + r) &&
         data.department is string &&
         data.departmentKey is string &&
+        data.departmentKey == profileDepartmentKeyFrom(u) &&
         data.recordType in ['risk','incident'] &&
         data.operation in ['add','update','delete'] &&
         data.status == 'pending_manager';
     }
 
     function riskRequestOwner(data) {
+      let r = role();
+      let scope = request.auth.uid + '::' + r;
       return
-        (('submittedByUid' in data) && data.submittedByUid == request.auth.uid) ||
-        (('submittedByEmail' in data) && ownEmail(data.submittedByEmail));
+        (('requesterScopeKey' in data) && data.requesterScopeKey is string &&
+          data.requesterScopeKey == scope) ||
+        (!('requesterScopeKey' in data) &&
+          ('submittedByUid' in data) && data.submittedByUid == request.auth.uid &&
+          ('submittedByRole' in data) && normalizedRoleValue(data.submittedByRole) == r);
     }
 
     function riskRequestDepartment(data) {
@@ -1194,12 +1229,21 @@ service cloud.firestore {
     function grcRiskRequestOwner(data) {
       let u = userData();
       let r = profileRoleFrom(u);
+      let scope = request.auth.uid + '::' + r;
       return signedIn() && userExists() &&
         r in ['risk_owner','grc_owner','platform_owner'] &&
         (
-          (('submittedByUid' in data) && data.submittedByUid == request.auth.uid) ||
-          (('submittedByEmail' in data) && data.submittedByEmail is string &&
-            data.submittedByEmail.lower() == authEmail())
+          (('requesterScopeKey' in data) && data.requesterScopeKey is string &&
+            data.requesterScopeKey == scope) ||
+          // Legacy records created before role-scoped requests did not have
+          // requesterScopeKey. Keep them readable by UID/email for migration,
+          // but never let that fallback override a modern scoped record.
+          (!('requesterScopeKey' in data) &&
+            (
+              (('submittedByUid' in data) && data.submittedByUid == request.auth.uid) ||
+              (('submittedByEmail' in data) && data.submittedByEmail is string &&
+                data.submittedByEmail.lower() == authEmail())
+            ))
         );
     }
 
@@ -1224,10 +1268,21 @@ service cloud.firestore {
       ]);
     }
 
+    function validRiskRequesterRatingChange() {
+      return riskRequestOwner(resource.data) &&
+        resource.data.status in ['published','rejected_manager','rejected_super_admin','closed','cancelled'] &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'rating','ratingComment','ratingAt','updatedAt','updatedAtIso'
+        ]) &&
+        (!('rating' in resource.data) || resource.data.rating == null || resource.data.rating == 0) &&
+        request.resource.data.rating is number &&
+        request.resource.data.rating >= 1 && request.resource.data.rating <= 5;
+    }
+
     function riskManagerChange() {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
         'status','managerName','managerEmail','managerNote',
-        'managerActionAt','returnFields','returnNote','returnSource',
+        'managerActionAt','managerActionAtIso','returnFields','returnNote','returnSource',
         'updatedAt','updatedAtIso','history'
       ]);
     }
@@ -1264,15 +1319,29 @@ service cloud.firestore {
       // department fields taken from the authenticated Firestore profile.
       allow create: if validRiskRequestCreate(request.resource.data);
 
+      // v387: modern owner reads are isolated by UID + role scope. Legacy
+      // records without requesterScopeKey use the compatibility branches below.
+      allow get: if signedIn() && ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::' + role());
+      allow list: if signedIn() && ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::' + role());
+      allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
+        ('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid &&
+        ('submittedByRole' in resource.data) && normalizedRoleValue(resource.data.submittedByRole) == role();
+
       // v381: explicit GRC/Risk/Platform owner identity access for historical
       // returned requests. This is intentionally identity-scoped.
       allow get: if grcRiskRequestOwner(resource.data);
 
-      // v380: request owners can open every state, including closed/published,
-      // without depending on the role/permission matrix. Identity is exact.
+      // v386: owner opens are role-scoped. Department Manager department reads
+      // remain available below for approval work; this branch is only ownership.
       allow get: if signedIn() && (
-        (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid) ||
-        (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail())
+        (('requesterScopeKey' in resource.data) &&
+          resource.data.requesterScopeKey == (request.auth.uid + '::' + role())) ||
+        (!('requesterScopeKey' in resource.data) &&
+          ('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid &&
+          ('submittedByRole' in resource.data) &&
+          normalizedRoleValue(resource.data.submittedByRole) == role())
       );
 
       // Direct opens retain compatibility with historical aliases.
@@ -1306,22 +1375,32 @@ service cloud.firestore {
             resource.data.submittedByEmail.lower() == authEmail())
         );
 
-      // v380: owner history queries are identity-scoped and remain available
-      // for every request status, including returned/rejected/published/closed.
-      allow list: if signedIn() && ('submittedByUid' in resource.data) &&
-        resource.data.submittedByUid is string && resource.data.submittedByUid == request.auth.uid;
-      allow list: if signedIn() && ('submittedByEmail' in resource.data) &&
-        resource.data.submittedByEmail is string && resource.data.submittedByEmail == authEmail();
+      // v387: owner history queries are role-scoped. The shared test account
+      // must not merge requests created under another portal role.
+      allow list: if signedIn() && ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::' + role());
+      allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
+        ('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid &&
+        ('submittedByRole' in resource.data) &&
+        normalizedRoleValue(resource.data.submittedByRole) == role();
       // v361: simple exact query branches for Risk/Incident request history.
       allow list: if admin();
-      allow list: if approved() && ('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail();
-      allow list: if approved() && ('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid;
+      allow list: if approved() && ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::' + role());
+      allow list: if approved() && !('requesterScopeKey' in resource.data) &&
+        ('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid &&
+        ('submittedByRole' in resource.data) &&
+        normalizedRoleValue(resource.data.submittedByRole) == role();
       allow list: if approved() && role() in ['department_manager','risk_owner','grc_owner','platform_owner'] &&
         userDepartmentKey() != '' && ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey();
       allow list: if canReadRiskIncidentWorkflow() &&
-        (('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid);
+        (('requesterScopeKey' in resource.data) &&
+         resource.data.requesterScopeKey == (request.auth.uid + '::' + role()));
       allow list: if canReadRiskIncidentWorkflow() &&
-        (('submittedByEmail' in resource.data) && resource.data.submittedByEmail == authEmail());
+        (!('requesterScopeKey' in resource.data) &&
+         ('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid &&
+         ('submittedByRole' in resource.data) &&
+         normalizedRoleValue(resource.data.submittedByRole) == role());
       allow list: if signedIn() && approvedValue(userData().approved) &&
         role() in ['risk_owner','grc_owner','platform_owner'] &&
         profileDepartmentKeyFrom(userData()) != '' &&
@@ -1332,7 +1411,8 @@ service cloud.firestore {
       allow list: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
         ('departmentRaw' in resource.data) && resource.data.departmentRaw == profileDepartmentValueFrom(userData());
 
-      allow update: if validGrcRiskRequesterResubmit() ||
+      allow update: if validRiskRequesterRatingChange() ||
+        validGrcRiskRequesterResubmit() ||
         (
           approved() && riskRequestOwner(resource.data) &&
           riskRequesterChange() && validRequesterRiskTransition()
@@ -1340,7 +1420,12 @@ service cloud.firestore {
         (
           departmentManager() &&
           (riskRequestDepartment(resource.data) || riskManagerQueueAssignment(requestId)) &&
-          (!riskRequestOwner(resource.data) || !riskOriginallySubmittedByManager(resource.data)) &&
+          // Shared test accounts are isolated by requesterScopeKey. A manager
+          // may action requests created under another role, but never a request
+          // created while the same UID was operating as Department Manager.
+          !(('requesterScopeKey' in resource.data) &&
+            resource.data.requesterScopeKey == (request.auth.uid + '::department_manager')) &&
+          !riskOriginallySubmittedByManager(resource.data) &&
           riskManagerChange() && validManagerRiskTransition()
         ) || superAdmin();
 
