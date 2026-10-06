@@ -834,10 +834,16 @@ window._selectPortal=async portal=>{
     function _grcSystemRequestCanAnalyze(){return _grcSystemRequestIsAdmin()||_clientHasPerm('view_request_analytics')||_grcSystemRequestRole()==='governance_performance_manager';}
     window._grcRequestsSubmit=async function(requestType,message){
       if(!window._fbUser||!db) throw new Error('not authenticated');
+      const _grcRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
+      const _grcUid=(auth.currentUser&&auth.currentUser.uid)||'';
+      const _grcScope=_grcUid+'::'+_grcRole;
       const ref=await addDoc(collection(db,'grc_requests'),{
         platform:'grc',
         userName: window._fbName||window._fbUser.split('@')[0],
         userEmail: (window._fbUser||'').toLowerCase().trim(),
+        requesterUid: _grcUid,
+        requesterRole: _grcRole,
+        requesterScopeKey: _grcScope,
         department: String(window._fbDept||window.currentUserDept||'').trim(),
         requestType: String(requestType||'General GRC Request').trim(),
         message: String(message||'').trim(),
@@ -856,11 +862,24 @@ window._selectPortal=async portal=>{
     };
     window._grcRequestsGetMine=async function(){
       if(!window._fbUser||!db) return [];
+      const uid=(auth.currentUser&&auth.currentUser.uid)||'';
+      const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
+      const scopeKey=uid+'::'+activeRole;
+      let rows=[];
       try{
-        const userEmail=(window._fbUser||'').toLowerCase().trim();
-        const result=await getDocs(query(collection(db,'grc_requests'),where('userEmail','==',userEmail)));
-        const rows=result.docs.map(function(d){return Object.assign({id:d.id},d.data());});
-        rows.sort(function(a,b){return ((b.createdAt&&b.createdAt.seconds)||0)-((a.createdAt&&a.createdAt.seconds)||0);});
+        if(uid){
+          try{
+            const scoped=await getDocs(query(collection(db,'grc_requests'),where('requesterScopeKey','==',scopeKey)));
+            rows=scoped.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+          }catch(e){console.warn('[GRC Requests] scope query failed:',e&&e.code||e);}
+          try{
+            const legacy=await getDocs(query(collection(db,'grc_requests'),where('requesterUid','==',uid),where('requesterRole','==',activeRole)));
+            rows=rows.concat(legacy.docs.map(function(d){return Object.assign({id:d.id},d.data());}));
+          }catch(e){console.warn('[GRC Requests] legacy UID+role query failed:',e&&e.code||e);}
+        }
+        const seen={};
+        rows=rows.filter(function(r){const k=String(r.id||'');if(!k||seen[k])return false;seen[k]=1;return true;});
+        rows.sort(function(a,b){return ((b.updatedAt&&b.updatedAt.seconds)||(b.createdAt&&b.createdAt.seconds)||0)-((a.updatedAt&&a.updatedAt.seconds)||(a.createdAt&&a.createdAt.seconds)||0);});
         return rows;
       }catch(e){console.warn('[GRC Requests] getMine:',e&&e.message);return [];}
     };
@@ -896,7 +915,7 @@ window._selectPortal=async portal=>{
       const row=snap.data()||{},me=(window._fbUser||'').toLowerCase().trim();
       if(String(row.userEmail||'').toLowerCase().trim()!==me)throw new Error('Access denied.');
       const status=String(row.status||'').toLowerCase();
-      if(!['approved','rejected'].includes(status))throw new Error('Only completed requests can be rated.');
+      if(!['approved','rejected','closed'].includes(status))throw new Error('Only closed or completed requests can be rated.');
       if(Number(row.rating||0))throw new Error('This request has already been rated.');
       const n=Math.max(1,Math.min(5,Number(rating||0))),nowIso=new Date().toISOString();
       await updateDoc(ref,{rating:n,ratingComment:String(comment||'').trim(),ratingAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:nowIso});
@@ -905,12 +924,55 @@ window._selectPortal=async portal=>{
     };
     window._grcRequestsSubscribeMine=function(callback){
       if(typeof callback!=='function'||!window._fbUser||!db)return function(){};
-      const me=(window._fbUser||'').toLowerCase().trim();
-      return onSnapshot(query(collection(db,'grc_requests'),where('userEmail','==',me)),function(snap){
-        const rows=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});
-        rows.sort(function(a,b){return ((b.updatedAt&&b.updatedAt.seconds)||(b.createdAt&&b.createdAt.seconds)||0)-((a.updatedAt&&a.updatedAt.seconds)||(a.createdAt&&a.createdAt.seconds)||0);});
-        callback(rows,null);
-      },function(err){callback([],err);});
+      const uid=(auth.currentUser&&auth.currentUser.uid)||'';
+      const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
+      const scopeKey=uid+'::'+activeRole;
+      let closed=false,timer=null,source={};
+      const emit=function(){
+        if(closed||!source.scope||!source.scope.ready)return;
+        clearTimeout(timer);
+        timer=setTimeout(function(){
+          if(closed)return;
+          let rows=(source.scope.rows||[]).concat((source.legacy&&source.legacy.rows)||[]);
+          const seen={};
+          rows=rows.filter(function(r){const k=String(r.id||'');if(!k||seen[k])return false;seen[k]=1;return true;});
+          rows.sort(function(a,b){return ((b.updatedAt&&b.updatedAt.seconds)||(b.createdAt&&b.createdAt.seconds)||0)-((a.updatedAt&&a.updatedAt.seconds)||(a.createdAt&&a.createdAt.seconds)||0);});
+          callback(rows,null);
+        },60);
+      };
+      const listen=function(key,q){
+        source[key]={ready:false,rows:[]};
+        return onSnapshot(q,function(snap){source[key]={ready:true,rows:snap.docs.map(function(d){return Object.assign({id:d.id},d.data());})};emit();},function(err){
+          console.warn('[GRC Requests] '+key+' listener failed:',err&&err.code||err);
+          source[key]={ready:true,rows:[],error:err};emit();
+        });
+      };
+      const unsubs=[];
+      if(uid){
+        unsubs.push(listen('scope',query(collection(db,'grc_requests'),where('requesterScopeKey','==',scopeKey))));
+        unsubs.push(listen('legacy',query(collection(db,'grc_requests'),where('requesterUid','==',uid),where('requesterRole','==',activeRole))));
+      }else{source.scope={ready:true,rows:[]};emit();}
+      return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
+    };
+
+    /* Unified My Requests contains only GRC Access / Permission / System requests.
+       Review & Development, Risk & Incident, and register requests stay in their
+       own dedicated screens. */
+    window._getUnifiedMyRequests=async function(){
+      const rows=typeof window._grcRequestsGetMine==='function'?await window._grcRequestsGetMine():[];
+      return (Array.isArray(rows)?rows:[]).map(function(r){
+        const x=Object.assign({},r);
+        x._requestSource='GRC';
+        x._requestDomain='grc';
+        x._requestStatus=x.status||'pending';
+        x._requestStage=x.workflowStage||'';
+        x._requestTitle=x.requestType||'GRC Request';
+        x._requestMessage=x.message||'';
+        x._requestCreatedAt=x.createdAt;
+        x._requestUpdatedAt=x.updatedAt||x.respondedAt||x.createdAt;
+        x._requestResponse=x.adminComment||x.superAdminComment||'';
+        return x;
+      });
     };
 
 
@@ -1089,10 +1151,24 @@ window._selectPortal=async portal=>{
     }
     async function _advFallbackRows(userOnly){
       try{
-        let snap;
-        if(userOnly)snap=await getDocs(query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',_advEmail())));
-        else snap=await getDocs(collection(db,ADV_FALLBACK_COLLECTION));
-        const rows=snap.docs.filter(d=>_advIsFallbackRow(d.data())).map(d=>_advNormalizeRow(d.id,d.data(),'kpi_requests'));
+        let docs=[];
+        if(userOnly){
+          const uid=_advUid(),activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
+          if(uid){
+            try{
+              const scoped=await getDocs(query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterScopeKey','==',uid+'::'+activeRole)));
+              docs=docs.concat(scoped.docs);
+            }catch(_){}
+            try{
+              const legacy=await getDocs(query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterUid','==',uid),where('requesterRole','==',activeRole)));
+              docs=docs.concat(legacy.docs);
+            }catch(_){}
+          }
+        }else{
+          docs=(await getDocs(collection(db,ADV_FALLBACK_COLLECTION))).docs;
+        }
+        const seen={};
+        const rows=docs.filter(function(d){if(seen[d.id])return false;seen[d.id]=1;return _advIsFallbackRow(d.data());}).map(d=>_advNormalizeRow(d.id,d.data(),'kpi_requests'));
         rows.sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));return rows;
       }catch(_){return [];}
     }
@@ -1268,10 +1344,7 @@ window._selectPortal=async portal=>{
           primary=_advMergeRows(primary,legacyUidRole.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests')),false);
         }catch(_legacyUidRoleRead){ }
       }
-      try{
-        const legacy=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
-        primary=_advMergeRows(primary,legacy.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests')),false);
-      }catch(_legacyOwnRead){}
+       /* Shared test accounts are isolated by UID + role; never use email as the owner query. */
       return _advMergeRows(primary,await _advFallbackRows(true),false);
     };
     window._advisoryGetManagerQueue=async function(){
@@ -1362,7 +1435,7 @@ window._selectPortal=async portal=>{
             listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
           }
         }
-        listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
+        if(_advUid())listen('fallbackScope',query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterScopeKey','==',_advUid()+'::'+_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'))),'kpi_requests');
       }else if(_advIsAdmin()){
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
         listen('fallback',collection(db,ADV_FALLBACK_COLLECTION),'kpi_requests');
@@ -1379,7 +1452,7 @@ window._selectPortal=async portal=>{
         }else{
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
         }
-        listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
+        if(_advUid())listen('fallbackScope',query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterScopeKey','==',_advUid()+'::'+_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'))),'kpi_requests');
       }
       return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
