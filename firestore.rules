@@ -692,14 +692,27 @@ service cloud.firestore {
       // v379: My Requests uses ONE canonical query key. The UI queries only
       // userEmail, so Firestore can prove the complete result set without
       // evaluating the legacy UID branch. UID remains audit metadata.
-      allow list: if ownRoleScope(resource.data);
-      allow list: if signedIn() && get(userPath()).data.role == 'grc_owner' && resource.data.requesterScopeKey == (request.auth.uid + '::grc_owner');
-      allow list: if signedIn() && get(userPath()).data.role == 'department_manager' && resource.data.requesterScopeKey == (request.auth.uid + '::department_manager');
-      allow list: if signedIn() && get(userPath()).data.role == 'risk_owner' && resource.data.requesterScopeKey == (request.auth.uid + '::risk_owner');
-      allow list: if signedIn() && get(userPath()).data.role == 'platform_owner' && resource.data.requesterScopeKey == (request.auth.uid + '::platform_owner');
-      allow list: if signedIn() && get(userPath()).data.role == 'governance_performance_manager' && resource.data.requesterScopeKey == (request.auth.uid + '::governance_performance_manager');
-      allow list: if signedIn() && get(userPath()).data.role == 'viewer' && resource.data.requesterScopeKey == (request.auth.uid + '::viewer');
-      allow list: if signedIn() && get(userPath()).data.role == 'user' && resource.data.requesterScopeKey == (request.auth.uid + '::user');
+      // v397: Firestore query-proof owner branches. Keep the role literal in each
+      // branch so a shared Firebase Auth UID can be reused across portal roles
+      // without requiring the query planner to resolve role() inside the scope key.
+      allow list: if signedIn() && role() == 'grc_owner' &&
+        ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::grc_owner');
+      allow list: if signedIn() && role() == 'platform_owner' &&
+        ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::platform_owner');
+      allow list: if signedIn() && role() == 'risk_owner' &&
+        ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::risk_owner');
+      allow list: if signedIn() && role() == 'department_manager' &&
+        ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::department_manager');
+      allow list: if signedIn() && role() == 'viewer' &&
+        ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::viewer');
+      allow list: if signedIn() && role() == 'user' &&
+        ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::user');
       // Legacy role-isolated history: older documents may not contain
       // requesterScopeKey, but they do contain immutable UID + requesterRole.
       allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
@@ -1079,14 +1092,25 @@ service cloud.firestore {
       // the authenticated Firebase Auth identity.
       // v379: canonical owner history query. The client uses only userEmail
       // for the owner listener, so this branch exactly mirrors that query.
-      allow list: if ownRoleScope(resource.data);
-      allow list: if signedIn() && get(userPath()).data.role == 'grc_owner' && resource.data.requesterScopeKey == (request.auth.uid + '::grc_owner');
-      allow list: if signedIn() && get(userPath()).data.role == 'department_manager' && resource.data.requesterScopeKey == (request.auth.uid + '::department_manager');
-      allow list: if signedIn() && get(userPath()).data.role == 'risk_owner' && resource.data.requesterScopeKey == (request.auth.uid + '::risk_owner');
-      allow list: if signedIn() && get(userPath()).data.role == 'platform_owner' && resource.data.requesterScopeKey == (request.auth.uid + '::platform_owner');
-      allow list: if signedIn() && get(userPath()).data.role == 'governance_performance_manager' && resource.data.requesterScopeKey == (request.auth.uid + '::governance_performance_manager');
-      allow list: if signedIn() && get(userPath()).data.role == 'viewer' && resource.data.requesterScopeKey == (request.auth.uid + '::viewer');
-      allow list: if signedIn() && get(userPath()).data.role == 'user' && resource.data.requesterScopeKey == (request.auth.uid + '::user');
+      // v397: query-proof owner branches with literal role scopes.
+      allow list: if signedIn() && role() == 'grc_owner' &&
+        ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::grc_owner');
+      allow list: if signedIn() && role() == 'platform_owner' &&
+        ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::platform_owner');
+      allow list: if signedIn() && role() == 'risk_owner' &&
+        ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::risk_owner');
+      allow list: if signedIn() && role() == 'department_manager' &&
+        ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::department_manager');
+      allow list: if signedIn() && role() == 'viewer' &&
+        ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::viewer');
+      allow list: if signedIn() && role() == 'user' &&
+        ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::user');
       // Legacy R&D history created before requesterScopeKey: isolate by immutable
       // UID + requesterRole so the shared test account remains role-separated.
       allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
@@ -1337,8 +1361,15 @@ service cloud.firestore {
       // records without requesterScopeKey use the compatibility branches below.
       allow get: if signedIn() && ('requesterScopeKey' in resource.data) &&
         resource.data.requesterScopeKey == (request.auth.uid + '::' + role());
-      allow list: if signedIn() && ('requesterScopeKey' in resource.data) &&
-        resource.data.requesterScopeKey == (request.auth.uid + '::' + role());
+      // v397: literal role-scope list branches make Firestore able to prove
+      // the exact shared-account query without resolving role() inside the field value.
+      allow list: if signedIn() && role() == 'grc_owner' && ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::grc_owner');
+      allow list: if signedIn() && role() == 'platform_owner' && ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::platform_owner');
+      allow list: if signedIn() && role() == 'risk_owner' && ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::risk_owner');
+      // Legacy records remain readable only through the exact UID + role pair.
       allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
         ('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid &&
         ('submittedByRole' in resource.data) && normalizedRoleValue(resource.data.submittedByRole) == role();
@@ -1389,27 +1420,26 @@ service cloud.firestore {
             resource.data.submittedByEmail.lower() == authEmail())
         );
 
-      // v387: owner history queries are role-scoped. The shared test account
-      // must not merge requests created under another portal role.
-      allow list: if signedIn() && ('requesterScopeKey' in resource.data) &&
-        resource.data.requesterScopeKey == (request.auth.uid + '::' + role());
+      // v397: canonical owner history is authorized by the literal role branches
+      // above; no generic role()-inside-scope query branch is used.
       allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
         ('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid &&
         ('submittedByRole' in resource.data) &&
         normalizedRoleValue(resource.data.submittedByRole) == role();
       // v361: simple exact query branches for Risk/Incident request history.
       allow list: if admin();
-      allow list: if approved() && ('requesterScopeKey' in resource.data) &&
-        resource.data.requesterScopeKey == (request.auth.uid + '::' + role());
+      allow list: if approved() && role() == 'grc_owner' && ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::grc_owner');
+      allow list: if approved() && role() == 'platform_owner' && ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::platform_owner');
+      allow list: if approved() && role() == 'risk_owner' && ('requesterScopeKey' in resource.data) &&
+        resource.data.requesterScopeKey == (request.auth.uid + '::risk_owner');
       allow list: if approved() && !('requesterScopeKey' in resource.data) &&
         ('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid &&
         ('submittedByRole' in resource.data) &&
         normalizedRoleValue(resource.data.submittedByRole) == role();
       allow list: if approved() && role() in ['department_manager','risk_owner','grc_owner','platform_owner'] &&
         userDepartmentKey() != '' && ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey();
-      allow list: if canReadRiskIncidentWorkflow() &&
-        (('requesterScopeKey' in resource.data) &&
-         resource.data.requesterScopeKey == (request.auth.uid + '::' + role()));
       allow list: if canReadRiskIncidentWorkflow() &&
         (!('requesterScopeKey' in resource.data) &&
          ('submittedByUid' in resource.data) && resource.data.submittedByUid == request.auth.uid &&
