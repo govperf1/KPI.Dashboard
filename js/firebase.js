@@ -870,7 +870,7 @@ window._selectPortal=async portal=>{
       try{
         if(uid){
           try{
-            const scoped=await getDocs(query(collection(db,'grc_requests'),where('requesterUid','==',uid),where('requesterRole','==',activeRole)));
+            const scoped=await getDocs(query(collection(db,'grc_requests'),where('requesterScopeKey','==',scopeKey)));
             rows=scoped.docs.map(function(d){return Object.assign({id:d.id},d.data());});
           }catch(e){console.warn('[GRC Requests] scope query failed:',e&&e.code||e);}
           // v397: no legacy UID+role query. Shared test accounts are isolated
@@ -950,7 +950,7 @@ window._selectPortal=async portal=>{
       if(uid){
         // v397: one authoritative listener only. Legacy UID+role queries were
         // generating permission-denied noise and could replace valid rows with [].
-        unsubs.push(listen('scope',query(collection(db,'grc_requests'),where('requesterUid','==',uid),where('requesterRole','==',activeRole))));
+        unsubs.push(listen('scope',query(collection(db,'grc_requests'),where('requesterScopeKey','==',scopeKey))));
       }else{source.scope={ready:true,rows:[]};emit();}
       return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
@@ -1156,7 +1156,7 @@ window._selectPortal=async portal=>{
           const uid=_advUid(),activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
           if(uid){
             try{
-              const scoped=await getDocs(query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterUid','==',uid),where('requesterRole','==',activeRole)));
+              const scopeKey=uid+'::'+activeRole; const scoped=await getDocs(query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterScopeKey','==',scopeKey)));
               docs=docs.concat(scoped.docs);
             }catch(_){}
           }
@@ -1315,7 +1315,7 @@ window._selectPortal=async portal=>{
          sanitize in memory. Operational users use an exact own-email query. */
       if(_advCanAnalyze())primary=await _advGetSorted(ADV_REQUESTS_COLLECTION);
       else{
-        try{const own=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterUid':'userEmail','==',_advUid()||_advEmail())));primary=own.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));}catch(_){ }
+        try{const ownScopeKey=_advUid()?_advUid()+'::'+_advRole():''; const own=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterScopeKey','==',ownScopeKey)));primary=own.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));}catch(_){ }
       }
       const fallback=await _advFallbackRows(!_advCanAnalyze());
       return _advMergeRows(primary,fallback,true);
@@ -1332,7 +1332,7 @@ window._selectPortal=async portal=>{
         const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
         const scopeKey=_advUid()+'::'+activeRole;
         try{
-          const scoped=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',uid),where('requesterRole','==',activeRole)));
+          const scoped=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterScopeKey','==',scopeKey)));
           primary=scoped.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));
         }catch(scopeErr){console.warn('[Review Development] scoped owner read failed; trying legacy owner scope',scopeErr&&scopeErr.code||scopeErr);}
         // v397: do not issue the legacy UID+role query. Current documents are
@@ -1416,19 +1416,19 @@ window._selectPortal=async portal=>{
           const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
           const ownScopeKey=_advUid()?_advUid()+'::'+activeRole:'';
           if(_advUid()){
-            listen('ownScope',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid()),where('requesterRole','==',activeRole)),'advisory_requests');
+            listen('ownScope',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterScopeKey','==',_advUid()+'::'+activeRole)),'advisory_requests');
           }else{
             listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
           }
         }else{
           const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
           if(_advUid()){
-            listen('primaryScope',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid()),where('requesterRole','==',activeRole)),'advisory_requests');
+            listen('primaryScope',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterScopeKey','==',_advUid()+'::'+activeRole)),'advisory_requests');
           }else{
             listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
           }
         }
-        if(_advUid())listen('fallbackScope',query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterUid','==',_advUid()),where('requesterRole','==',_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'))),'kpi_requests');
+        if(_advUid())listen('fallbackScope',query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterScopeKey','==',_advUid()+'::'+_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'))),'kpi_requests');
       }else if(_advIsAdmin()){
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
         listen('fallback',collection(db,ADV_FALLBACK_COLLECTION),'kpi_requests');
@@ -1440,11 +1440,11 @@ window._selectPortal=async portal=>{
       }else{
         const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
         if(_advUid()){
-          listen('primaryScope',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid()),where('requesterRole','==',activeRole)),'advisory_requests');
+          listen('primaryScope',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterScopeKey','==',_advUid()+'::'+activeRole)),'advisory_requests');
         }else{
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
         }
-        if(_advUid())listen('fallbackScope',query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterUid','==',_advUid()),where('requesterRole','==',_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'))),'kpi_requests');
+        if(_advUid())listen('fallbackScope',query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterScopeKey','==',_advUid()+'::'+_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'))),'kpi_requests');
       }
       return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
@@ -1938,7 +1938,7 @@ window._selectPortal=async portal=>{
       if(!_grcRiskEmail())return[];
       const uid=_grcRiskUid(),role=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
       if(!uid||!['risk_owner','grc_owner','platform_owner'].includes(role))return[];
-      return _grcRiskReadMany([query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('requesterUid','==',uid),where('requesterRole','==',role))]);
+      return _grcRiskReadMany([query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('requesterScopeKey','==',uid+'::'+role))]);
     };
     window._grcRiskRequestsGetForManager=async function(){
       const bundle=await window._grcGetDepartmentApprovalQueue(true);
@@ -1971,7 +1971,7 @@ window._selectPortal=async portal=>{
         const role=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
         const uid=_grcRiskUid();
         if(uid && ['risk_owner','grc_owner','platform_owner'].includes(role)){
-          qrefs.push(query(col,where('requesterUid','==',uid),where('requesterRole','==',role)));
+          qrefs.push(query(col,where('requesterScopeKey','==',uid+'::'+role)));
         }
       }
       const sources={},unsubs=[],failed={};let successCount=0;
