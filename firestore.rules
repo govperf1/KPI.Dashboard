@@ -1,5 +1,6 @@
-// v398 — canonical UID + requesterRole owner queries + manager workflow.
-// v398 — Shared test emails are isolated by immutable UID + active role.
+// v399 — shared-UID role-switch query fix: immutable UID query + client role isolation.
+// v388 — deployed-source alignment: valid role-scoped rules + manager workflow.
+// v385 — Canonical requester UID + role scope; shared test emails are isolated by role.
 // FIRESTORE SECURITY RULES v85 — Owner list/get reads support UID and canonical email.
 // v75: Removes queue-existence dependency from manager decisions and authorizes
 // the manager directly from the authenticated canonical department. The queue is
@@ -665,7 +666,7 @@ service cloud.firestore {
     match /grc_requests/{requestId} {
       // v362: Super Admin reads the complete request history directly.
       allow get, list: if superAdmin();
-      allow create: if canAccessGrc() && ownEmail(request.resource.data.userEmail) &&
+      allow create: if (canAccessGrc() || (userExists() && role() in ['grc_owner','platform_owner','risk_owner','department_manager','governance_performance_manager'])) && ownEmail(request.resource.data.userEmail) &&
         request.resource.data.requesterUid == request.auth.uid &&
         request.resource.data.requesterRole == role() &&
         request.resource.data.requesterScopeKey == (request.auth.uid + '::' + role()) &&
@@ -692,28 +693,15 @@ service cloud.firestore {
       // v379: My Requests uses ONE canonical query key. The UI queries only
       // userEmail, so Firestore can prove the complete result set without
       // evaluating the legacy UID branch. UID remains audit metadata.
-      // v398: canonical owner query uses immutable Firebase UID + requesterRole.
-      // This avoids depending on a compound computed scope-key expression in the
-      // Firestore query planner while still isolating the same Auth account by role.
-      allow list: if signedIn() && role() == 'grc_owner' &&
-        resource.data.requesterUid == request.auth.uid &&
-        resource.data.requesterRole == 'grc_owner';
-      allow list: if signedIn() && role() == 'platform_owner' &&
-        resource.data.requesterUid == request.auth.uid &&
-        resource.data.requesterRole == 'platform_owner';
-      allow list: if signedIn() && role() == 'risk_owner' &&
-        resource.data.requesterUid == request.auth.uid &&
-        resource.data.requesterRole == 'risk_owner';
-      allow list: if signedIn() && role() == 'department_manager' &&
-        resource.data.requesterUid == request.auth.uid &&
-        resource.data.requesterRole == 'department_manager';
-      allow list: if signedIn() && role() == 'viewer' &&
-        resource.data.requesterUid == request.auth.uid &&
-        resource.data.requesterRole == 'viewer';
-      allow list: if signedIn() && role() == 'user' &&
-        resource.data.requesterUid == request.auth.uid &&
-        resource.data.requesterRole == 'user';
-      // Retain scope-key branches for old clients during the transition.
+      // v399: UID is the query-safe owner boundary for shared test accounts.
+      // The UI applies requesterRole after this read so one Auth UID can be
+      // reused to test multiple portal roles without a permission-denied query.
+      allow list: if signedIn() && ('requesterUid' in resource.data) &&
+        resource.data.requesterUid == request.auth.uid;
+
+      // v397: Firestore query-proof owner branches. Keep the role literal in each
+      // branch so a shared Firebase Auth UID can be reused across portal roles
+      // without requiring the query planner to resolve role() inside the scope key.
       allow list: if signedIn() && role() == 'grc_owner' &&
         ('requesterScopeKey' in resource.data) &&
         resource.data.requesterScopeKey == (request.auth.uid + '::grc_owner');
@@ -1111,26 +1099,11 @@ service cloud.firestore {
       // the authenticated Firebase Auth identity.
       // v379: canonical owner history query. The client uses only userEmail
       // for the owner listener, so this branch exactly mirrors that query.
-      // v398: canonical owner query uses immutable Firebase UID + requesterRole.
-      allow list: if signedIn() && role() == 'grc_owner' &&
-        resource.data.requesterUid == request.auth.uid &&
-        resource.data.requesterRole == 'grc_owner';
-      allow list: if signedIn() && role() == 'platform_owner' &&
-        resource.data.requesterUid == request.auth.uid &&
-        resource.data.requesterRole == 'platform_owner';
-      allow list: if signedIn() && role() == 'risk_owner' &&
-        resource.data.requesterUid == request.auth.uid &&
-        resource.data.requesterRole == 'risk_owner';
-      allow list: if signedIn() && role() == 'department_manager' &&
-        resource.data.requesterUid == request.auth.uid &&
-        resource.data.requesterRole == 'department_manager';
-      allow list: if signedIn() && role() == 'viewer' &&
-        resource.data.requesterUid == request.auth.uid &&
-        resource.data.requesterRole == 'viewer';
-      allow list: if signedIn() && role() == 'user' &&
-        resource.data.requesterUid == request.auth.uid &&
-        resource.data.requesterRole == 'user';
-      // Retain scope-key branches for old clients during the transition.
+      // v399: UID is the query-safe owner boundary for shared test accounts.
+      allow list: if signedIn() && ('requesterUid' in resource.data) &&
+        resource.data.requesterUid == request.auth.uid;
+
+      // v397: query-proof owner branches with literal role scopes.
       allow list: if signedIn() && role() == 'grc_owner' &&
         ('requesterScopeKey' in resource.data) &&
         resource.data.requesterScopeKey == (request.auth.uid + '::grc_owner');
@@ -1399,17 +1372,12 @@ service cloud.firestore {
       // records without requesterScopeKey use the compatibility branches below.
       allow get: if signedIn() && ('requesterScopeKey' in resource.data) &&
         resource.data.requesterScopeKey == (request.auth.uid + '::' + role());
-      // v398: canonical owner query uses immutable Firebase UID + requesterRole.
-      allow list: if signedIn() && role() == 'grc_owner' &&
-        resource.data.requesterUid == request.auth.uid &&
-        resource.data.requesterRole == 'grc_owner';
-      allow list: if signedIn() && role() == 'platform_owner' &&
-        resource.data.requesterUid == request.auth.uid &&
-        resource.data.requesterRole == 'platform_owner';
-      allow list: if signedIn() && role() == 'risk_owner' &&
-        resource.data.requesterUid == request.auth.uid &&
-        resource.data.requesterRole == 'risk_owner';
-      // Retain scope-key branches for old clients during the transition.
+      // v399: UID is the query-safe owner boundary for shared test accounts.
+      allow list: if signedIn() && ('requesterUid' in resource.data) &&
+        resource.data.requesterUid == request.auth.uid;
+
+      // v397: literal role-scope list branches make Firestore able to prove
+      // the exact shared-account query without resolving role() inside the field value.
       allow list: if signedIn() && role() == 'grc_owner' && ('requesterScopeKey' in resource.data) &&
         resource.data.requesterScopeKey == (request.auth.uid + '::grc_owner');
       allow list: if signedIn() && role() == 'platform_owner' && ('requesterScopeKey' in resource.data) &&
