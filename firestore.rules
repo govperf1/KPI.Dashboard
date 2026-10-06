@@ -693,6 +693,13 @@ service cloud.firestore {
       // userEmail, so Firestore can prove the complete result set without
       // evaluating the legacy UID branch. UID remains audit metadata.
       allow list: if ownRoleScope(resource.data);
+      allow list: if signedIn() && get(userPath()).data.role == 'grc_owner' && resource.data.requesterScopeKey == (request.auth.uid + '::grc_owner');
+      allow list: if signedIn() && get(userPath()).data.role == 'department_manager' && resource.data.requesterScopeKey == (request.auth.uid + '::department_manager');
+      allow list: if signedIn() && get(userPath()).data.role == 'risk_owner' && resource.data.requesterScopeKey == (request.auth.uid + '::risk_owner');
+      allow list: if signedIn() && get(userPath()).data.role == 'platform_owner' && resource.data.requesterScopeKey == (request.auth.uid + '::platform_owner');
+      allow list: if signedIn() && get(userPath()).data.role == 'governance_performance_manager' && resource.data.requesterScopeKey == (request.auth.uid + '::governance_performance_manager');
+      allow list: if signedIn() && get(userPath()).data.role == 'viewer' && resource.data.requesterScopeKey == (request.auth.uid + '::viewer');
+      allow list: if signedIn() && get(userPath()).data.role == 'user' && resource.data.requesterScopeKey == (request.auth.uid + '::user');
       // Legacy role-isolated history: older documents may not contain
       // requesterScopeKey, but they do contain immutable UID + requesterRole.
       allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
@@ -1073,6 +1080,13 @@ service cloud.firestore {
       // v379: canonical owner history query. The client uses only userEmail
       // for the owner listener, so this branch exactly mirrors that query.
       allow list: if ownRoleScope(resource.data);
+      allow list: if signedIn() && get(userPath()).data.role == 'grc_owner' && resource.data.requesterScopeKey == (request.auth.uid + '::grc_owner');
+      allow list: if signedIn() && get(userPath()).data.role == 'department_manager' && resource.data.requesterScopeKey == (request.auth.uid + '::department_manager');
+      allow list: if signedIn() && get(userPath()).data.role == 'risk_owner' && resource.data.requesterScopeKey == (request.auth.uid + '::risk_owner');
+      allow list: if signedIn() && get(userPath()).data.role == 'platform_owner' && resource.data.requesterScopeKey == (request.auth.uid + '::platform_owner');
+      allow list: if signedIn() && get(userPath()).data.role == 'governance_performance_manager' && resource.data.requesterScopeKey == (request.auth.uid + '::governance_performance_manager');
+      allow list: if signedIn() && get(userPath()).data.role == 'viewer' && resource.data.requesterScopeKey == (request.auth.uid + '::viewer');
+      allow list: if signedIn() && get(userPath()).data.role == 'user' && resource.data.requesterScopeKey == (request.auth.uid + '::user');
       // Legacy R&D history created before requesterScopeKey: isolate by immutable
       // UID + requesterRole so the shared test account remains role-separated.
       allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
