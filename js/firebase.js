@@ -47,7 +47,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20261006-v398-role-scope-query-final2');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20261006-v397-role-scope-query-final2');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -869,13 +869,14 @@ window._selectPortal=async portal=>{
       try{
         if(uid){
           try{
-            const scoped=await getDocs(query(collection(db,'grc_requests'),
-              where('requesterUid','==',uid),
-              where('requesterRole','==',activeRole)));
-             rows=scoped.docs.map(function(d){return Object.assign({id:d.id},d.data());});
-          }catch(e){console.warn('[GRC Requests] scope query failed:',e&&e.code||e);}
-          // v398: owner history uses UID + active role fields. Shared test accounts are isolated
-          // by the canonical requesterScopeKey for current requests.
+            // Shared test accounts reuse the same Firebase UID. Firestore rules
+            // cannot securely prove a dynamic role value inside a collection
+            // query, so the server-side owner boundary is immutable UID and the
+            // active portal role is applied immediately after the read.
+            const owned=await getDocs(query(collection(db,'grc_requests'),where('requesterUid','==',uid)));
+            rows=owned.docs.map(function(d){return Object.assign({id:d.id},d.data());})
+              .filter(function(r){return _normalizePortalRole(r.requesterRole||'')===activeRole;});
+          }catch(e){console.warn('[GRC Requests] owner UID query failed:',e&&e.code||e);}
         }
         const seen={};
         rows=rows.filter(function(r){const k=String(r.id||'');if(!k||seen[k])return false;seen[k]=1;return true;});
@@ -942,18 +943,22 @@ window._selectPortal=async portal=>{
       };
       const listen=function(key,q){
         source[key]={ready:false,rows:[]};
-        return onSnapshot(q,function(snap){source[key]={ready:true,rows:snap.docs.map(function(d){return Object.assign({id:d.id},d.data());})};emit();},function(err){
+        return onSnapshot(q,function(snap){
+          const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
+          const rows=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());})
+            .filter(function(r){return key!=='scope'||_normalizePortalRole(r.requesterRole||'')===activeRole;});
+          source[key]={ready:true,rows:rows};emit();
+        },function(err){
           console.warn('[GRC Requests] '+key+' listener failed:',err&&err.code||err);
           source[key]={ready:true,rows:[],error:err};emit();
         });
       };
       const unsubs=[];
       if(uid){
-        // v398: one authoritative UID + role listener only. Legacy UID+role queries were
-        // generating permission-denied noise and could replace valid rows with [].
-        unsubs.push(listen('scope',query(collection(db,'grc_requests'),
-          where('requesterUid','==',uid),
-          where('requesterRole','==',activeRole))));
+        // UID is the Firestore-query-safe ownership boundary for shared test
+        // accounts. Filter the returned documents by the currently selected role
+        // so the same Auth account behaves as an independent portal identity.
+        unsubs.push(listen('scope',query(collection(db,'grc_requests'),where('requesterUid','==',uid))));
       }else{source.scope={ready:true,rows:[]};emit();}
       return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
@@ -1159,12 +1164,10 @@ window._selectPortal=async portal=>{
           const uid=_advUid(),activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
           if(uid){
             try{
-              const scoped=await getDocs(query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterScopeKey','==',uid+'::'+activeRole)));
-              docs=docs.concat(scoped.docs);
-            }catch(_){}
-            try{
-              const legacy=await getDocs(query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterUid','==',uid),where('requesterRole','==',activeRole)));
-              docs=docs.concat(legacy.docs);
+              const owned=await getDocs(query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterUid','==',uid)));
+              docs=docs.concat(owned.docs.filter(function(d){
+                return _normalizePortalRole((d.data()||{}).requesterRole||'')===activeRole;
+              }));
             }catch(_){}
           }
         }else{
@@ -1339,14 +1342,11 @@ window._selectPortal=async portal=>{
         const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
         const scopeKey=_advUid()+'::'+activeRole;
         try{
-          const scoped=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),
-             where('requesterUid','==',_advUid()),
-             where('requesterRole','==',activeRole)));
-          primary=scoped.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));
-        }catch(scopeErr){console.warn('[Review Development] scoped owner read failed; trying legacy owner scope',scopeErr&&scopeErr.code||scopeErr);}
-        // v398: do not issue the legacy UID+role query. Current documents are
-        // authoritative under requesterScopeKey; historical rows remain visible
-        // through the dedicated migration/legacy path when explicitly opened.
+          const owned=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid())));
+          primary=owned.docs
+            .filter(function(d){return _normalizePortalRole((d.data()||{}).requesterRole||'')===activeRole;})
+            .map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));
+        }catch(scopeErr){console.warn('[Review Development] owner UID read failed:',scopeErr&&scopeErr.code||scopeErr);}
       }
        /* Shared test accounts are isolated by UID + role; never use email as the owner query. */
       return _advMergeRows(primary,await _advFallbackRows(true),false);
@@ -1413,7 +1413,12 @@ window._selectPortal=async portal=>{
       const listen=function(key,qref,storage){
         required.push(key);sources[key]={ready:false,rows:[]};
         try{
-          unsubs.push(onSnapshot(qref,function(snap){sources[key]={ready:true,rows:rowsFromSnap(snap,storage)};emit();},function(err){
+          unsubs.push(onSnapshot(qref,function(snap){
+            const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
+            let rows=rowsFromSnap(snap,storage);
+            if(key==='ownUid'||key==='primaryUid'||key==='fallbackUid') rows=rows.filter(function(r){return _normalizePortalRole(r.requesterRole||'')===activeRole;});
+            sources[key]={ready:true,rows:rows};emit();
+          },function(err){
             console.warn('[Review Development] live listener failed',key,err&&err.code||err);
             sources[key]={ready:true,rows:[],error:String(err&&err.message||err&&err.code||err||'listener-failed')};emit();
           }));
@@ -1425,22 +1430,19 @@ window._selectPortal=async portal=>{
           const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
           const ownScopeKey=_advUid()?_advUid()+'::'+activeRole:'';
           if(_advUid()){
-            listen('ownScope',query(collection(db,ADV_REQUESTS_COLLECTION),
-              where('requesterUid','==',_advUid()),
-              where('requesterRole','==',activeRole)),'advisory_requests');
+            listen('ownUid',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid())),'advisory_requests');
           }else{
             listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
           }
         }else{
           const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
           if(_advUid()){
-            listen('primaryScope',query(collection(db,ADV_REQUESTS_COLLECTION),
-              where('requesterUid','==',_advUid()),
-              where('requesterRole','==',activeRole)),'advisory_requests');
+            listen('primaryUid',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid())),'advisory_requests');
           }else{
             listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
           }
         }
+        if(_advUid())listen('fallbackUid',query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterUid','==',_advUid())),'kpi_requests');
       }else if(_advIsAdmin()){
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
         listen('fallback',collection(db,ADV_FALLBACK_COLLECTION),'kpi_requests');
@@ -1452,12 +1454,11 @@ window._selectPortal=async portal=>{
       }else{
         const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
         if(_advUid()){
-          listen('primaryScope',query(collection(db,ADV_REQUESTS_COLLECTION),
-              where('requesterUid','==',_advUid()),
-              where('requesterRole','==',activeRole)),'advisory_requests');
+          listen('primaryUid',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid())),'advisory_requests');
         }else{
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
         }
+        if(_advUid())listen('fallbackUid',query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterUid','==',_advUid())),'kpi_requests');
       }
       return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
@@ -1951,9 +1952,8 @@ window._selectPortal=async portal=>{
       if(!_grcRiskEmail())return[];
       const uid=_grcRiskUid(),role=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
       if(!uid||!['risk_owner','grc_owner','platform_owner'].includes(role))return[];
-      return _grcRiskReadMany([query(collection(db,GRC_RISK_REQUESTS_COLLECTION),
-        where('requesterUid','==',uid),
-        where('requesterRole','==',role))]);
+      const rows=await _grcRiskReadMany([query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('requesterUid','==',uid))]);
+      return rows.filter(function(r){return _normalizePortalRole(r.requesterRole||r.submittedByRole||'')===role;});
     };
     window._grcRiskRequestsGetForManager=async function(){
       const bundle=await window._grcGetDepartmentApprovalQueue(true);
@@ -1981,14 +1981,12 @@ window._selectPortal=async portal=>{
       const col=collection(db,GRC_RISK_REQUESTS_COLLECTION),qrefs=[];
       if(_grcRiskIsAdmin())qrefs.push(col);
       else{
-        /* v398: current owner history uses UID + active role fields.
+        /* v397: current owner history uses one canonical role-scoped query.
            Department Manager approvals continue through the manager queue. */
         const role=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
         const uid=_grcRiskUid();
         if(uid && ['risk_owner','grc_owner','platform_owner'].includes(role)){
-          qrefs.push(query(col,
-            where('requesterUid','==',uid),
-            where('requesterRole','==',role)));
+          qrefs.push(query(col,where('requesterUid','==',uid)));
         }
       }
       const sources={},unsubs=[],failed={};let successCount=0;
@@ -1998,7 +1996,9 @@ window._selectPortal=async portal=>{
         callback(rows);
       }
       qrefs.forEach((qref,i)=>{unsubs.push(onSnapshot(qref,{includeMetadataChanges:true},snap=>{
-        const rows=[];snap.forEach(d=>{if(d.metadata&&d.metadata.hasPendingWrites)return;const row=_grcRiskRequestData(d);if(row)rows.push(row);});sources[i]=rows;delete failed[i];successCount++;emit();
+        const rows=[];snap.forEach(d=>{if(d.metadata&&d.metadata.hasPendingWrites)return;const row=_grcRiskRequestData(d);if(row)rows.push(row);});
+        sources[i]=rows.filter(function(r){return _normalizePortalRole(r.requesterRole||r.submittedByRole||'')===role;});
+        delete failed[i];successCount++;emit();
       },err=>{failed[i]=err;console.warn('[GRC Risk Requests] listener '+i+' failed',err&&err.code||err);if(Object.keys(failed).length===qrefs.length&&successCount===0)callback([],err);}));});
       _grcRiskRequestUnsub=function(){unsubs.forEach(u=>{try{u();}catch(_){}});};return _grcRiskRequestUnsub;
     };
