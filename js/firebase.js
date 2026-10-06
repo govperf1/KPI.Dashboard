@@ -1195,7 +1195,7 @@ window._selectPortal=async portal=>{
         await runTransaction(db,async tx=>{const c=await tx.get(counterRef),next=Number(c.exists()&&c.data().next||0)+1;code='RD-'+deptCode+'-'+year+'-'+String(next).padStart(3,'0');tx.set(counterRef,{next,updatedAt:serverTimestamp()},{merge:true});});
       }catch(_){counterFallback=true;code='RD-'+deptCode+'-'+year+'-'+String(Date.now()).slice(-6)+Math.random().toString(36).slice(2,4).toUpperCase();}
       const nowIso=_advIso(),base={
-        userName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]||'User'),userEmail:freshProfile.email,requesterUid:freshProfile.uid,requesterRole:freshProfile.role,
+        userName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]||'User'),userEmail:freshProfile.email,requesterUid:freshProfile.uid,requesterRole:freshProfile.role,requesterScopeKey:freshProfile.uid+'::'+freshProfile.role,
         departmentKey:departmentKey,departmentRaw:String(freshProfile.rawDepartment==null?'':freshProfile.rawDepartment).trim(),departmentCode:deptCode,gender:String(payload.gender||''),priority:String(payload.priority||'Medium'),
         platform:String(payload.platform||'grc'),serviceType:String(payload.serviceType||'record_request_review'),requestType:String(payload.requestType||''),requestTypeLabel:String(payload.requestTypeLabel||''),
         category:String(payload.category||''),relatedType:String(payload.relatedType||''),
@@ -1252,16 +1252,21 @@ window._selectPortal=async portal=>{
     window._advisoryGetMine=async function(){
       if(!_advEmail()||!db)return[];
       let primary=[];
-      /* requesterUid is the canonical ownership key for current requests. Keep
-         the email query as a silent compatibility read for older documents; a
-         legacy permission failure must never break the current request list. */
+      /* Current documents are isolated by UID + active role. Older documents may
+         not have requesterScopeKey, so read them through the immutable UID + role
+         compatibility branch. Never let one denied compatibility query erase a
+         successful current-scope result. */
       if(_advUid()){
-        // Firestore Rules isolate shared test accounts by requesterScopeKey
-        // (UID + active role). Query that exact key; querying requesterUid alone
-        // cannot satisfy ownRoleScope() and causes permission-denied.
-        const scopeKey=_advUid()+'::'+_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
-        const snap=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterScopeKey','==',scopeKey)));
-        primary=snap.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));
+        const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
+        const scopeKey=_advUid()+'::'+activeRole;
+        try{
+          const scoped=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterScopeKey','==',scopeKey)));
+          primary=scoped.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests'));
+        }catch(scopeErr){console.warn('[Review Development] scoped owner read failed; trying legacy owner scope',scopeErr&&scopeErr.code||scopeErr);}
+        try{
+          const legacyUidRole=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid()),where('requesterRole','==',activeRole)));
+          primary=_advMergeRows(primary,legacyUidRole.docs.map(d=>_advNormalizeRow(d.id,d.data(),'advisory_requests')),false);
+        }catch(_legacyUidRoleRead){ }
       }
       try{
         const legacy=await getDocs(query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',_advEmail())));
@@ -1340,11 +1345,22 @@ window._selectPortal=async portal=>{
       if(_advIsDepartmentManager()){
         if(dept){
           listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('departmentKey','==',dept)),'advisory_requests');
-          const ownScopeKey=_advUid()?_advUid()+'::'+_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'):'';
-          listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterScopeKey':'userEmail','==',ownScopeKey||me)),'advisory_requests');
+          const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
+          const ownScopeKey=_advUid()?_advUid()+'::'+activeRole:'';
+          if(_advUid()){
+            listen('ownScope',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterScopeKey','==',ownScopeKey)),'advisory_requests');
+            listen('ownLegacy',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid()),where('requesterRole','==',activeRole)),'advisory_requests');
+          }else{
+            listen('own',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
+          }
         }else{
-          const ownScopeKey=_advUid()?_advUid()+'::'+_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'):'';
-          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterScopeKey':'userEmail','==',ownScopeKey||me)),'advisory_requests');
+          const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
+          if(_advUid()){
+            listen('primaryScope',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterScopeKey','==',_advUid()+'::'+activeRole)),'advisory_requests');
+            listen('primaryLegacy',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid()),where('requesterRole','==',activeRole)),'advisory_requests');
+          }else{
+            listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
+          }
         }
         listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
       }else if(_advIsAdmin()){
@@ -1356,8 +1372,13 @@ window._selectPortal=async portal=>{
         listen('primary',collection(db,ADV_REQUESTS_COLLECTION),'advisory_requests');
         listen('fallback',collection(db,ADV_FALLBACK_COLLECTION),'kpi_requests');
       }else{
-        const ownScopeKey=_advUid()?_advUid()+'::'+_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer'):'';
-        listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where(_advUid()?'requesterScopeKey':'userEmail','==',ownScopeKey||me)),'advisory_requests');
+        const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
+        if(_advUid()){
+          listen('primaryScope',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterScopeKey','==',_advUid()+'::'+activeRole)),'advisory_requests');
+          listen('primaryLegacy',query(collection(db,ADV_REQUESTS_COLLECTION),where('requesterUid','==',_advUid()),where('requesterRole','==',activeRole)),'advisory_requests');
+        }else{
+          listen('primary',query(collection(db,ADV_REQUESTS_COLLECTION),where('userEmail','==',me)),'advisory_requests');
+        }
         listen('fallback',query(collection(db,ADV_FALLBACK_COLLECTION),where('userEmail','==',me)),'kpi_requests');
       }
       return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
