@@ -863,23 +863,33 @@ window._selectPortal=async portal=>{
     window._grcRequestsGetMine=async function(){
       if(!window._fbUser||!db) return [];
       const uid=(auth.currentUser&&auth.currentUser.uid)||'';
+      const email=String(window._fbUser||auth.currentUser&&auth.currentUser.email||'').toLowerCase().trim();
       const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
-      const scopeKey=uid+'::'+activeRole;
-      let rows=[];
-      try{
-        if(uid){
-          try{
-            const scoped=await getDocs(query(collection(db,'grc_requests'),where('requesterUid','==',uid),where('requesterRole','==',activeRole)));
-            rows=scoped.docs.map(function(d){return Object.assign({id:d.id},d.data());});
-          }catch(e){console.warn('[GRC Requests] scope query failed:',e&&e.code||e);}
-          // v397: no legacy UID+role query. Shared test accounts are isolated
-          // by the canonical requesterScopeKey for current requests.
-        }
-        const seen={};
-        rows=rows.filter(function(r){const k=String(r.id||'');if(!k||seen[k])return false;seen[k]=1;return true;});
-        rows.sort(function(a,b){return ((b.updatedAt&&b.updatedAt.seconds)||(b.createdAt&&b.createdAt.seconds)||0)-((a.updatedAt&&a.updatedAt.seconds)||(a.createdAt&&a.createdAt.seconds)||0);});
-        return rows;
-      }catch(e){console.warn('[GRC Requests] getMine:',e&&e.message);return [];}
+      const collected=[];
+      // Stable owner lookup also recovers requests created before role/profile cache changes.
+      if(email){
+        try{
+          const byEmail=await getDocs(query(collection(db,'grc_requests'),where('userEmail','==',email),where('platform','==','grc')));
+          collected.push.apply(collected,byEmail.docs.map(function(d){return Object.assign({id:d.id},d.data());}));
+        }catch(e){console.warn('[GRC Requests] email lookup failed:',e&&e.code||e);}
+      }
+      // Compatibility lookup for older request documents.
+      if(uid){
+        try{
+          const byScope=await getDocs(query(collection(db,'grc_requests'),where('requesterUid','==',uid),where('requesterRole','==',activeRole)));
+          collected.push.apply(collected,byScope.docs.map(function(d){return Object.assign({id:d.id},d.data());}));
+        }catch(e){console.warn('[GRC Requests] scope lookup failed:',e&&e.code||e);}
+      }
+      const seen={};
+      const rows=collected.filter(function(r){
+        const k=String(r.id||'');
+        if(!k||seen[k])return false;
+        if(email&&String(r.userEmail||'').toLowerCase().trim()!==email)return false;
+        seen[k]=1;return true;
+      });
+      const stamp=function(v){return v&&typeof v.toMillis==='function'?v.toMillis():(v&&v.seconds?v.seconds*1000:(v?new Date(v).getTime():0));};
+      rows.sort(function(a,b){return stamp(b.updatedAt||b.createdAt)-stamp(a.updatedAt||a.createdAt);});
+      return rows;
     };
     window._grcRequestsGetAll=async function(){
       if(!window._fbUser||!db) return [];
