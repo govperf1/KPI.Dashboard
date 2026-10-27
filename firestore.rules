@@ -689,6 +689,12 @@ service cloud.firestore {
       // analytics reads so an exact userEmail query never depends on a legacy UID.
       allow list: if admin();
       allow list: if permit('view_request_analytics', ['governance_performance_manager']);
+      // My Requests: allow users to list only their own GRC requests by authenticated email,
+      // including requests created before their cached role changed.
+      allow list: if signedIn() &&
+        ('userEmail' in resource.data) &&
+        ownEmail(resource.data.userEmail) &&
+        ('platform' in resource.data) && resource.data.platform == 'grc';
       // v370 ROOT FIX: exact ownership queries for My Requests.
       // These branches intentionally use only Firebase Auth identity, so a
       // normal approved user cannot lose visibility because of role/permission
