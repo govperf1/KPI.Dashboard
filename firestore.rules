@@ -671,15 +671,13 @@ service cloud.firestore {
     match /grc_requests/{requestId} {
       // v362: Super Admin reads the complete request history directly.
       allow get, list: if superAdmin();
-      allow create: if canAccessGrc() && ownEmail(request.resource.data.userEmail) &&
+      allow create: if approved() && ownEmail(request.resource.data.userEmail) &&
         request.resource.data.requesterUid == request.auth.uid &&
         request.resource.data.requesterRole == role() &&
         request.resource.data.requesterScopeKey == (request.auth.uid + '::' + role()) &&
-        (
-          !('department' in request.resource.data) ||
-          request.resource.data.department == '' ||
-          sameDepartment(request.resource.data.department)
-        );
+        request.resource.data.platform == 'grc' &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.message is string && request.resource.data.message.size() > 0;
 
       // v371 ROOT FIX: an authenticated requester can read their own request
       // regardless of the cached/legacy GRC role matrix. This is
@@ -719,6 +717,7 @@ service cloud.firestore {
       allow list: if signedIn() && role() == 'user' &&
         ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid &&
         ('requesterRole' in resource.data) && resource.data.requesterRole == 'user';
+      allow list: if signedIn() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid && ('requesterRole' in resource.data) && resource.data.requesterRole == role();
       // Legacy role-isolated history: older documents may not contain
       // requesterScopeKey, but they do contain immutable UID + requesterRole.
       allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
@@ -1117,6 +1116,7 @@ service cloud.firestore {
       allow list: if signedIn() && role() == 'user' &&
         ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid &&
         ('requesterRole' in resource.data) && resource.data.requesterRole == 'user';
+      allow list: if signedIn() && ('requesterUid' in resource.data) && resource.data.requesterUid == request.auth.uid && ('requesterRole' in resource.data) && resource.data.requesterRole == role();
       // Legacy R&D history created before requesterScopeKey: isolate by immutable
       // UID + requesterRole so the shared test account remains role-separated.
       allow list: if signedIn() && !('requesterScopeKey' in resource.data) &&
@@ -1216,7 +1216,7 @@ service cloud.firestore {
       let u = userData();
       let r = profileRoleFrom(u);
       return signedIn() && approvedValue(u.approved) &&
-        r in ['risk_owner','grc_owner','platform_owner'] &&
+        r == 'grc_owner' &&
         data.submittedByEmail is string && ownEmail(data.submittedByEmail) &&
         data.submittedByUid == request.auth.uid &&
         data.submittedByRole == r &&
@@ -1226,7 +1226,7 @@ service cloud.firestore {
         data.departmentKey == profileDepartmentKeyFrom(u) &&
         data.recordType in ['risk','incident'] &&
         data.operation in ['add','update','delete'] &&
-        data.status == 'pending_manager';
+        data.status == 'pending_super_admin';
     }
 
     function riskRequestOwner(data) {
@@ -1300,7 +1300,7 @@ service cloud.firestore {
           'returnFields','returnNote','returnSource',
           'status','updatedAt','updatedAtIso','history'
         ]) &&
-        request.resource.data.status == 'pending_manager';
+        request.resource.data.status == 'pending_super_admin';
     }
 
     function riskRequesterChange() {
@@ -1334,7 +1334,7 @@ service cloud.firestore {
     function validRequesterRiskTransition() {
       return
         (resource.data.status == 'returned_requester' &&
-          request.resource.data.status == 'pending_manager') ||
+          request.resource.data.status == 'pending_super_admin') ||
         (resource.data.status in ['pending_manager','returned_requester'] &&
           request.resource.data.status == 'cancelled');
     }
@@ -1458,23 +1458,13 @@ service cloud.firestore {
       allow list: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
         ('departmentRaw' in resource.data) && resource.data.departmentRaw == profileDepartmentValueFrom(userData());
 
+      // Department Managers have read-only visibility into their department's
+      // request history. Only the requester may resubmit/cancel, and only Super
+      // Admin may decide or publish a Risk/Incident change request.
       allow update: if validRiskRequesterRatingChange() ||
         validGrcRiskRequesterResubmit() ||
-        (
-          approved() && riskRequestOwner(resource.data) &&
-          riskRequesterChange() && validRequesterRiskTransition()
-        ) ||
-        (
-          departmentManager() &&
-          (riskRequestDepartment(resource.data) || riskManagerQueueAssignment(requestId)) &&
-          // Shared test accounts are isolated by requesterScopeKey. A manager
-          // may action requests created under another role, but never a request
-          // created while the same UID was operating as Department Manager.
-          !(('requesterScopeKey' in resource.data) &&
-            resource.data.requesterScopeKey == (request.auth.uid + '::department_manager')) &&
-          !riskOriginallySubmittedByManager(resource.data) &&
-          riskManagerChange() && validManagerRiskTransition()
-        ) || superAdmin();
+        (approved() && riskRequestOwner(resource.data) &&
+          riskRequesterChange() && validRequesterRiskTransition()) || superAdmin();
 
       allow delete: if superAdmin();
     }
