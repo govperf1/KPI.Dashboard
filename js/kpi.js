@@ -241,11 +241,7 @@ function initSecurity(){
 /* == AUTH PERMISSIONS == */
 function hasPermission(p){const pr=window._fbPerms||[];return pr.includes('*')||pr.includes(p);}
 window.hasPermission=hasPermission;
-function canSeeReviewDevelopmentCenter(role,dept,profile){
-  /* Review & Development Center is available to every authenticated portal
-     user. Department assignment controls routing/approval, not module visibility. */
-  return !!(window._fbUser || window.currentUserEmail || window.firebaseAuthUser || (window._fbUser && window._fbUser.email));
-}
+function canSeeReviewDevelopmentCenter(){ return false; }
 window.canSeeReviewDevelopmentCenter=canSeeReviewDevelopmentCenter;
 
 function applyRolePermissions(role,dept,perms){

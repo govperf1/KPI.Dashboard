@@ -63,13 +63,13 @@
   }
   function historyTimeline(r,compact){var h=Array.isArray(r&&r.history)?r.history.slice():[];if(!h.length)return'';if(compact&&h.length>4)h=h.slice(-4);return'<section class="grc-risk-history '+(compact?'compact':'')+'"><div class="grc-risk-block-title">'+esc(isAr()?'سجل الاعتماد':'Approval History')+'</div><div class="grc-risk-history-list">'+h.map(function(x){var note=String(x&&x.note||'').trim(),actor=String(x&&x.by||'').trim(),rlabel=historyRoleLabel(x&&x.role||''),fields=Array.isArray(x&&x.fields)?x.fields:[];return'<div class="grc-risk-history-item"><i></i><div><div class="grc-risk-history-top"><strong>'+esc(historyStatusLabel(x&&x.status||''))+'</strong><time>'+esc(historyTime(x&&x.at||x&&x.createdAt))+'</time></div><small>'+esc(rlabel+(actor?' · '+actor:''))+'</small>'+(fields.length?'<p><b>'+esc(isAr()?'الحقول: ':'Fields: ')+'</b>'+esc(fields.map(fieldLabel).join(' · '))+'</p>':'')+(note?'<p>'+esc(note)+'</p>':'')+'</div></div>';}).join('')+'</div></section>';}
   function tone(s){if(/^pending/.test(s)||/^returned/.test(s))return'warn';if(s==='published')return'good';if(/^rejected/.test(s)||s==='cancelled')return'bad';return'info';}
-  function actionable(r){var s=String(r.status||'');if(isOwner())return ownRequest(r)&&s==='returned_requester';if(isManager())return managerCanReviewRisk(r)&&['pending_manager','returned_manager'].indexOf(s)>=0;if(isSuper())return s==='pending_super_admin';return false;}
+  function actionable(r){var s=String(r.status||'');if(isOwner())return ownRequest(r)&&s==='returned_requester';if(isManager())return false;if(isSuper())return s==='pending_super_admin';return false;}
   function riskApprovalNoticeRows(){
     return cache.filter(function(r){
       if(isManager()&&!responsibleRiskSubmitter(r))return false;
       var s=String(r&&r.status||'');
       if(isSuper())return s==='pending_super_admin';
-      if(isManager())return managerCanReviewRisk(r)&&['pending_manager','returned_manager'].indexOf(s)>=0;
+      if(isManager())return false;
       if(isNoticeOwner())return ownRequest(r)&&['pending_manager','pending_super_admin','returned_manager','returned_requester'].indexOf(s)>=0;
       return false;
     });
@@ -78,8 +78,6 @@
     /* Entry notification only: show pending items in two independent sections.
        The manager profile queue below is intentionally not status-filtered. */
     var rows=riskApprovalNoticeRows().map(function(r){return{kind:'risk',row:r};});
-    if(isManager())rows=rows.concat(reviewApprovalRows.filter(function(r){return reviewManagerRequest(r)&&String(r&&r.workflowStage||r&&r.status||'').toLowerCase()==='pending_department_manager';}).map(function(r){return{kind:'review',row:r};}));
-    if(isSuper())rows=rows.concat(reviewApprovalRows.filter(function(r){return String(r&&r.workflowStage||r&&r.status||'').toLowerCase()==='pending_super_admin';}).map(function(r){return{kind:'review',row:r};}));
     return rows.sort(function(a,b){var at=a.kind==='review'?reviewRequestTime(a.row):new Date(a.row&&a.row.updatedAtIso||a.row&&a.row.createdAtIso||0).getTime()||0,bt=b.kind==='review'?reviewRequestTime(b.row):new Date(b.row&&b.row.updatedAtIso||b.row&&b.row.createdAtIso||0).getTime()||0;return bt-at;});
   }
   function approvalNoticeSignature(rows){
@@ -195,7 +193,7 @@
   function notificationTone(r){var s=String(r&&r.status||'');if(!notificationUnread(r))return'gray';if(s==='published')return'green';if(/^rejected/.test(s)||s==='cancelled')return'red';if(/^returned/.test(s))return'amber';return'teal';}
   function markNotificationRead(r){if(!r)return;var k=notifKey(r),seen=readNotifSeen();if(seen.indexOf(k)<0){seen.push(k);writeNotifSeen(seen);}refreshBadge();}
   function markAllNotificationsRead(){var seen=readNotifSeen();cache.forEach(function(r){var k=notifKey(r);if(seen.indexOf(k)<0)seen.push(k);});writeNotifSeen(seen);refreshBadge();}
-  function refreshBadge(){var scoped=isManager()?cache.filter(managerDepartmentRequest):cache,n=scoped.filter(notificationUnread).length,approvalCount=scoped.filter(actionable).length+(isManager()?reviewApprovalRows.filter(reviewManagerRequest).length:0)+(isSuper()?reviewApprovalRows.filter(function(r){return String(r&&r.workflowStage||r&&r.status||'').toLowerCase()==='pending_super_admin';}).length:0),el=document.getElementById('grcRiskNotifCount'),req=document.getElementById('grcRiskRequestCount'),profile=document.getElementById('_grcProfileRiskCount');if(el){el.textContent=String(n);el.style.display=n?'grid':'none';}if(req){req.textContent=String(approvalCount||scoped.length);req.style.display=(approvalCount||scoped.length)?'grid':'none';}if(profile)profile.textContent=String(approvalCount);}
+  function refreshBadge(){var scoped=isManager()?cache.filter(managerDepartmentRequest):cache,n=scoped.filter(notificationUnread).length,approvalCount=scoped.filter(actionable).length,el=document.getElementById('grcRiskNotifCount'),req=document.getElementById('grcRiskRequestCount'),profile=document.getElementById('_grcProfileRiskCount');if(el){el.textContent=String(n);el.style.display=n?'grid':'none';}if(req){req.textContent=String(approvalCount||scoped.length);req.style.display=(approvalCount||scoped.length)?'grid':'none';}if(profile)profile.textContent=String(approvalCount);}
   function feedbackDismissedKey(){return'qumc_grc_feedback_dismissed_v119::'+email();}
   function readFeedbackDismissed(){try{var x=JSON.parse(localStorage.getItem(feedbackDismissedKey())||'[]');return Array.isArray(x)?x.map(String):[];}catch(_){return[];}}
   function writeFeedbackDismissed(rows){try{localStorage.setItem(feedbackDismissedKey(),JSON.stringify((rows||[]).map(String).slice(-500)));}catch(_){}}
@@ -355,8 +353,8 @@
   function changedTable(r){var before=r.currentRecord||{},after=r.proposedRecord||{},keys=changedKeys(r);return'<section class="grc-risk-detail-diff"><div class="grc-risk-block-title">'+esc(isAr()?'تفاصيل التعديل':'Update Details')+'</div><table class="grc-risk-diff"><thead><tr><th>'+esc(isAr()?'الخانة التي تغيرت':'Changed Field')+'</th><th>'+esc(isAr()?'قبل':'Before')+'</th><th>'+esc(isAr()?'بعد':'After')+'</th></tr></thead><tbody>'+keys.map(function(k){return'<tr><th>'+esc(fieldLabel(k))+'</th><td class="grc-risk-before">'+esc(changeValue(before[k]))+'</td><td class="grc-risk-after">'+esc(changeValue(after[k]))+'</td></tr>';}).join('')+'</tbody></table></section>'; }
   function inlineDecisionShell(){return '<div class="grc-risk-inline-decision" hidden></div>';}
   function actions(r){var s=String(r.status||''),html='';
-    if(isManager()&&managerCanReviewRisk(r)&&s==='pending_manager')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_approve\',this)">Approve to Super Admin</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_return\',this)">Return to '+esc(submitterLabel(r))+'</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_reject\',this)">Reject</button>';
-    if(isManager()&&managerCanReviewRisk(r)&&s==='returned_manager')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_approve\',this)">Approve to Super Admin</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_return\',this)">Return to '+esc(submitterLabel(r))+'</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_reject\',this)">Reject</button>';
+    
+    
     if(isSuper()&&s==='pending_super_admin')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_approve\',this)">Approve & Publish</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_return\',this)">Return to Department Manager</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_reject\',this)">Reject</button>';
     if(isOwner()&&ownRequest(r)&&s==='returned_requester')html='<button class="grc-risk-action good" onclick="window._grcRiskEditResubmit(\''+esc(r.id)+'\')">Edit Requested Fields & Resubmit</button>';
     if(isOwner()&&ownRequest(r)&&s==='pending_manager')html='<button class="grc-risk-action bad ghost" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'cancel\',this)">Cancel Request</button>';
