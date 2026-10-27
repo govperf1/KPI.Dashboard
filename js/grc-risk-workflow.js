@@ -207,7 +207,7 @@
   window._grcFeedbackDismiss=function(){closeFeedbackNotice(true);};
   window._grcFeedbackRateNow=function(){var ov=document.getElementById('_grcFeedbackNoticeOv');if(!ov)return;var kind=ov.getAttribute('data-feedback-kind'),id=ov.getAttribute('data-feedback-id');closeFeedbackNotice(false);if(kind==='system'){window._grcShowMyRequests&&window._grcShowMyRequests();return;}if(typeof window._grcSwitch==='function')window._grcSwitch('advisory');setTimeout(function(){if(typeof window._advOpenRequest==='function')window._advOpenRequest(id);},650);};
   function scheduleFeedbackNotice(){clearTimeout(feedbackTimer);feedbackTimer=setTimeout(showFeedbackNotice,650);}
-  function refreshFeedbackData(){if(!email())return Promise.resolve();var a=typeof window._grcRequestsGetMine==='function'?window._grcRequestsGetMine():Promise.resolve([]),b=typeof window._advisoryGetMine==='function'?window._advisoryGetMine():Promise.resolve([]);return Promise.all([a,b]).then(function(rows){feedbackNormalRows=Array.isArray(rows[0])?rows[0]:[];feedbackReviewRows=(Array.isArray(rows[1])?rows[1]:[]).filter(function(r){return String(r.platform||'grc').toLowerCase()==='grc';});scheduleFeedbackNotice();}).catch(function(){});}
+  function refreshFeedbackData(){if(!email())return Promise.resolve();return (typeof window._grcRequestsGetMine==='function'?window._grcRequestsGetMine():Promise.resolve([])).then(function(rows){feedbackNormalRows=Array.isArray(rows)?rows:[];feedbackReviewRows=[];scheduleFeedbackNotice();}).catch(function(err){console.warn('[GRC Requests] refresh failed',err&&err.code||err);});}
   function stopFeedbackWatch(){if(feedbackNormalUnsub)try{feedbackNormalUnsub();}catch(_){}if(feedbackReviewUnsub)try{feedbackReviewUnsub();}catch(_){}feedbackNormalUnsub=feedbackReviewUnsub=null;feedbackStartedFor='';feedbackNormalRows=[];feedbackReviewRows=[];reviewApprovalRows=[];clearTimeout(feedbackTimer);var ov=document.getElementById('_grcFeedbackNoticeOv');if(ov)ov.remove();}
   function startFeedbackWatch(){
     var key=email()+'|'+role()+'|'+currentDepartmentKey();
@@ -218,11 +218,9 @@
     if(feedbackStartedFor===key&&(feedbackReviewUnsub||isManager()))return;
     stopFeedbackWatch();feedbackStartedFor=key;
     if(typeof window._grcRequestsSubscribeMine==='function')feedbackNormalUnsub=window._grcRequestsSubscribeMine(function(rows,err){if(!err){feedbackNormalRows=Array.isArray(rows)?rows:[];scheduleFeedbackNotice();}});
-    if(!isManager()&&typeof window._advisorySubscribe==='function')feedbackReviewUnsub=window._advisorySubscribe(function(payload){
-      var live=payload&&Array.isArray(payload.records)?payload.records:[];
-      feedbackReviewRows=live.filter(function(r){return String(r&&r.platform||'grc').toLowerCase()==='grc'&&String(r&&r.userEmail||'').toLowerCase().trim()===email();});
-      scheduleFeedbackNotice();
-    });
+    // Review & Development Center has been retired from both portals; do not
+    // attach its legacy listeners or load its historical request collection.
+    feedbackReviewUnsub=null;feedbackReviewRows=[];
     refreshFeedbackData();
   }
   document.addEventListener('grc:feedbackRefresh',function(){refreshFeedbackData();});
@@ -425,26 +423,24 @@
       '<div class="grc-super-details"><span>Request Details</span><p>'+esc(details||'No request details were stored for this request.')+'</p></div>'+
       '<div class="grc-super-card-footer">'+action+'</div></article>';
   }
-
-  function managerHistoryCard(r){
-    var label=recordLabel(r),target=r.targetRecordId||r.targetRiskId||r.proposedRecord&&r.proposedRecord.id||('New '+label),status=statusLabel(r.status),operation=operationLabel(r.operation,r);
-    var submitted=r.submittedByName||r.submittedByEmail||'—',date=r.createdAtText||r.createdAtIso||'—',updated=r.updatedAtText||r.updatedAtIso||'—';
-    var details=r.operation==='update'?changedTable(r):'<section class="grc-risk-detail-diff"><div class="grc-risk-block-title">'+esc(isAr()?'تفاصيل السجل المقترح':'Proposed Record Details')+'</div><table class="grc-risk-record-table"><tbody>'+fieldRows(r.proposedRecord||r.currentRecord||{},recordType(r))+'</tbody></table></section>';
-    var history=Array.isArray(r.history)?r.history:[];
-    var timeline=history.length?'<section class="grc-risk-history"><div class="grc-risk-block-title">'+esc(isAr()?'سجل الإجراءات':'Action History')+'</div>'+history.map(function(h){return '<div class="grc-risk-history-item"><b>'+esc(statusLabel(h.status||h.action||'—'))+'</b><span>'+esc(h.by||h.email||h.role||'—')+'</span><small>'+esc(h.at||h.date||'—')+'</small>'+(h.note?'<p>'+esc(h.note)+'</p>':'')+'</div>';}).join('')+'</section>':'<div style="font-size:10px;color:#64748b;margin-top:8px">'+esc(isAr()?'لا يوجد سجل إجراءات إضافي لهذا الطلب.':'No additional action history is recorded for this request.')+'</div>';
-    return '<article class="grc-risk-request-card"><div class="grc-risk-card-head"><div><strong>'+esc(r.requestCode||r.id||'—')+'</strong><small>'+esc(operation)+' · '+esc(r.department||r.departmentKey||'—')+'</small></div><span class="grc-risk-status '+tone(r.status)+'">'+esc(status)+'</span></div><div class="grc-risk-card-grid"><span>'+esc(isAr()?'نوع السجل':'Record Type')+'</span><b>'+esc(label)+'</b><span>'+esc(isAr()?'رقم السجل':'Record ID')+'</span><b>'+esc(target)+'</b><span>'+esc(isAr()?'مقدم الطلب':'Submitted by')+'</span><b>'+esc(submitted)+'</b><span>'+esc(isAr()?'تاريخ الطلب':'Submitted')+'</span><b>'+esc(date)+'</b><span>'+esc(isAr()?'آخر تحديث':'Last updated')+'</span><b>'+esc(updated)+'</b><span>'+esc(isAr()?'قرار السوبر أدمن':'Super Admin decision')+'</span><b>'+esc(r.superAdminNote||r.superAdminDecision||r.finalDecision||'—')+'</b></div>'+details+timeline+'</article>';
-  }
-
   function renderProfileBody(){
     var body=document.getElementById('_grcRiskProfileBody');if(!body)return;
     if(isManager()){
       // Department Approval Requests is reserved for Risk & Incident only.
       // Review & Development has its own dedicated approval area in the GRC portal.
-      var riskRows=managerRiskAllRows.slice()
+      var riskRows=managerRiskAllRows.filter(function(r){return managerDepartmentRequest(r);})
         .map(function(r){return{kind:'risk',row:r,time:new Date(r.updatedAtIso||r.createdAtIso||r.createdAt||0).getTime()||0};})
         .sort(function(a,b){return b.time-a.time;});
       var total=riskRows.length;
-      body.innerHTML='<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Risk & Incident Change History</h3><p>Read-only history of additions and changes submitted by the GRC Owner for your department, including proposed values, status, and Super Admin decision. You cannot approve, reject, return, or edit requests here.</p></div><span>'+total+'</span></div>'+(riskRows.length?riskRows.map(function(x){return managerHistoryCard(x.row);}).join(''):'<div class="grc-risk-empty">No Risk & Incident change history is available for your department.</div>')+'</section>';
+      function managerHistoryCard(r){
+        var target=r.targetRecordId||r.targetRiskId||(r.proposedRecord&& (r.proposedRecord.id||r.proposedRecord.code))||'New Record';
+        var before=r.currentRecord||{},after=r.proposedRecord||{},keys=Array.isArray(r.changedFields)?r.changedFields:[];
+        var diff=keys.length?'<div class="grc-risk-detail-diff"><div class="grc-risk-block-title">Change Details</div><table class="grc-risk-diff"><thead><tr><th>Field</th><th>Before</th><th>After</th></tr></thead><tbody>'+keys.map(function(k){return '<tr><th>'+esc(fieldLabel(k))+'</th><td class="grc-risk-before">'+esc(changeValue(before[k]))+'</td><td class="grc-risk-after">'+esc(changeValue(after[k]))+'</td></tr>';}).join('')+'</tbody></table></div>':(String(r.operation||'').toLowerCase()==='add'?'<div class="grc-risk-detail-diff"><div class="grc-risk-block-title">Proposed Record</div><pre style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(JSON.stringify(after,null,2))+'</pre></div>':'');
+        var hist=Array.isArray(r.history)?r.history:[];
+        var timeline=hist.length?'<div class="grc-risk-history"><strong>Request History</strong>'+hist.map(function(h){return '<div class="grc-risk-history-item"><b>'+esc(statusLabel(h.status||'—'))+'</b><span>'+esc(h.by||'—')+' · '+esc(h.at||'')+'</span><p>'+esc(h.note||'')+'</p></div>';}).join('')+'</div>':'';
+        return '<article class="grc-risk-request-card"><div class="grc-risk-card-head"><div><strong>'+esc(r.requestCode||r.id)+'</strong><small>'+esc(recordLabel(r))+' · '+esc(operationLabel(r.operation,r))+'</small></div><span class="grc-risk-status '+tone(r.status)+'">'+esc(statusLabel(r.status))+'</span></div><div class="grc-risk-card-grid"><span>Record ID</span><b>'+esc(target)+'</b><span>Submitted by</span><b>'+esc(r.submittedByName||r.submittedByEmail||'—')+'</b><span>Submitted</span><b>'+esc(r.createdAtText||r.createdAtIso||'—')+'</b><span>Last update</span><b>'+esc(r.updatedAtText||r.updatedAtIso||'—')+'</b><span>Super Admin decision</span><b>'+esc(r.superAdminName||r.superAdminEmail||'—')+'</b><span>Decision note</span><b>'+esc(r.superAdminNote||'—')+'</b></div>'+diff+timeline+'<button class="grc-risk-details-btn" onclick="window._grcRiskShowDetails(\''+esc(r.id)+'\')">View Request Details</button></article>';
+      }
+      body.innerHTML='<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Risk & Incident Change History</h3><p>Read-only history of additions and changes submitted for your department. Final decisions are made by Super Admin.</p></div><span>'+total+'</span></div>'+(riskRows.length?riskRows.map(function(x){return managerHistoryCard(x.row);}).join(''):'<div class="grc-risk-empty">No Risk & Incident request history is available for your department.</div>')+'</section>';
       var count=document.getElementById('_grcRiskProfileCount');if(count)count.textContent=total+' request(s)';
       return;
     }
