@@ -935,7 +935,7 @@ window._selectPortal=async portal=>{
         });
       };
       const unsubs=[];
-      unsubs.push(listen('scope',query(collection(db,'grc_requests'),where('userEmail','==',email),where('platform','==','grc')));
+      unsubs.push(listen('scope',query(collection(db,'grc_requests'),where('userEmail','==',email),where('platform','==','grc'))));
       return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
 
