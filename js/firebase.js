@@ -864,22 +864,24 @@ window._selectPortal=async portal=>{
       if(!window._fbUser||!db) return [];
       const uid=(auth.currentUser&&auth.currentUser.uid)||'';
       const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
-      const scopeKey=uid+'::'+activeRole;
-      let rows=[];
+      if(!uid)return [];
       try{
-        if(uid){
-          try{
-            const scoped=await getDocs(query(collection(db,'grc_requests'),where('requesterUid','==',uid),where('requesterRole','==',activeRole)));
-            rows=scoped.docs.map(function(d){return Object.assign({id:d.id},d.data());});
-          }catch(e){console.warn('[GRC Requests] scope query failed:',e&&e.code||e);}
-          // v397: no legacy UID+role query. Shared test accounts are isolated
-          // by the canonical requesterScopeKey for current requests.
-        }
+        // Use the same exact identity fields written by _grcRequestsSubmit.
+        // Avoid email-only queries: Firestore rules cannot safely prove them
+        // against older records and role changes.
+        const scoped=await getDocs(query(collection(db,'grc_requests'),
+          where('requesterUid','==',uid),where('requesterRole','==',activeRole)));
         const seen={};
-        rows=rows.filter(function(r){const k=String(r.id||'');if(!k||seen[k])return false;seen[k]=1;return true;});
-        rows.sort(function(a,b){return ((b.updatedAt&&b.updatedAt.seconds)||(b.createdAt&&b.createdAt.seconds)||0)-((a.updatedAt&&a.updatedAt.seconds)||(a.createdAt&&a.createdAt.seconds)||0);});
+        const rows=scoped.docs.map(function(d){return Object.assign({id:d.id},d.data());}).filter(function(r){
+          const id=String(r.id||'');if(!id||seen[id])return false;seen[id]=1;
+          return String(r.requesterUid||'')===uid&&String(r.requesterRole||'')===activeRole;
+        });
+        rows.sort(function(a,b){
+          const stamp=function(v){return v&&typeof v.toMillis==='function'?v.toMillis():(v&&v.seconds?v.seconds*1000:(v?new Date(v).getTime():0));};
+          return stamp(b.updatedAt||b.createdAt)-stamp(a.updatedAt||a.createdAt);
+        });
         return rows;
-      }catch(e){console.warn('[GRC Requests] getMine:',e&&e.message);return [];}
+      }catch(e){console.warn('[GRC Requests] scoped query failed:',e&&e.code||e);return [];}
     };
     window._grcRequestsGetAll=async function(){
       if(!window._fbUser||!db) return [];
@@ -1776,23 +1778,20 @@ window._selectPortal=async portal=>{
         console.warn('[GRC Risk Workflow] counter unavailable; using collision-safe fallback code',counterError&&counterError.code||counterError);
         requestCode=kindCode+'-REQ-'+deptCode+'-'+year+'-'+String(Date.now()).slice(-7);
       }
-      // GRC Owner requests go straight to Super Admin. They must not be
-      // coupled to the Department Manager inbox write: that write can be denied
-      // by department queue rules and rejects the entire atomic batch.
-      const directToSuperAdmin=freshProfile.role==='grc_owner';
-      const initialStatus=directToSuperAdmin?'pending_super_admin':'pending_manager';
-      const requestData={requestCode,recordType,operation,department,departmentKey:department,departmentRaw:departmentRaw,assignedManagerEmail:'',targetRiskId:String(payload.targetRiskId||payload.targetRecordId||current&&current.id||current&&current.code||proposed&&proposed.id||''),targetRecordId:String(payload.targetRecordId||payload.targetRiskId||current&&current.id||current&&current.code||proposed&&proposed.id||''),currentRecord:current,proposedRecord:proposed,changedFields:_grcRiskChangedFields(current,proposed),deleteReason:String(payload.deleteReason||''),requesterNote:String(payload.note||''),returnFields:[],returnNote:'',returnSource:'',status:initialStatus,submittedByName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]),submittedByEmail:freshProfile.email,submittedByUid:freshProfile.uid,submittedByRole:freshProfile.role,requesterUid:freshProfile.uid,requesterRole:freshProfile.role,requesterScopeKey:freshProfile.uid+'::'+freshProfile.role,managerName:'',managerEmail:'',managerNote:'',superAdminName:'',superAdminEmail:'',superAdminNote:'',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:nowIso,updatedAtIso:nowIso,history:[{status:initialStatus,by:freshProfile.email,role:freshProfile.role,at:nowIso,note:String(payload.note||''),message:directToSuperAdmin?'Submitted directly to Super Admin; no department-manager approval required.':''}]};
+      const requestData={requestCode,recordType,operation,department,departmentKey:department,departmentRaw:departmentRaw,assignedManagerEmail:'',targetRiskId:String(payload.targetRiskId||payload.targetRecordId||current&&current.id||current&&current.code||proposed&&proposed.id||''),targetRecordId:String(payload.targetRecordId||payload.targetRiskId||current&&current.id||current&&current.code||proposed&&proposed.id||''),currentRecord:current,proposedRecord:proposed,changedFields:_grcRiskChangedFields(current,proposed),deleteReason:String(payload.deleteReason||''),requesterNote:String(payload.note||''),returnFields:[],returnNote:'',returnSource:'',status:(freshProfile.role==='grc_owner'?'pending_super_admin':'pending_manager'),requesterUid:freshProfile.uid,requesterRole:freshProfile.role,requesterScopeKey:freshProfile.uid+'::'+freshProfile.role,submittedByName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]),submittedByEmail:freshProfile.email,submittedByUid:freshProfile.uid,submittedByRole:freshProfile.role,managerName:'',managerEmail:'',managerNote:'',superAdminName:'',superAdminEmail:'',superAdminNote:'',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:nowIso,updatedAtIso:nowIso,history:[{status:(freshProfile.role==='grc_owner'?'pending_super_admin':'pending_manager'),by:freshProfile.email,role:freshProfile.role,at:nowIso,note:String(payload.note||'')}]};
       try{
-        const batch=writeBatch(db),snapshot=_grcRiskQueueSnapshot(requestData,requestRef.id);
-        batch.set(requestRef,requestData,{merge:false});
-        if(!directToSuperAdmin){
-          batch.set(
-            _grcManagerQueueItemRef(department,'risk',requestRef.id),
-            _grcQueueItem('risk',requestRef.id,department,freshProfile.email,snapshot),
-            {merge:false}
-          );
+        if(freshProfile.role==='grc_owner'){
+          // GRC Owner requests go directly to Super Admin. Do not write the
+          // department-manager queue: a denied queue projection must not block
+          // creation of the authoritative request.
+          await setDoc(requestRef,requestData,{merge:false});
+        }else{
+          const batch=writeBatch(db),snapshot=_grcRiskQueueSnapshot(requestData,requestRef.id);
+          batch.set(requestRef,requestData,{merge:false});
+          batch.set(_grcManagerQueueItemRef(department,'risk',requestRef.id),
+            _grcQueueItem('risk',requestRef.id,department,freshProfile.email,snapshot),{merge:false});
+          await batch.commit();
         }
-        await batch.commit();
       }
       catch(saveError){
         const codeText=String(saveError&&saveError.code||saveError&&saveError.message||saveError||'save-failed');
@@ -1804,13 +1803,17 @@ window._selectPortal=async portal=>{
     };
     window._grcRiskRequestResubmit=async function(requestId,proposedRecord,note){
       if(!_grcRiskCanSubmit('risk')&&!_grcRiskCanSubmit('incident'))throw new Error('Access denied.');const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(!_grcRiskOwnsRequest(r))throw new Error('Access denied.');if(String(r.status||'')!=='returned_requester')throw new Error('Only a request returned for update can be edited and resubmitted.');
-      const proposed=_grcRiskJson(proposedRecord||r.proposedRecord),now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status:'pending_manager',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'Resubmitted')});
+      const proposed=_grcRiskJson(proposedRecord||r.proposedRecord),now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];const nextStatus=_grcRiskRole()==='grc_owner'?'pending_super_admin':'pending_manager';history.push({status:nextStatus,by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'Resubmitted')});
       const dept=String(r.departmentKey||r.department||'');
-      const updates={proposedRecord:proposed,changedFields:_grcRiskChangedFields(r.currentRecord,proposed),status:'pending_manager',requesterNote:String(note||r.requesterNote||''),managerNote:'',superAdminNote:'',assignedManagerEmail:'',returnFields:[],returnNote:'',returnSource:'',updatedAt:serverTimestamp(),updatedAtIso:now,history};
-      const snapshot=_grcRiskQueueSnapshot(Object.assign({},r,updates,{updatedAtIso:now}),requestId),batch=writeBatch(db);
-      batch.update(ref,updates);
-      batch.set(_grcManagerQueueItemRef(dept,'risk',requestId),_grcQueueItem('risk',requestId,dept,String(r.submittedByEmail||_grcRiskEmail()),snapshot),{merge:false});
-      await batch.commit();
+      const updates={proposedRecord:proposed,changedFields:_grcRiskChangedFields(r.currentRecord,proposed),status:nextStatus,requesterNote:String(note||r.requesterNote||''),managerNote:'',superAdminNote:'',assignedManagerEmail:'',returnFields:[],returnNote:'',returnSource:'',updatedAt:serverTimestamp(),updatedAtIso:now,history};
+      if(_grcRiskRole()==='grc_owner'){
+        await updateDoc(ref,updates);
+      }else{
+        const snapshot=_grcRiskQueueSnapshot(Object.assign({},r,updates,{updatedAtIso:now}),requestId),batch=writeBatch(db);
+        batch.update(ref,updates);
+        batch.set(_grcManagerQueueItemRef(dept,'risk',requestId),_grcQueueItem('risk',requestId,dept,String(r.submittedByEmail||_grcRiskEmail()),snapshot),{merge:false});
+        await batch.commit();
+      }
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('GRC_REGISTER_REQUEST_RESUBMIT','Resubmitted '+String(r.recordType||'risk')+' request '+String(r.requestCode||requestId),r.proposedRecord,proposed,{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
       return true;
@@ -1931,12 +1934,12 @@ window._selectPortal=async portal=>{
       }
       const snap=await getDoc(requestRef);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(String(r.status||'')!=='pending_super_admin')throw new Error('This request is not awaiting final approval.');
       action=String(action||'');note=String(note||'').trim();fields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
-      const status=action==='return'?'returned_manager':action==='reject'?'rejected_super_admin':'';if(!status)throw new Error('Invalid action.');if(!note)throw new Error('A note is required.');
+      // Super Admin return goes to the original requester, never to the
+      // Department Manager. Only the authoritative request document is written.
+      const status=action==='return'?'returned_requester':action==='reject'?'rejected_super_admin':'';if(!status)throw new Error('Invalid action.');if(!note)throw new Error('A note is required.');
       const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status,by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:note,fields:fields});
-      const updates={status,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:note,returnFields:status==='returned_manager'?fields:[],returnNote:status==='returned_manager'?note:'',returnSource:status==='returned_manager'?'super_admin':'',updatedAt:serverTimestamp(),updatedAtIso:now,history},dept=String(r.departmentKey||r.department||'');
-      if(status==='returned_manager'){
-        const snapshot=_grcRiskQueueSnapshot(Object.assign({},r,updates,{updatedAtIso:now}),requestId),batch=writeBatch(db);batch.update(requestRef,updates);batch.set(_grcManagerQueueItemRef(dept,'risk',requestId),_grcQueueItem('risk',requestId,dept,String(r.submittedByEmail||''),snapshot),{merge:false});await batch.commit();
-      }else await updateDoc(requestRef,updates);
+      const updates={status,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:note,returnFields:status==='returned_requester'?fields:[],returnNote:status==='returned_requester'?note:'',returnSource:status==='returned_requester'?'super_admin':'',returnedToUid:status==='returned_requester'?String(r.requesterUid||r.submittedByUid||''):'',returnedToEmail:status==='returned_requester'?String(r.submittedByEmail||''):'',updatedAt:serverTimestamp(),updatedAtIso:now,history};
+      await updateDoc(requestRef,updates);
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('GRC_SUPER_ADMIN_APPROVAL_'+String(action||'action').toUpperCase(),'Super Admin '+String(action||'action')+' · '+String(r.requestCode||requestId),{status:r.status},{status:status,note:String(note||'')},{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
       return true;
