@@ -671,15 +671,19 @@ service cloud.firestore {
     match /grc_requests/{requestId} {
       // v362: Super Admin reads the complete request history directly.
       allow get, list: if superAdmin();
-      allow create: if canAccessGrc() && ownEmail(request.resource.data.userEmail) &&
+      // v402 FIX: any authenticated account may submit its own GRC access /
+      // permission request. Do not gate creation on canAccessGrc() or the
+      // requester's department: those checks prevent users requesting access
+      // from submitting. Identity and scope metadata remain self-bound.
+      allow create: if signedIn() &&
+        request.resource.data.platform == 'grc' &&
+        ownEmail(request.resource.data.userEmail) &&
         request.resource.data.requesterUid == request.auth.uid &&
-        request.resource.data.requesterRole == role() &&
-        request.resource.data.requesterScopeKey == (request.auth.uid + '::' + role()) &&
-        (
-          !('department' in request.resource.data) ||
-          request.resource.data.department == '' ||
-          sameDepartment(request.resource.data.department)
-        );
+        request.resource.data.requesterRole is string &&
+        request.resource.data.requesterScopeKey ==
+          (request.auth.uid + '::' + request.resource.data.requesterRole) &&
+        request.resource.data.requestType is string &&
+        request.resource.data.message is string;
 
       // v371 ROOT FIX: an authenticated requester can read their own request
       // regardless of the cached/legacy GRC role matrix. This is
@@ -689,7 +693,6 @@ service cloud.firestore {
 
       // Exact query-safe list branches. Keep ownership reads separate from
       // analytics reads so an exact userEmail query never depends on a legacy UID.
-      allow list: if signedIn() && ('userEmail' in resource.data) && resource.data.userEmail == authEmail() && ('platform' in resource.data) && resource.data.platform == 'grc';
       allow list: if admin();
       allow list: if permit('view_request_analytics', ['governance_performance_manager']);
       // v370 ROOT FIX: exact ownership queries for My Requests.
@@ -1217,7 +1220,7 @@ service cloud.firestore {
       let u = userData();
       let r = profileRoleFrom(u);
       return signedIn() && approvedValue(u.approved) &&
-        r == 'grc_owner' &&
+        r in ['risk_owner','grc_owner','platform_owner'] &&
         data.submittedByEmail is string && ownEmail(data.submittedByEmail) &&
         data.submittedByUid == request.auth.uid &&
         data.submittedByRole == r &&
@@ -1227,7 +1230,7 @@ service cloud.firestore {
         data.departmentKey == profileDepartmentKeyFrom(u) &&
         data.recordType in ['risk','incident'] &&
         data.operation in ['add','update','delete'] &&
-        data.status == 'pending_super_admin';
+        data.status == 'pending_manager';
     }
 
     function riskRequestOwner(data) {
@@ -1293,7 +1296,7 @@ service cloud.firestore {
     }
 
     function validGrcRiskRequesterResubmit() {
-      return role() == 'grc_owner' && grcRiskRequestOwner(resource.data) &&
+      return grcRiskRequestOwner(resource.data) &&
         resource.data.status == 'returned_requester' &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'proposedRecord','changedFields','requesterNote',
@@ -1301,7 +1304,7 @@ service cloud.firestore {
           'returnFields','returnNote','returnSource',
           'status','updatedAt','updatedAtIso','history'
         ]) &&
-        request.resource.data.status == 'pending_super_admin';
+        request.resource.data.status == 'pending_manager';
     }
 
     function riskRequesterChange() {
@@ -1335,7 +1338,7 @@ service cloud.firestore {
     function validRequesterRiskTransition() {
       return
         (resource.data.status == 'returned_requester' &&
-          request.resource.data.status == 'pending_super_admin') ||
+          request.resource.data.status == 'pending_manager') ||
         (resource.data.status in ['pending_manager','returned_requester'] &&
           request.resource.data.status == 'cancelled');
     }
