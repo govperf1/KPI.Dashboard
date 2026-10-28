@@ -669,17 +669,17 @@ service cloud.firestore {
     }
 
     match /grc_requests/{requestId} {
-      // Super Admin can review the complete request history.
+      // v362: Super Admin reads the complete request history directly.
       allow get, list: if superAdmin();
-      // My Requests query is scoped by immutable Firebase UID, regardless of
-      // the role currently selected in the portal.
-      allow list: if signedIn() &&
-        ('requesterUid' in resource.data) &&
-        resource.data.requesterUid == request.auth.uid;
-      allow create: if signedIn() && ownEmail(request.resource.data.userEmail) &&
+      allow create: if canAccessGrc() && ownEmail(request.resource.data.userEmail) &&
         request.resource.data.requesterUid == request.auth.uid &&
         request.resource.data.requesterRole == role() &&
-        request.resource.data.requesterScopeKey == (request.auth.uid + '::' + role());
+        request.resource.data.requesterScopeKey == (request.auth.uid + '::' + role()) &&
+        (
+          !('department' in request.resource.data) ||
+          request.resource.data.department == '' ||
+          sameDepartment(request.resource.data.department)
+        );
 
       // v371 ROOT FIX: an authenticated requester can read their own request
       // regardless of the cached/legacy GRC role matrix. This is
@@ -1220,13 +1220,16 @@ service cloud.firestore {
         data.submittedByEmail is string && ownEmail(data.submittedByEmail) &&
         data.submittedByUid == request.auth.uid &&
         data.submittedByRole == r &&
+        data.requesterUid == request.auth.uid &&
+        data.requesterRole == r &&
         data.requesterScopeKey == (request.auth.uid + '::' + r) &&
         data.department is string &&
         data.departmentKey is string &&
         data.departmentKey == profileDepartmentKeyFrom(u) &&
         data.recordType in ['risk','incident'] &&
         data.operation in ['add','update','delete'] &&
-        data.status == 'pending_manager';
+        ((r == 'grc_owner' && data.status == 'pending_super_admin') ||
+         (r != 'grc_owner' && data.status == 'pending_manager'));
     }
 
     function riskRequestOwner(data) {
