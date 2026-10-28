@@ -784,12 +784,20 @@ service cloud.firestore {
       // so an onSnapshot collection listener can be proven independently.
       allow get: if approved() && kind in ['review','risk'] && (
         role() in ['admin','super_admin'] ||
-        (role() == 'department_manager' && userDepartmentKey() == departmentKey)
+        (role() == 'department_manager' && canonicalDepartment(departmentKey) == userDepartmentKey())
       );
       allow list: if approved() && kind in ['review','risk'] && (
         role() in ['admin','super_admin'] ||
-        (role() == 'department_manager' && userDepartmentKey() == departmentKey)
+        (role() == 'department_manager' && canonicalDepartment(departmentKey) == userDepartmentKey())
       );
+      // v407 targeted fix: manager history must remain readable when an older
+      // inbox path uses a department alias (e.g. Project_Management) rather than
+      // the canonical key (projects). This is read-only and department-scoped.
+      allow get, list: if signedIn() && approvedValue(userData().approved) &&
+        profileRoleFrom(userData()) == 'department_manager' &&
+        kind in ['review','risk'] &&
+        profileDepartmentKeyFrom(userData()) != '' &&
+        canonicalDepartment(departmentKey) == profileDepartmentKeyFrom(userData());
 
       allow create, update: if approved() && kind in ['review','risk'] &&
         request.resource.data.departmentKey is string &&
