@@ -671,16 +671,13 @@ service cloud.firestore {
     match /grc_requests/{requestId} {
       // v362: Super Admin reads the complete request history directly.
       allow get, list: if superAdmin();
+      // Profile-submitted GRC access/permission requests are owner-scoped.
+      // Do not reject them because the UI's legacy department label differs from
+      // the canonical profile key; this collection is not a register-write path.
       allow create: if canAccessGrc() && ownEmail(request.resource.data.userEmail) &&
         request.resource.data.requesterUid == request.auth.uid &&
         request.resource.data.requesterRole == role() &&
-        request.resource.data.requesterScopeKey == (request.auth.uid + '::' + role()) &&
-        (
-          !('department' in request.resource.data) ||
-          request.resource.data.department == '' ||
-          sameDepartment(request.resource.data.department) ||
-          role() in ['admin','super_admin']
-        );
+        request.resource.data.requesterScopeKey == (request.auth.uid + '::' + role());
 
       // v371 ROOT FIX: an authenticated requester can read their own request
       // regardless of the cached/legacy GRC role matrix. This is
@@ -1421,7 +1418,14 @@ service cloud.firestore {
       // Historical requests can contain only department or departmentRaw, so
       // exact profile-scoped queries are also permitted without widening access.
       allow list: if departmentManager() && ('departmentKey' in resource.data) &&
-        resource.data.departmentKey == userDepartmentKey();
+        resource.data.departmentKey == profileDepartmentKeyFrom(userData());
+      // Explicit read-only history branch for managers, including completed,
+      // returned, rejected and published requests; no manager write permission.
+      allow list: if signedIn() && approvedValue(userData().approved) &&
+        profileRoleFrom(userData()) == 'department_manager' &&
+        profileDepartmentKeyFrom(userData()) != '' &&
+        ('departmentKey' in resource.data) &&
+        resource.data.departmentKey == profileDepartmentKeyFrom(userData());
       allow list: if departmentManager() && ('department' in resource.data) &&
         resource.data.department == userDepartmentKey();
       allow list: if departmentManager() && ('department' in resource.data) &&
