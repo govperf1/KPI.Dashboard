@@ -669,21 +669,17 @@ service cloud.firestore {
     }
 
     match /grc_requests/{requestId} {
-      // v362: Super Admin reads the complete request history directly.
+      // Super Admin can review the complete request history.
       allow get, list: if superAdmin();
-      // v402 FIX: any authenticated account may submit its own GRC access /
-      // permission request. Do not gate creation on canAccessGrc() or the
-      // requester's department: those checks prevent users requesting access
-      // from submitting. Identity and scope metadata remain self-bound.
-      allow create: if signedIn() &&
-        request.resource.data.platform == 'grc' &&
-        ownEmail(request.resource.data.userEmail) &&
+      // My Requests query is scoped by immutable Firebase UID, regardless of
+      // the role currently selected in the portal.
+      allow list: if signedIn() &&
+        ('requesterUid' in resource.data) &&
+        resource.data.requesterUid == request.auth.uid;
+      allow create: if signedIn() && ownEmail(request.resource.data.userEmail) &&
         request.resource.data.requesterUid == request.auth.uid &&
-        request.resource.data.requesterRole is string &&
-        request.resource.data.requesterScopeKey ==
-          (request.auth.uid + '::' + request.resource.data.requesterRole) &&
-        request.resource.data.requestType is string &&
-        request.resource.data.message is string;
+        request.resource.data.requesterRole == role() &&
+        request.resource.data.requesterScopeKey == (request.auth.uid + '::' + role());
 
       // v371 ROOT FIX: an authenticated requester can read their own request
       // regardless of the cached/legacy GRC role matrix. This is
