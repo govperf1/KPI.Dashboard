@@ -23,7 +23,17 @@
   function currentDepartmentKey(){if(isManager()&&window.__grcManagerDepartmentKey)return String(window.__grcManagerDepartmentKey);var raw=Object.prototype.hasOwnProperty.call(window,'_fbDept')?window._fbDept:window.currentUserDept;if(typeof window._grcCanonicalDepartment==='function')return String(window._grcCanonicalDepartment(raw)||'');return String(raw==null?'':raw).trim().toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');}
   function requestDepartmentKey(r){r=r||{};var raw=r.departmentKey||r.department||r.departmentRaw||r.proposedRecord&&r.proposedRecord.department||r.currentRecord&&r.currentRecord.department||'';if(typeof window._grcCanonicalDepartment==='function')return String(window._grcCanonicalDepartment(raw)||'');return String(raw==null?'':raw).trim().toLowerCase().replace(/&/g,' and ').replace(/[\s_\/-]+/g,' ');}
   function managerDepartmentRequest(r){if(!isManager())return true;return !!(r&&r._managerAssigned===true);}
-  function responsibleRiskSubmitter(r){var role=String(r&&r.submittedByRole||'').toLowerCase().trim();return !role||['risk_owner','grc_owner','platform_owner'].indexOf(role)>=0;}
+  function responsibleRiskSubmitter(r){var role=String(r&&r.submittedByRole||'').toLowerCase().trim().replace(/[\s-]+/g,'_');return !role||['risk_owner','grc_owner','platform_owner'].indexOf(role)>=0;}
+  /* Full department history comes from the department-scoped history query, not
+     the pending-action queue. Historical rows therefore do not carry
+     _managerAssigned; never apply managerDepartmentRequest() to this dataset. */
+  function managerHistoryRequest(r){if(!isManager()||!r||!responsibleRiskSubmitter(r))return false;var submittedRole=String(r.submittedByRole||'').toLowerCase().trim().replace(/[\s-]+/g,'_');if(submittedRole==='department_manager')return false;var rowDept=requestDepartmentKey(r),myDept=currentDepartmentKey();if(rowDept&&myDept&&rowDept!==myDept)return false;return true;}
+  function managerRiskHistoryTime(r){var v=r&&(r.updatedAt||r.updatedAtIso||r.createdAt||r.createdAtIso);try{return v&&typeof v.toDate==='function'?v.toDate().getTime():(new Date(v||0).getTime()||0);}catch(_){return 0;}}
+  function managerHistoryStatus(r){var s=String(r&&r.status||'').toLowerCase();if(!isAr())return statusLabel(s);var m={pending_manager:'بانتظار مراجعة القسم',pending_super_admin:'بانتظار اعتماد السوبر أدمن',returned_requester:'معاد لمقدم الطلب للتعديل',returned_manager:'معاد لمدير القسم',rejected_manager:'مرفوض من مدير القسم',rejected_super_admin:'مرفوض من السوبر أدمن',published:'تم الاعتماد والنشر',cancelled:'ملغي'};return m[s]||String(s||'—').replace(/_/g,' ');}
+  function managerHistoryOperation(r){if(!isAr())return operationLabel(r.operation,r);var type=recordType(r)==='incident'?'الحوادث':'المخاطر',op={add:'إضافة',update:'تعديل',delete:'حذف'}[String(r.operation||'').toLowerCase()]||'طلب';return op+' سجل '+type;}
+  function managerHistoryFieldLabel(k){if(!isAr())return fieldLabel(k);var m={riskIdentified:'الخطر المحدد',riskCategory:'تصنيف الخطر',likelihood:'احتمالية الحدوث',impact:'الأثر',controlType:'نوع الضبط الحالي',actionStatus:'حالة الإجراء',date:'تاريخ الحادث',category:'التصنيف',contributingFactors:'العوامل المساهمة',investigationRequired:'يتطلب تحقيقًا',department:'القسم',responsibleDept:'القسم المسؤول',responsibleDepartment:'القسم المسؤول',status:'الحالة',id:'المعرّف'};return m[k]||fieldLabel(k);}
+  function managerRecordRows(obj,type){obj=obj||{};var labels=type==='incident'?['id','date','category','contributingFactors','investigationRequired','department','status']:['id','riskIdentified','riskCategory','likelihood','impact','controlType','actionStatus','department'];return labels.map(function(k){return '<tr><th>'+esc(managerHistoryFieldLabel(k))+'</th><td>'+esc(obj[k]==null||obj[k]===''?'—':obj[k])+'</td></tr>';}).join('');}
+  function managerHistoryDiff(r){var before=r.currentRecord||{},after=r.proposedRecord||{},keys=changedKeys(r);return '<section class=\"grc-risk-detail-diff\"><div class=\"grc-risk-block-title\">'+esc(isAr()?'تفاصيل التعديل':'Update Details')+'</div><div class=\"grc-manager-record-table-wrap\"><table class=\"grc-risk-diff\"><thead><tr><th>'+esc(isAr()?'الحقل':'Field')+'</th><th>'+esc(isAr()?'قبل التعديل':'Before')+'</th><th>'+esc(isAr()?'بعد التعديل':'After')+'</th></tr></thead><tbody>'+keys.map(function(k){return '<tr><th>'+esc(managerHistoryFieldLabel(k))+'</th><td class=\"grc-risk-before\">'+esc(changeValue(before[k]))+'</td><td class=\"grc-risk-after\">'+esc(changeValue(after[k]))+'</td></tr>';}).join('')+'</tbody></table></div></section>'; }
   function ownRequest(r){return String(r&&r.submittedByEmail||'').toLowerCase().trim()===email();}
   /* A GRC/Risk/Platform Owner may legitimately submit with the same account that is currently acting as Department Manager in the test/combined-role workflow. Do not hide those routed department requests just because the email matches. */
   function managerCanReviewRisk(r){if(!managerDepartmentRequest(r)||!responsibleRiskSubmitter(r))return false;var same=ownRequest(r);var submitterRole=String(r&&r.submittedByRole||'').toLowerCase().trim().replace(/[ _-]+/g,'_');/* If the same account submitted while it was a normal User/Owner and was later promoted to Department Manager, the routed request is still a valid manager task. Block only a request that was originally submitted by the manager role itself. */return !same||submitterRole!=='department_manager';}
@@ -34,7 +44,7 @@
   function reviewRelatedText(r){var out=(Array.isArray(r&&r.relatedItems)?r.relatedItems:[]).map(function(x){return x&&x.code?String(x.code)+(x.name?' — '+String(x.name):''):String(x&&x.name||x&&x.label||'');}).filter(Boolean);if(r&&r.relatedNewText)out.push('New: '+String(r.relatedNewText));return out.join('; ')||'—';}
   function reviewTypeText(r){var t=String(r&&r.requestType||'');return t==='new'?'New Item Request':'Existing Item Review & Update';}
   function reviewDateText(r){var v=r&&r.createdAt||r&&r.createdAtIso||'';try{var d=v&&v.toDate?v.toDate():new Date(v);if(!d||isNaN(d.getTime()))return'—';return d.toLocaleString(isAr()?'ar-SA':'en-GB',{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(_){return'—';}}
-  function statusLabel(s){var m={pending_manager:'Pending Department Manager Approval',pending_super_admin:'Pending Super Admin Approval',returned_requester:'Returned for Update',returned_manager:'Returned for Update',rejected_manager:'Rejected by Department Manager',rejected_super_admin:'Rejected by Super Admin',published:'Published',cancelled:'Cancelled'};return m[s]||String(s||'—').replace(/_/g,' ');}
+  function statusLabel(s){var m={pending_manager:'Pending Department Manager Approval',pending_super_admin:'Pending Super Admin Approval',returned_requester:'Returned for Update',returned_manager:'Returned to Department Manager',rejected_manager:'Rejected by Department Manager',rejected_super_admin:'Rejected by Super Admin',published:'Published',cancelled:'Cancelled'};return m[s]||String(s||'—').replace(/_/g,' ');}
   function recordType(r){return String(r&&r.recordType||'risk').toLowerCase()==='incident'?'incident':'risk';}
   function recordLabel(r){return recordType(r)==='incident'?'Incident':'Risk';}
   function operationLabel(s,r){var label=recordLabel(r);return({add:'Add '+label,update:'Update '+label,delete:'Delete '+label})[s]||s||'—';}
@@ -43,7 +53,7 @@
   function requestedFieldsHtml(r){var f=Array.isArray(r&&r.returnFields)?r.returnFields:[],note=String(r&&r.returnNote||'').trim();if(!f.length&&!note)return'';return '<section class="grc-risk-return-request"><div class="grc-risk-block-title">'+esc(isAr()?'المطلوب تعديله':'Requested Corrections')+'</div>'+(f.length?'<div class="grc-risk-return-fields">'+f.map(function(k){return '<span>'+esc(fieldLabel(k))+'</span>';}).join('')+'</div>':'')+(note?'<div class="grc-risk-note"><b>'+esc(isAr()?'الملاحظة':'Note')+'</b>'+esc(note)+'</div>':'')+'</section>';}
   function returnFieldSelectorHtml(r,required){var selected=Array.isArray(r&&r.returnFields)?r.returnFields:[],fields=returnableFields(r);return '<div class="grc-risk-return-select"><div class="grc-risk-inline-label">'+esc(isAr()?'حدد الحقول المطلوب تعديلها'+(required?' *':''):'Select fields to be updated'+(required?' *':''))+'</div><div class="grc-risk-return-checks">'+fields.map(function(k){return '<label><input type="checkbox" data-grc-return-field value="'+esc(k)+'" '+(selected.indexOf(k)>=0?'checked':'')+'> <span>'+esc(fieldLabel(k))+'</span></label>';}).join('')+'</div></div>';}
   function ensureReturnWorkflowStyles(){if(document.getElementById('_grcReturnWorkflowStyles'))return;var st=document.createElement('style');st.id='_grcReturnWorkflowStyles';st.textContent='.grc-risk-return-select{margin:10px 0;padding:10px;border:1px solid #d9e5ea;border-radius:10px;background:#fff}.grc-risk-return-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 10px;margin-top:8px}.grc-risk-return-checks label{display:flex;gap:7px;align-items:center;padding:7px 8px;border:1px solid #e1e9ed;border-radius:8px;background:#f8fbfc;font-size:10px;font-weight:800;color:#35566a}.grc-risk-return-checks input{width:15px;height:15px}.grc-risk-return-request{margin:12px 0;padding:11px;border:1px solid #efcc84;border-radius:11px;background:#fff9ea}.grc-risk-return-fields{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.grc-risk-return-fields span{padding:5px 8px;border-radius:999px;background:#fff0c8;color:#7a5200;font-size:9px;font-weight:900}@media(max-width:640px){.grc-risk-return-checks{grid-template-columns:1fr}}';document.head.appendChild(st);}
-  function historyStatusLabel(s){var m={pending_manager:'Submitted for Department Manager Approval',pending_super_admin:'Approved by Department Manager',returned_requester:'Returned for Update',returned_manager:'Returned for Update',rejected_manager:'Rejected by Department Manager',rejected_super_admin:'Rejected by Super Admin',published:'Approved & Published',cancelled:'Cancelled'};return m[String(s||'')]||statusLabel(s);}
+  function historyStatusLabel(s){var m={pending_manager:'Submitted for Department Manager Approval',pending_super_admin:'Approved by Department Manager',returned_requester:'Returned for Update',returned_manager:'Returned to Department Manager',rejected_manager:'Rejected by Department Manager',rejected_super_admin:'Rejected by Super Admin',published:'Approved & Published',cancelled:'Cancelled'};return m[String(s||'')]||statusLabel(s);}
   function historyRoleLabel(r){var m={risk_owner:'GRC Owner',grc_owner:'GRC Owner',platform_owner:'Performance & GRC Owner',department_manager:'Department Manager',dept_manager:'Department Manager',super_admin:'Super Admin',admin:'Admin'};return m[String(r||'').toLowerCase()]||String(r||'').replace(/_/g,' ');}
   /* The Department Manager return/reject UI must name the actual requester
      role rather than assuming "GRC Owner" — submittedByRole reflects who
@@ -63,7 +73,7 @@
   }
   function historyTimeline(r,compact){var h=Array.isArray(r&&r.history)?r.history.slice():[];if(!h.length)return'';if(compact&&h.length>4)h=h.slice(-4);return'<section class="grc-risk-history '+(compact?'compact':'')+'"><div class="grc-risk-block-title">'+esc(isAr()?'سجل الاعتماد':'Approval History')+'</div><div class="grc-risk-history-list">'+h.map(function(x){var note=String(x&&x.note||'').trim(),actor=String(x&&x.by||'').trim(),rlabel=historyRoleLabel(x&&x.role||''),fields=Array.isArray(x&&x.fields)?x.fields:[];return'<div class="grc-risk-history-item"><i></i><div><div class="grc-risk-history-top"><strong>'+esc(historyStatusLabel(x&&x.status||''))+'</strong><time>'+esc(historyTime(x&&x.at||x&&x.createdAt))+'</time></div><small>'+esc(rlabel+(actor?' · '+actor:''))+'</small>'+(fields.length?'<p><b>'+esc(isAr()?'الحقول: ':'Fields: ')+'</b>'+esc(fields.map(fieldLabel).join(' · '))+'</p>':'')+(note?'<p>'+esc(note)+'</p>':'')+'</div></div>';}).join('')+'</div></section>';}
   function tone(s){if(/^pending/.test(s)||/^returned/.test(s))return'warn';if(s==='published')return'good';if(/^rejected/.test(s)||s==='cancelled')return'bad';return'info';}
-  function actionable(r){var s=String(r.status||'');if(isOwner())return ownRequest(r)&&(s==='returned_requester'||(s==='returned_manager'&&['super_admin','department_manager'].includes(String(r.returnSource||''))));if(isManager())return managerCanReviewRisk(r)&&['pending_manager','returned_manager'].indexOf(s)>=0;if(isSuper())return s==='pending_super_admin';return false;}
+  function actionable(r){var s=String(r.status||'');if(isOwner())return ownRequest(r)&&s==='returned_requester';if(isManager())return managerCanReviewRisk(r)&&['pending_manager','returned_manager'].indexOf(s)>=0;if(isSuper())return s==='pending_super_admin';return false;}
   function riskApprovalNoticeRows(){
     return cache.filter(function(r){
       if(isManager()&&!responsibleRiskSubmitter(r))return false;
@@ -118,6 +128,27 @@
       .grc-manager-section-head p{margin:4px 0 0;color:#708592;font-size:9.5px}
       .grc-manager-section-head>span{min-width:28px;height:28px;display:grid;place-items:center;border-radius:50%;background:#15566d;color:#fff;font-size:10px;font-weight:900}
       .grc-manager-approval-section .grc-risk-request-card{border:1px solid #d8e5ea;border-radius:14px;background:#fff;box-shadow:0 5px 16px rgba(23,63,95,.06);margin-bottom:10px;padding:13px}.grc-manager-approval-section .grc-risk-card-head{padding-bottom:9px;border-bottom:1px solid #edf2f4}.grc-manager-approval-section .grc-risk-card-grid{display:grid;grid-template-columns:125px minmax(0,1fr);gap:6px 12px;margin-top:10px}.grc-manager-approval-section .grc-risk-card-grid span{font-size:9px;color:#78909c;font-weight:800}.grc-manager-approval-section .grc-risk-card-grid b{font-size:10px;color:#294f61;overflow-wrap:anywhere}.grc-manager-approval-section .grc-risk-change-preview,.grc-manager-approval-section .grc-risk-history{margin-top:9px}.grc-manager-approval-section .grc-risk-details-btn{margin-top:9px}
+      .grc-manager-history-page .grc-manager-section-head{align-items:flex-start;padding:17px 18px;background:linear-gradient(135deg,#f4fbfd,#edf5f8)}
+      .grc-manager-history-kicker{font-size:8px;letter-spacing:.12em;font-weight:900;color:#0796aa;margin-bottom:5px}
+      .grc-manager-history-page .grc-manager-section-head h3{font-size:14px;line-height:1.4}
+      .grc-manager-history-page .grc-manager-section-head p{font-size:10px;line-height:1.65;max-width:820px;margin-top:6px}
+      .grc-manager-history-list{display:grid;gap:12px}
+      .grc-manager-history-card{padding:15px!important;margin:0!important;border-radius:15px!important;box-shadow:0 5px 18px rgba(23,63,95,.055)!important}
+      .grc-manager-history-card .grc-risk-card-head strong{font-size:12px}
+      .grc-manager-history-card .grc-risk-card-head small{line-height:1.5}
+      .grc-manager-history-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:12px}
+      .grc-manager-history-meta>div{min-width:0;padding:9px 10px;border:1px solid #e2ebef;border-radius:10px;background:#f8fbfc}
+      .grc-manager-history-meta span{display:block;color:#708592;font-size:9px;font-weight:800;margin-bottom:4px}
+      .grc-manager-history-meta b{display:block;color:#23485c;font-size:10px;line-height:1.5;overflow-wrap:anywhere}
+      .grc-manager-history-meta small{display:block;color:#78909c;font-size:8px;margin-top:3px;overflow-wrap:anywhere}
+      .grc-manager-record-table-wrap{max-width:100%;overflow-x:auto;border-radius:9px}
+      .grc-manager-record-table-wrap .grc-risk-record-table{min-width:420px;width:100%}
+      .grc-manager-request-note{margin-top:10px;padding:10px 12px;border:1px solid #e4edf1;border-radius:10px;background:#f7fafb;color:#39596b;font-size:10px;line-height:1.6;overflow-wrap:anywhere}
+      .grc-manager-history-empty{padding:10px 12px;color:#718590;font-size:10px;border:1px dashed #d8e5ea;border-radius:10px;background:#fbfdfe}
+      .grc-manager-readonly-foot{display:flex;align-items:center;gap:7px;margin-top:12px;padding-top:10px;border-top:1px solid #edf2f4;color:#6c8491;font-size:9px;font-weight:750}
+      .grc-manager-readonly-foot span{color:#0b91a5;font-size:13px}
+      @media(max-width:720px){.grc-manager-history-meta{grid-template-columns:repeat(2,minmax(0,1fr))}.grc-manager-history-page .grc-manager-section-head{padding:12px}}
+      @media(max-width:460px){.grc-manager-history-meta{grid-template-columns:1fr}}
 
 #_grcApprovalNoticeOv .grc-apn-group{margin:0 0 16px}
 #_grcApprovalNoticeOv .grc-apn-group-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;margin-bottom:9px;border:1px solid #dbe7ec;border-radius:13px;background:linear-gradient(180deg,#f8fbfc,#eef5f7)}
@@ -195,7 +226,7 @@
   function notificationTone(r){var s=String(r&&r.status||'');if(!notificationUnread(r))return'gray';if(s==='published')return'green';if(/^rejected/.test(s)||s==='cancelled')return'red';if(/^returned/.test(s))return'amber';return'teal';}
   function markNotificationRead(r){if(!r)return;var k=notifKey(r),seen=readNotifSeen();if(seen.indexOf(k)<0){seen.push(k);writeNotifSeen(seen);}refreshBadge();}
   function markAllNotificationsRead(){var seen=readNotifSeen();cache.forEach(function(r){var k=notifKey(r);if(seen.indexOf(k)<0)seen.push(k);});writeNotifSeen(seen);refreshBadge();}
-  function refreshBadge(){var scoped=isManager()?cache.filter(managerDepartmentRequest):cache,n=scoped.filter(notificationUnread).length,approvalCount=scoped.filter(actionable).length+(isManager()?reviewApprovalRows.filter(reviewManagerRequest).length:0)+(isSuper()?reviewApprovalRows.filter(function(r){return String(r&&r.workflowStage||r&&r.status||'').toLowerCase()==='pending_super_admin';}).length:0),el=document.getElementById('grcRiskNotifCount'),req=document.getElementById('grcRiskRequestCount'),profile=document.getElementById('_grcProfileRiskCount');if(el){el.textContent=String(n);el.style.display=n?'grid':'none';}if(req){req.textContent=String(approvalCount||scoped.length);req.style.display=(approvalCount||scoped.length)?'grid':'none';}if(profile)profile.textContent=String(approvalCount);}
+  function refreshBadge(){var scoped=isManager()?cache.filter(managerDepartmentRequest):cache,n=scoped.filter(notificationUnread).length,approvalCount=scoped.filter(actionable).length+(isManager()?reviewApprovalRows.filter(reviewManagerRequest).length:0)+(isSuper()?reviewApprovalRows.filter(function(r){return String(r&&r.workflowStage||r&&r.status||'').toLowerCase()==='pending_super_admin';}).length:0),el=document.getElementById('grcRiskNotifCount'),req=document.getElementById('grcRiskRequestCount'),profile=document.getElementById('_grcProfileRiskCount');if(el){el.textContent=String(n);el.style.display=n?'grid':'none';}if(req){req.textContent=String(approvalCount||scoped.length);req.style.display=(approvalCount||scoped.length)?'grid':'none';}if(profile)profile.textContent=String(isManager()?managerRiskAllRows.filter(managerHistoryRequest).length:approvalCount);}
   function feedbackDismissedKey(){return'qumc_grc_feedback_dismissed_v119::'+email();}
   function readFeedbackDismissed(){try{var x=JSON.parse(localStorage.getItem(feedbackDismissedKey())||'[]');return Array.isArray(x)?x.map(String):[];}catch(_){return[];}}
   function writeFeedbackDismissed(rows){try{localStorage.setItem(feedbackDismissedKey(),JSON.stringify((rows||[]).map(String).slice(-500)));}catch(_){}}
@@ -294,7 +325,7 @@
           if(!bundle)return;
           cache=(Array.isArray(bundle.risk)?bundle.risk:[]).filter(managerDepartmentRequest);
           reviewApprovalRows=(Array.isArray(bundle.review)?bundle.review:[]).filter(reviewManagerRequest);
-          managerRiskAllRows=Array.isArray(bundle.riskAll)?bundle.riskAll.filter(managerDepartmentRequest):cache.slice();
+          managerRiskAllRows=Array.isArray(bundle.riskAll)?bundle.riskAll.filter(managerHistoryRequest):cache.filter(managerHistoryRequest);
           managerReviewAllRows=Array.isArray(bundle.reviewAll)?bundle.reviewAll.slice():reviewApprovalRows.slice();
           window.__grcRiskRequestCache=cache;
           window.__grcManagerReviewPayload={records:reviewApprovalRows,allRecords:managerReviewAllRows,risk:cache,riskAll:managerRiskAllRows};
@@ -309,15 +340,33 @@
           scheduleApprovalNotice(false);
         });
       }else{
-        /* Compatibility fallback: one cached pull only, never a polling loop. */
-        (async function(){try{
-          var bundle=await (window._grcGetDepartmentApprovalQueue?window._grcGetDepartmentApprovalQueue(false):null);
-          if(!bundle)return;
-          cache=(Array.isArray(bundle.risk)?bundle.risk:[]).filter(managerDepartmentRequest);
-          reviewApprovalRows=(Array.isArray(bundle.review)?bundle.review:[]).filter(reviewManagerRequest);
-          managerRiskAllRows=Array.isArray(bundle.riskAll)?bundle.riskAll.filter(managerDepartmentRequest):cache.slice();
-          managerReviewAllRows=Array.isArray(bundle.reviewAll)?bundle.reviewAll.slice():reviewApprovalRows.slice();refreshBadge();
-        }catch(err){console.warn('[GRC Manager Approval Queue] initial pull failed',err&&err.code||err);}})();
+        /* Fallback for deployments without the optional live-broker function.
+           Refresh the read-only history and pending queue together so the manager
+           sees requester/status/history updates without reopening the profile. */
+        var pullManagerQueue=async function(){
+          if(managerPullBusy||!isManager())return;
+          managerPullBusy=true;
+          try{
+            var bundle=await (window._grcGetDepartmentApprovalQueue?window._grcGetDepartmentApprovalQueue(true):null);
+            if(!bundle)return;
+            cache=(Array.isArray(bundle.risk)?bundle.risk:[]).filter(managerDepartmentRequest);
+            reviewApprovalRows=(Array.isArray(bundle.review)?bundle.review:[]).filter(reviewManagerRequest);
+            managerRiskAllRows=Array.isArray(bundle.riskAll)?bundle.riskAll.filter(managerHistoryRequest):cache.filter(managerHistoryRequest);
+            managerReviewAllRows=Array.isArray(bundle.reviewAll)?bundle.reviewAll.slice():reviewApprovalRows.slice();
+            window.__grcRiskRequestCache=cache;
+            window.__grcManagerReviewPayload={records:reviewApprovalRows,allRecords:managerReviewAllRows,risk:cache,riskAll:managerRiskAllRows};
+            window.__grcManagerApprovalError=(bundle.errors&&bundle.errors.length)?bundle.errors.join(' · '):'';
+            try{document.dispatchEvent(new CustomEvent('grc:riskRequestsUpdated',{detail:{rows:cache}}));document.dispatchEvent(new CustomEvent('grc:managerReviewQueueUpdated',{detail:window.__grcManagerReviewPayload}));}catch(_e){}
+            refreshBadge();
+            if(document.getElementById('_grcRiskProfileOv'))renderProfileBody();
+            if(document.getElementById('_grcApprovalNoticeOv'))renderApprovalNoticeBody();
+            scheduleApprovalNotice(false);
+          }catch(err){console.warn('[GRC Manager Approval Queue] refresh failed',err&&err.code||err);}
+          finally{managerPullBusy=false;}
+        };
+        pullManagerQueue();
+        if(managerPollTimer)clearInterval(managerPollTimer);
+        managerPollTimer=setInterval(pullManagerQueue,5000);
       }
       return;
     }
@@ -357,8 +406,8 @@
   function actions(r){var s=String(r.status||''),html='';
     if(isManager()&&managerCanReviewRisk(r)&&s==='pending_manager')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_approve\',this)">Approve to Super Admin</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_return\',this)">Return to '+esc(submitterLabel(r))+'</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_reject\',this)">Reject</button>';
     if(isManager()&&managerCanReviewRisk(r)&&s==='returned_manager')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_approve\',this)">Approve to Super Admin</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_return\',this)">Return to '+esc(submitterLabel(r))+'</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_reject\',this)">Reject</button>';
-    if(isSuper()&&s==='pending_super_admin')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_approve\',this)">Approve & Publish</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_return\',this)">Return to Requester</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_reject\',this)">Reject</button>';
-    if(isOwner()&&ownRequest(r)&&(s==='returned_requester'||(s==='returned_manager'&&['super_admin','department_manager'].includes(String(r.returnSource||'')))))html='<button class="grc-risk-action good" onclick="window._grcRiskEditResubmit(\''+esc(r.id)+'\')">Edit Requested Fields & Resubmit</button>';
+    if(isSuper()&&s==='pending_super_admin')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_approve\',this)">Approve & Publish</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_return\',this)">Return to Department Manager</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_reject\',this)">Reject</button>';
+    if(isOwner()&&ownRequest(r)&&s==='returned_requester')html='<button class="grc-risk-action good" onclick="window._grcRiskEditResubmit(\''+esc(r.id)+'\')">Edit Requested Fields & Resubmit</button>';
     if(isOwner()&&ownRequest(r)&&s==='pending_manager')html='<button class="grc-risk-action bad ghost" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'cancel\',this)">Cancel Request</button>';
     return html?'<div class="grc-risk-request-actions">'+html+'</div>'+inlineDecisionShell():'';
   }
@@ -425,17 +474,40 @@
       '<div class="grc-super-details"><span>Request Details</span><p>'+esc(details||'No request details were stored for this request.')+'</p></div>'+
       '<div class="grc-super-card-footer">'+action+'</div></article>';
   }
+
+  function managerHistoryCard(r){
+    var ar=isAr(),label=(ar?(recordType(r)==='incident'?'الحوادث':'المخاطر'):recordLabel(r)),target=r.targetRecordId||r.targetRiskId||r.proposedRecord&&r.proposedRecord.id||r.currentRecord&&r.currentRecord.id||(ar?'سجل جديد':'New '+label),status=managerHistoryStatus(r),operation=managerHistoryOperation(r);
+    var submitted=r.submittedByName||r.submittedByEmail||'—',submittedEmail=r.submittedByEmail||'',date=historyTime(r.createdAt||r.createdAtIso||r.createdAtText),updated=historyTime(r.updatedAt||r.updatedAtIso||r.updatedAtText),dept=r.department||r.departmentKey||'—';
+    var statusValue=String(r.status||'').toLowerCase();
+    var details=r.operation==='update'?managerHistoryDiff(r):'<section class="grc-risk-detail-diff"><div class="grc-risk-block-title">'+esc(ar?'تفاصيل السجل المقترح':'Proposed Record Details')+'</div><div class="grc-manager-record-table-wrap"><table class="grc-risk-record-table"><tbody>'+managerRecordRows(r.proposedRecord||r.currentRecord||{},recordType(r))+'</tbody></table></div></section>';
+    if(r.operation==='delete'&&r.currentRecord)details='<section class="grc-risk-detail-diff"><div class="grc-risk-block-title">'+esc(ar?'بيانات السجل المطلوب حذفه':'Record Proposed for Deletion')+'</div><div class="grc-manager-record-table-wrap"><table class="grc-risk-record-table"><tbody>'+managerRecordRows(r.currentRecord,recordType(r))+'</tbody></table></div>'+(r.deleteReason?'<p class="grc-manager-request-note"><b>'+esc(ar?'سبب الحذف':'Deletion reason')+': </b>'+esc(r.deleteReason)+'</p>':'')+'</section>';
+    var history=Array.isArray(r.history)?r.history:[];
+    var timeline=history.length?'<section class="grc-risk-history"><div class="grc-risk-block-title">'+esc(ar?'سجل الاعتماد والتحديثات':'Approval & Update History')+'</div><div class="grc-risk-history-list">'+history.map(function(h){var hs=String(h&&h.status||h&&h.action||'').toLowerCase(),historyStatus=ar?({pending_manager:'تم إرسال الطلب',pending_super_admin:'اعتماد مدير القسم',returned_requester:'إرجاع لمقدم الطلب',returned_manager:'إرجاع لمدير القسم',rejected_manager:'رفض مدير القسم',rejected_super_admin:'رفض السوبر أدمن',published:'اعتماد ونشر',cancelled:'إلغاء الطلب'}[hs]||managerHistoryStatus({status:hs})):historyStatusLabel(hs),actor=h&& (h.by||h.email||h.role)||'—',note=String(h&&h.note||'').trim(),fields=Array.isArray(h&&h.fields)?h.fields:[];return '<div class="grc-risk-history-item"><i></i><div><div class="grc-risk-history-top"><strong>'+esc(historyStatus)+'</strong><time>'+esc(historyTime(h&& (h.at||h.date||h.createdAt)))+'</time></div><small>'+esc(actor)+'</small>'+(fields.length?'<p><b>'+esc(ar?'الحقول: ':'Fields: ')+'</b>'+esc(fields.map(managerHistoryFieldLabel).join(' · '))+'</p>':'')+(note?'<p>'+esc(note)+'</p>':'')+'</div></div>';}).join('')+'</div></section>':'<section class="grc-risk-history"><div class="grc-risk-block-title">'+esc(ar?'سجل الاعتماد والتحديثات':'Approval & Update History')+'</div><div class="grc-manager-history-empty">'+esc(ar?'لا توجد تحديثات إضافية مسجلة لهذا الطلب حتى الآن.':'No additional history has been recorded for this request yet.')+'</div></section>';
+    var decision=r.superAdminNote||r.superAdminDecision||r.finalDecision||'';
+    return '<article class="grc-risk-request-card grc-manager-history-card">'+
+      '<div class="grc-risk-card-head"><div><strong>'+esc(r.requestCode||r.id||'—')+'</strong><small>'+esc(operation)+' · '+esc(dept)+'</small></div><span class="grc-risk-status '+tone(statusValue)+'">'+esc(status)+'</span></div>'+
+      '<div class="grc-manager-history-meta">'+
+        '<div><span>'+esc(ar?'نوع السجل':'Register')+'</span><b>'+esc(label)+'</b></div>'+ 
+        '<div><span>'+esc(ar?'رقم السجل':'Record ID')+'</span><b>'+esc(target)+'</b></div>'+ 
+        '<div><span>'+esc(ar?'مقدم الطلب':'Requester')+'</span><b>'+esc(submitted)+'</b>'+(submittedEmail&&submittedEmail!==submitted?'<small>'+esc(submittedEmail)+'</small>':'')+'</div>'+ 
+        '<div><span>'+esc(ar?'تاريخ الإرسال':'Submitted')+'</span><b>'+esc(date)+'</b></div>'+ 
+        '<div><span>'+esc(ar?'آخر تحديث':'Last updated')+'</span><b>'+esc(updated)+'</b></div>'+ 
+        '<div><span>'+esc(ar?'حالة الطلب':'Request status')+'</span><b>'+esc(status)+'</b></div>'+ 
+      '</div>'+details+(decision?'<div class="grc-manager-request-note"><b>'+esc(ar?'ملاحظة القرار النهائي':'Final decision note')+': </b>'+esc(decision)+'</div>':'')+timeline+
+      '<div class="grc-manager-readonly-foot"><span aria-hidden="true">ⓘ</span>'+esc(ar?'سجل للعرض فقط — لا تتوفر إجراءات لمدير القسم.':'Read-only record — no actions are available to Department Managers.')+'</div></article>';
+  }
+
   function renderProfileBody(){
     var body=document.getElementById('_grcRiskProfileBody');if(!body)return;
     if(isManager()){
       // Department Approval Requests is reserved for Risk & Incident only.
       // Review & Development has its own dedicated approval area in the GRC portal.
-      var riskRows=managerRiskAllRows.filter(function(r){return managerDepartmentRequest(r);})
-        .map(function(r){return{kind:'risk',row:r,time:new Date(r.updatedAtIso||r.createdAtIso||r.createdAt||0).getTime()||0};})
+      var riskRows=managerRiskAllRows.filter(managerHistoryRequest)
+        .map(function(r){return{kind:'risk',row:r,time:managerRiskHistoryTime(r)};})
         .sort(function(a,b){return b.time-a.time;});
       var total=riskRows.length;
-      body.innerHTML='<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Department Approval Requests</h3><p>All Risk & Incident requests for your department. Current status is shown for every request; approval actions appear only when manager action is required.</p></div><span>'+total+'</span></div>'+(riskRows.length?riskRows.map(function(x){return card(x.row);}).join(''):'<div class="grc-risk-empty">No Risk & Incident requests are available for your department.</div>')+'</section>';
-      var count=document.getElementById('_grcRiskProfileCount');if(count)count.textContent=total+' request(s)';
+      body.innerHTML='<section class="grc-manager-approval-section grc-manager-history-page"><div class="grc-manager-section-head"><div><div class="grc-manager-history-kicker">'+esc(isAr()?'سجل للعرض فقط':'READ-ONLY HISTORY')+'</div><h3>'+esc(isAr()?'سجل طلبات المخاطر والحوادث':'Risk & Incident Request History')+'</h3><p>'+esc(isAr()?'يعرض هذا السجل طلبات إضافة أو تعديل أو حذف سجلات المخاطر والحوادث المقدمة من مستخدمي القسم، مع اسم مقدم الطلب والحالة وسجل الاعتماد. يتم تحديث البيانات تلقائيًا، ولا يمكن لمدير القسم اتخاذ أي إجراء من هذه الصفحة.':'View employee-submitted requests to add, update or delete Risk and Incident records, including requester, current status and approval history. Updates appear automatically. Department Managers have read-only access and cannot take actions here.')+'</p></div><span>'+total+'</span></div><div class="grc-manager-history-list">'+(riskRows.length?riskRows.map(function(x){return managerHistoryCard(x.row);}).join(''):'<div class="grc-risk-empty">'+esc(isAr()?'لا توجد طلبات مخاطر أو حوادث مسجلة لقسمك حاليًا.':'No Risk or Incident register requests are currently available for your department.')+'</div>')+'</div></section>';
+      var count=document.getElementById('_grcRiskProfileCount');if(count)count.textContent=total+' '+(isAr()?'طلب':'request(s)');
       return;
     }
     var tab=activeApprovalTab(),rows=filteredRisk(tab).map(function(r){return{kind:'risk',row:r,time:new Date(r.updatedAtIso||r.createdAtIso||0).getTime()||0};});
@@ -571,7 +643,7 @@
     var name=window._fbName||window.currentUserName||'User',dept=window._fbDept||window.currentUserDept||'—',last='Current session';
     try{last=(window._fbLastLogin||sessionStorage.getItem('qumc_last_login')||'Current session');}catch(_){}
     menu.id='_grcUserProfileMenu';menu.className='qumc-profile-drop grc-user-profile-menu grc-profile-drop-open';menu.style.display='block';menu.style.top=((rect&&rect.bottom||58)+8)+'px';menu.style.right=Math.max(12,window.innerWidth-(rect&&rect.right||window.innerWidth-20))+'px';
-    var approvalTaskTitle='Risk & Incident Registers',approvalTaskSub=isManager()?'Risk & Incident requests for your department':'Approval requests and publication status',approvalTaskCount=(isManager()?cache.filter(function(r){return managerCanReviewRisk(r)&&String(r.status||'').toLowerCase()==='pending_manager';}).length+reviewApprovalRows.filter(reviewManagerRequest).length:cache.filter(actionable).length);
+    var approvalTaskTitle=isManager()?(isAr()?'سجل طلبات المخاطر والحوادث':'Risk & Incident Request History'):'Risk & Incident Registers',approvalTaskSub=isManager()?(isAr()?'عرض طلبات السجل وحالاتها وسجل الاعتماد — للعرض فقط':'View register requests, statuses and approval history — read-only'):'Approval requests and publication status',approvalTaskCount=(isManager()?managerRiskAllRows.filter(managerHistoryRequest).length:cache.filter(actionable).length);
     menu.innerHTML='<div class="qumc-profile-head"><div class="qumc-profile-avatar">'+esc(String(name).charAt(0).toUpperCase())+'</div><div style="min-width:0"><div class="qumc-profile-name">'+esc(name)+'</div><div class="qumc-profile-email">'+esc(email()||'—')+'</div></div></div>'+
       '<div class="qumc-profile-section-title">Profile</div><div class="qumc-profile-grid"><span>Name</span><b>'+esc(name)+'</b><span>Role</span><b>'+esc(role()==='governance_performance_manager'?'Governance & Performance Department Manager':role().replace(/_/g,' '))+'</b><span>Department</span><b>'+esc(dept)+'</b><span>Last Login</span><b>'+esc(last)+'</b></div>'+
       '<div class="grc-profile-task-panel"><div class="grc-profile-task-title">Requests</div>'+
@@ -584,7 +656,7 @@
   window._grcRiskOpenCenterRequest=openCenterRequest;
   window._grcRiskOpenCenterRequests=openCenterRequests;
 
-  window._grcRiskOpenProfile=function(requestId){if(!canAccessRiskIncidentWorkflow())return;ensureReturnWorkflowStyles();start();var old=document.getElementById('_grcRiskProfileOv');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcRiskProfileOv';ov.className='grc-risk-overlay';var manager=isManager(),title=manager?'Department Approval Requests':'Risk & Incident Registers',subtitle=manager?'All Risk & Incident requests for your department. Pending/returned items requiring action are shown in the entry notification.':'Additions, updates and deletion requests with the GRC approval workflow.';ov.innerHTML='<div class="grc-risk-dialog wide"><header><div><h2>'+esc(title)+'</h2><p>'+esc(subtitle)+'</p></div><button onclick="document.getElementById(\'_grcRiskProfileOv\').remove()">×</button></header><div class="grc-risk-profile-summary"><span id="_grcRiskProfileCount">0 request(s)</span>'+(manager?'':'<div class="grc-risk-tabs"><button class="active" data-grc-risk-tab="all">All</button><button data-grc-risk-tab="action">Needs Action</button><button data-grc-risk-tab="returned">Returned / Rejected</button><button data-grc-risk-tab="published">Published</button></div>')+'</div><main id="_grcRiskProfileBody"></main></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});if(!manager)ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(btn){btn.onclick=function(){ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(x){x.classList.remove('active');});btn.classList.add('active');renderProfileBody();};});renderProfileBody();if(requestId)setTimeout(function(){window._grcRiskShowDetails(requestId);},50);};
+  window._grcRiskOpenProfile=function(requestId){if(!canAccessRiskIncidentWorkflow())return;ensureReturnWorkflowStyles();start();var old=document.getElementById('_grcRiskProfileOv');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcRiskProfileOv';ov.className='grc-risk-overlay';var manager=isManager(),title=manager?(isAr()?'سجل طلبات المخاطر والحوادث':'Risk & Incident Request History'):'Risk & Incident Registers',subtitle=manager?(isAr()?'سجل للقراءة فقط لطلبات السجلات المقدمة من مستخدمي القسم، مع الحالة وسجل الاعتماد.':'Read-only history of employee-submitted register requests, their current status and approval history.'):(isAr()?'طلبات إضافة السجلات وتعديلها وحذفها ضمن مسار اعتماد GRC.':'Additions, updates and deletion requests with the GRC approval workflow.');ov.innerHTML='<div class="grc-risk-dialog wide"><header><div><h2>'+esc(title)+'</h2><p>'+esc(subtitle)+'</p></div><button onclick="document.getElementById(\'_grcRiskProfileOv\').remove()">×</button></header><div class="grc-risk-profile-summary"><span id="_grcRiskProfileCount">'+(isAr()?'0 طلب':'0 request(s)')+'</span>'+(manager?'':'<div class="grc-risk-tabs"><button class="active" data-grc-risk-tab="all">All</button><button data-grc-risk-tab="action">Needs Action</button><button data-grc-risk-tab="returned">Returned / Rejected</button><button data-grc-risk-tab="published">Published</button></div>')+'</div><main id="_grcRiskProfileBody"></main></div>';document.body.appendChild(ov);ov.addEventListener('click',function(e){if(e.target===ov)ov.remove();});if(!manager)ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(btn){btn.onclick=function(){ov.querySelectorAll('[data-grc-risk-tab]').forEach(function(x){x.classList.remove('active');});btn.classList.add('active');renderProfileBody();};});renderProfileBody();if(requestId)setTimeout(function(){window._grcRiskShowDetails(requestId);},50);};
   window._grcRiskShowDetails=async function(id){
     ensureReturnWorkflowStyles();
     var r=cache.find(function(x){return String(x.id)===String(id);});if(!r)return;
@@ -619,7 +691,7 @@
   };
   function decisionCopy(r,action){
     if(action==='manager_return'){var whoEn=submitterLabel(r),whoAr=whoEn;if(isAr()){var role=String(r&&r.submittedByRole||'').toLowerCase().trim();whoAr=SUBMITTER_ROLE_LABELS_AR[role]||'مقدم الطلب';}return {tone:'warn',title:isAr()?'إعادة إلى '+whoAr:'Return to '+whoEn,text:isAr()?'حدد الحقول المطلوب تعديلها واكتب ملاحظة واضحة. سيعود نفس الطلب إلى '+whoAr+'.':'Select the fields that must be corrected and add a clear note. The same request will return to the '+whoEn+'.',label:isAr()?'ملاحظة الإعادة *':'Return note *',confirm:isAr()?'إعادة لـ '+whoAr:'Return to '+whoEn,needNote:true,showFields:true,fieldsRequired:true};}
-    if(action==='super_return')return {tone:'warn',title:isAr()?'إرجاع لمقدم الطلب':'Return to Requester',text:isAr()?'اكتب ملاحظة لمقدم الطلب وحدد الحقول التي يجب تعديلها إن لزم. سيعود الطلب إلى المستخدم الذي أرسله.':'Add a note for the original requester and optionally select fields to correct. The request will return to its submitter.',label:isAr()?'ملاحظة الإرجاع *':'Return note *',confirm:isAr()?'إرجاع لمقدم الطلب':'Return to Requester',needNote:true,showFields:true,fieldsRequired:false};
+    if(action==='super_return')return {tone:'warn',title:isAr()?'إعادة إلى مدير القسم':'Return to Department Manager',text:isAr()?'اكتب ملاحظة لمدير القسم. ويمكنك تحديد الحقول التي تحتاج مراجعة.':'A note to the Department Manager is required. You may also identify the fields that need review.',label:isAr()?'ملاحظة مدير القسم *':'Note to Department Manager *',confirm:isAr()?'إعادة لمدير القسم':'Return to Department Manager',needNote:true,showFields:true,fieldsRequired:false};
     if(action==='manager_resend')return {tone:'good',title:isAr()?'إعادة الإرسال للسوبر أدمن':'Resend to Super Admin',text:isAr()?'اكتب ملاحظة توضح سبب إعادة الإرسال للسوبر أدمن.':'Add a note before resending the same request to Super Admin.',label:isAr()?'ملاحظة إعادة الإرسال *':'Resubmission note *',confirm:isAr()?'إعادة الإرسال':'Resend to Super Admin',needNote:true};
     if(/reject/.test(action))return {tone:'bad',title:isAr()?'رفض الطلب':'Reject Request',text:isAr()?'سبب الرفض إلزامي.':'A rejection reason is required.',label:isAr()?'سبب الرفض *':'Rejection reason *',confirm:isAr()?'تأكيد الرفض':'Confirm Reject',needNote:true};
     if(action==='cancel')return {tone:'bad',title:isAr()?'إلغاء الطلب':'Cancel Request',text:isAr()?'هل تريد إلغاء هذا الطلب؟':'Cancel this request?',confirm:isAr()?'تأكيد الإلغاء':'Confirm Cancel',needNote:false};
