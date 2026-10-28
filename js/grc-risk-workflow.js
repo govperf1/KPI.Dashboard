@@ -207,7 +207,7 @@
   window._grcFeedbackDismiss=function(){closeFeedbackNotice(true);};
   window._grcFeedbackRateNow=function(){var ov=document.getElementById('_grcFeedbackNoticeOv');if(!ov)return;var kind=ov.getAttribute('data-feedback-kind'),id=ov.getAttribute('data-feedback-id');closeFeedbackNotice(false);if(kind==='system'){window._grcShowMyRequests&&window._grcShowMyRequests();return;}if(typeof window._grcSwitch==='function')window._grcSwitch('advisory');setTimeout(function(){if(typeof window._advOpenRequest==='function')window._advOpenRequest(id);},650);};
   function scheduleFeedbackNotice(){clearTimeout(feedbackTimer);feedbackTimer=setTimeout(showFeedbackNotice,650);}
-  function refreshFeedbackData(){if(!email())return Promise.resolve();return (typeof window._grcRequestsGetMine==='function'?window._grcRequestsGetMine():Promise.resolve([])).then(function(rows){feedbackNormalRows=Array.isArray(rows)?rows:[];feedbackReviewRows=[];scheduleFeedbackNotice();}).catch(function(err){console.warn('[GRC Requests] refresh failed',err&&err.code||err);});}
+  function refreshFeedbackData(){if(!email())return Promise.resolve();var a=typeof window._grcRequestsGetMine==='function'?window._grcRequestsGetMine():Promise.resolve([]),b=typeof window._advisoryGetMine==='function'?window._advisoryGetMine():Promise.resolve([]);return Promise.all([a,b]).then(function(rows){feedbackNormalRows=Array.isArray(rows[0])?rows[0]:[];feedbackReviewRows=(Array.isArray(rows[1])?rows[1]:[]).filter(function(r){return String(r.platform||'grc').toLowerCase()==='grc';});scheduleFeedbackNotice();}).catch(function(){});}
   function stopFeedbackWatch(){if(feedbackNormalUnsub)try{feedbackNormalUnsub();}catch(_){}if(feedbackReviewUnsub)try{feedbackReviewUnsub();}catch(_){}feedbackNormalUnsub=feedbackReviewUnsub=null;feedbackStartedFor='';feedbackNormalRows=[];feedbackReviewRows=[];reviewApprovalRows=[];clearTimeout(feedbackTimer);var ov=document.getElementById('_grcFeedbackNoticeOv');if(ov)ov.remove();}
   function startFeedbackWatch(){
     var key=email()+'|'+role()+'|'+currentDepartmentKey();
@@ -218,9 +218,11 @@
     if(feedbackStartedFor===key&&(feedbackReviewUnsub||isManager()))return;
     stopFeedbackWatch();feedbackStartedFor=key;
     if(typeof window._grcRequestsSubscribeMine==='function')feedbackNormalUnsub=window._grcRequestsSubscribeMine(function(rows,err){if(!err){feedbackNormalRows=Array.isArray(rows)?rows:[];scheduleFeedbackNotice();}});
-    // Review & Development Center has been retired from both portals; do not
-    // attach its legacy listeners or load its historical request collection.
-    feedbackReviewUnsub=null;feedbackReviewRows=[];
+    if(!isManager()&&typeof window._advisorySubscribe==='function')feedbackReviewUnsub=window._advisorySubscribe(function(payload){
+      var live=payload&&Array.isArray(payload.records)?payload.records:[];
+      feedbackReviewRows=live.filter(function(r){return String(r&&r.platform||'grc').toLowerCase()==='grc'&&String(r&&r.userEmail||'').toLowerCase().trim()===email();});
+      scheduleFeedbackNotice();
+    });
     refreshFeedbackData();
   }
   document.addEventListener('grc:feedbackRefresh',function(){refreshFeedbackData();});
@@ -432,15 +434,7 @@
         .map(function(r){return{kind:'risk',row:r,time:new Date(r.updatedAtIso||r.createdAtIso||r.createdAt||0).getTime()||0};})
         .sort(function(a,b){return b.time-a.time;});
       var total=riskRows.length;
-      function managerHistoryCard(r){
-        var target=r.targetRecordId||r.targetRiskId||(r.proposedRecord&& (r.proposedRecord.id||r.proposedRecord.code))||'New Record';
-        var before=r.currentRecord||{},after=r.proposedRecord||{},keys=Array.isArray(r.changedFields)?r.changedFields:[];
-        var diff=keys.length?'<div class="grc-risk-detail-diff"><div class="grc-risk-block-title">Change Details</div><table class="grc-risk-diff"><thead><tr><th>Field</th><th>Before</th><th>After</th></tr></thead><tbody>'+keys.map(function(k){return '<tr><th>'+esc(fieldLabel(k))+'</th><td class="grc-risk-before">'+esc(changeValue(before[k]))+'</td><td class="grc-risk-after">'+esc(changeValue(after[k]))+'</td></tr>';}).join('')+'</tbody></table></div>':(String(r.operation||'').toLowerCase()==='add'?'<div class="grc-risk-detail-diff"><div class="grc-risk-block-title">Proposed Record</div><pre style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(JSON.stringify(after,null,2))+'</pre></div>':'');
-        var hist=Array.isArray(r.history)?r.history:[];
-        var timeline=hist.length?'<div class="grc-risk-history"><strong>Request History</strong>'+hist.map(function(h){return '<div class="grc-risk-history-item"><b>'+esc(statusLabel(h.status||'—'))+'</b><span>'+esc(h.by||'—')+' · '+esc(h.at||'')+'</span><p>'+esc(h.note||'')+'</p></div>';}).join('')+'</div>':'';
-        return '<article class="grc-risk-request-card"><div class="grc-risk-card-head"><div><strong>'+esc(r.requestCode||r.id)+'</strong><small>'+esc(recordLabel(r))+' · '+esc(operationLabel(r.operation,r))+'</small></div><span class="grc-risk-status '+tone(r.status)+'">'+esc(statusLabel(r.status))+'</span></div><div class="grc-risk-card-grid"><span>Record ID</span><b>'+esc(target)+'</b><span>Submitted by</span><b>'+esc(r.submittedByName||r.submittedByEmail||'—')+'</b><span>Submitted</span><b>'+esc(r.createdAtText||r.createdAtIso||'—')+'</b><span>Last update</span><b>'+esc(r.updatedAtText||r.updatedAtIso||'—')+'</b><span>Super Admin decision</span><b>'+esc(r.superAdminName||r.superAdminEmail||'—')+'</b><span>Decision note</span><b>'+esc(r.superAdminNote||'—')+'</b></div>'+diff+timeline+'<button class="grc-risk-details-btn" onclick="window._grcRiskShowDetails(\''+esc(r.id)+'\')">View Request Details</button></article>';
-      }
-      body.innerHTML='<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Risk & Incident Change History</h3><p>Read-only history of additions and changes submitted for your department. Final decisions are made by Super Admin.</p></div><span>'+total+'</span></div>'+(riskRows.length?riskRows.map(function(x){return managerHistoryCard(x.row);}).join(''):'<div class="grc-risk-empty">No Risk & Incident request history is available for your department.</div>')+'</section>';
+      body.innerHTML='<section class="grc-manager-approval-section"><div class="grc-manager-section-head"><div><h3>Department Approval Requests</h3><p>All Risk & Incident requests for your department. Current status is shown for every request; approval actions appear only when manager action is required.</p></div><span>'+total+'</span></div>'+(riskRows.length?riskRows.map(function(x){return card(x.row);}).join(''):'<div class="grc-risk-empty">No Risk & Incident requests are available for your department.</div>')+'</section>';
       var count=document.getElementById('_grcRiskProfileCount');if(count)count.textContent=total+' request(s)';
       return;
     }
@@ -625,7 +619,7 @@
   };
   function decisionCopy(r,action){
     if(action==='manager_return'){var whoEn=submitterLabel(r),whoAr=whoEn;if(isAr()){var role=String(r&&r.submittedByRole||'').toLowerCase().trim();whoAr=SUBMITTER_ROLE_LABELS_AR[role]||'مقدم الطلب';}return {tone:'warn',title:isAr()?'إعادة إلى '+whoAr:'Return to '+whoEn,text:isAr()?'حدد الحقول المطلوب تعديلها واكتب ملاحظة واضحة. سيعود نفس الطلب إلى '+whoAr+'.':'Select the fields that must be corrected and add a clear note. The same request will return to the '+whoEn+'.',label:isAr()?'ملاحظة الإعادة *':'Return note *',confirm:isAr()?'إعادة لـ '+whoAr:'Return to '+whoEn,needNote:true,showFields:true,fieldsRequired:true};}
-    if(action==='super_return')return {tone:'warn',title:isAr()?'إعادة إلى مدير القسم':'Return to Department Manager',text:isAr()?'اكتب ملاحظة لمدير القسم. ويمكنك تحديد الحقول التي تحتاج مراجعة.':'A note to the Department Manager is required. You may also identify the fields that need review.',label:isAr()?'ملاحظة مدير القسم *':'Note to Department Manager *',confirm:isAr()?'إعادة لمدير القسم':'Return to Department Manager',needNote:true,showFields:true,fieldsRequired:false};
+    if(action==='super_return')return {tone:'warn',title:isAr()?'إرجاع إلى مقدم الطلب':'Return to Requester',text:isAr()?'سيعود الطلب إلى المستخدم الذي أرسله مع الملاحظة والحقول المطلوب تعديلها.':'The request will be returned to the original requester with your note and any fields that need correction.',label:isAr()?'ملاحظة الإرجاع لمقدم الطلب *':'Return note to requester *',confirm:isAr()?'إرجاع لمقدم الطلب':'Return to Requester',needNote:true,showFields:true,fieldsRequired:false};
     if(action==='manager_resend')return {tone:'good',title:isAr()?'إعادة الإرسال للسوبر أدمن':'Resend to Super Admin',text:isAr()?'اكتب ملاحظة توضح سبب إعادة الإرسال للسوبر أدمن.':'Add a note before resending the same request to Super Admin.',label:isAr()?'ملاحظة إعادة الإرسال *':'Resubmission note *',confirm:isAr()?'إعادة الإرسال':'Resend to Super Admin',needNote:true};
     if(/reject/.test(action))return {tone:'bad',title:isAr()?'رفض الطلب':'Reject Request',text:isAr()?'سبب الرفض إلزامي.':'A rejection reason is required.',label:isAr()?'سبب الرفض *':'Rejection reason *',confirm:isAr()?'تأكيد الرفض':'Confirm Reject',needNote:true};
     if(action==='cancel')return {tone:'bad',title:isAr()?'إلغاء الطلب':'Cancel Request',text:isAr()?'هل تريد إلغاء هذا الطلب؟':'Cancel this request?',confirm:isAr()?'تأكيد الإلغاء':'Confirm Cancel',needNote:false};

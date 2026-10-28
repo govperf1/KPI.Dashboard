@@ -861,15 +861,23 @@ window._selectPortal=async portal=>{
       return ref.id;
     };
     window._grcRequestsGetMine=async function(){
-      if(!window._fbUser||!db)return[];
-      const email=String(window._fbUser||auth.currentUser&&auth.currentUser.email||'').toLowerCase().trim();
-      if(!email)return[];
+      if(!window._fbUser||!db) return [];
+      const uid=(auth.currentUser&&auth.currentUser.uid)||'';
+      let rows=[];
       try{
-        const snap=await getDocs(query(collection(db,'grc_requests'),where('userEmail','==',email),where('platform','==','grc')));
-        const rows=snap.docs.map(function(d){return Object.assign({id:d.id},d.data());});
-        rows.sort(function(a,b){const ms=function(v){return v&&typeof v.toMillis==='function'?v.toMillis():(v&&v.seconds?v.seconds*1000:(v?new Date(v).getTime():0));};return ms(b.updatedAt||b.createdAt)-ms(a.updatedAt||a.createdAt);});
+        if(uid){
+          try{
+            // Identity-only query is stable when a user's portal role changes.
+            // Security Rules still restrict every returned document to this UID.
+            const scoped=await getDocs(query(collection(db,'grc_requests'),where('requesterUid','==',uid)));
+            rows=scoped.docs.map(function(d){return Object.assign({id:d.id},d.data());});
+          }catch(e){console.warn('[GRC Requests] owner lookup failed:',e&&e.code||e);}
+        }
+        const seen={};
+        rows=rows.filter(function(r){const k=String(r.id||'');if(!k||seen[k])return false;seen[k]=1;return true;});
+        rows.sort(function(a,b){return ((b.updatedAt&&b.updatedAt.seconds)||(b.createdAt&&b.createdAt.seconds)||0)-((a.updatedAt&&a.updatedAt.seconds)||(a.createdAt&&a.createdAt.seconds)||0);});
         return rows;
-      }catch(e){console.warn('[GRC Requests] email lookup failed:',e&&e.code||e);return[];}
+      }catch(e){console.warn('[GRC Requests] getMine:',e&&e.message);return [];}
     };
     window._grcRequestsGetAll=async function(){
       if(!window._fbUser||!db) return [];
@@ -912,8 +920,7 @@ window._selectPortal=async portal=>{
     };
     window._grcRequestsSubscribeMine=function(callback){
       if(typeof callback!=='function'||!window._fbUser||!db)return function(){};
-      const email=String(window._fbUser||auth.currentUser&&auth.currentUser.email||'').toLowerCase().trim();
-      if(!email)return function(){};
+      const uid=(auth.currentUser&&auth.currentUser.uid)||'';
       let closed=false,timer=null,source={};
       const emit=function(){
         if(closed||!source.scope||!source.scope.ready)return;
@@ -935,7 +942,10 @@ window._selectPortal=async portal=>{
         });
       };
       const unsubs=[];
-      unsubs.push(listen('scope',query(collection(db,'grc_requests'),where('userEmail','==',email),where('platform','==','grc'))));
+      if(uid){
+        // One authoritative owner listener; role changes must not hide history.
+        unsubs.push(listen('scope',query(collection(db,'grc_requests'),where('requesterUid','==',uid))));
+      }else{source.scope={ready:true,rows:[]};emit();}
       return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
 
@@ -1140,7 +1150,7 @@ window._selectPortal=async portal=>{
           const uid=_advUid(),activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
           if(uid){
             try{
-              const scoped=await getDocs(query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterUid','==',_advUid()),where('requesterRole','==',activeRole)));
+              const scoped=await getDocs(query(collection(db,ADV_FALLBACK_COLLECTION),where('requesterUid','==',uid),where('requesterRole','==',activeRole)));
               docs=docs.concat(scoped.docs);
             }catch(_){}
             try{
@@ -1213,13 +1223,10 @@ window._selectPortal=async portal=>{
       if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<1200)return _grcManagerQueueCache;
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
-        const result={profile:fresh,review:[],risk:[],riskAll:[],errors:[]};
-        const settled=await Promise.allSettled([getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review')),getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk')),getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)))]);
+        const result={profile:fresh,review:[],risk:[],errors:[]};
+        const settled=await Promise.allSettled([getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review')),getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'))]);
         if(settled[0].status==='rejected')result.errors.push('Review & Development: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason));
-        if(settled[1].status==='rejected')result.errors.push('Risk / Incident inbox: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
-        if(settled[2].status==='rejected')result.errors.push('Risk / Incident history: '+String(settled[2].reason&&settled[2].reason.message||settled[2].reason));
-        if(settled[2].status==='fulfilled')settled[2].value.forEach(function(d){const r=_grcRiskRequestData(d);if(r)result.riskAll.push(r);});
-        result.riskAll=_grcRiskSort(result.riskAll);
+        if(settled[1].status==='rejected')result.errors.push('Risk / Incident: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
         if(settled[0].status==='fulfilled')settled[0].value.forEach(function(d){const item=d.data()||{},snap=item.snapshot||{};if(String(snap.workflowStage||item.workflowStage||'')!=='pending_department_manager')return;if(String(item.requesterEmail||snap.userEmail||'').toLowerCase().trim()===fresh.email)return;const out=_advNormalizeRow(String(item.requestId||d.id),snap,'advisory_requests');out._managerAssigned=true;result.review.push(out);});
         if(settled[1].status==='fulfilled')settled[1].value.forEach(function(d){const item=d.data()||{},snap=item.snapshot||{},status=String(snap.status||item.status||'').toLowerCase();if(String(item.requesterEmail||snap.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;if(!['pending_manager','returned_manager'].includes(status))return;const data=_grcRiskRequestData({id:String(item.requestId||d.id),exists:function(){return true;},data:function(){return snap;}});if(data){data._managerAssigned=true;result.risk.push(data);}});
         result.risk=_grcRiskSort(result.risk);result.review.sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
@@ -1598,7 +1605,7 @@ window._selectPortal=async portal=>{
       r=r||{};const uid=_grcRiskUid(),email=_grcRiskEmail();
       return (!!uid&&String(r.submittedByUid||'')===uid)||String(r.submittedByEmail||'').toLowerCase()===email;
     }
-    function _grcRiskCanSubmit(recordType){return _grcRiskRole()==='grc_owner';}
+    function _grcRiskCanSubmit(recordType){recordType=String(recordType||'risk').toLowerCase();const r=_grcRiskRole();if(r==='governance_performance_manager')return false;const p=_grcRiskPerms(),owner=['risk_owner','grc_owner','platform_owner'].includes(r),workflow=p.includes('submit_risk_changes');if(recordType==='incident')return owner||workflow||p.includes('edit_incident_register')||p.includes('edit_risk_management')||p.includes('*');return owner||workflow||p.includes('edit_risk_management')||p.includes('*');}
     function _grcRiskIsManager(){return _grcRiskRole()==='department_manager';}
     function _grcRiskIsSuper(){return _grcRiskRole()==='super_admin';}
     function _grcRiskIsAdmin(){return _grcRiskRole()==='admin'||_grcRiskIsSuper();}
@@ -1764,8 +1771,16 @@ window._selectPortal=async portal=>{
         console.warn('[GRC Risk Workflow] counter unavailable; using collision-safe fallback code',counterError&&counterError.code||counterError);
         requestCode=kindCode+'-REQ-'+deptCode+'-'+year+'-'+String(Date.now()).slice(-7);
       }
-      const requestData={requestCode,recordType,operation,department,departmentKey:department,departmentRaw:departmentRaw,assignedManagerEmail:'',targetRiskId:String(payload.targetRiskId||payload.targetRecordId||current&&current.id||current&&current.code||proposed&&proposed.id||''),targetRecordId:String(payload.targetRecordId||payload.targetRiskId||current&&current.id||current&&current.code||proposed&&proposed.id||''),currentRecord:current,proposedRecord:proposed,changedFields:_grcRiskChangedFields(current,proposed),deleteReason:String(payload.deleteReason||''),requesterNote:String(payload.note||''),returnFields:[],returnNote:'',returnSource:'',status:'pending_super_admin',submittedByName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]),submittedByEmail:freshProfile.email,submittedByUid:freshProfile.uid,submittedByRole:freshProfile.role,requesterScopeKey:freshProfile.uid+'::'+freshProfile.role,managerName:'',managerEmail:'',managerNote:'',superAdminName:'',superAdminEmail:'',superAdminNote:'',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:nowIso,updatedAtIso:nowIso,history:[{status:'pending_super_admin',by:freshProfile.email,role:freshProfile.role,at:nowIso,note:String(payload.note||'')}]};
-      try{await setDoc(requestRef,requestData,{merge:false});
+      const requestData={requestCode,recordType,operation,department,departmentKey:department,departmentRaw:departmentRaw,assignedManagerEmail:'',targetRiskId:String(payload.targetRiskId||payload.targetRecordId||current&&current.id||current&&current.code||proposed&&proposed.id||''),targetRecordId:String(payload.targetRecordId||payload.targetRiskId||current&&current.id||current&&current.code||proposed&&proposed.id||''),currentRecord:current,proposedRecord:proposed,changedFields:_grcRiskChangedFields(current,proposed),deleteReason:String(payload.deleteReason||''),requesterNote:String(payload.note||''),returnFields:[],returnNote:'',returnSource:'',status:'pending_manager',submittedByName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]),submittedByEmail:freshProfile.email,submittedByUid:freshProfile.uid,submittedByRole:freshProfile.role,managerName:'',managerEmail:'',managerNote:'',superAdminName:'',superAdminEmail:'',superAdminNote:'',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:nowIso,updatedAtIso:nowIso,history:[{status:'pending_manager',by:freshProfile.email,role:freshProfile.role,at:nowIso,note:String(payload.note||'')}]};
+      try{
+        const batch=writeBatch(db),snapshot=_grcRiskQueueSnapshot(requestData,requestRef.id);
+        batch.set(requestRef,requestData,{merge:false});
+        batch.set(
+          _grcManagerQueueItemRef(department,'risk',requestRef.id),
+          _grcQueueItem('risk',requestRef.id,department,freshProfile.email,snapshot),
+          {merge:false}
+        );
+        await batch.commit();
       }
       catch(saveError){
         const codeText=String(saveError&&saveError.code||saveError&&saveError.message||saveError||'save-failed');
@@ -1777,9 +1792,13 @@ window._selectPortal=async portal=>{
     };
     window._grcRiskRequestResubmit=async function(requestId,proposedRecord,note){
       if(!_grcRiskCanSubmit('risk')&&!_grcRiskCanSubmit('incident'))throw new Error('Access denied.');const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(!_grcRiskOwnsRequest(r))throw new Error('Access denied.');if(String(r.status||'')!=='returned_requester')throw new Error('Only a request returned for update can be edited and resubmitted.');
-      const proposed=_grcRiskJson(proposedRecord||r.proposedRecord),now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status:'pending_super_admin',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'Resubmitted')});
-      const updates={proposedRecord:proposed,changedFields:_grcRiskChangedFields(r.currentRecord,proposed),status:'pending_super_admin',requesterNote:String(note||r.requesterNote||''),managerNote:'',superAdminNote:'',assignedManagerEmail:'',returnFields:[],returnNote:'',returnSource:'',updatedAt:serverTimestamp(),updatedAtIso:now,history};
-      await updateDoc(ref,updates);
+      const proposed=_grcRiskJson(proposedRecord||r.proposedRecord),now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status:'pending_manager',by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'Resubmitted')});
+      const dept=String(r.departmentKey||r.department||'');
+      const updates={proposedRecord:proposed,changedFields:_grcRiskChangedFields(r.currentRecord,proposed),status:'pending_manager',requesterNote:String(note||r.requesterNote||''),managerNote:'',superAdminNote:'',assignedManagerEmail:'',returnFields:[],returnNote:'',returnSource:'',updatedAt:serverTimestamp(),updatedAtIso:now,history};
+      const snapshot=_grcRiskQueueSnapshot(Object.assign({},r,updates,{updatedAtIso:now}),requestId),batch=writeBatch(db);
+      batch.update(ref,updates);
+      batch.set(_grcManagerQueueItemRef(dept,'risk',requestId),_grcQueueItem('risk',requestId,dept,String(r.submittedByEmail||_grcRiskEmail()),snapshot),{merge:false});
+      await batch.commit();
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('GRC_REGISTER_REQUEST_RESUBMIT','Resubmitted '+String(r.recordType||'risk')+' request '+String(r.requestCode||requestId),r.proposedRecord,proposed,{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
       return true;
@@ -1900,9 +1919,11 @@ window._selectPortal=async portal=>{
       }
       const snap=await getDoc(requestRef);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(String(r.status||'')!=='pending_super_admin')throw new Error('This request is not awaiting final approval.');
       action=String(action||'');note=String(note||'').trim();fields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
-      const status=action==='return'?'returned_manager':action==='reject'?'rejected_super_admin':'';if(!status)throw new Error('Invalid action.');if(!note)throw new Error('A note is required.');
+      const status=action==='return'?'returned_requester':action==='reject'?'rejected_super_admin':'';if(!status)throw new Error('Invalid action.');if(!note)throw new Error('A note is required.');
       const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status,by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:note,fields:fields});
-      const updates={status,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:note,returnFields:status==='returned_requester'?fields:[],returnNote:status==='returned_requester'?note:'',returnSource:status==='returned_requester'?'super_admin':'',updatedAt:serverTimestamp(),updatedAtIso:now,history},dept=String(r.departmentKey||r.department||'');
+      const updates={status,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:note,returnFields:status==='returned_requester'?fields:[],returnNote:status==='returned_requester'?note:'',returnSource:status==='returned_requester'?'super_admin':'',updatedAt:serverTimestamp(),updatedAtIso:now,history};
+      // Super Admin returns go directly to the original requester; do not
+      // create a Department Manager queue item or route the request backwards.
       await updateDoc(requestRef,updates);
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('GRC_SUPER_ADMIN_APPROVAL_'+String(action||'action').toUpperCase(),'Super Admin '+String(action||'action')+' · '+String(r.requestCode||requestId),{status:r.status},{status:status,note:String(note||'')},{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
@@ -1920,9 +1941,7 @@ window._selectPortal=async portal=>{
     window._grcRiskRequestsGetForManager=async function(){
       const bundle=await window._grcGetDepartmentApprovalQueue(true);
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
-      const all=(bundle.riskAll||[]).map(function(r){return Object.assign({},r,{_managerAssigned:true});});
-      const active=(bundle.risk||[]).map(function(r){return Object.assign({},r,{_managerAssigned:true});});
-      return {risk:all,riskAll:all,records:all,allRecords:all,review:[],reviewAll:[],errors:bundle.errors||[],activeRisk:active};
+      return bundle.risk||[];
     };
     window._grcRiskRequestsGetAll=async function(){if(!_grcRiskIsAdmin())throw new Error('Access denied.');return _grcRiskRead(collection(db,GRC_RISK_REQUESTS_COLLECTION));};
     window._grcRiskRequestsSubscribe=function(callback){
