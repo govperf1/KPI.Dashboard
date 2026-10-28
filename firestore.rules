@@ -671,21 +671,24 @@ service cloud.firestore {
     match /grc_requests/{requestId} {
       // v362: Super Admin reads the complete request history directly.
       allow get, list: if superAdmin();
-      allow create: if canAccessGrc() && ownEmail(request.resource.data.userEmail) &&
+      // Any signed-in, approved user may submit a GRC access/support request.
+      // This is intentionally separate from permissions to edit GRC registers.
+      allow create: if signedIn() && approvedValue(userData().approved) &&
+        ownEmail(request.resource.data.userEmail) &&
         request.resource.data.requesterUid == request.auth.uid &&
-        request.resource.data.requesterRole == role() &&
-        request.resource.data.requesterScopeKey == (request.auth.uid + '::' + role()) &&
-        (
-          !('department' in request.resource.data) ||
-          request.resource.data.department == '' ||
-          sameDepartment(request.resource.data.department)
-        );
+        request.resource.data.platform == 'grc' &&
+        request.resource.data.requestType is string &&
+        request.resource.data.message is string;
 
       // v371 ROOT FIX: an authenticated requester can read their own request
       // regardless of the cached/legacy GRC role matrix. This is
       // still strictly identity-scoped and cannot expose another user's data.
       // v372: exact owner get. No approved/role dependency.
       allow get: if ownRoleScope(resource.data);
+      // Stable owner access survives role changes; only the authenticated UID's
+      // own request documents can be opened.
+      allow get: if signedIn() && resource.data.requesterUid == request.auth.uid;
+      allow list: if signedIn() && resource.data.requesterUid == request.auth.uid;
 
       // Exact query-safe list branches. Keep ownership reads separate from
       // analytics reads so an exact userEmail query never depends on a legacy UID.
@@ -1296,7 +1299,9 @@ service cloud.firestore {
 
     function validGrcRiskRequesterResubmit() {
       return grcRiskRequestOwner(resource.data) &&
-        resource.data.status == 'returned_requester' &&
+        (resource.data.status == 'returned_requester' ||
+          (resource.data.status == 'returned_manager' &&
+            role() == 'grc_owner')) &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'proposedRecord','changedFields','requesterNote',
           'managerNote','superAdminNote','assignedManagerEmail',
@@ -1469,6 +1474,9 @@ service cloud.firestore {
       // can write these workflow records.
       allow update: if signedIn() && approvedValue(userData().approved) &&
         profileRoleFrom(userData()) == 'super_admin';
+      // Explicit decision authority for Super Admins, using the same role helper
+      // as the portal's canonical role resolution.
+      allow update: if superAdmin();
 
       allow update: if validRiskRequesterRatingChange() ||
         validGrcRiskRequesterResubmit() ||
