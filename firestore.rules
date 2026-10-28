@@ -1220,16 +1220,16 @@ service cloud.firestore {
         data.submittedByEmail is string && ownEmail(data.submittedByEmail) &&
         data.submittedByUid == request.auth.uid &&
         data.submittedByRole == r &&
-        data.requesterUid == request.auth.uid &&
-        data.requesterRole == r &&
         data.requesterScopeKey == (request.auth.uid + '::' + r) &&
         data.department is string &&
         data.departmentKey is string &&
         data.departmentKey == profileDepartmentKeyFrom(u) &&
         data.recordType in ['risk','incident'] &&
         data.operation in ['add','update','delete'] &&
-        ((r == 'grc_owner' && data.status == 'pending_super_admin') ||
-         (r != 'grc_owner' && data.status == 'pending_manager'));
+        (
+          (r == 'grc_owner' && data.status == 'pending_super_admin') ||
+          (r in ['risk_owner','platform_owner'] && data.status == 'pending_manager')
+        );
     }
 
     function riskRequestOwner(data) {
@@ -1300,10 +1300,13 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'proposedRecord','changedFields','requesterNote',
           'managerNote','superAdminNote','assignedManagerEmail',
-          'returnFields','returnNote','returnSource',
+          'returnFields','returnNote','returnSource','returnedToUid','returnedToEmail',
           'status','updatedAt','updatedAtIso','history'
         ]) &&
-        request.resource.data.status == 'pending_manager';
+        (
+          (role() == 'grc_owner' && request.resource.data.status == 'pending_super_admin') ||
+          (role() in ['risk_owner','platform_owner'] && request.resource.data.status == 'pending_manager')
+        );
     }
 
     function riskRequesterChange() {
@@ -1460,6 +1463,12 @@ service cloud.firestore {
         ('department' in resource.data) && resource.data.department == profileDepartmentValueFrom(userData());
       allow list: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
         ('departmentRaw' in resource.data) && resource.data.departmentRaw == profileDepartmentValueFrom(userData());
+
+      // Explicit deployed-rule-compatible authority for Super Admin decisions.
+      // Decision history/status fields may evolve; only approved Super Admins
+      // can write these workflow records.
+      allow update: if signedIn() && approvedValue(userData().approved) &&
+        profileRoleFrom(userData()) == 'super_admin';
 
       allow update: if validRiskRequesterRatingChange() ||
         validGrcRiskRequesterResubmit() ||
