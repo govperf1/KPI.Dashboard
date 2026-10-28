@@ -357,7 +357,7 @@
   function actions(r){var s=String(r.status||''),html='';
     if(isManager()&&managerCanReviewRisk(r)&&s==='pending_manager')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_approve\',this)">Approve to Super Admin</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_return\',this)">Return to '+esc(submitterLabel(r))+'</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_reject\',this)">Reject</button>';
     if(isManager()&&managerCanReviewRisk(r)&&s==='returned_manager')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_approve\',this)">Approve to Super Admin</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_return\',this)">Return to '+esc(submitterLabel(r))+'</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'manager_reject\',this)">Reject</button>';
-    if(isSuper()&&s==='pending_super_admin')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_approve\',this)">Approve & Publish</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_return\',this)">Return to Department Manager</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_reject\',this)">Reject</button>';
+    if(isSuper()&&s==='pending_super_admin')html='<button class="grc-risk-action good" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_approve\',this)">Approve & Publish</button><button class="grc-risk-action warn" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_return\',this)">Return to Requester</button><button class="grc-risk-action bad" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'super_reject\',this)">Reject</button>';
     if(isOwner()&&ownRequest(r)&&s==='returned_requester')html='<button class="grc-risk-action good" onclick="window._grcRiskEditResubmit(\''+esc(r.id)+'\')">Edit Requested Fields & Resubmit</button>';
     if(isOwner()&&ownRequest(r)&&s==='pending_manager')html='<button class="grc-risk-action bad ghost" onclick="window._grcRiskDecision(\''+esc(r.id)+'\',\'cancel\',this)">Cancel Request</button>';
     return html?'<div class="grc-risk-request-actions">'+html+'</div>'+inlineDecisionShell():'';
@@ -653,6 +653,18 @@
       else if(action==='super_return')await window._grcRiskRequestSuperAction(id,'return',note,fields);
       else if(action==='super_reject')await window._grcRiskRequestSuperAction(id,'reject',note,[]);
       else if(action==='cancel')await window._grcRiskRequestCancel(id);
+      if(action==='super_return'||action==='super_reject'||action==='super_approve'){
+        var finalStatus=action==='super_return'?'returned_requester':(action==='super_reject'?'rejected_super_admin':'published');
+        var actedAt=new Date().toISOString();
+        cache=cache.map(function(x){
+          if(String(x.id)!==String(id))return x;
+          var next=Object.assign({},x,{status:finalStatus,updatedAtIso:actedAt,updatedAtText:actedAt,superAdminNote:note||''});
+          next.history=(Array.isArray(x.history)?x.history.slice():[]);
+          next.history.push({status:finalStatus,by:window._fbUser||'',role:'super_admin',at:actedAt,note:note||''});
+          return next;
+        });
+        window.__grcRiskRequestCache=cache;
+      }
       if(isManager()&&(action==='manager_approve'||action==='manager_return'||action==='manager_reject'||action==='manager_resend')){
         cache=cache.filter(function(x){return String(x.id)!==String(id);});
         window.__grcRiskRequestCache=cache;

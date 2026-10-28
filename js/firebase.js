@@ -1924,8 +1924,27 @@ window._selectPortal=async portal=>{
       const updates={status,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:note,returnFields:status==='returned_requester'?fields:[],returnNote:status==='returned_requester'?note:'',returnSource:status==='returned_requester'?'super_admin':'',updatedAt:serverTimestamp(),updatedAtIso:now,history};
       // Super Admin returns go directly to the original requester; do not
       // create a Department Manager queue item or route the request backwards.
-      await updateDoc(requestRef,updates);
+      // Persist the final decision atomically against the latest server state.
+      // A stale card must never make the UI claim success for a decision that
+      // was not written. The requester routing fields are explicit for returns.
+      await runTransaction(db,async function(tx){
+        const latest=await tx.get(requestRef);
+        if(!latest.exists())throw new Error('Request not found.');
+        const latestData=latest.data()||{};
+        if(String(latestData.status||'')!=='pending_super_admin')throw new Error('This request is no longer awaiting final approval. Refresh the queue and try again.');
+        const finalUpdates=Object.assign({},updates);
+        if(status==='returned_requester'){
+          finalUpdates.returnedToUid=String(latestData.requesterUid||latestData.submittedByUid||'');
+          finalUpdates.returnedToEmail=String(latestData.submittedByEmail||latestData.userEmail||latestData.requesterEmail||'').toLowerCase();
+          finalUpdates.returnSource='super_admin';
+          finalUpdates.returnedAt=serverTimestamp();
+        }
+        tx.update(requestRef,finalUpdates);
+      });
+      const verified=await getDoc(requestRef);
+      if(!verified.exists()||String((verified.data()||{}).status||'')!==status)throw new Error('Decision was not confirmed by the server. Check Firestore permissions and retry.');
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
+      try{if(typeof window._grcRiskRequestsRefresh==='function')await window._grcRiskRequestsRefresh();}catch(refreshErr){console.warn('[GRC Super Admin] queue refresh after decision skipped',refreshErr&&refreshErr.code||refreshErr);}
       try{await window._recordAuditDirect('GRC_SUPER_ADMIN_APPROVAL_'+String(action||'action').toUpperCase(),'Super Admin '+String(action||'action')+' · '+String(r.requestCode||requestId),{status:r.status},{status:status,note:String(note||'')},{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
       return true;
     };
