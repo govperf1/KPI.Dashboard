@@ -863,18 +863,16 @@ window._selectPortal=async portal=>{
     window._grcRequestsGetMine=async function(){
       if(!window._fbUser||!db) return [];
       const uid=(auth.currentUser&&auth.currentUser.uid)||'';
-      const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
       if(!uid)return [];
       try{
-        // Use the same exact identity fields written by _grcRequestsSubmit.
-        // Avoid email-only queries: Firestore rules cannot safely prove them
-        // against older records and role changes.
+        // Canonical, immutable owner key. Do not bind history visibility to the
+        // current role: users must retain their own requests after role changes.
         const scoped=await getDocs(query(collection(db,'grc_requests'),
-          where('requesterUid','==',uid),where('requesterRole','==',activeRole)));
+          where('requesterUid','==',uid)));
         const seen={};
         const rows=scoped.docs.map(function(d){return Object.assign({id:d.id},d.data());}).filter(function(r){
           const id=String(r.id||'');if(!id||seen[id])return false;seen[id]=1;
-          return String(r.requesterUid||'')===uid&&String(r.requesterRole||'')===activeRole;
+          return String(r.requesterUid||'')===uid;
         });
         rows.sort(function(a,b){
           const stamp=function(v){return v&&typeof v.toMillis==='function'?v.toMillis():(v&&v.seconds?v.seconds*1000:(v?new Date(v).getTime():0));};
@@ -1802,7 +1800,7 @@ window._selectPortal=async portal=>{
       return{requestId:requestRef.id,requestCode:requestCode};
     };
     window._grcRiskRequestResubmit=async function(requestId,proposedRecord,note){
-      if(!_grcRiskCanSubmit('risk')&&!_grcRiskCanSubmit('incident'))throw new Error('Access denied.');const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(!_grcRiskOwnsRequest(r))throw new Error('Access denied.');if(String(r.status||'')!=='returned_requester')throw new Error('Only a request returned for update can be edited and resubmitted.');
+      if(!_grcRiskCanSubmit('risk')&&!_grcRiskCanSubmit('incident'))throw new Error('Access denied.');const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(!_grcRiskOwnsRequest(r))throw new Error('Access denied.');if(!['returned_requester','returned_manager'].includes(String(r.status||'')) || (String(r.status||'')==='returned_manager' && _grcRiskRole()!=='grc_owner'))throw new Error('Only a request returned for update can be edited and resubmitted.');
       const proposed=_grcRiskJson(proposedRecord||r.proposedRecord),now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];const nextStatus=_grcRiskRole()==='grc_owner'?'pending_super_admin':'pending_manager';history.push({status:nextStatus,by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:String(note||'Resubmitted')});
       const dept=String(r.departmentKey||r.department||'');
       const updates={proposedRecord:proposed,changedFields:_grcRiskChangedFields(r.currentRecord,proposed),status:nextStatus,requesterNote:String(note||r.requesterNote||''),managerNote:'',superAdminNote:'',assignedManagerEmail:'',returnFields:[],returnNote:'',returnSource:'',updatedAt:serverTimestamp(),updatedAtIso:now,history};
