@@ -833,18 +833,24 @@ window._selectPortal=async portal=>{
     function _grcSystemRequestIsAdmin(){const r=_grcSystemRequestRole();return r==='admin'||r==='super_admin';}
     function _grcSystemRequestCanAnalyze(){return _grcSystemRequestIsAdmin()||_clientHasPerm('view_request_analytics')||_grcSystemRequestRole()==='governance_performance_manager';}
     window._grcRequestsSubmit=async function(requestType,message){
-      if(!window._fbUser||!db) throw new Error('not authenticated');
-      const _grcRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
-      const _grcUid=(auth.currentUser&&auth.currentUser.uid)||'';
+      if(!auth.currentUser||!auth.currentUser.email||!db) throw new Error('not authenticated');
+      // Use the authoritative server profile, not potentially stale portal globals.
+      // Firestore Rules evaluate the users/{authEmail} role and department, so the
+      // request identity must be derived from that same profile at submit time.
+      const fresh=await _advFreshProfile();
+      await _advAssertProfileScope(fresh);
+      const _grcRole=_normalizePortalRole(fresh.role||'viewer');
+      const _grcUid=String(auth.currentUser.uid||'');
+      const _grcEmail=String(auth.currentUser.email||fresh.email||'').toLowerCase().trim();
       const _grcScope=_grcUid+'::'+_grcRole;
       const ref=await addDoc(collection(db,'grc_requests'),{
         platform:'grc',
-        userName: window._fbName||window._fbUser.split('@')[0],
-        userEmail: (window._fbUser||'').toLowerCase().trim(),
+        userName: window._fbName||_grcEmail.split('@')[0],
+        userEmail: _grcEmail,
         requesterUid: _grcUid,
         requesterRole: _grcRole,
         requesterScopeKey: _grcScope,
-        department: String(window._fbDept||window.currentUserDept||'').trim(),
+        department: String(fresh.rawDepartment||'').trim(),
         requestType: String(requestType||'General GRC Request').trim(),
         message: String(message||'').trim(),
         status: 'pending',
@@ -1227,18 +1233,27 @@ window._selectPortal=async portal=>{
         // never be the source for the full Risk/Incident request history page.
         const result={profile:fresh,review:[],risk:[],riskAll:[],errors:[]};
         const riskCol=collection(db,GRC_RISK_REQUESTS_COLLECTION);
-        const riskHistoryQuery=query(riskCol,where('departmentKey','==',fresh.departmentKey));
+        // Read-only manager history supports current canonical keys and legacy
+        // documents that stored the department label instead of departmentKey.
+        // Each query is independently scoped by the manager's own department.
+        const historyQueries=[query(riskCol,where('departmentKey','==',fresh.departmentKey))];
+        const rawDept=String(fresh.rawDepartment||'').trim();
+        if(rawDept){
+          historyQueries.push(query(riskCol,where('department','==',rawDept)));
+          historyQueries.push(query(riskCol,where('departmentRaw','==',rawDept)));
+        }
         const settled=await Promise.allSettled([
           getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review')),
           getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk')),
-          getDocsFromServer(riskHistoryQuery)
+          ...historyQueries.map(function(q){return getDocsFromServer(q);})
         ]);
         if(settled[0].status==='rejected')result.errors.push('Review & Development: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason));
         if(settled[1].status==='rejected')result.errors.push('Risk / Incident approval queue: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
-        if(settled[2].status==='rejected')result.errors.push('Risk / Incident history: '+String(settled[2].reason&&settled[2].reason.message||settled[2].reason));
+        const historyFailures=settled.slice(2).filter(function(x){return x.status==='rejected';});
+        if(historyFailures.length===historyQueries.length)result.errors.push('Risk / Incident history: '+String(historyFailures[0].reason&&historyFailures[0].reason.message||historyFailures[0].reason));
         if(settled[0].status==='fulfilled')settled[0].value.forEach(function(d){const item=d.data()||{},snap=item.snapshot||{};if(String(snap.workflowStage||item.workflowStage||'')!=='pending_department_manager')return;if(String(item.requesterEmail||snap.userEmail||'').toLowerCase().trim()===fresh.email)return;const out=_advNormalizeRow(String(item.requestId||d.id),snap,'advisory_requests');out._managerAssigned=true;result.review.push(out);});
         if(settled[1].status==='fulfilled')settled[1].value.forEach(function(d){const item=d.data()||{},snap=item.snapshot||{},status=String(snap.status||item.status||'').toLowerCase();if(String(item.requesterEmail||snap.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;if(!['pending_manager','returned_manager'].includes(status))return;const data=_grcRiskRequestData({id:String(item.requestId||d.id),exists:function(){return true;},data:function(){return snap;}});if(data){data._managerAssigned=true;result.risk.push(data);}});
-        if(settled[2].status==='fulfilled')settled[2].value.forEach(function(d){const data=_grcRiskRequestData(d);if(!data)return;const submitter=String(data.submittedByEmail||'').toLowerCase().trim();if(submitter===fresh.email)return;result.riskAll.push(data);});
+        settled.slice(2).forEach(function(group){if(group.status!=='fulfilled')return;group.value.forEach(function(d){const data=_grcRiskRequestData(d);if(!data)return;const submitter=String(data.submittedByEmail||'').toLowerCase().trim();if(submitter===fresh.email)return;result.riskAll.push(data);});});
         // Queue snapshots help legacy requests that were routed before the
         // authoritative department history query was introduced. Merge by ID,
         // with authoritative documents taking precedence over snapshots.
