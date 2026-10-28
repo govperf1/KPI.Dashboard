@@ -863,15 +863,17 @@ window._selectPortal=async portal=>{
     window._grcRequestsGetMine=async function(){
       if(!window._fbUser||!db) return [];
       const uid=(auth.currentUser&&auth.currentUser.uid)||'';
+      const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
+      const scopeKey=uid+'::'+activeRole;
       let rows=[];
       try{
         if(uid){
           try{
-            // Identity-only query is stable when a user's portal role changes.
-            // Security Rules still restrict every returned document to this UID.
-            const scoped=await getDocs(query(collection(db,'grc_requests'),where('requesterUid','==',uid)));
+            const scoped=await getDocs(query(collection(db,'grc_requests'),where('requesterUid','==',uid),where('requesterRole','==',activeRole)));
             rows=scoped.docs.map(function(d){return Object.assign({id:d.id},d.data());});
-          }catch(e){console.warn('[GRC Requests] owner lookup failed:',e&&e.code||e);}
+          }catch(e){console.warn('[GRC Requests] scope query failed:',e&&e.code||e);}
+          // v397: no legacy UID+role query. Shared test accounts are isolated
+          // by the canonical requesterScopeKey for current requests.
         }
         const seen={};
         rows=rows.filter(function(r){const k=String(r.id||'');if(!k||seen[k])return false;seen[k]=1;return true;});
@@ -921,6 +923,8 @@ window._selectPortal=async portal=>{
     window._grcRequestsSubscribeMine=function(callback){
       if(typeof callback!=='function'||!window._fbUser||!db)return function(){};
       const uid=(auth.currentUser&&auth.currentUser.uid)||'';
+      const activeRole=_normalizePortalRole(window._fbRole||window.currentUserRole||'viewer');
+      const scopeKey=uid+'::'+activeRole;
       let closed=false,timer=null,source={};
       const emit=function(){
         if(closed||!source.scope||!source.scope.ready)return;
@@ -943,8 +947,9 @@ window._selectPortal=async portal=>{
       };
       const unsubs=[];
       if(uid){
-        // One authoritative owner listener; role changes must not hide history.
-        unsubs.push(listen('scope',query(collection(db,'grc_requests'),where('requesterUid','==',uid))));
+        // v397: one authoritative listener only. Legacy UID+role queries were
+        // generating permission-denied noise and could replace valid rows with [].
+        unsubs.push(listen('scope',query(collection(db,'grc_requests'),where('requesterUid','==',uid),where('requesterRole','==',activeRole))));
       }else{source.scope={ready:true,rows:[]};emit();}
       return function(){closed=true;clearTimeout(timer);unsubs.forEach(function(u){try{u();}catch(_){}});};
     };
@@ -1771,15 +1776,22 @@ window._selectPortal=async portal=>{
         console.warn('[GRC Risk Workflow] counter unavailable; using collision-safe fallback code',counterError&&counterError.code||counterError);
         requestCode=kindCode+'-REQ-'+deptCode+'-'+year+'-'+String(Date.now()).slice(-7);
       }
-      const requestData={requestCode,recordType,operation,department,departmentKey:department,departmentRaw:departmentRaw,assignedManagerEmail:'',targetRiskId:String(payload.targetRiskId||payload.targetRecordId||current&&current.id||current&&current.code||proposed&&proposed.id||''),targetRecordId:String(payload.targetRecordId||payload.targetRiskId||current&&current.id||current&&current.code||proposed&&proposed.id||''),currentRecord:current,proposedRecord:proposed,changedFields:_grcRiskChangedFields(current,proposed),deleteReason:String(payload.deleteReason||''),requesterNote:String(payload.note||''),returnFields:[],returnNote:'',returnSource:'',status:'pending_manager',submittedByName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]),submittedByEmail:freshProfile.email,submittedByUid:freshProfile.uid,submittedByRole:freshProfile.role,managerName:'',managerEmail:'',managerNote:'',superAdminName:'',superAdminEmail:'',superAdminNote:'',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:nowIso,updatedAtIso:nowIso,history:[{status:'pending_manager',by:freshProfile.email,role:freshProfile.role,at:nowIso,note:String(payload.note||'')}]};
+      // GRC Owner requests go straight to Super Admin. They must not be
+      // coupled to the Department Manager inbox write: that write can be denied
+      // by department queue rules and rejects the entire atomic batch.
+      const directToSuperAdmin=freshProfile.role==='grc_owner';
+      const initialStatus=directToSuperAdmin?'pending_super_admin':'pending_manager';
+      const requestData={requestCode,recordType,operation,department,departmentKey:department,departmentRaw:departmentRaw,assignedManagerEmail:'',targetRiskId:String(payload.targetRiskId||payload.targetRecordId||current&&current.id||current&&current.code||proposed&&proposed.id||''),targetRecordId:String(payload.targetRecordId||payload.targetRiskId||current&&current.id||current&&current.code||proposed&&proposed.id||''),currentRecord:current,proposedRecord:proposed,changedFields:_grcRiskChangedFields(current,proposed),deleteReason:String(payload.deleteReason||''),requesterNote:String(payload.note||''),returnFields:[],returnNote:'',returnSource:'',status:initialStatus,submittedByName:String(window._fbName||window.currentUserName||freshProfile.email.split('@')[0]),submittedByEmail:freshProfile.email,submittedByUid:freshProfile.uid,submittedByRole:freshProfile.role,requesterUid:freshProfile.uid,requesterRole:freshProfile.role,requesterScopeKey:freshProfile.uid+'::'+freshProfile.role,managerName:'',managerEmail:'',managerNote:'',superAdminName:'',superAdminEmail:'',superAdminNote:'',createdAt:serverTimestamp(),updatedAt:serverTimestamp(),createdAtIso:nowIso,updatedAtIso:nowIso,history:[{status:initialStatus,by:freshProfile.email,role:freshProfile.role,at:nowIso,note:String(payload.note||''),message:directToSuperAdmin?'Submitted directly to Super Admin; no department-manager approval required.':''}]};
       try{
         const batch=writeBatch(db),snapshot=_grcRiskQueueSnapshot(requestData,requestRef.id);
         batch.set(requestRef,requestData,{merge:false});
-        batch.set(
-          _grcManagerQueueItemRef(department,'risk',requestRef.id),
-          _grcQueueItem('risk',requestRef.id,department,freshProfile.email,snapshot),
-          {merge:false}
-        );
+        if(!directToSuperAdmin){
+          batch.set(
+            _grcManagerQueueItemRef(department,'risk',requestRef.id),
+            _grcQueueItem('risk',requestRef.id,department,freshProfile.email,snapshot),
+            {merge:false}
+          );
+        }
         await batch.commit();
       }
       catch(saveError){
@@ -1919,32 +1931,13 @@ window._selectPortal=async portal=>{
       }
       const snap=await getDoc(requestRef);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(String(r.status||'')!=='pending_super_admin')throw new Error('This request is not awaiting final approval.');
       action=String(action||'');note=String(note||'').trim();fields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
-      const status=action==='return'?'returned_requester':action==='reject'?'rejected_super_admin':'';if(!status)throw new Error('Invalid action.');if(!note)throw new Error('A note is required.');
+      const status=action==='return'?'returned_manager':action==='reject'?'rejected_super_admin':'';if(!status)throw new Error('Invalid action.');if(!note)throw new Error('A note is required.');
       const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status,by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:note,fields:fields});
-      const updates={status,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:note,returnFields:status==='returned_requester'?fields:[],returnNote:status==='returned_requester'?note:'',returnSource:status==='returned_requester'?'super_admin':'',updatedAt:serverTimestamp(),updatedAtIso:now,history};
-      // Super Admin returns go directly to the original requester; do not
-      // create a Department Manager queue item or route the request backwards.
-      // Persist the final decision atomically against the latest server state.
-      // A stale card must never make the UI claim success for a decision that
-      // was not written. The requester routing fields are explicit for returns.
-      await runTransaction(db,async function(tx){
-        const latest=await tx.get(requestRef);
-        if(!latest.exists())throw new Error('Request not found.');
-        const latestData=latest.data()||{};
-        if(String(latestData.status||'')!=='pending_super_admin')throw new Error('This request is no longer awaiting final approval. Refresh the queue and try again.');
-        const finalUpdates=Object.assign({},updates);
-        if(status==='returned_requester'){
-          finalUpdates.returnedToUid=String(latestData.requesterUid||latestData.submittedByUid||'');
-          finalUpdates.returnedToEmail=String(latestData.submittedByEmail||latestData.userEmail||latestData.requesterEmail||'').toLowerCase();
-          finalUpdates.returnSource='super_admin';
-          finalUpdates.returnedAt=serverTimestamp();
-        }
-        tx.update(requestRef,finalUpdates);
-      });
-      const verified=await getDoc(requestRef);
-      if(!verified.exists()||String((verified.data()||{}).status||'')!==status)throw new Error('Decision was not confirmed by the server. Check Firestore permissions and retry.');
+      const updates={status,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:note,returnFields:status==='returned_manager'?fields:[],returnNote:status==='returned_manager'?note:'',returnSource:status==='returned_manager'?'super_admin':'',updatedAt:serverTimestamp(),updatedAtIso:now,history},dept=String(r.departmentKey||r.department||'');
+      if(status==='returned_manager'){
+        const snapshot=_grcRiskQueueSnapshot(Object.assign({},r,updates,{updatedAtIso:now}),requestId),batch=writeBatch(db);batch.update(requestRef,updates);batch.set(_grcManagerQueueItemRef(dept,'risk',requestId),_grcQueueItem('risk',requestId,dept,String(r.submittedByEmail||''),snapshot),{merge:false});await batch.commit();
+      }else await updateDoc(requestRef,updates);
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
-      try{if(typeof window._grcRiskRequestsRefresh==='function')await window._grcRiskRequestsRefresh();}catch(refreshErr){console.warn('[GRC Super Admin] queue refresh after decision skipped',refreshErr&&refreshErr.code||refreshErr);}
       try{await window._recordAuditDirect('GRC_SUPER_ADMIN_APPROVAL_'+String(action||'action').toUpperCase(),'Super Admin '+String(action||'action')+' · '+String(r.requestCode||requestId),{status:r.status},{status:status,note:String(note||'')},{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
       return true;
     };
