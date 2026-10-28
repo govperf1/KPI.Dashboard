@@ -1228,14 +1228,29 @@ window._selectPortal=async portal=>{
       if(!force&&_grcManagerQueueCache&&now-_grcManagerQueueCacheAt<1200)return _grcManagerQueueCache;
       if(_grcManagerQueueCachePromise)return _grcManagerQueueCachePromise;
       _grcManagerQueueCachePromise=(async function(){
-        const result={profile:fresh,review:[],risk:[],errors:[]};
-        const settled=await Promise.allSettled([getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review')),getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk'))]);
+        // Keep the action queue separate from the manager's read-only history.
+        // The queue intentionally contains only pending manager tasks, so it can
+        // never be the source for the full Risk/Incident request history page.
+        const result={profile:fresh,review:[],risk:[],riskAll:[],errors:[]};
+        const riskCol=collection(db,GRC_RISK_REQUESTS_COLLECTION);
+        const riskHistoryQuery=query(riskCol,where('departmentKey','==',fresh.departmentKey));
+        const settled=await Promise.allSettled([
+          getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review')),
+          getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk')),
+          getDocsFromServer(riskHistoryQuery)
+        ]);
         if(settled[0].status==='rejected')result.errors.push('Review & Development: '+String(settled[0].reason&&settled[0].reason.message||settled[0].reason));
-        if(settled[1].status==='rejected')result.errors.push('Risk / Incident: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
+        if(settled[1].status==='rejected')result.errors.push('Risk / Incident approval queue: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
+        if(settled[2].status==='rejected')result.errors.push('Risk / Incident history: '+String(settled[2].reason&&settled[2].reason.message||settled[2].reason));
         if(settled[0].status==='fulfilled')settled[0].value.forEach(function(d){const item=d.data()||{},snap=item.snapshot||{};if(String(snap.workflowStage||item.workflowStage||'')!=='pending_department_manager')return;if(String(item.requesterEmail||snap.userEmail||'').toLowerCase().trim()===fresh.email)return;const out=_advNormalizeRow(String(item.requestId||d.id),snap,'advisory_requests');out._managerAssigned=true;result.review.push(out);});
         if(settled[1].status==='fulfilled')settled[1].value.forEach(function(d){const item=d.data()||{},snap=item.snapshot||{},status=String(snap.status||item.status||'').toLowerCase();if(String(item.requesterEmail||snap.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;if(!['pending_manager','returned_manager'].includes(status))return;const data=_grcRiskRequestData({id:String(item.requestId||d.id),exists:function(){return true;},data:function(){return snap;}});if(data){data._managerAssigned=true;result.risk.push(data);}});
+        if(settled[2].status==='fulfilled')settled[2].value.forEach(function(d){const data=_grcRiskRequestData(d);if(!data)return;const submitter=String(data.submittedByEmail||'').toLowerCase().trim();if(submitter===fresh.email)return;result.riskAll.push(data);});
+        // Queue snapshots help legacy requests that were routed before the
+        // authoritative department history query was introduced. Merge by ID,
+        // with authoritative documents taking precedence over snapshots.
+        const historyById={};result.risk.forEach(function(r){if(r&&r.id)historyById[String(r.id)]=r;});result.riskAll.forEach(function(r){if(r&&r.id)historyById[String(r.id)]=r;});result.riskAll=Object.keys(historyById).map(function(id){return historyById[id];}).sort(function(a,b){return _advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso);});
         result.risk=_grcRiskSort(result.risk);result.review.sort((a,b)=>_advTsMs(b.createdAt||b.createdAtIso)-_advTsMs(a.createdAt||a.createdAtIso));
-        if(result.errors.length&&!result.review.length&&!result.risk.length)throw new Error(result.errors.join(' · '));
+        if(result.errors.length&&!result.review.length&&!result.risk.length&&!result.riskAll.length)throw new Error(result.errors.join(' · '));
         _grcManagerQueueCache=result;_grcManagerQueueCacheAt=Date.now();return result;
       })();
       try{return await _grcManagerQueueCachePromise;}finally{_grcManagerQueueCachePromise=null;}
@@ -1962,7 +1977,11 @@ window._selectPortal=async portal=>{
     window._grcRiskRequestsGetForManager=async function(){
       const bundle=await window._grcGetDepartmentApprovalQueue(true);
       window.__grcManagerDepartmentKey=bundle.profile.departmentKey;
-      return bundle.risk||[];
+      // Preserve the array contract for existing inbox consumers while exposing
+      // a separate full-history collection to the read-only manager history UI.
+      const rows=bundle.risk||[];
+      rows.allRecords=bundle.riskAll||[];
+      return rows;
     };
     window._grcRiskRequestsGetAll=async function(){if(!_grcRiskIsAdmin())throw new Error('Access denied.');return _grcRiskRead(collection(db,GRC_RISK_REQUESTS_COLLECTION));};
     window._grcRiskRequestsSubscribe=function(callback){
