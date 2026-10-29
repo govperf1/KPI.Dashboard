@@ -1257,7 +1257,11 @@ service cloud.firestore {
       let u = userData();
       let d = profileDepartmentKeyFrom(u);
       return signedIn() && approvedValue(u.approved) && d != '' && (
-        (('departmentKey' in data) && data.departmentKey == d) ||
+        // Department keys in historical requests may contain the stored alias
+        // (for example Project_Management) rather than the canonical key
+        // (projects). Normalize all three department fields consistently so a
+        // manager can open and decide a request already routed to their inbox.
+        (('departmentKey' in data) && canonicalDepartment(data.departmentKey) == d) ||
         (('department' in data) && canonicalDepartment(data.department) == d) ||
         (('departmentRaw' in data) && canonicalDepartment(data.departmentRaw) == d)
       );
@@ -1445,9 +1449,10 @@ service cloud.firestore {
         resource.data.departmentKey == profileDepartmentKeyFrom(userData());
       allow get: if signedIn() && userExists() &&
         profileRoleFrom(userData()) == 'department_manager' &&
+        approvedValue(userData().approved) &&
         profileDepartmentKeyFrom(userData()) != '' &&
         ('departmentKey' in resource.data) &&
-        resource.data.departmentKey == profileDepartmentKeyFrom(userData());
+        canonicalDepartment(resource.data.departmentKey) == profileDepartmentKeyFrom(userData());
       allow list: if departmentManager() && ('department' in resource.data) &&
         resource.data.department == userDepartmentKey();
       allow list: if departmentManager() && ('department' in resource.data) &&
