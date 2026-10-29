@@ -1195,6 +1195,15 @@ window._selectPortal=async portal=>{
     function _grcManagerQueueItemRef(departmentKey,kind,requestId){
       return doc(db,GRC_MANAGER_QUEUE_ROOT,String(departmentKey||''),String(kind||'review')==='risk'?'risk':'review',String(requestId||''));
     }
+    // Do not hide requests by email alone. The same Firebase account may be
+    // used to test multiple portal roles; a GRC Owner request must remain visible
+    // to the Department Manager role even when both profiles share an email/UID.
+    function _grcIsCurrentManagerOwnRequest(item,snapshot,profile){
+      item=item||{};snapshot=snapshot||{};profile=profile||{};
+      const requesterUid=String(item.requesterUid||snapshot.requesterUid||snapshot.submittedByUid||'').trim();
+      const requesterRole=_advNormalizeRoleValue(item.requesterRole||snapshot.requesterRole||snapshot.submittedByRole||'');
+      return !!profile.uid && requesterUid===String(profile.uid) && requesterRole==='department_manager';
+    }
     function _grcQueuePlain(v){
       if(v==null)return v;
       if(Array.isArray(v))return v.map(_grcQueuePlain);
@@ -1255,9 +1264,9 @@ window._selectPortal=async portal=>{
         if(settled[1].status==='rejected')result.errors.push('Risk / Incident approval queue: '+String(settled[1].reason&&settled[1].reason.message||settled[1].reason));
         const historyFailures=settled.slice(2).filter(function(x){return x.status==='rejected';});
         if(historyFailures.length===historyQueries.length)result.errors.push('Risk / Incident history: '+String(historyFailures[0].reason&&historyFailures[0].reason.message||historyFailures[0].reason));
-        if(settled[0].status==='fulfilled')settled[0].value.forEach(function(d){const item=d.data()||{},snap=item.snapshot||{};if(String(snap.workflowStage||item.workflowStage||'')!=='pending_department_manager')return;if(String(item.requesterEmail||snap.userEmail||'').toLowerCase().trim()===fresh.email)return;const out=_advNormalizeRow(String(item.requestId||d.id),snap,'advisory_requests');out._managerAssigned=true;result.review.push(out);});
-        if(settled[1].status==='fulfilled')settled[1].value.forEach(function(d){const item=d.data()||{},snap=item.snapshot||{},status=String(snap.status||item.status||'').toLowerCase();if(String(item.requesterEmail||snap.submittedByEmail||'').toLowerCase().trim()===fresh.email)return;if(!['pending_manager','returned_manager'].includes(status))return;const data=_grcRiskRequestData({id:String(item.requestId||d.id),exists:function(){return true;},data:function(){return snap;}});if(data){data._managerAssigned=true;result.risk.push(data);}});
-        settled.slice(2).forEach(function(group){if(group.status!=='fulfilled')return;group.value.forEach(function(d){const data=_grcRiskRequestData(d);if(!data)return;const submitter=String(data.submittedByEmail||'').toLowerCase().trim();if(submitter===fresh.email)return;result.riskAll.push(data);});});
+        if(settled[0].status==='fulfilled')settled[0].value.forEach(function(d){const item=d.data()||{},snap=item.snapshot||{};if(String(snap.workflowStage||item.workflowStage||'')!=='pending_department_manager')return;if(_grcIsCurrentManagerOwnRequest(item,snap,fresh))return;const out=_advNormalizeRow(String(item.requestId||d.id),snap,'advisory_requests');out._managerAssigned=true;result.review.push(out);});
+        if(settled[1].status==='fulfilled')settled[1].value.forEach(function(d){const item=d.data()||{},snap=item.snapshot||{},status=String(snap.status||item.status||'').toLowerCase();if(_grcIsCurrentManagerOwnRequest(item,snap,fresh))return;if(!['pending_manager','returned_manager'].includes(status))return;const data=_grcRiskRequestData({id:String(item.requestId||d.id),exists:function(){return true;},data:function(){return snap;}});if(data){data._managerAssigned=true;result.risk.push(data);}});
+        settled.slice(2).forEach(function(group){if(group.status!=='fulfilled')return;group.value.forEach(function(d){const data=_grcRiskRequestData(d);if(!data)return;if(_grcIsCurrentManagerOwnRequest({},data,fresh))return;result.riskAll.push(data);});});
         // Queue snapshots help legacy requests that were routed before the
         // authoritative department history query was introduced. Merge by ID,
         // with authoritative documents taking precedence over snapshots.
