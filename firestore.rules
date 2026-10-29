@@ -1511,7 +1511,9 @@ service cloud.firestore {
         // when their queue item is missing/stale. The source request + department
         // + status transition remain the authorization boundary.
         (
-          departmentManager() &&
+          signedIn() && userExists() &&
+          profileRoleFrom(userData()) == 'department_manager' &&
+          profileDepartmentKeyFrom(userData()) != '' &&
           riskRequestDepartment(resource.data) &&
           riskManagerChange() &&
           validManagerRiskTransition()
