@@ -1237,11 +1237,14 @@ window._selectPortal=async portal=>{
         // documents that stored the department label instead of departmentKey.
         // Each query is independently scoped by the manager's own department.
         const historyQueries=[query(riskCol,where('departmentKey','==',fresh.departmentKey))];
+        // Legacy requests may store the canonical key in department/departmentRaw,
+        // or the profile's original department label. Query each exact, scoped
+        // representation separately; Firestore Rules can prove each equality.
         const rawDept=String(fresh.rawDepartment||'').trim();
-        if(rawDept){
-          historyQueries.push(query(riskCol,where('department','==',rawDept)));
-          historyQueries.push(query(riskCol,where('departmentRaw','==',rawDept)));
-        }
+        [fresh.departmentKey,rawDept].filter((value,index,all)=>!!value&&all.indexOf(value)===index).forEach(function(deptValue){
+          historyQueries.push(query(riskCol,where('department','==',deptValue)));
+          historyQueries.push(query(riskCol,where('departmentRaw','==',deptValue)));
+        });
         const settled=await Promise.allSettled([
           getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'review')),
           getDocsFromServer(_grcManagerQueueCollection(fresh.departmentKey,'risk')),
@@ -1269,7 +1272,7 @@ window._selectPortal=async portal=>{
       try{
         const [reviewSnap,riskSnap]=await Promise.all([getDocs(collection(db,ADV_REQUESTS_COLLECTION)),getDocs(collection(db,GRC_RISK_REQUESTS_COLLECTION))]);
         for(const d of reviewSnap.docs){const r=d.data()||{},dept=String(r.departmentKey||'');if(!dept||String(r.workflowStage||'')!=='pending_department_manager')continue;const snapshot=_grcReviewQueueSnapshot(r,d.id);await setDoc(_grcManagerQueueItemRef(dept,'review',d.id),_grcQueueItem('review',d.id,dept,String(r.userEmail||''),snapshot),{merge:false});count++;}
-        for(const d of riskSnap.docs){const r=d.data()||{},dept=String(r.departmentKey||r.department||''),status=String(r.status||'');if(!dept||!['pending_manager','returned_manager'].includes(status))continue;const snapshot=_grcRiskQueueSnapshot(r,d.id);await setDoc(_grcManagerQueueItemRef(dept,'risk',d.id),_grcQueueItem('risk',d.id,dept,String(r.submittedByEmail||''),snapshot),{merge:false});count++;}
+        for(const d of riskSnap.docs){const r=d.data()||{},dept=_advCanonicalDepartment(r.departmentKey||r.departmentRaw||r.department||''),status=String(r.status||'');if(!dept||!['pending_manager','returned_manager'].includes(status))continue;const snapshot=_grcRiskQueueSnapshot(r,d.id);await setDoc(_grcManagerQueueItemRef(dept,'risk',d.id),_grcQueueItem('risk',d.id,dept,String(r.submittedByEmail||''),snapshot),{merge:false});count++;}
       }catch(e){console.warn('[GRC Department Inbox Backfill]',e&&e.code||e);}return count;
     };
 
