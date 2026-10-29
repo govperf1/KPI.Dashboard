@@ -866,10 +866,15 @@ service cloud.firestore {
     function advisoryManagerDepartmentMatch(data) {
       // v367 ROOT FIX: exact canonical departmentKey match only. This keeps
       // manager reads and updates query-safe and avoids legacy alias evaluation.
-      return departmentManager() &&
-        userDepartmentKey() != '' &&
+      // Authorize the manager from the current Firestore profile directly.
+      // Do not depend on the legacy approved flag: the GRC portal already
+      // resolves built-in Department Manager access from the canonical role.
+      let u = userData();
+      let d = profileDepartmentKeyFrom(u);
+      return signedIn() && userExists() &&
+        profileRoleFrom(u) == 'department_manager' && d != '' &&
         ('departmentKey' in data) &&
-        data.departmentKey == userDepartmentKey();
+        canonicalDepartment(data.departmentKey) == d;
     }
 
     function advisoryManagerCanRead(data) {
@@ -967,7 +972,6 @@ service cloud.firestore {
       // authorization through any queue/projection helper.
       return signedIn() &&
         profileRoleFrom(u) == 'department_manager' &&
-        approvedValue(u.approved) &&
         profileDepartmentKeyFrom(u) != '' &&
         ('departmentKey' in resource.data) &&
         resource.data.departmentKey == profileDepartmentKeyFrom(u) &&
@@ -1076,9 +1080,8 @@ service cloud.firestore {
       allow get: if ownRoleScope(resource.data);
       // v372: direct Department Manager source reads. These are restricted to
       // the authenticated manager's canonical department.
-      allow get: if signedIn() &&
+      allow get: if signedIn() && userExists() &&
         profileRoleFrom(userData()) == 'department_manager' &&
-        approvedValue(userData().approved) &&
         profileDepartmentKeyFrom(userData()) != '' &&
         ('departmentKey' in resource.data) &&
         resource.data.departmentKey == profileDepartmentKeyFrom(userData());
