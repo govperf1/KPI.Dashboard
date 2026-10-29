@@ -1267,6 +1267,22 @@ service cloud.firestore {
       );
     }
 
+    // Manager decision authorization for Risk/Incident requests.
+    // Deliberately does not require the legacy `approved` flag: the canonical
+    // role and department on the live user profile are the access boundary.
+    // Keep all department aliases normalized so Project_Management/projects
+    // and other stored aliases resolve to the same department.
+    function managerOwnsRiskRequestDepartment(data) {
+      let u = userData();
+      let d = profileDepartmentKeyFrom(u);
+      return signedIn() && userExists() &&
+        profileRoleFrom(u) == 'department_manager' && d != '' && (
+          (('departmentKey' in data) && canonicalDepartment(data.departmentKey) == d) ||
+          (('department' in data) && canonicalDepartment(data.department) == d) ||
+          (('departmentRaw' in data) && canonicalDepartment(data.departmentRaw) == d)
+        );
+    }
+
     function riskRequestDepartmentList(data) {
       let u = userData();
       let r = profileRoleFrom(u);
@@ -1520,7 +1536,7 @@ service cloud.firestore {
           signedIn() && userExists() &&
           profileRoleFrom(userData()) == 'department_manager' &&
           profileDepartmentKeyFrom(userData()) != '' &&
-          riskRequestDepartment(resource.data) &&
+          managerOwnsRiskRequestDepartment(resource.data) &&
           riskManagerChange() &&
           validManagerRiskTransition()
         ) ||
