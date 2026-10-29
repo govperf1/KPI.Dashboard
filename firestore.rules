@@ -1511,6 +1511,12 @@ service cloud.firestore {
         // when their queue item is missing/stale. The source request + department
         // + status transition remain the authorization boundary.
         (
+          // Managers can read the scoped queue even when older user profiles
+          // have a missing/stale legacy `approved` flag. Do not require that
+          // unrelated flag for this narrowly scoped decision write: the live
+          // user document must exist, the authoritative role must be
+          // department_manager, the request must belong to that department,
+          // and only the manager decision fields/stages below may change.
           signedIn() && userExists() &&
           profileRoleFrom(userData()) == 'department_manager' &&
           profileDepartmentKeyFrom(userData()) != '' &&
