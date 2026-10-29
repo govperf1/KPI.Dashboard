@@ -3244,18 +3244,18 @@
     var standardPath=cbahiCodePath(row&&row[1]),subPath=cbahiCodePath(row&&row[3]),specificPath=cbahiCodePath(row&&row[5]);
     var standard=standardPath?parseInt(standardPath.split('.')[0],10):null;
     // Apply the most specific exceptions before the parent Standard assignment.
-    if(specificPath==='17.3.9')return'Maintenance';
-    if(subPath==='24.1'||specificPath==='24.1')return'Security';
-    if(specificPath==='29.1.7')return'Safety / Maintenance';
-    if(specificPath==='29.1.8')return'Safety';
-    if(standard===1||standard===2)return'FMS Management';
-    if(standard===3)return'Safety / FMS Management';
-    if([4,5,6,7,8,10,14,16,17,18,19,20,21,22,23,24,29,39].indexOf(standard)>=0)return standard===29?'Maintenance':'Safety';
-    if(standard===9)return'Radiology Safety';
-    if([11,12,13].indexOf(standard)>=0)return'Security';
-    if([15,38].indexOf(standard)>=0)return'Housekeeping';
-    if([25,26,27].indexOf(standard)>=0)return'Biomedical';
-    if([28,30,31,32,33,34,35,36,37].indexOf(standard)>=0)return'Maintenance';
+    if(specificPath==='17.3.9')return'Maintenance Department';
+    if(subPath==='24.1'||specificPath==='24.1')return'Security Department';
+    if(specificPath==='29.1.7')return'Safety Department / Maintenance Department';
+    if(specificPath==='29.1.8')return'Safety Department';
+    if(standard===1||standard===2)return'FMS';
+    if(standard===3)return'Safety Department / FMS';
+    if([4,5,6,7,8,10,14,16,17,18,19,20,21,22,23,24,29,39].indexOf(standard)>=0)return standard===29?'Maintenance Department':'Safety Department';
+    if(standard===9)return'Radiology Safety Department';
+    if([11,12,13].indexOf(standard)>=0)return'Security Department';
+    if([15,38].indexOf(standard)>=0)return'Housekeeping Department';
+    if([25,26,27].indexOf(standard)>=0)return'Biomedical Department';
+    if([28,30,31,32,33,34,35,36,37].indexOf(standard)>=0)return'Maintenance Department';
     return String(row&&row[7]||'');
   }
   function assessmentRows(kind,rows){var base=rows.slice(),added=(assessmentEdits[kind]&&assessmentEdits[kind]._added)||[],deleted=(assessmentEdits[kind]&&assessmentEdits[kind]._deleted)||{};base=base.concat(added);return base.map(function(source,rowIndex){var r=source.slice(),edit=assessmentEdits[kind]&&assessmentEdits[kind][rowIndex];if(edit)Object.keys(edit).forEach(function(col){if(col!=='_added'&&col!=='_deleted')r[Number(col)]=edit[col];});r=cleanAssessmentRowCodes(r);if(kind==='cbahi')r[7]=cbahiResponsibleDepartment(r);r._sourceIndex=rowIndex;return r;}).filter(function(r){return !deleted[r._sourceIndex];});}
