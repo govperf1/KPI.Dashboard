@@ -1442,6 +1442,16 @@ service cloud.firestore {
       allow get: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
         ('departmentRaw' in resource.data) && resource.data.departmentRaw == profileDepartmentValueFrom(userData());
       allow get: if departmentManager() && riskRequestDepartment(resource.data);
+      // v76 targeted fix: the manager action first fetches the authoritative
+      // request document with getDoc() before updateDoc(). Permit that direct
+      // fetch for the authenticated Department Manager's own canonical department
+      // without depending on the legacy approved flag. This does not grant list
+      // access or any register-edit permission; the update remains separately
+      // constrained by riskManagerChange() and validManagerRiskTransition().
+      allow get: if signedIn() && userExists() &&
+        profileRoleFrom(userData()) == 'department_manager' &&
+        profileDepartmentKeyFrom(userData()) != '' &&
+        managerOwnsRiskRequestDepartment(resource.data);
       // Department Manager approval queues are normally keyed by departmentKey.
       // Historical requests can contain only department or departmentRaw, so
       // exact profile-scoped queries are also permitted without widening access.
