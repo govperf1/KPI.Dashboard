@@ -1942,8 +1942,11 @@ window._selectPortal=async portal=>{
       const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];
       history.push({status,by:fresh.email,role:fresh.role,at:now,note:note,fields:fields});
       const updates={status,managerName:String(window._fbName||fresh.email),managerEmail:fresh.email,managerNote:note,managerActionAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history};
+      // Only write return-specific fields when returning a request. Approval,
+      // resend, and rejection must not touch these unrelated fields: older
+      // deployed Rules revisions may intentionally allow only the decision
+      // fields for those transitions.
       if(action==='return'){updates.returnFields=fields;updates.returnNote=note;updates.returnSource='department_manager';}
-      else{updates.returnFields=[];updates.returnNote='';updates.returnSource='';}
       const dept=String(r.departmentKey||r.department||'');
       /* The request decision is the critical write. Queue cleanup is secondary;
          if an old queue document is denied by a stricter deployed Rules branch,
