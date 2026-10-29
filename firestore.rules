@@ -1239,7 +1239,7 @@ service cloud.firestore {
         data.departmentKey == profileDepartmentKeyFrom(u) &&
         data.recordType in ['risk','incident'] &&
         data.operation in ['add','update','delete'] &&
-        data.status == 'pending_super_admin';
+        data.status == 'pending_manager';
     }
 
     function riskRequestOwner(data) {
@@ -1309,12 +1309,12 @@ service cloud.firestore {
         (resource.data.status == 'returned_requester' || resource.data.status == 'returned_manager') &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'proposedRecord','changedFields','requesterNote',
-          'managerNote','superAdminNote','assignedManagerEmail',
+          'managerName','managerEmail','managerNote','superAdminNote','assignedManagerEmail',
           'returnFields','returnNote','returnSource','returnedToUid','returnedToEmail',
           'status','updatedAt','updatedAtIso','history'
         ]) &&
         (role() in ['risk_owner','grc_owner','platform_owner'] &&
-          request.resource.data.status == 'pending_super_admin');
+          request.resource.data.status == 'pending_manager');
     }
 
     function riskRequesterChange() {
@@ -1499,8 +1499,13 @@ service cloud.firestore {
           approved() && riskRequestOwner(resource.data) &&
           riskRequesterChange() && validRequesterRiskTransition()
         ) ||
-        // Department Managers are intentionally read-only for Risk/Incident
-        // requests. All approval, return and rejection actions belong to Super Admin.
+        // Department Manager may perform only the first approval hop for a
+        // request queued to their own department. Queue assignment is required.
+        (
+          departmentManager() && riskManagerQueueAssignment(requestId) &&
+          riskRequestDepartment(resource.data) && riskManagerChange() &&
+          validManagerRiskTransition()
+        ) ||
         superAdmin();
 
       allow delete: if superAdmin();
