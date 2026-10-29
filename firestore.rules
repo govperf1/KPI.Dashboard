@@ -1370,7 +1370,6 @@ service cloud.firestore {
     }
 
 
-    // v414: Department Manager list reads remain strictly scoped to the manager's canonical or exact legacy department value. This is read-only; manager writes remain limited to the existing approval transition below.
     match /grc_risk_requests/{requestId} {
       // v362: Super Admin reads the complete Risk/Incident request history directly.
       allow get, list: if superAdmin();
@@ -1500,11 +1499,16 @@ service cloud.firestore {
           approved() && riskRequestOwner(resource.data) &&
           riskRequesterChange() && validRequesterRiskTransition()
         ) ||
-        // Department Manager may perform only the first approval hop for a
-        // request queued to their own department. Queue assignment is required.
+        // Department Manager may perform the first approval hop only for a
+        // request belonging to their own department and in an allowed stage.
+        // Do not require an inbox projection document here: older requests can
+        // be visible from the authoritative department-scoped request query even
+        // when their queue item is missing/stale. The source request + department
+        // + status transition remain the authorization boundary.
         (
-          departmentManager() && riskManagerQueueAssignment(requestId) &&
-          riskRequestDepartment(resource.data) && riskManagerChange() &&
+          departmentManager() &&
+          riskRequestDepartment(resource.data) &&
+          riskManagerChange() &&
           validManagerRiskTransition()
         ) ||
         superAdmin();
