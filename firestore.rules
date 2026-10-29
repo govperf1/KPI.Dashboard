@@ -1,5 +1,3 @@
-// v413 — manager approval inbox reads use exact authenticated profile department scope.
-// v412 — manager history reads include legacy departmentKey labels, scoped read-only.
 // v388 — deployed-source alignment: valid role-scoped rules + manager workflow.
 // v385 — Canonical requester UID + role scope; shared test emails are isolated by role.
 // FIRESTORE SECURITY RULES v85 — Owner list/get reads support UID and canonical email.
@@ -795,11 +793,11 @@ service cloud.firestore {
       // v407 targeted fix: manager history must remain readable when an older
       // inbox path uses a department alias (e.g. Project_Management) rather than
       // the canonical key (projects). This is read-only and department-scoped.
-      allow get, list: if signedIn() && userExists() &&
+      allow get, list: if signedIn() && approvedValue(userData().approved) &&
         profileRoleFrom(userData()) == 'department_manager' &&
         kind in ['review','risk'] &&
         profileDepartmentKeyFrom(userData()) != '' &&
-        departmentKey == profileDepartmentKeyFrom(userData());
+        canonicalDepartment(departmentKey) == profileDepartmentKeyFrom(userData());
 
       allow create, update: if approved() && kind in ['review','risk'] &&
         request.resource.data.departmentKey is string &&
@@ -829,11 +827,10 @@ service cloud.firestore {
       // Department-scoped approval queue. Managers list only their own
       // department. Requesters may index only their own request in their own
       // department; Super Admin/Admin may backfill any department.
-      allow get, list: if signedIn() && userExists() && (
+      allow get, list: if signedIn() && approvedValue(userData().approved) && (
         profileRoleFrom(userData()) in ['admin','super_admin'] ||
         (profileRoleFrom(userData()) == 'department_manager' &&
-          profileDepartmentKeyFrom(userData()) != '' &&
-          departmentKey == profileDepartmentKeyFrom(userData()))
+          profileDepartmentKeyFrom(userData()) == departmentKey)
       );
 
       allow create, update: if signedIn() && approvedValue(userData().approved) &&
@@ -1373,6 +1370,7 @@ service cloud.firestore {
     }
 
 
+    // v414: Department Manager list reads remain strictly scoped to the manager's canonical or exact legacy department value. This is read-only; manager writes remain limited to the existing approval transition below.
     match /grc_risk_requests/{requestId} {
       // v362: Super Admin reads the complete Risk/Incident request history directly.
       allow get, list: if superAdmin();
@@ -1446,14 +1444,6 @@ service cloud.firestore {
         profileDepartmentKeyFrom(userData()) != '' &&
         ('departmentKey' in resource.data) &&
         resource.data.departmentKey == profileDepartmentKeyFrom(userData());
-      // Legacy request records may store the manager's original department label
-      // in departmentKey (for example Project_Management instead of projects).
-      // This grants read-only list access only to that manager's exact profile label.
-      allow list: if signedIn() && userExists() &&
-        profileRoleFrom(userData()) == 'department_manager' &&
-        meaningfulDepartmentValue(profileDepartmentValueFrom(userData())) &&
-        ('departmentKey' in resource.data) &&
-        resource.data.departmentKey == profileDepartmentValueFrom(userData());
       allow get: if signedIn() && userExists() &&
         profileRoleFrom(userData()) == 'department_manager' &&
         profileDepartmentKeyFrom(userData()) != '' &&
