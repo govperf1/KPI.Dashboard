@@ -3235,7 +3235,30 @@
       try{var unsub=b.fs.onSnapshot(ref,function(live){if(live.metadata&&live.metadata.fromCache&&!assessmentCloudReady[kind])return;if(live.exists())assessmentApplyCloud(kind,live.data());else if(assessmentCloudReady[kind]){assessmentEdits[kind]={};assessmentSaveLocalCache();if(app&&app.classList.contains('grc-visible')&&activeTab==='compliance')render();}},function(err){assessmentCloudError=kind+': '+String(err&&err.message||err);});assessmentCloudUnsubs.push(unsub);}catch(listenErr){assessmentCloudError=kind+': '+String(listenErr&&listenErr.message||listenErr);}
     }}).catch(function(err){assessmentCloudStarted=false;assessmentCloudError='Assessment sync initialization: '+String(err&&err.message||err);});
   }
-  function assessmentRows(kind,rows){var base=rows.slice(),added=(assessmentEdits[kind]&&assessmentEdits[kind]._added)||[],deleted=(assessmentEdits[kind]&&assessmentEdits[kind]._deleted)||{};base=base.concat(added);return base.map(function(source,rowIndex){var r=source.slice(),edit=assessmentEdits[kind]&&assessmentEdits[kind][rowIndex];if(edit)Object.keys(edit).forEach(function(col){if(col!=='_added'&&col!=='_deleted')r[Number(col)]=edit[col];});r=cleanAssessmentRowCodes(r);r._sourceIndex=rowIndex;return r;}).filter(function(r){return !deleted[r._sourceIndex];});}
+  function cbahiCodePath(value){
+    var match=String(value==null?'':value).match(/(\d+(?:\.\d+)*)\s*$/);
+    if(!match)return'';
+    return match[1].split('.').map(function(part){var n=parseInt(part,10);return isFinite(n)?String(n):part;}).join('.');
+  }
+  function cbahiResponsibleDepartment(row){
+    var standardPath=cbahiCodePath(row&&row[1]),subPath=cbahiCodePath(row&&row[3]),specificPath=cbahiCodePath(row&&row[5]);
+    var standard=standardPath?parseInt(standardPath.split('.')[0],10):null;
+    // Apply the most specific exceptions before the parent Standard assignment.
+    if(specificPath==='17.3.9')return'Maintenance';
+    if(subPath==='24.1'||specificPath==='24.1')return'Security';
+    if(specificPath==='29.1.7')return'Safety / Maintenance';
+    if(specificPath==='29.1.8')return'Safety';
+    if(standard===1||standard===2)return'FMS Management';
+    if(standard===3)return'Safety / FMS Management';
+    if([4,5,6,7,8,10,14,16,17,18,19,20,21,22,23,24,29,39].indexOf(standard)>=0)return standard===29?'Maintenance':'Safety';
+    if(standard===9)return'Radiology Safety';
+    if([11,12,13].indexOf(standard)>=0)return'Security';
+    if([15,38].indexOf(standard)>=0)return'Housekeeping';
+    if([25,26,27].indexOf(standard)>=0)return'Biomedical';
+    if([28,30,31,32,33,34,35,36,37].indexOf(standard)>=0)return'Maintenance';
+    return String(row&&row[7]||'');
+  }
+  function assessmentRows(kind,rows){var base=rows.slice(),added=(assessmentEdits[kind]&&assessmentEdits[kind]._added)||[],deleted=(assessmentEdits[kind]&&assessmentEdits[kind]._deleted)||{};base=base.concat(added);return base.map(function(source,rowIndex){var r=source.slice(),edit=assessmentEdits[kind]&&assessmentEdits[kind][rowIndex];if(edit)Object.keys(edit).forEach(function(col){if(col!=='_added'&&col!=='_deleted')r[Number(col)]=edit[col];});r=cleanAssessmentRowCodes(r);if(kind==='cbahi')r[7]=cbahiResponsibleDepartment(r);r._sourceIndex=rowIndex;return r;}).filter(function(r){return !deleted[r._sourceIndex];});}
   function saveAssessmentEdit(kind,rowIndex,col,value){if(!isGrcAdmin())return;if(!assessmentEdits[kind])assessmentEdits[kind]={};if(!assessmentEdits[kind][rowIndex])assessmentEdits[kind][rowIndex]={};assessmentEdits[kind][rowIndex][col]=value;if(Number(col)===8)assessmentEdits[kind][rowIndex][9]=value==='Fully Met'?2:(value==='Partially Met'?1:0);_grcAssessmentPersist(kind);render();}
   function cleanAssessmentCode(value){
     return String(value==null?'':value)
