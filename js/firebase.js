@@ -1241,6 +1241,12 @@ window._selectPortal=async portal=>{
         // or the profile's original department label. Query each exact, scoped
         // representation separately; Firestore Rules can prove each equality.
         const rawDept=String(fresh.rawDepartment||'').trim();
+        // Include legacy departmentKey values stored as the original profile label
+        // (for example Project_Management), not only the canonical key (projects).
+        // Each query remains an exact equality scoped to this manager's own department.
+        if(rawDept && rawDept!==fresh.departmentKey){
+          historyQueries.push(query(riskCol,where('departmentKey','==',rawDept)));
+        }
         [fresh.departmentKey,rawDept].filter((value,index,all)=>!!value&&all.indexOf(value)===index).forEach(function(deptValue){
           historyQueries.push(query(riskCol,where('department','==',deptValue)));
           historyQueries.push(query(riskCol,where('departmentRaw','==',deptValue)));
