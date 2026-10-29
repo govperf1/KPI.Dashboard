@@ -1,35 +1,18 @@
-إصلاح جذري لمسارات طلبات GRC وسجل مدير القسم — v405
-=====================================================
+CBAHI Responsible Department Mapping - v415
 
-ما تم إصلاحه في الكود:
-1) طلبات المخاطر والحوادث الجديدة تُنشأ بحقول requesterUid وrequesterRole وrequesterScopeKey التي تشترطها قواعد Firestore، إضافة إلى حقول submittedBy*. غياب هذه الحقول كان يؤدي إلى رفض إنشاء الطلب أو عدم ظهوره في My Requests.
-2) طلبات إضافة/تعديل/حذف المخاطر والحوادث تُرسل مباشرة إلى pending_super_admin. لم تعد هناك موافقة من مدير القسم في هذا المسار.
-3) إعادة إرسال الطلب المُرجع تحفظ نفس المستند وتعيده إلى pending_super_admin دون إنشاء عنصر في قائمة مدير القسم.
-4) إجراءات مدير القسم على طلبات المخاطر والحوادث أزيلت من صلاحيات الكتابة في Firestore؛ تبقى له قراءة سجل القسم فقط.
-5) زر السوبر أدمن أصبح Return to Requester / إرجاع لمقدم الطلب، وحالة returned_requester تعيد الطلب إلى صاحبه للتعديل وإعادة الإرسال.
-6) My Requests يجمع الاستعلام الحديث بالـ UID/role مع استعلام البريد الدقيق للطلبات القديمة، مع إزالة التكرار. أضيفت قاعدة قراءة آمنة للبريد المطابق فقط.
-7) استعلام طلبات GRC الخاصة بي للمخاطر والحوادث يقرأ أيضًا السجلات القديمة عبر submittedByUid/submittedByRole.
-8) تحديث إصدارات الملفات في index.html لتجنب تحميل firebase.js وgrc-risk-workflow.js من الكاش القديم.
+Modified files only:
+- index.html: updates the build marker and grc.js cache-busting version.
+- js/grc.js: automatically assigns the Responsible Department in CBAHI FMS Division Assessment by Standard and the specified sub-standard exceptions.
 
-ملفات معدلة:
-- index.html
-- js/firebase.js
-- js/grc-risk-workflow.js
-- firestore.rules
+Mapping:
+1, 2: FMS Management
+3: Safety / FMS Management
+4, 5, 6, 7, 8, 10, 14, 16, 17, 18, 19, 20, 21, 22, 23, 24, 39: Safety, except 17.3.9 = Maintenance and 24.1 = Security
+9: Radiology Safety
+11, 12, 13: Security
+15, 38: Housekeeping
+25, 26, 27: Biomedical
+28, 30-37: Maintenance
+29: Maintenance, except 29.1.7 = Safety / Maintenance and 29.1.8 = Safety
 
-النشر الإلزامي:
-1) خذي نسخة احتياطية من المشروع الحالي وقواعد Firestore.
-2) انشري كامل مجلد KPI.Dashboard-main، وليس ملف JavaScript واحدًا فقط.
-3) انشري محتوى firestore.rules كاملًا إلى Firebase Console → Firestore Database → Rules ثم Publish. التعديلات البرمجية وحدها لا تستطيع تجاوز قواعد Firestore القديمة.
-4) افتحي الموقع بتحديث قسري Ctrl+Shift+R أو نافذة خاصة، وتأكدي أن Console يعرض firebase.js?v=20261028-grc-workflow-rootfix-v405 وgrc-risk-workflow.js?v=20261028-grc-workflow-rootfix-v405.
-
-قائمة الاختبار بعد النشر:
-A. GRC Owner: إرسال إضافة، تعديل، وحذف سجل خطر؛ يجب أن تنشأ الطلبات بحالة Pending Super Admin Approval.
-B. Super Admin: اعتماد ونشر طلب، رفض طلب مع سبب، وإرجاع طلب مع ملاحظة؛ يجب أن تحفظ كل عملية الحالة والهستوري. لا يظهر زر Return to Department Manager.
-C. GRC Owner: فتح الطلب المُرجع، تعديل الحقول، ثم Resubmit for Approval؛ يجب أن يعود نفس requestId إلى السوبر أدمن.
-D. My Requests: إرسال طلب عام من الملف الشخصي، ثم التحقق من ظهوره لصاحبه وتحديث الحالة والهستوري.
-E. Department Manager: يرى طلبات المخاطر والحوادث التابعة لقسمه بمختلف الحالات، مع مقدم الطلب والحالة والهستوري، ولا تظهر أي أزرار إجراء.
-F. Firestore Console: يجب ألا تظهر permission-denied على grc_risk_requests أو grc_requests للاستعلامات المذكورة بعد نشر القواعد الصحيحة.
-
-حدود التحقق:
-أُجريت مراجعة ثابتة للملفات واختبارات صياغة JavaScript. لا يمكن من بيئة إعداد الحزمة تنفيذ اختبارات فعلية على مشروع Firebase المنشور؛ يجب التحقق من السجلات بعد النشر.
+The code normalizes leading zeroes in sub-standard codes, so 29.01.7 and 29.1.7 are treated as the same requirement.
