@@ -1,4 +1,4 @@
-// v388 — deployed-source alignment: valid role-scoped rules + manager workflow.
+// v412 — manager history reads include legacy departmentKey labels, scoped read-only.\n// v388 — deployed-source alignment: valid role-scoped rules + manager workflow.
 // v385 — Canonical requester UID + role scope; shared test emails are isolated by role.
 // FIRESTORE SECURITY RULES v85 — Owner list/get reads support UID and canonical email.
 // v75: Removes queue-existence dependency from manager decisions and authorizes
@@ -1443,6 +1443,14 @@ service cloud.firestore {
         profileDepartmentKeyFrom(userData()) != '' &&
         ('departmentKey' in resource.data) &&
         resource.data.departmentKey == profileDepartmentKeyFrom(userData());
+      // Legacy request records may store the manager's original department label
+      // in departmentKey (for example Project_Management instead of projects).
+      // This grants read-only list access only to that manager's exact profile label.
+      allow list: if signedIn() && userExists() &&
+        profileRoleFrom(userData()) == 'department_manager' &&
+        meaningfulDepartmentValue(profileDepartmentValueFrom(userData())) &&
+        ('departmentKey' in resource.data) &&
+        resource.data.departmentKey == profileDepartmentValueFrom(userData());
       allow get: if signedIn() && userExists() &&
         profileRoleFrom(userData()) == 'department_manager' &&
         profileDepartmentKeyFrom(userData()) != '' &&
