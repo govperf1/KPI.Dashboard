@@ -3240,6 +3240,7 @@
     if(!match)return'';
     return match[1].split('.').map(function(part){var n=parseInt(part,10);return isFinite(n)?String(n):part;}).join('.');
   }
+  // v420: shared deterministic CBAHI Responsible Department mapping; derived from standard codes for every role.
   function cbahiResponsibleDepartment(row){
     var standardPath=cbahiCodePath(row&&row[1]),subPath=cbahiCodePath(row&&row[3]),specificPath=cbahiCodePath(row&&row[5]);
     var standard=standardPath?parseInt(standardPath.split('.')[0],10):null;
