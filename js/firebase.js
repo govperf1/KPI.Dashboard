@@ -1928,33 +1928,32 @@ window._selectPortal=async portal=>{
 
     window._grcRiskRequestManagerAction=async function(requestId,action,note,fields){
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
-      const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId),snap=await getDoc(ref);if(!snap.exists())throw new Error('Request not found.');const r=snap.data(),currentStatus=String(r.status||'');
-      if(!['pending_manager','returned_manager'].includes(currentStatus))throw new Error('This request is not awaiting your approval.');
+      const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId);
       action=String(action||'');note=String(note||'').trim();fields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
       let status='';
-      if(action==='approve'&&currentStatus==='pending_manager')status='pending_super_admin';
-      else if(action==='resend'&&currentStatus==='returned_manager')status='pending_super_admin';
+      if(action==='approve')status='pending_super_admin';
+      else if(action==='resend')status='pending_super_admin';
       else if(action==='return')status='returned_requester';
       else if(action==='reject')status='rejected_manager';
       else throw new Error('Invalid action for the current workflow stage.');
       if(['return','reject','resend'].includes(action)&&!note)throw new Error('A note is required.');
       if(action==='return'&&!fields.length)throw new Error('Select at least one field that the GRC Owner must update.');
-      const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];
-      history.push({status,by:fresh.email,role:fresh.role,at:now,note:note,fields:fields});
-      const updates={status,managerName:String(window._fbName||fresh.email),managerEmail:fresh.email,managerNote:note,managerActionAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history};
-      // Only write return-specific fields when returning a request. Approval,
-      // resend, and rejection must not touch these unrelated fields: older
-      // deployed Rules revisions may intentionally allow only the decision
-      // fields for those transitions.
+
+      // Do not GET the source request before deciding. Firestore Rules validate
+      // the existing status and the manager's department atomically on UPDATE.
+      // This matches the proven Super Admin workflow pattern and avoids the
+      // permission-denied preflight that blocked manager actions before writes.
+      const now=_grcRiskIso();
+      const historyEntry={status,by:fresh.email,role:fresh.role,at:now,note:note,fields:fields};
+      const updates={status,managerName:String(window._fbName||fresh.email),managerEmail:fresh.email,managerNote:note,managerActionAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history:arrayUnion(historyEntry)};
       if(action==='return'){updates.returnFields=fields;updates.returnNote=note;updates.returnSource='department_manager';}
-      const dept=String(r.departmentKey||r.department||'');
-      /* The request decision is the critical write. Queue cleanup is secondary;
-         if an old queue document is denied by a stricter deployed Rules branch,
-         it must not roll back the manager's approval/rejection. */
       await updateDoc(ref,updates);
-      try{await deleteDoc(_grcManagerQueueItemRef(dept,'risk',requestId));}catch(queueErr){console.warn('[GRC Manager Queue] cleanup skipped after successful decision',queueErr);}
+
+      // Queue projection and audit are secondary; neither can undo a successful
+      // authoritative request decision.
+      try{await deleteDoc(_grcManagerQueueItemRef(String(fresh.departmentKey||''),'risk',requestId));}catch(queueErr){console.warn('[GRC Manager Queue] cleanup skipped after successful decision',queueErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
-      try{await window._recordAuditDirect('GRC_MANAGER_APPROVAL_'+action.toUpperCase(),'Department Manager '+action+' · '+String(r.requestCode||requestId),{status:r.status},{status:status,note:note,returnFields:fields},{portal:'grc',dept:fresh.departmentKey,recordType:r.recordType||'risk'});}catch(_){}
+      try{await window._recordAuditDirect('GRC_MANAGER_APPROVAL_'+action.toUpperCase(),'Department Manager '+action+' · '+String(requestId),null,{status:status,note:note,returnFields:fields},{portal:'grc',dept:fresh.departmentKey,recordType:'risk'});}catch(_){}
       return true;
     };
     window._grcRiskRequestSuperAction=async function(requestId,action,note,fields){
