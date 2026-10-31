@@ -1935,7 +1935,26 @@ window._selectPortal=async portal=>{
       // never on a stale card/queue snapshot.
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
       const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,String(requestId||''));
-      let snap;try{snap=await getDocFromServer(ref);}catch(getErr){if(getErr&&getErr.code==='permission-denied')console.error('[Manager decision denied] step=read id='+requestId,getErr);throw getErr;}
+      let snap;
+      try{snap=await getDocFromServer(ref);}
+      catch(getErr){
+        if(!(getErr&&getErr.code==='permission-denied'))throw getErr;
+        console.error('[Manager decision denied] step=read id='+requestId,getErr);
+        /* Firestore reports permission-denied (not "not found") when a manager reads a
+           document that does not exist. The approval list is built from queue snapshots,
+           so a stale queue item can point to a missing source request. Look the request up
+           through the department-scoped query (permitted by the Rules) before giving up. */
+        let found=null;
+        try{
+          const qs=await getDocsFromServer(query(collection(db,GRC_RISK_REQUESTS_COLLECTION),where('departmentKey','==',fresh.departmentKey)));
+          qs.forEach(function(d){if(d.id===String(requestId||''))found=d;});
+        }catch(qErr){console.error('[Manager decision denied] step=read-fallback-query',qErr);}
+        if(!found){
+          console.error('[Manager decision] source request not found in grc_risk_requests for department '+fresh.departmentKey+': id='+requestId+' (stale approval queue item?)');
+          throw new Error('This approval item points to a request that no longer exists or cannot be opened (id '+requestId+'). It is likely a stale entry in the approval queue; ask Super Admin to review it.');
+        }
+        snap=found;
+      }
       if(!snap.exists())throw new Error('Request not found.');
       const r=snap.data()||{},currentStatus=String(r.status||'').trim().toLowerCase();
       const requestDepartment=_grcCanonicalDepartment(r.departmentKey||r.departmentRaw||r.department||'');
