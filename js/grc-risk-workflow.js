@@ -344,12 +344,17 @@
         /* Fallback for deployments without the optional live-broker function.
            Refresh the read-only history and pending queue together so the manager
            sees requester/status/history updates without reopening the profile. */
+        var managerQueueLoadedOnce=false;
         var pullManagerQueue=async function(){
           if(managerPullBusy||!isManager())return;
+          /* Quota guard: a forced server read of the whole department queue every few
+             seconds exhausted the free Firestore read quota. Skip while the tab is hidden. */
+          if(document.hidden&&managerQueueLoadedOnce)return;
           managerPullBusy=true;
           try{
             var bundle=await (window._grcGetDepartmentApprovalQueue?window._grcGetDepartmentApprovalQueue(true):null);
             if(!bundle)return;
+            managerQueueLoadedOnce=true;
             cache=(Array.isArray(bundle.risk)?bundle.risk:[]).filter(managerDepartmentRequest);
             reviewApprovalRows=(Array.isArray(bundle.review)?bundle.review:[]).filter(reviewManagerRequest);
             managerRiskAllRows=Array.isArray(bundle.riskAll)?bundle.riskAll.filter(managerHistoryRequest):cache.filter(managerHistoryRequest);
@@ -367,7 +372,7 @@
         };
         pullManagerQueue();
         if(managerPollTimer)clearInterval(managerPollTimer);
-        managerPollTimer=setInterval(pullManagerQueue,5000);
+        managerPollTimer=setInterval(pullManagerQueue,60000);
       }
       return;
     }
