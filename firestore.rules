@@ -862,6 +862,35 @@ service cloud.firestore {
       );
     }
 
+    // PERFORMANCE FIX: Firestore stops evaluating a request after ~1,000
+    // expressions. The big canonicalDepartment() alias list is expensive and the
+    // request collections evaluate it many times, so valid manager reads/updates
+    // were rejected as permission-denied. These helpers do ONE cheap evaluation and
+    // are placed FIRST in the Department Manager rules. Existing branches remain as
+    // fallbacks for legacy alias data.
+    function roleIsDeptManagerFast(u) {
+      return ('role' in u) && u.role is string &&
+        u.role.lower().trim() in [
+          'department_manager','department manager','department-manager','departmentmanager',
+          'dept_manager','dept manager','dept-manager','deptmanager','manager'
+        ];
+    }
+
+    function deptKeyFast(u) {
+      return canonicalDepartment(
+        (('dept' in u) && u.dept is string && u.dept != '') ? u.dept :
+        (('department' in u) && u.department is string && u.department != '') ? u.department :
+        (('deptKey' in u) && u.deptKey is string) ? u.deptKey : ''
+      );
+    }
+
+    function managerFastDeptAccess(data) {
+      let u = userData();
+      let d = deptKeyFast(u);
+      return signedIn() && roleIsDeptManagerFast(u) && d != '' &&
+        ('departmentKey' in data) && data.departmentKey == d;
+    }
+
     // ── Review & Development Center ──────────────────────────────────
     function advisoryManagerDepartmentMatch(data) {
       // v367 ROOT FIX: exact canonical departmentKey match only. This keeps
@@ -984,9 +1013,12 @@ service cloud.firestore {
       // v372: use the authoritative user profile directly. Do not route manager
       // authorization through any queue/projection helper.
       return signedIn() &&
-        profileRoleFrom(u) == 'department_manager' &&
-        profileDepartmentKeyFrom(u) != '' &&
-        advisoryManagerOwnsDepartment(resource.data) &&
+        (
+          managerFastDeptAccess(resource.data) ||
+          (profileRoleFrom(u) == 'department_manager' &&
+            profileDepartmentKeyFrom(u) != '' &&
+            advisoryManagerOwnsDepartment(resource.data))
+        ) &&
         resource.data.workflowStage == 'pending_department_manager' &&
         // Shared test accounts are isolated by requesterScopeKey. A Department
         // Manager cannot action a request created while this same UID was
@@ -1079,6 +1111,8 @@ service cloud.firestore {
     }
 
     match /advisory_requests/{requestId} {
+      // Fast, low-cost Department Manager read (see managerFastDeptAccess).
+      allow get, list: if managerFastDeptAccess(resource.data);
       // requesterUid is audit metadata only. Routing is authorized from the
       // authenticated Firestore profile resolved once by validAdvisoryCreate().
       allow create: if validAdvisoryCreate(request.resource.data);
@@ -1176,6 +1210,7 @@ service cloud.firestore {
         ('departmentKey' in resource.data) && resource.data.departmentKey == userDepartmentKey();
 
       allow update: if
+        validAdvisoryManagerChange(requestId) ||
         (validAdvisorySuperAdminProcess()) ||
         (superAdmin() && advisoryAdminCanProcess() && validAdvisoryAdminChange()) ||
         (validAdvisoryOwnerResubmit()) ||
@@ -1405,6 +1440,8 @@ service cloud.firestore {
 
 
     match /grc_risk_requests/{requestId} {
+      // Fast, low-cost Department Manager read (see managerFastDeptAccess).
+      allow get, list: if managerFastDeptAccess(resource.data);
       // v362: Super Admin reads the complete Risk/Incident request history directly.
       allow get, list: if superAdmin();
       // Every new Risk/Incident request is written with canonical identity and
@@ -1538,7 +1575,9 @@ service cloud.firestore {
       allow list: if approved() && role() in ['risk_owner','grc_owner','platform_owner'] &&
         ('departmentRaw' in resource.data) && resource.data.departmentRaw == profileDepartmentValueFrom(userData());
 
-      allow update: if validRiskRequesterRatingChange() ||
+      allow update: if
+        (managerFastDeptAccess(resource.data) && riskManagerChange() && validManagerRiskTransition()) ||
+        validRiskRequesterRatingChange() ||
         validGrcRiskRequesterResubmit() ||
         (
           approved() && riskRequestOwner(resource.data) &&
