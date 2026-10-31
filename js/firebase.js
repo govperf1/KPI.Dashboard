@@ -1935,7 +1935,7 @@ window._selectPortal=async portal=>{
       // never on a stale card/queue snapshot.
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
       const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,String(requestId||''));
-      const snap=await getDocFromServer(ref);
+      let snap;try{snap=await getDocFromServer(ref);}catch(getErr){if(getErr&&getErr.code==='permission-denied')console.error('[Manager decision denied] step=read id='+requestId,getErr);throw getErr;}
       if(!snap.exists())throw new Error('Request not found.');
       const r=snap.data()||{},currentStatus=String(r.status||'').trim().toLowerCase();
       const requestDepartment=_grcCanonicalDepartment(r.departmentKey||r.departmentRaw||r.department||'');
@@ -1978,7 +1978,15 @@ window._selectPortal=async portal=>{
 
       // Only the authoritative request is part of the decision. Queue cleanup
       // and audit logging remain secondary and cannot reverse a saved decision.
-      await updateDoc(ref,updates);
+      try{await updateDoc(ref,updates);}
+      catch(updErr){
+        if(updErr&&updErr.code==='permission-denied'){
+          const diag='[Manager decision denied] step=update id='+requestId+' action='+action+' status='+currentStatus+' -> '+status+' reqDept='+String(r.departmentKey||'')+' myRole='+fresh.role+' myDept='+fresh.departmentKey+' keys='+Object.keys(updates).join(',');
+          console.error(diag,updErr);
+          throw new Error('Missing or insufficient permissions (Firestore Rules rejected the manager decision update). Make sure the latest firestore.rules is published to project qumc-kpi-dashboard-f10dd. Details are in the browser console.');
+        }
+        throw updErr;
+      }
       try{await deleteDoc(_grcManagerQueueItemRef(String(fresh.departmentKey||''),'risk',requestId));}
       catch(queueErr){console.warn('[GRC Manager Queue] cleanup skipped after successful decision',queueErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
