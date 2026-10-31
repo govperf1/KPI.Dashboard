@@ -46,7 +46,7 @@ service cloud.firestore {
     }
 
     function normalizedRoleValue(value) {
-      return value is string ? value.lower() : 'viewer';
+      return value is string ? value.lower().trim() : 'viewer';
     }
 
     function rolePath() {
@@ -145,7 +145,7 @@ service cloud.firestore {
     // Firestore profiles in this project use values such as Project_Management;
     // aliases are matched directly instead of repeatedly expanding regex helpers.
     function normalizedDepartment(value) {
-      return value is string ? value.lower() : '';
+      return value is string ? value.lower().trim() : '';
     }
 
     function canonicalDepartment(value) {
