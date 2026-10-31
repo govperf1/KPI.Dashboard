@@ -48,7 +48,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20261029-v410-risk-incident-manager-approval');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20261031-v421-manager-transaction-approval');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -1930,30 +1930,62 @@ window._selectPortal=async portal=>{
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
       const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId);
       action=String(action||'');note=String(note||'').trim();fields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
-      let status='';
-      if(action==='approve')status='pending_super_admin';
-      else if(action==='resend')status='pending_super_admin';
-      else if(action==='return')status='returned_requester';
-      else if(action==='reject')status='rejected_manager';
-      else throw new Error('Invalid action for the current workflow stage.');
+      if(['approve','resend','return','reject'].indexOf(action)<0)throw new Error('Invalid action.');
       if(['return','reject','resend'].includes(action)&&!note)throw new Error('A note is required.');
       if(action==='return'&&!fields.length)throw new Error('Select at least one field that the GRC Owner must update.');
 
-      // Do not GET the source request before deciding. Firestore Rules validate
-      // the existing status and the manager's department atomically on UPDATE.
-      // This matches the proven Super Admin workflow pattern and avoids the
-      // permission-denied preflight that blocked manager actions before writes.
+      // Use the same server-backed transaction pattern as the working
+      // Department Manager advisory workflow and the Super Admin risk workflow.
+      // Read the authoritative request inside the transaction, validate its
+      // current stage, then update that same document atomically.
       const now=_grcRiskIso();
-      const historyEntry={status,by:fresh.email,role:fresh.role,at:now,note:note,fields:fields};
-      const updates={status,managerName:String(window._fbName||fresh.email),managerEmail:fresh.email,managerNote:note,managerActionAt:serverTimestamp(),updatedAt:serverTimestamp(),updatedAtIso:now,history:arrayUnion(historyEntry)};
-      if(action==='return'){updates.returnFields=fields;updates.returnNote=note;updates.returnSource='department_manager';}
-      await updateDoc(ref,updates);
+      let committedDepartment='';
+      await runTransaction(db,async tx=>{
+        const snap=await tx.get(ref);
+        if(!snap.exists())throw new Error('Request not found.');
+        const r=snap.data()||{},currentStatus=String(r.status||'');
+        if(!['pending_manager','returned_manager'].includes(currentStatus))
+          throw new Error('This request is not awaiting your approval.');
+        const requestDepartment=String(r.departmentKey||r.department||r.departmentRaw||'');
+        if(!requestDepartment||_grcCanonicalDepartment(requestDepartment)!==fresh.departmentKey)
+          throw new Error('This request does not belong to your department.');
+        let status='';
+        if(action==='approve'&&currentStatus==='pending_manager')status='pending_super_admin';
+        else if(action==='resend'&&currentStatus==='returned_manager')status='pending_super_admin';
+        else if(action==='return')status='returned_requester';
+        else if(action==='reject')status='rejected_manager';
+        else throw new Error('Invalid action for the current workflow stage.');
+        const history=Array.isArray(r.history)?r.history.slice():[];
+        history.push({status:status,by:fresh.email,role:fresh.role,at:now,note:note,fields:fields});
+        const updates={
+          status:status,
+          managerName:String(window._fbName||fresh.email),
+          managerEmail:fresh.email,
+          managerNote:note,
+          managerActionAt:serverTimestamp(),
+          managerActionAtIso:now,
+          updatedAt:serverTimestamp(),
+          updatedAtIso:now,
+          history:history
+        };
+        if(action==='return'){
+          updates.returnFields=fields;
+          updates.returnNote=note;
+          updates.returnSource='department_manager';
+        }else{
+          updates.returnFields=[];
+          updates.returnNote='';
+          updates.returnSource='';
+        }
+        tx.update(ref,updates);
+        committedDepartment=String(r.departmentKey||r.department||r.departmentRaw||fresh.departmentKey);
+      });
 
       // Queue projection and audit are secondary; neither can undo a successful
       // authoritative request decision.
-      try{await deleteDoc(_grcManagerQueueItemRef(String(fresh.departmentKey||''),'risk',requestId));}catch(queueErr){console.warn('[GRC Manager Queue] cleanup skipped after successful decision',queueErr);}
+      try{await deleteDoc(_grcManagerQueueItemRef(fresh.departmentKey,'risk',requestId));}catch(queueErr){console.warn('[GRC Manager Queue] cleanup skipped after successful decision',queueErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
-      try{await window._recordAuditDirect('GRC_MANAGER_APPROVAL_'+action.toUpperCase(),'Department Manager '+action+' · '+String(requestId),null,{status:status,note:note,returnFields:fields},{portal:'grc',dept:fresh.departmentKey,recordType:'risk'});}catch(_){}
+      try{await window._recordAuditDirect('GRC_MANAGER_APPROVAL_'+action.toUpperCase(),'Department Manager '+action+' · '+String(requestId),null,{status:action==='return'?'returned_requester':action==='reject'?'rejected_manager':'pending_super_admin',note:note,returnFields:fields},{portal:'grc',dept:committedDepartment||fresh.departmentKey,recordType:'risk'});}catch(_){}
       return true;
     };
     window._grcRiskRequestSuperAction=async function(requestId,action,note,fields){
