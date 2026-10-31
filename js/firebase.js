@@ -1950,8 +1950,15 @@ window._selectPortal=async portal=>{
           qs.forEach(function(d){if(d.id===String(requestId||''))found=d;});
         }catch(qErr){console.error('[Manager decision denied] step=read-fallback-query',qErr);}
         if(!found){
-          console.error('[Manager decision] source request not found in grc_risk_requests for department '+fresh.departmentKey+': id='+requestId+' (stale approval queue item?)');
-          throw new Error('This approval item points to a request that no longer exists or cannot be opened (id '+requestId+'). It is likely a stale entry in the approval queue; ask Super Admin to review it.');
+          /* Ask the deployed Rules how they resolve this profile. Each probe document is
+             readable only when the Rules' own role/department/approved evaluation matches. */
+          const probe=async function(path){try{await getDoc(doc(db,path[0],path[1]));return 'OK';}catch(e){return 'DENIED';}};
+          const roleProbe=await probe(['system_grc_role_probe','department_manager']);
+          const deptProbe=await probe(['system_grc_department_probe',String(fresh.departmentKey||'')]);
+          const approvedProbe=await probe(['system_rule_versions','v81-canonical-request-history-index-20261004']);
+          const diag='rules-view: role=department_manager '+roleProbe+' | department='+fresh.departmentKey+' '+deptProbe+' | approved '+approvedProbe;
+          console.error('[Manager decision] '+diag+' | source request not readable: id='+requestId);
+          throw new Error('Cannot open this request (id '+requestId+'). '+diag+'. If a probe says DENIED, the deployed Firestore Rules do not recognise that part of your user profile.');
         }
         snap=found;
       }
