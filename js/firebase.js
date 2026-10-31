@@ -48,7 +48,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.0/fireba
     const app=initializeApp(firebaseConfig);
     const auth=getAuth(app);
     const db=getFirestore(app);
-    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20261031-v421-manager-transaction-approval');
+    const QUMC_CLIENT_BUILD=String(window.__QUMC_BUILD__||'20261029-v410-risk-incident-manager-approval');
     window.__QUMC_CLIENT_BUILD__=QUMC_CLIENT_BUILD;
     /* v166 device-consistency rule: security/profile and initial dashboard state
        must come from the Firestore server, never from a browser-specific cache. */
@@ -1927,24 +1927,32 @@ window._selectPortal=async portal=>{
     };
 
     window._grcRiskRequestManagerAction=async function(requestId,action,note,fields){
+      // Keep the Department Manager decision flow aligned with the proven
+      // GRC Owner read -> validate -> update workflow. The read is deliberately
+      // server-backed so the decision is based on the authoritative request,
+      // never on a stale card/queue snapshot.
       const fresh=await _grcResolveManagerProfile(await _advFreshProfile());
-      const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,requestId);
-      action=String(action||'');note=String(note||'').trim();fields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
+      const ref=doc(db,GRC_RISK_REQUESTS_COLLECTION,String(requestId||''));
+      const snap=await getDocFromServer(ref);
+      if(!snap.exists())throw new Error('Request not found.');
+      const r=snap.data()||{},currentStatus=String(r.status||'').trim().toLowerCase();
+      const requestDepartment=_grcCanonicalDepartment(r.departmentKey||r.departmentRaw||r.department||'');
+      if(!requestDepartment||requestDepartment!==fresh.departmentKey)throw new Error('This request does not belong to your assigned department.');
+
+      action=String(action||'').trim().toLowerCase();
+      note=String(note||'').trim();
+      fields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
       let status='';
-      if(action==='approve')status='pending_super_admin';
-      else if(action==='resend')status='pending_super_admin';
-      else if(action==='return')status='returned_requester';
-      else if(action==='reject')status='rejected_manager';
-      else throw new Error('Invalid action for the current workflow stage.');
+      if(action==='approve'&&currentStatus==='pending_manager')status='pending_super_admin';
+      else if(action==='resend'&&currentStatus==='returned_manager')status='pending_super_admin';
+      else if(action==='return'&&['pending_manager','returned_manager'].includes(currentStatus))status='returned_requester';
+      else if(action==='reject'&&['pending_manager','returned_manager'].includes(currentStatus))status='rejected_manager';
+      else throw new Error('This request is not awaiting your decision or the action is not valid for its current status.');
       if(['return','reject','resend'].includes(action)&&!note)throw new Error('A note is required.');
       if(action==='return'&&!fields.length)throw new Error('Select at least one field that the GRC Owner must update.');
 
-      // Manager decisions intentionally use a direct, server-authorized update.
-      // Do not pre-read the request: the deployed Rules validate the existing
-      // status, department ownership, allowed fields and transition atomically.
-      // This avoids a transaction BatchGet that requires a separate get grant.
-      const now=_grcRiskIso();
-      const historyEntry={status:status,by:fresh.email,role:fresh.role,at:now,note:note,fields:fields};
+      const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];
+      history.push({status:status,by:fresh.email,role:fresh.role,at:now,note:note,fields:fields});
       const updates={
         status:status,
         managerName:String(window._fbName||fresh.email),
@@ -1954,24 +1962,25 @@ window._selectPortal=async portal=>{
         managerActionAtIso:now,
         updatedAt:serverTimestamp(),
         updatedAtIso:now,
-        history:arrayUnion(historyEntry)
+        history:history
       };
       if(action==='return'){
         updates.returnFields=fields;
         updates.returnNote=note;
         updates.returnSource='department_manager';
-      }else{
+      }else if(action==='approve'||action==='resend'||action==='reject'){
         updates.returnFields=[];
         updates.returnNote='';
         updates.returnSource='';
       }
-      await updateDoc(ref,updates);
 
-      // Queue projection and audit are secondary; neither can undo a successful
-      // authoritative request decision.
-      try{await deleteDoc(_grcManagerQueueItemRef(String(fresh.departmentKey||''),'risk',requestId));}catch(queueErr){console.warn('[GRC Manager Queue] cleanup skipped after successful decision',queueErr);}
+      // Only the authoritative request is part of the decision. Queue cleanup
+      // and audit logging remain secondary and cannot reverse a saved decision.
+      await updateDoc(ref,updates);
+      try{await deleteDoc(_grcManagerQueueItemRef(String(fresh.departmentKey||''),'risk',requestId));}
+      catch(queueErr){console.warn('[GRC Manager Queue] cleanup skipped after successful decision',queueErr);}
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
-      try{await window._recordAuditDirect('GRC_MANAGER_APPROVAL_'+action.toUpperCase(),'Department Manager '+action+' · '+String(requestId),null,{status:status,note:note,returnFields:fields},{portal:'grc',dept:fresh.departmentKey,recordType:'risk'});}catch(_){}
+      try{await window._recordAuditDirect('GRC_MANAGER_APPROVAL_'+action.toUpperCase(),'Department Manager '+action+' · '+String(r.requestCode||requestId),{status:currentStatus},{status:status,note:note,returnFields:fields},{portal:'grc',dept:fresh.departmentKey,recordType:'risk'});}catch(_){}
       return true;
     };
     window._grcRiskRequestSuperAction=async function(requestId,action,note,fields){
