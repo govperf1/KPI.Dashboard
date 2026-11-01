@@ -2038,12 +2038,22 @@ window._selectPortal=async portal=>{
       }
       const snap=await getDoc(requestRef);if(!snap.exists())throw new Error('Request not found.');const r=snap.data();if(String(r.status||'')!=='pending_super_admin')throw new Error('This request is not awaiting final approval.');
       action=String(action||'');note=String(note||'').trim();fields=Array.isArray(fields)?fields.map(String).filter(Boolean):[];
-      // Super Admin returns this request to its original requester, never to the Department Manager.
-      const status=action==='return'?'returned_requester':action==='reject'?'rejected_super_admin':'';if(!status)throw new Error('Invalid action.');if(!note)throw new Error('A note is required.');
+      // Super Admin returns this request to the Department Manager (status returned_manager). The manager
+      // can then resend it to Super Admin, return it to the requester, or reject it.
+      const status=action==='return'?'returned_manager':action==='reject'?'rejected_super_admin':'';if(!status)throw new Error('Invalid action.');if(!note)throw new Error('A note is required.');
       const now=_grcRiskIso(),history=Array.isArray(r.history)?r.history.slice():[];history.push({status,by:_grcRiskEmail(),role:_grcRiskRole(),at:now,note:note,fields:fields});
-      const updates={status,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:note,returnFields:status==='returned_requester'?fields:[],returnNote:status==='returned_requester'?note:'',returnSource:status==='returned_requester'?'super_admin':'',returnedToUid:status==='returned_requester'?String(r.requesterUid||r.submittedByUid||''):'',returnedToEmail:status==='returned_requester'?String(r.submittedByEmail||''):'',updatedAt:serverTimestamp(),updatedAtIso:now,history};
-      // Only the authoritative request document is updated; no Manager queue write.
+      const updates={status,superAdminName:String(window._fbName||''),superAdminEmail:_grcRiskEmail(),superAdminNote:note,returnFields:status==='returned_manager'?fields:[],returnNote:status==='returned_manager'?note:'',returnSource:status==='returned_manager'?'super_admin':'',returnedToUid:'',returnedToEmail:status==='returned_manager'?String(r.managerEmail||r.assignedManagerEmail||''):'',updatedAt:serverTimestamp(),updatedAtIso:now,history};
       await updateDoc(requestRef,updates);
+      /* A request returned to the Department Manager must be visible in that manager's approval queue. */
+      if(status==='returned_manager'){
+        try{
+          const qDept=_advCanonicalDepartment(r.departmentKey||r.departmentRaw||r.department||'');
+          if(qDept){
+            const qSnap=_grcRiskQueueSnapshot(Object.assign({},r,updates,{id:requestId}),requestId);
+            await setDoc(_grcManagerQueueItemRef(qDept,'risk',requestId),_grcQueueItem('risk',requestId,qDept,String(r.submittedByEmail||''),qSnap),{merge:false});
+          }
+        }catch(qErr){console.warn('[GRC Risk] manager queue update after Super Admin return failed',qErr&&qErr.code||qErr);}
+      }
       _grcManagerQueueCache=null;_grcManagerQueueCacheAt=0;
       try{await window._recordAuditDirect('GRC_SUPER_ADMIN_APPROVAL_'+String(action||'action').toUpperCase(),'Super Admin '+String(action||'action')+' · '+String(r.requestCode||requestId),{status:r.status},{status:status,note:String(note||'')},{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
       return true;

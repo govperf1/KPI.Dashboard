@@ -1064,6 +1064,8 @@ function updateExecTrend(yr){
     function em(){return String(window._fbUser||'').toLowerCase().trim();}
     function dKey(){return 'qumc_perf_feedback_dismissed_v1::'+em();}
     function readD(){try{var x=JSON.parse(localStorage.getItem(dKey())||'[]');return Array.isArray(x)?x.map(String):[];}catch(_){return [];}}
+    function readAllD(){var all=readD();try{var y=JSON.parse(localStorage.getItem('qumc_grc_feedback_dismissed_v119::'+em())||'[]');if(Array.isArray(y))all=all.concat(y.map(String));}catch(_){}return all;}
+    function isDism(id,list){id=String(id||'');return list.some(function(k){var p=String(k).split('::');return (p[0]==='request'||p[0]==='system')&&p[1]===id;});}
     function writeD(a){try{localStorage.setItem(dKey(),JSON.stringify(a.slice(-500)));}catch(_){}}
     function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
     function perfActive(){var b=document.body;return !!(b&&b.classList.contains('dashboard-mode')&&!b.classList.contains('grc-mode'));}
@@ -1087,10 +1089,10 @@ function updateExecTrend(yr){
       if(checkedFor===key)return;
       checkedFor=key;
       window._grcRequestsGetMine().then(function(rows){
-        var done=['approved','rejected','closed'],dismissed=readD();
+        var done=['approved','rejected','closed'],dismissed=readAllD();
         var list=(Array.isArray(rows)?rows:[]).filter(function(r){
           var st=String(r&&r.status||'').toLowerCase();
-          return done.indexOf(st)>=0&&!Number(r.rating||0)&&dismissed.indexOf('request::'+String(r.id||'')+'::'+st)<0;
+          return done.indexOf(st)>=0&&!Number(r.rating||0)&&!isDism(r.id,dismissed);
         });
         if(list.length&&perfActive())show(list[0]);
       }).catch(function(){/* keep checkedFor set: do not retry until next login/reload (avoids burning quota) */});
