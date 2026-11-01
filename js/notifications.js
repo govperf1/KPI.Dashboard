@@ -1011,9 +1011,9 @@ function updateExecTrend(yr){
         var sm=statusMeta(r),source=String(r._requestSource||r.requestDomain||'Request'),ts=typeof window._fmtTs==='function'?window._fmtTs(r._requestCreatedAt||r.createdAt):'—',updated=typeof window._fmtTs==='function'?window._fmtTs(r._requestUpdatedAt||r.updatedAt||r.respondedAt||r.createdAt):'—',response=String(r._requestResponse||r.superAdminComment||r.adminComment||r.managerComment||'').trim(),stage=String(r._requestStage||r.workflowStage||'').trim(),requesterRole=String(r.requesterRole||'').trim();
         var roleLabels={super_admin:isAr?'سوبر أدمن':'Super Admin',admin:isAr?'مدير نظام':'Admin',department_manager:isAr?'مدير قسم':'Department Manager',grc_owner:isAr?'مالك GRC':'GRC Owner',risk_owner:isAr?'مالك GRC':'GRC Owner',platform_owner:isAr?'مالك الأداء وGRC':'Performance & GRC Owner',governance_performance_manager:isAr?'مدير الحوكمة والأداء':'Governance & Performance Manager',kpi_owner:isAr?'مالك مؤشرات الأداء':'KPI Owner',viewer:isAr?'مشاهد':'Viewer',user:isAr?'مستخدم':'User'};
         var roleLabel=roleLabels[requesterRole]||requesterRole;
-        var isRD=false,closed=String(r._requestStatus||r.status||'').toLowerCase()==='closed',unrated=closed&&!Number(r.rating||0);
+        var isRD=false,closed=['approved','rejected','closed'].indexOf(String(r._requestStatus||r.status||'').toLowerCase())>=0,unrated=closed&&!Number(r.rating||0);
         var action='';
-        if(unrated){action='<button type="button" onclick="window._openGrcRequestForRating&&window._openGrcRequestForRating(&quot;'+htmlEsc(String(r.id||''))+'&quot;)" style="align-self:flex-start;padding:7px 12px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.3);border-radius:8px;color:#007f95;font-size:9px;font-weight:800;cursor:pointer">★ '+(isAr?'تقييم الطلب':'Rate this request')+'</button>';}else if(closed){action='<span style="font-size:9px;color:#64748b">'+(isAr?'تم إغلاق الطلب':'Request closed')+'</span>';}
+        if(unrated){action='<button type="button" onclick="window._openRequestForRating&&window._openRequestForRating(&quot;'+htmlEsc(String(r.id||''))+'&quot;)" style="align-self:flex-start;padding:7px 12px;background:rgba(1,149,175,.12);border:1px solid rgba(1,149,175,.3);border-radius:8px;color:#007f95;font-size:9px;font-weight:800;cursor:pointer">★ '+(isAr?'تقييم الطلب':'Rate this request')+'</button>';}else if(closed){action='<span style="font-size:9px;color:#64748b">'+(isAr?'تم إغلاق الطلب':'Request closed')+'</span>';}
         html+='<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;gap:8px">'
           +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
           +'<span style="padding:2px 8px;border-radius:20px;font-size:8.5px;font-weight:800;background:rgba(1,149,175,.10);color:#67e8f9">'+htmlEsc(source)+'</span>'
@@ -1055,5 +1055,47 @@ function updateExecTrend(yr){
       var b=document.getElementById('myReqBody');if(b)b.innerHTML='<div style="color:#DC2626;font-size:11px">'+(isAr?'خدمة الطلبات غير متاحة حالياً.':'Requests service is not available.')+'</div>';
     }
   };
+
+  /* Rating reminder for the Performance portal: when the user logs in and has an answered
+     (Approved / Rejected / Closed) request that is not rated yet, show a popup.
+     One Firestore read per login session; "Rate Later" is remembered per request+status. */
+  (function(){
+    var checkedFor='';
+    function em(){return String(window._fbUser||'').toLowerCase().trim();}
+    function dKey(){return 'qumc_perf_feedback_dismissed_v1::'+em();}
+    function readD(){try{var x=JSON.parse(localStorage.getItem(dKey())||'[]');return Array.isArray(x)?x.map(String):[];}catch(_){return [];}}
+    function writeD(a){try{localStorage.setItem(dKey(),JSON.stringify(a.slice(-500)));}catch(_){}}
+    function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+    function perfActive(){var b=document.body;return !!(b&&b.classList.contains('dashboard-mode')&&!b.classList.contains('grc-mode'));}
+    function close(dismiss){var ov=document.getElementById('_perfFeedbackNoticeOv');if(!ov)return;var k=ov.getAttribute('data-feedback-key');if(dismiss&&k){var d=readD();if(d.indexOf(k)<0){d.push(k);writeD(d);}}ov.remove();}
+    window._perfFeedbackDismiss=function(){close(true);};
+    window._perfFeedbackRateNow=function(){close(false);if(typeof window._showMyRequests==='function')window._showMyRequests();};
+    function show(item){
+      if(document.getElementById('_perfFeedbackNoticeOv'))return;
+      var status=String(item.status||'').toLowerCase(),text=status==='rejected'?'rejected':'completed';
+      var code=item.requestType||item.id||'';
+      var ov=document.createElement('div');ov.id='_perfFeedbackNoticeOv';ov.className='grc-feedback-notice';
+      ov.setAttribute('data-feedback-key','request::'+String(item.id||'')+'::'+status);
+      ov.innerHTML='<section class="grc-feedback-dialog" role="dialog" aria-modal="true"><button type="button" class="grc-feedback-close" onclick="window._perfFeedbackDismiss()">x</button><div class="grc-feedback-icon">&#9733;</div><h2>Your request has been '+text+'</h2><p>Request <b>'+esc(code)+'</b> has been answered and is waiting for your rating.</p><div class="grc-feedback-actions"><button type="button" class="grc-feedback-later" onclick="window._perfFeedbackDismiss()">Rate Later</button><button type="button" class="grc-feedback-rate" onclick="window._perfFeedbackRateNow()">Rate Now</button></div></section>';
+      ov.addEventListener('click',function(e){if(e.target===ov)window._perfFeedbackDismiss();});
+      document.body.appendChild(ov);
+    }
+    function check(){
+      if(!em()){checkedFor='';return;}
+      if(!perfActive()||typeof window._grcRequestsGetMine!=='function')return;
+      var key=em()+'|'+String(window._fbRole||'');
+      if(checkedFor===key)return;
+      checkedFor=key;
+      window._grcRequestsGetMine().then(function(rows){
+        var done=['approved','rejected','closed'],dismissed=readD();
+        var list=(Array.isArray(rows)?rows:[]).filter(function(r){
+          var st=String(r&&r.status||'').toLowerCase();
+          return done.indexOf(st)>=0&&!Number(r.rating||0)&&dismissed.indexOf('request::'+String(r.id||'')+'::'+st)<0;
+        });
+        if(list.length&&perfActive())show(list[0]);
+      }).catch(function(){checkedFor='';});
+    }
+    setInterval(check,3000);
+  })();
 
 })();
