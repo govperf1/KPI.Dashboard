@@ -161,7 +161,9 @@ service cloud.firestore {
 
     function canonicalDepartment(value) {
       let v = normalizedDepartment(value);
-      return v in [
+      // Fast path: already-canonical keys skip the alias lists below (identical result).
+      return v in ['safety','maintenance','housekeeping','laundry','projects','governance','division'] ? v :
+        v in [
           'safety','saf','safety management','safety_management','safety-management','safety/management',
           'safety department','safety_department','safety management department','safety_management_department',
           'السلامة','إدارة السلامة','قسم السلامة'
@@ -203,7 +205,12 @@ service cloud.firestore {
 
     function profileRoleFrom(data) {
       let r = ('role' in data) ? normalizedRoleValue(data.role) : 'viewer';
-      return r in ['superadmin','super admin','super-admin'] ? 'super_admin' :
+      // Fast path: already-canonical roles skip the alias chain below (identical result).
+      return r in [
+               'super_admin','admin','executive','department_manager','kpi_owner','risk_owner',
+               'grc_owner','platform_owner','governance_performance_manager','viewer','user'
+             ] ? r :
+             r in ['superadmin','super admin','super-admin'] ? 'super_admin' :
              (r in ['departmentmanager','department manager','department-manager','dept_manager','dept manager','dept-manager','deptmanager','manager']) ? 'department_manager' :
              r in ['riskowner','risk owner','risk-owner'] ? 'risk_owner' :
              r in ['grcowner','grc owner','grc-owner'] ? 'grc_owner' :
@@ -226,7 +233,10 @@ service cloud.firestore {
     }
 
     function profileDepartmentKeyFrom(data) {
-      return canonicalDepartment(profileDepartmentValueFrom(data));
+      // Fast path: when `dept` already canonicalises, that is exactly what
+      // profileDepartmentValueFrom() would have returned first (identical result).
+      let d1 = ('dept' in data) ? canonicalDepartment(data.dept) : '';
+      return d1 != '' ? d1 : canonicalDepartment(profileDepartmentValueFrom(data));
     }
 
     function role() {
