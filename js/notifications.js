@@ -1093,7 +1093,7 @@ function updateExecTrend(yr){
           return done.indexOf(st)>=0&&!Number(r.rating||0)&&dismissed.indexOf('request::'+String(r.id||'')+'::'+st)<0;
         });
         if(list.length&&perfActive())show(list[0]);
-      }).catch(function(){checkedFor='';});
+      }).catch(function(){/* keep checkedFor set: do not retry until next login/reload (avoids burning quota) */});
     }
     setInterval(check,3000);
   })();
