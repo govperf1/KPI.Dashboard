@@ -96,12 +96,23 @@ service cloud.firestore {
       );
     }
 
+    // PERFORMANCE FIX (same cause as the Department Manager denial): approved()/role()
+    // walk long role-normalisation chains on every call and a multi-write commit
+    // (e.g. Super Admin "Approve & Publish") exceeded Firestore's per-request
+    // expression budget. Super Admin is a platform-level built-in role and
+    // approved() is already true for it, so this direct check is semantically
+    // identical to the previous definition but far cheaper.
+    function superAdminFast() {
+      return signedIn() && userExists() && ('role' in userData()) && userData().role is string &&
+        userData().role.lower().trim() in ['super_admin','superadmin','super admin','super-admin'];
+    }
+
     function superAdmin() {
-      return approved() && role() == 'super_admin';
+      return superAdminFast();
     }
 
     function admin() {
-      return approved() && role() in ['admin','super_admin'];
+      return superAdminFast() || (approved() && role() == 'admin');
     }
 
     function executive() {
@@ -1576,6 +1587,7 @@ service cloud.firestore {
         ('departmentRaw' in resource.data) && resource.data.departmentRaw == profileDepartmentValueFrom(userData());
 
       allow update: if
+        superAdmin() ||
         (managerFastDeptAccess(resource.data) && riskManagerChange() && validManagerRiskTransition()) ||
         validRiskRequesterRatingChange() ||
         validGrcRiskRequesterResubmit() ||
