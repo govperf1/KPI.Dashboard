@@ -3303,12 +3303,23 @@
     if(!match)return'';
     return match[1].split('.').map(function(part){var n=parseInt(part,10);return isFinite(n)?String(n):part;}).join('.');
   }
-  // v420: shared deterministic CBAHI Responsible Department mapping; derived from standard codes for every role.
+  // v424: shared deterministic CBAHI Responsible Department mapping; derived from standard codes for every role.
   function cbahiResponsibleDepartment(row){
     var standardPath=cbahiCodePath(row&&row[1]),subPath=cbahiCodePath(row&&row[3]),specificPath=cbahiCodePath(row&&row[5]);
     var standard=standardPath?parseInt(standardPath.split('.')[0],10):null;
-    // Apply the most specific exceptions before the parent Standard assignment.
-    if(specificPath==='17.3.9')return'Maintenance Department';
+    function isCodeOrChild(path,code){return !!path&&(path===code||path.indexOf(code+'.')===0);}
+    function hasAssessmentCode(code){return isCodeOrChild(standardPath,code)||isCodeOrChild(subPath,code)||isCodeOrChild(specificPath,code);}
+    // Explicit department assignments requested for the CBAHI assessment.
+    if(hasAssessmentCode('1.3'))return'Maintenance Department';
+    if(hasAssessmentCode('2.5'))return'Safety Department';
+    if(hasAssessmentCode('5.1.3')||hasAssessmentCode('5.1.5'))return'Project Management Department | Safety Department';
+    if(hasAssessmentCode('16'))return'Safety Department | FMS Division';
+    if(hasAssessmentCode('17.3.9'))return'Safety Department';
+    if(hasAssessmentCode('28.2.11'))return'IT Department';
+    if(hasAssessmentCode('28.2.13'))return'Safety Department';
+    if(hasAssessmentCode('39'))return'Maintenance Department';
+    if(hasAssessmentCode('4.3'))return'Housekeeping Department | Safety Department | Project Management Department | Maintenance Department | FMS Division';
+    // Apply the remaining pre-existing exceptions before the parent Standard assignment.
     if(subPath==='24.1'||specificPath==='24.1')return'Security Department';
     if(specificPath==='29.1.7')return'Safety Department / Maintenance Department';
     if(specificPath==='29.1.8')return'Safety Department';
@@ -3350,7 +3361,7 @@
     'Housekeeping','Maintenance','Safety','Project Management','Laundry',
     'FMS Division','Safety Department','Maintenance Department','Housekeeping Department',
     'Laundry Department','Projects Department','Project Management Department','Security Department',
-    'Radiology Safety Department','Biomedical Department','Safety Department / FMS',
+    'Radiology Safety Department','Biomedical Department','IT Department','Safety Department / FMS',
     'Safety Department / Maintenance Department'
   ];
   function assessmentDepartmentPicker(kind,value,sourceIndex,col){
