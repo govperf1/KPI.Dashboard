@@ -3451,7 +3451,9 @@
         i=j;
       }
     });
-    if(assessmentUiMode.cbahi==='edit')spans.forEach(function(x){Object.keys(x).forEach(function(k){x[k]=1;});});
+    // Keep every assessment row structurally independent. Rowspan cells become misaligned
+    // when the column filters hide individual rows, so repeat parent values instead of merging.
+    spans.forEach(function(x){Object.keys(x).forEach(function(k){x[k]=1;});});
     function cell(r,rowIndex,col,cls,html){
       if(spans[rowIndex][col]===0)return'';
       var rowspan=spans[rowIndex][col]||1;
@@ -3615,7 +3617,9 @@
     var mergeable={0:[],1:[0],2:[0,1],3:[0,1,2],4:[0,1,2],5:[0,1,2,4],6:[0,1,2,4],7:[0,1,2,4,6],8:[0,1,2,4,6]};
     var spans=jciRows.map(function(){return{};});
     Object.keys(mergeable).forEach(function(key){var col=Number(key),parents=mergeable[col],i=0;while(i<jciRows.length){var value=String(jciRows[i][col]||'');if(!value){spans[i][col]=1;i++;continue;}var j=i+1;while(j<jciRows.length&&String(jciRows[j][col]||'')===value&&parents.every(function(pc){return String(jciRows[j][pc]||'')===String(jciRows[i][pc]||'');}))j++;spans[i][col]=j-i;for(var k=i+1;k<j;k++)spans[k][col]=0;i=j;}});
-    if(assessmentUiMode.jci==='edit')spans.forEach(function(x){Object.keys(x).forEach(function(k){x[k]=1;});});
+    // Keep every assessment row structurally independent. Rowspan cells become misaligned
+    // when the column filters hide individual rows, so repeat parent values instead of merging.
+    spans.forEach(function(x){Object.keys(x).forEach(function(k){x[k]=1;});});
     function cell(rowIndex,col,cls,html){if(spans[rowIndex][col]===0)return'';var rowspan=spans[rowIndex][col]||1;return'<td'+(cls?' class="'+cls+'"':'')+(rowspan>1?' rowspan="'+rowspan+'"':'')+'>'+html+'</td>';}
     var rows=jciRows.map(function(r,rowIndex){
       var source=sourceRows[rowIndex],idx=source._sourceIndex,rawStatus=String(r[9]||''),notMet=rawStatus==='Not Met',evidenceRequired=requirementStartsWithD(source)&&rawStatus==='Fully Met';
