@@ -2193,24 +2193,83 @@
       var header=table.tHead.rows[0],body=table.tBodies[0];
       var dataRows=Array.prototype.filter.call(body.rows,function(row){return !row.classList.contains('grc-table-group')&&!row.classList.contains('grc-table-subgroup')&&!row.classList.contains('grc-table-group-empty')&&!row.querySelector('td[colspan]');});
       if(!dataRows.length)return;
-      var filterRow=document.createElement('tr');filterRow.className='grc-filter-row';
-      var isAssessment=table.classList.contains('grc-cbahi-table');
+      var isAssessment=table.classList.contains('grc-cbahi-table'),filterRow=document.createElement('tr');
+      filterRow.className='grc-filter-row';
       var logicalGrid=[];
-      if(isAssessment){var carry=[];dataRows.forEach(function(row,ri){var line=[],ci=0;Array.prototype.forEach.call(row.cells,function(td){while(carry[ci]&&carry[ci].left>0){line[ci]=carry[ci].value;carry[ci].left--;ci++;}var span=Math.max(1,Number(td.colSpan)||1),rs=Math.max(1,Number(td.rowSpan)||1),value=td.textContent.replace(/\s+/g,' ').trim();for(var z=0;z<span;z++){line[ci+z]=value;if(rs>1)carry[ci+z]={value:value,left:rs-1};}ci+=span;});while(ci<header.cells.length){if(carry[ci]&&carry[ci].left>0){line[ci]=carry[ci].value;carry[ci].left--;}ci++;}logicalGrid[ri]=line;});}
+      function cellValue(td){
+        if(!td)return'';
+        var editor=td.querySelector('input,textarea,select');
+        return String(editor?editor.value:td.textContent||'').replace(/\s+/g,' ').trim();
+      }
+      if(isAssessment){
+        var carry=[];
+        dataRows.forEach(function(row,ri){
+          var line=[],col=0;
+          Array.prototype.forEach.call(row.cells,function(td){
+            while(carry[col]&&carry[col].left>0){line[col]=carry[col].value;carry[col].left--;col++;}
+            var span=Math.max(1,Number(td.colSpan)||1),rowspan=Math.max(1,Number(td.rowSpan)||1),value=cellValue(td);
+            for(var x=0;x<span;x++){line[col+x]=value;if(rowspan>1)carry[col+x]={value:value,left:rowspan-1};}
+            col+=span;
+          });
+          while(col<header.cells.length){
+            if(carry[col]&&carry[col].left>0){line[col]=carry[col].value;carry[col].left--;}
+            col++;
+          }
+          logicalGrid[ri]=line;
+        });
+      }
       Array.prototype.forEach.call(header.cells,function(th,col){
-        var cell=document.createElement('th'),longTextCols=isAssessment&&(table.classList.contains('grc-jci-assessment-table')?[3,5,7,11,12,13,14]:[2,4,6,10,11,12,13]).indexOf(col)>=0;
-        var values={};dataRows.forEach(function(row,ri){var c=isAssessment?null:row.cells[col],raw=isAssessment?(logicalGrid[ri]||[])[col]:(c?c.textContent:'');var v=String(raw||'').replace(/\s+/g,' ').trim();if(v&&v!=='—')values[v]=1;});
-        if(longTextCols){var input=document.createElement('input');input.type='search';input.placeholder=isAr()?'ابحث في النص...':'Search text...';input.setAttribute('aria-label',L('filterByColumn')+' - '+th.textContent.trim());input.className='grc-assessment-filter-text';input.addEventListener('input',apply);cell.appendChild(input);}
-        else{var select=document.createElement('select');select.setAttribute('aria-label',L('filterByColumn')+' - '+th.textContent.trim());var all=document.createElement('option');all.value='';all.textContent=L('filterAll');select.appendChild(all);Object.keys(values).sort(function(a,b){return a.localeCompare(b,isAr()?'ar':'en',{numeric:true});}).forEach(function(v){var o=document.createElement('option');o.value=v;o.textContent=v;select.appendChild(o);});select.addEventListener('change',apply);cell.appendChild(select);}
+        var cell=document.createElement('th'),field=String(th.getAttribute('data-field')||'');
+        var longTextFields=['standardDescription','subStandardDescription','specificRequirementDescription','assessmentActivities','evidence','gapDescription','cap'];
+        var useTextSearch=isAssessment&&longTextFields.indexOf(field)>=0;
+        var values={};
+        dataRows.forEach(function(row,ri){
+          var value=isAssessment?String((logicalGrid[ri]||[])[col]||''):cellValue(row.cells[col]);
+          if(value&&value!=='—')values[value]=1;
+        });
+        if(useTextSearch){
+          var input=document.createElement('input');input.type='search';
+          input.placeholder=isAr()?'ابحث داخل النص...':'Search within text...';
+          input.setAttribute('aria-label',L('filterByColumn')+' - '+th.textContent.trim());
+          input.className='grc-assessment-filter-text';input.addEventListener('input',apply);cell.appendChild(input);
+        }else{
+          var select=document.createElement('select');select.setAttribute('aria-label',L('filterByColumn')+' - '+th.textContent.trim());
+          var all=document.createElement('option');all.value='';all.textContent=L('filterAll');select.appendChild(all);
+          Object.keys(values).sort(function(a,b){return a.localeCompare(b,isAr()?'ar':'en',{numeric:true});}).forEach(function(value){
+            var option=document.createElement('option');option.value=value;option.textContent=value;select.appendChild(option);
+          });
+          select.addEventListener('change',apply);cell.appendChild(select);
+        }
         filterRow.appendChild(cell);
       });
       table.tHead.appendChild(filterRow);
       var wrap=table.closest('.grc-table-wrap');
-      if(wrap){var bar=document.createElement('div');bar.className='grc-table-filterbar';bar.innerHTML='<span>'+L('filterByColumn')+'</span><button type="button">'+L('clearFilters')+'</button>';bar.querySelector('button').addEventListener('click',function(){filterRow.querySelectorAll('select,input').forEach(function(x){x.value='';});apply();});wrap.insertBefore(bar,table);}
+      if(wrap){
+        var bar=document.createElement('div');bar.className='grc-table-filterbar';
+        bar.innerHTML='<span>'+L('filterByColumn')+'</span><button type="button">'+L('clearFilters')+'</button>';
+        bar.querySelector('button').addEventListener('click',function(){
+          filterRow.querySelectorAll('select,input').forEach(function(control){control.value='';});apply();
+        });
+        wrap.insertBefore(bar,table);
+      }
       function apply(){
         var controls=Array.prototype.map.call(filterRow.cells,function(cell){return cell.querySelector('input,select');});
-        dataRows.forEach(function(row,ri){var show=controls.every(function(control,col){var v=String(control&&control.value||'').trim();if(!v)return true;var text=isAssessment?String((logicalGrid[ri]||[])[col]||''):String(row.cells[col]&&row.cells[col].textContent||'');text=text.replace(/\s+/g,' ').trim();return control.tagName==='INPUT'?text.toLocaleLowerCase().indexOf(v.toLocaleLowerCase())>=0:text===v;});row.style.display=show?'':'none';});
-        Array.prototype.forEach.call(body.querySelectorAll('.grc-table-subgroup,.grc-table-group'),function(group){var subgroup=group.classList.contains('grc-table-subgroup'),next=group.nextElementSibling,visible=false;while(next){if(next.classList.contains('grc-table-group')||(subgroup&&next.classList.contains('grc-table-subgroup')))break;if(!next.classList.contains('grc-table-subgroup')&&!next.classList.contains('grc-table-group-empty')&&!next.querySelector('td[colspan]')&&next.style.display!=='none'){visible=true;break;}next=next.nextElementSibling;}group.style.display=visible?'':'none';});
+        dataRows.forEach(function(row,ri){
+          var show=controls.every(function(control,col){
+            var query=String(control&&control.value||'').trim();if(!query)return true;
+            var value=isAssessment?String((logicalGrid[ri]||[])[col]||''):cellValue(row.cells[col]);
+            value=value.replace(/\s+/g,' ').trim();
+            return control.tagName==='INPUT'?value.toLocaleLowerCase().indexOf(query.toLocaleLowerCase())>=0:value===query;
+          });
+          row.style.display=show?'':'none';
+        });
+        Array.prototype.forEach.call(body.querySelectorAll('.grc-table-subgroup,.grc-table-group'),function(group){
+          var next=group.nextElementSibling,visible=false;
+          while(next&&!next.classList.contains('grc-table-group')&&!next.classList.contains('grc-table-subgroup')){
+            if(next.style.display!=='none')visible=true;next=next.nextElementSibling;
+          }
+          group.style.display=visible?'':'none';
+        });
       }
     });
   }
@@ -3201,14 +3260,14 @@
   function ensureCbahiStyles(){
     if(document.getElementById('_grcCbahiStyles'))return;
     var st=document.createElement('style');st.id='_grcCbahiStyles';st.textContent='\
-.grc-cbahi-section{margin-top:24px}.grc-cbahi-summary-note{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-4px 0 16px;color:#6d8390;font-size:11px}.grc-cbahi-summary-note span{display:inline-flex;padding:6px 10px;border-radius:999px;background:#edf6f7;color:#176f7d;font-weight:900}.grc-cbahi-table{min-width:2600px}.grc-cbahi-table th,.grc-cbahi-table td{min-width:128px;max-width:320px;white-space:normal;vertical-align:top;line-height:1.55}.grc-cbahi-table th:nth-child(3),.grc-cbahi-table td:nth-child(3),.grc-cbahi-table th:nth-child(5),.grc-cbahi-table td:nth-child(5),.grc-cbahi-table th:nth-child(7),.grc-cbahi-table td:nth-child(7){min-width:270px}.grc-cbahi-table th:nth-child(11),.grc-cbahi-table td:nth-child(11){min-width:220px}.grc-cbahi-status{display:inline-flex;align-items:center;justify-content:center;padding:6px 9px;border-radius:999px;font-size:9px;font-weight:900;white-space:nowrap}.grc-cbahi-status.fully{background:#e7f6ef;color:#19714d}.grc-cbahi-status.partial{background:#fff5df;color:#9a6a10}.grc-cbahi-status.notmet{background:#fdeced;color:#a63842}.grc-cbahi-status.na{background:#eef2f5;color:#6b7f8a}.grc-cbahi-score{text-align:center;font-weight:900;color:#244b5d}.grc-cbahi-section .grc-register-block{margin-top:20px}.grc-assessment-select{width:100%;min-width:128px;padding:7px;border:1px solid #c7d8df;border-radius:9px;background:#fff;font:inherit}.grc-assessment-input{width:100%;min-width:180px;min-height:72px;resize:vertical;padding:8px;border:1px solid #c7d8df;border-radius:9px;background:#fff;font:inherit;line-height:1.45}.grc-assessment-input.required-missing{border:2px solid #dc3545;background:#fff3f4}.grc-jci-leading-d{display:inline-flex;align-items:center;justify-content:center;color:#fff;background:#d52d3a;border-radius:50%;width:20px;height:20px;margin-inline-end:5px;font-weight:900}.grc-required-cell{background:#fff7f7}.grc-cbahi-attention-split{grid-template-columns:repeat(2,minmax(0,1fr))}.grc-assessment-toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:18px 0 10px;padding:14px 16px;border:1px solid #cfe0e7;border-radius:14px;background:#f7fbfc}.grc-assessment-toolbar>div{display:flex;gap:10px;flex-wrap:wrap}.grc-assessment-toolbar small{color:#6d8390}.grc-assessment-inline-input,.grc-assessment-inline-select{width:100%;min-width:100px;box-sizing:border-box;border:1px solid #8bb9c5;border-radius:7px;padding:6px 7px;background:#fff;color:#244b5d;font:inherit;font-size:11px}.grc-assessment-inline-input:focus,.grc-assessment-inline-select:focus{outline:2px solid rgba(24,165,182,.22);border-color:#18a5b6}.grc-assessment-inline-input{min-height:34px}.grc-assessment-inline-input textarea{min-height:58px}.grc-assessment-filter-text{width:100%;min-width:90px;border:1px solid #d5e2e6;border-radius:9px;background:#fff;color:#365767;padding:7px 8px;font:inherit;font-size:9px;outline:none}.grc-assessment-filter-text:focus{border-color:#4baeb9;box-shadow:0 0 0 2px rgba(75,174,185,.12)}.grc-assessment-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.grc-assessment-form-grid label{display:flex;flex-direction:column;gap:7px}.grc-assessment-form-grid label.full{grid-column:1/-1}.grc-assessment-form-grid textarea{width:100%;resize:vertical}.grc-assessment-form-grid .required-missing textarea,.grc-assessment-form-grid .required-missing input{border-color:#dc3545;background:#fff5f5}@media(max-width:800px){.grc-assessment-form-grid{grid-template-columns:1fr}}.grc-dept-module-grid{margin:0 0 18px;grid-template-columns:repeat(2,minmax(0,1fr))}.grc-dept-module-grid .grc-module-card:nth-child(2){display:none}@media(max-width:900px){.grc-dept-module-grid{grid-template-columns:1fr}}@media(max-width:900px){.grc-cbahi-section .grc-metric-grid.cols-6{grid-template-columns:repeat(2,minmax(0,1fr))}}';
+.grc-cbahi-section{margin-top:24px}.grc-cbahi-summary-note{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-4px 0 16px;color:#6d8390;font-size:11px}.grc-cbahi-summary-note span{display:inline-flex;padding:6px 10px;border-radius:999px;background:#edf6f7;color:#176f7d;font-weight:900}.grc-cbahi-table{min-width:2600px}.grc-cbahi-table th,.grc-cbahi-table td{min-width:128px;max-width:320px;white-space:normal;vertical-align:top;line-height:1.55}.grc-cbahi-table th:nth-child(3),.grc-cbahi-table td:nth-child(3),.grc-cbahi-table th:nth-child(5),.grc-cbahi-table td:nth-child(5),.grc-cbahi-table th:nth-child(7),.grc-cbahi-table td:nth-child(7){min-width:270px}.grc-cbahi-table th:nth-child(11),.grc-cbahi-table td:nth-child(11){min-width:220px}.grc-cbahi-status{display:inline-flex;align-items:center;justify-content:center;padding:6px 9px;border-radius:999px;font-size:9px;font-weight:900;white-space:nowrap}.grc-cbahi-status.fully{background:#e7f6ef;color:#19714d}.grc-cbahi-status.partial{background:#fff5df;color:#9a6a10}.grc-cbahi-status.notmet{background:#fdeced;color:#a63842}.grc-cbahi-status.na{background:#eef2f5;color:#6b7f8a}.grc-cbahi-score{text-align:center;font-weight:900;color:#244b5d}.grc-cbahi-section .grc-register-block{margin-top:20px}.grc-assessment-select{width:100%;min-width:128px;padding:7px;border:1px solid #c7d8df;border-radius:9px;background:#fff;font:inherit}.grc-assessment-input{width:100%;min-width:180px;min-height:72px;resize:vertical;padding:8px;border:1px solid #c7d8df;border-radius:9px;background:#fff;font:inherit;line-height:1.45}.grc-assessment-input.required-missing{border:2px solid #dc3545;background:#fff3f4}.grc-jci-leading-d{display:inline-flex;align-items:center;justify-content:center;color:#fff;background:#d52d3a;border-radius:50%;width:20px;height:20px;margin-inline-end:5px;font-weight:900}.grc-required-cell{background:#fff7f7}.grc-cbahi-attention-split{grid-template-columns:repeat(2,minmax(0,1fr))}.grc-assessment-toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:18px 0 10px;padding:14px 16px;border:1px solid #cfe0e7;border-radius:14px;background:#f7fbfc}.grc-assessment-toolbar>div{display:flex;gap:10px;flex-wrap:wrap}.grc-assessment-toolbar small{color:#6d8390}.grc-assessment-inline-input,.grc-assessment-inline-select{width:100%;min-width:100px;box-sizing:border-box;border:1px solid #8bb9c5;border-radius:7px;padding:6px 7px;background:#fff;color:#244b5d;font:inherit;font-size:11px}.grc-assessment-inline-input:focus,.grc-assessment-inline-select:focus{outline:2px solid rgba(24,165,182,.22);border-color:#18a5b6}.grc-assessment-inline-input{min-height:34px}.grc-assessment-filter-text{width:100%;min-width:90px;box-sizing:border-box;border:1px solid #d5e2e6;border-radius:9px;background:#fff;color:#365767;padding:7px 8px;font:inherit;font-size:9px;outline:none}.grc-assessment-filter-text:focus{border-color:#4baeb9;box-shadow:0 0 0 2px rgba(75,174,185,.12)}.grc-assessment-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.grc-assessment-form-grid label{display:flex;flex-direction:column;gap:7px}.grc-assessment-form-grid label.full{grid-column:1/-1}.grc-assessment-form-grid textarea{width:100%;resize:vertical}.grc-assessment-form-grid .required-missing textarea,.grc-assessment-form-grid .required-missing input{border-color:#dc3545;background:#fff5f5}@media(max-width:800px){.grc-assessment-form-grid{grid-template-columns:1fr}}.grc-dept-module-grid{margin:0 0 18px;grid-template-columns:repeat(2,minmax(0,1fr))}.grc-dept-module-grid .grc-module-card:nth-child(2){display:none}@media(max-width:900px){.grc-dept-module-grid{grid-template-columns:1fr}}@media(max-width:900px){.grc-cbahi-section .grc-metric-grid.cols-6{grid-template-columns:repeat(2,minmax(0,1fr))}}';
     document.head.appendChild(st);
   }
   var assessmentUiMode={cbahi:'view',jci:'view'};
   function assessmentToolbar(kind){
     if(!isGrcAdmin())return'';
     var editing=assessmentUiMode[kind]==='edit';
-    return'<div class="grc-assessment-toolbar"><div><button class="grc-btn primary" onclick="window._grcOpenAssessmentModal(\''+kind+'\',\'add\')">+ '+L('assessmentAdd')+'</button><button class="grc-btn ghost" onclick="window._grcAssessmentToggleEdit(\''+kind+'\')">'+(editing?(isAr()?'✓ إنهاء التعديل':'✓ Done Editing'):'✎ '+L('assessmentEdit'))+'</button><button class="grc-btn danger" onclick="window._grcOpenAssessmentModal(\''+kind+'\',\'delete\')">⌫ '+L('delete')+'</button></div><small>'+(editing?(isAr()?'عدّل الخلايا مباشرة، وسيتم حفظ التغيير تلقائياً':'Edit cells directly; changes save automatically'):(isAr()?'وضع العرض — اختر تعديل لتحرير الجدول مباشرة':'View mode — choose Edit to modify the table directly'))+'</small></div>';
+    return'<div class="grc-assessment-toolbar"><div><button class="grc-btn primary" onclick="window._grcOpenAssessmentModal(\''+kind+'\',\'add\')">+ '+L('assessmentAdd')+'</button><button class="grc-btn ghost" onclick="window._grcAssessmentToggleEdit(\''+kind+'\')">'+(editing?(isAr()?'✓ إنهاء التعديل':'✓ Done Editing'):'✎ '+L('assessmentEdit'))+'</button><button class="grc-btn danger" onclick="window._grcOpenAssessmentModal(\''+kind+'\',\'delete\')">⌫ '+L('delete')+'</button></div><small>'+(editing?(isAr()?'عدّل الخلايا مباشرة وسيتم حفظ التغييرات تلقائياً':'Edit cells directly; changes save automatically'):(isAr()?'وضع العرض':'View mode'))+'</small></div>';
   }
   var ASSESSMENT_EDIT_KEY='qumc_grc_assessment_edits_v2_cache';
   var ASSESSMENT_LEGACY_EDIT_KEY='qumc_grc_assessment_edits_v1';
@@ -3282,26 +3341,25 @@
   function cbahiStatusClass(status){var s=String(status||'').trim();if(s==='Fully Met')return'fully-met';if(s==='Partially Met')return'partially-met';if(s==='Not Met')return'not-met';if(s==='Not Applicable')return'not-applicable';return'not-applicable';}
   function assessmentStatusEditor(kind,rowIndex,value,sourceIndex,col){
     if(isGrcAdmin()&&assessmentUiMode[kind]==='edit'){
-      var opts=kind==='jci'?['','Fully Met','Not Met','Not Applicable']:['','Fully Met','Partially Met','Not Met','Not Applicable'];
-      return '<select class="grc-assessment-inline-select" data-assessment-kind="'+kind+'" data-assessment-row="'+sourceIndex+'" data-assessment-col="'+col+'">'+opts.map(function(x){return '<option value="'+esc(x)+'" '+(String(x)===String(value||'')?'selected':'')+'>'+(x?esc(cbahiStatusLabel(x)):(isAr()?'اختر الحالة':'Select status'))+'</option>';}).join('')+'</select>';
+      var options=kind==='jci'?['','Fully Met','Not Met','Not Applicable']:['','Fully Met','Partially Met','Not Met','Not Applicable'];
+      return '<select class="grc-assessment-inline-select" data-assessment-kind="'+kind+'" data-assessment-row="'+sourceIndex+'" data-assessment-col="'+col+'">'+options.map(function(v){return '<option value="'+esc(v)+'" '+(String(v)===String(value||'')?'selected':'')+'>'+(v?esc(cbahiStatusLabel(v)):(isAr()?'اختر الحالة':'Select status'))+'</option>';}).join('')+'</select>';
     }
     return'<span class="grc-cbahi-status '+cbahiStatusClass(value)+'">'+esc(cbahiStatusLabel(value))+'</span>';
   }
   function assessmentInlineEditor(kind,row,col,value,sourceIndex,type){
     if(!isGrcAdmin()||assessmentUiMode[kind]!=='edit')return esc(value==null||value===''?'—':value);
-    var tag=type==='textarea'?'textarea':'input',attrs=' data-assessment-kind="'+kind+'" data-assessment-row="'+sourceIndex+'" data-assessment-col="'+col+'"';
-    if(tag==='textarea')return '<textarea class="grc-assessment-inline-input" rows="2"'+attrs+'>'+esc(value||'')+'</textarea>';
-    return '<input class="grc-assessment-inline-input" type="'+(type==='date'?'date':'text')+'" value="'+esc(value||'')+'"'+attrs+'>';
-  }
-  function assessmentInlineCell(kind,row,col,value,sourceIndex,type,cls){
-    var html=assessmentInlineEditor(kind,row,col,value,sourceIndex,type);
-    return '<td'+(cls?' class="'+cls+'"':'')+'>'+html+'</td>';
+    var attrs=' data-assessment-kind="'+kind+'" data-assessment-row="'+sourceIndex+'" data-assessment-col="'+col+'"';
+    if(type==='textarea')return '<textarea class="grc-assessment-inline-input" rows="2"'+attrs+'>'+esc(value||'')+'</textarea>';
+    return '<input class="grc-assessment-inline-input" type="text" value="'+esc(value||'')+'"'+attrs+'>';
   }
   function bindAssessmentInlineEditors(){
-    if(!app||app.__assessmentInlineBound)return;app.__assessmentInlineBound=true;
-    app.addEventListener('change',function(e){var el=e.target;if(!el||!el.matches('[data-assessment-kind][data-assessment-row][data-assessment-col]'))return;
+    if(!app||app.__assessmentInlineBound)return;
+    app.__assessmentInlineBound=true;
+    app.addEventListener('change',function(event){
+      var el=event.target;
+      if(!el||!el.matches('[data-assessment-kind][data-assessment-row][data-assessment-col]'))return;
       var kind=el.getAttribute('data-assessment-kind'),row=Number(el.getAttribute('data-assessment-row')),col=Number(el.getAttribute('data-assessment-col'));
-      if(!isGrcAdmin()||!['cbahi','jci'].includes(kind)||!Number.isFinite(row)||!Number.isFinite(col))return;
+      if(!isGrcAdmin()||!['cbahi','jci'].includes(kind)||!Number.isInteger(row)||row<0||!Number.isInteger(col)||col<0)return;
       saveAssessmentEdit(kind,row,col,el.value);
     });
   }
@@ -3391,7 +3449,7 @@
   function cbahiEsrRows(dept){
     var esrNumbers=[9,21,22,23,24,32];
     return assessmentRows('cbahi',CBAHI_FMS_ROWS).filter(function(r){
-      return esrNumbers.indexOf(cbahiStandardNumber(r[CBAHI_COLS.standard]))>=0;
+      return esrNumbers.indexOf(cbahiStandardNumber(r[CBAHI_COLS.standard]))>=0&&assessmentRowMatchesDept(r,dept);
     });
   }
   function cbahiEsrSummary(dept){
@@ -3459,7 +3517,7 @@
     var attention=cbahiAttentionRows(dept),notMetRows=attention.map(function(x){var seg=x.segments[0];return{label:x.label,total:seg.value,segments:[seg]};}).filter(function(x){return x.total>0;}),partialRows=attention.map(function(x){var seg=x.segments[1];return{label:x.label,total:seg.value,segments:[seg]};}).filter(function(x){return x.total>0;});var charts='<div class="grc-chart-grid cols-1">'+verticalBarChart(L('cbahiStatusDistribution'),statusItems)+'</div><div class="grc-chart-grid grc-cbahi-attention-split">'+stackedBarChart(L('cbahiNotMet')+' · '+L('cbahiAttentionByStandard'),notMetRows,[{label:L('cbahiNotMet'),color:chartPalette.coral}])+stackedBarChart(L('cbahiPartiallyMet')+' · '+L('cbahiAttentionByStandard'),partialRows,[{label:L('cbahiPartiallyMet'),color:chartPalette.amber}])+'</div>';
     var register=registerBlock('policy',L('cbahiRegister'),L('cbahiRegisterDesc'),'',
       cbahiTableHtml(dept));
-    return'<div class="grc-section grc-cbahi-section">'+sectionHead(L('cbahiSection'),L('cbahiSectionDesc'),s.standards+' '+L('cbahiTotalStandards'))+cards+cbahiEsrOverview(dept)+charts+register+'</div>';
+    return'<div class="grc-section grc-cbahi-section">'+sectionHead(L('cbahiSection'),L('cbahiSectionDesc'),s.standards+' '+L('cbahiTotalStandards'))+cards+cbahiEsrOverview(dept)+charts+assessmentToolbar('cbahi')+register+'</div>';
   }
   function sanitizeJciRow(row){
     var out=(row||[]).slice();
@@ -3527,16 +3585,17 @@
     if(assessmentUiMode.jci==='edit')spans.forEach(function(x){Object.keys(x).forEach(function(k){x[k]=1;});});
     function cell(rowIndex,col,cls,html){if(spans[rowIndex][col]===0)return'';var rowspan=spans[rowIndex][col]||1;return'<td'+(cls?' class="'+cls+'"':'')+(rowspan>1?' rowspan="'+rowspan+'"':'')+'>'+html+'</td>';}
     var rows=jciRows.map(function(r,rowIndex){
-      var source=sourceRows[rowIndex],rawStatus=String(r[9]||''),notMet=rawStatus==='Not Met',evidenceRequired=requirementStartsWithD(source)&&rawStatus==='Fully Met',idx=source._sourceIndex;
-      return'<tr>'+cell(rowIndex,0,'grc-cbahi-chapter',esc(r[0]))+
+      var source=sourceRows[rowIndex],idx=source._sourceIndex,rawStatus=String(r[9]||''),notMet=rawStatus==='Not Met',evidenceRequired=requirementStartsWithD(source)&&rawStatus==='Fully Met';
+      return'<tr>'+
+        cell(rowIndex,0,'grc-cbahi-chapter',esc(r[0]))+
         cell(rowIndex,1,'grc-jci-domain',assessmentInlineEditor('jci',source,0,source[0],idx,'text'))+
-        cell(rowIndex,2,'grc-id grc-cbahi-standard',assessmentInlineEditor('jci',source,1,source[1],idx,'text'))+
+        cell(rowIndex,2,'grc-id grc-cbahi-standard',assessmentInlineEditor('jci',source,1,cleanAssessmentCode(source[1]),idx,'text'))+
         cell(rowIndex,3,'grc-cbahi-description',assessmentInlineEditor('jci',source,2,source[2],idx,'textarea'))+
-        cell(rowIndex,4,'grc-id grc-cbahi-substandard',assessmentInlineEditor('jci',source,3,source[3],idx,'text'))+
+        cell(rowIndex,4,'grc-id grc-cbahi-substandard',assessmentInlineEditor('jci',source,3,cleanAssessmentCode(source[3]),idx,'text'))+
         cell(rowIndex,5,'grc-cbahi-description',assessmentInlineEditor('jci',source,4,source[4],idx,'textarea'))+
-        cell(rowIndex,6,'grc-id grc-cbahi-specific',assessmentInlineEditor('jci',source,5,source[5],idx,'text'))+
+        cell(rowIndex,6,'grc-id grc-cbahi-specific',assessmentInlineEditor('jci',source,5,cleanAssessmentCode(source[5]),idx,'text'))+
         cell(rowIndex,7,'grc-cbahi-specific-desc',assessmentInlineEditor('jci',source,6,source[6],idx,'textarea'))+
-        cell(rowIndex,8,'grc-cbahi-department',assessmentInlineEditor('jci',source,7,source[7],idx,'text'))+
+        cell(rowIndex,8,'grc-cbahi-department',esc(r[8]||'—'))+
         cell(rowIndex,9,'grc-cbahi-status-cell',assessmentStatusEditor('jci',rowIndex,rawStatus,idx,8))+
         cell(rowIndex,10,'grc-cbahi-score',esc(r[10]===0?'0':r[10]||'—'))+
         cell(rowIndex,11,'grc-cbahi-activity',assessmentInlineEditor('jci',source,10,source[10],idx,'textarea'))+
@@ -3545,15 +3604,14 @@
         cell(rowIndex,14,'grc-cbahi-cap '+(notMet?'grc-required-cell':''),assessmentInlineEditor('jci',source,13,source[13],idx,'textarea'))+
         cell(rowIndex,15,'grc-cbahi-due',assessmentInlineEditor('jci',source,14,source[14],idx,'text'))+'</tr>';
     }).join('');
-    var table=tableHtml('policy',heads,rows).replace('class="grc-table policy"','class="grc-table policy grc-cbahi-table grc-jci-assessment-table"').replace('class="grc-table-wrap"','class="grc-table-wrap grc-cbahi-scroll-main" onscroll="this.previousElementSibling.scrollLeft=this.scrollLeft"');
-    return'<div class="grc-cbahi-scroll-top" onscroll="this.nextElementSibling.scrollLeft=this.scrollLeft"><div></div></div>'+table;
+    var table=tableHtml('policy',heads,rows).replace('class="grc-table policy"','class="grc-table policy grc-cbahi-table"').replace('class="grc-table-wrap"','class="grc-table-wrap grc-cbahi-scroll-main" onscroll="this.previousElementSibling.scrollLeft=this.scrollLeft"');return'<div class="grc-cbahi-scroll-top" onscroll="this.nextElementSibling.scrollLeft=this.scrollLeft"><div></div></div>'+table;
   }
   function jciAssessmentSection(dept){
     ensureCbahiStyles();ensureGrcEnhancementStyles();var s=jciSummary(dept);
     var cards='<div class="grc-metric-grid cols-6">'+metricCard(L('cbahiTotalStandards'),s.standards,'info',L('records'))+metricCard(L('cbahiTotalRequirements'),s.total,'info',L('records'))+metricCard(L('cbahiFullyMet'),s.fully,'good',L('records'))+metricCard(L('cbahiNotMet'),s.notmet,'bad',L('records'))+metricCard(L('cbahiNotApplicable'),s.na,'neutral',L('records'))+metricCard(L('cbahiComplianceRate'),s.rate+'%','purple',L('percentage'))+'</div>';
     var statusItems=[{label:L('cbahiFullyMet'),value:s.fully,color:chartPalette.green},{label:L('cbahiNotMet'),value:s.notmet,color:chartPalette.coral},{label:L('cbahiNotApplicable'),value:s.na,color:chartPalette.slate}];
     var charts='<div class="grc-chart-grid cols-2">'+verticalBarChart(L('cbahiStatusDistribution'),statusItems)+stackedBarChart(L('cbahiAttentionByStandard'),jciAttentionRows(dept),[{label:L('cbahiNotMet'),color:chartPalette.coral}])+'</div>';
-    return'<div class="grc-section grc-cbahi-section grc-jci-section">'+sectionHead(L('jciSection'),L('jciSectionDesc'),s.standards+' '+L('cbahiTotalStandards'))+cards+charts+registerBlock('policy',L('jciRegister'),L('jciRegisterDesc'),'',jciTableHtml(dept))+'</div>';
+    return'<div class="grc-section grc-cbahi-section grc-jci-section">'+sectionHead(L('jciSection'),L('jciSectionDesc'),s.standards+' '+L('cbahiTotalStandards'))+cards+charts+assessmentToolbar('jci')+registerBlock('policy',L('jciRegister'),L('jciRegisterDesc'),'',jciTableHtml(dept))+'</div>';
   }
   function complianceDashboardHtml(){var totalAuthorities=COMPLIANCE_AUTHORITIES.length,totalReq=COMPLIANCE_DOCUMENT_SEED.length;var cards='<div class="grc-metric-grid cols-2 grc-compliance-overview-grid">'+metricCard(L('totalAuthorities'),totalAuthorities,'info',L('complianceAuthorities'))+metricCard(L('totalRequirements'),totalReq,'purple',L('records'))+'</div>';var items=COMPLIANCE_AUTHORITIES.map(function(a){return{label:isAr()?a.ar:a.en,value:complianceDocsFor(a.id).length,color:chartPalette.teal};});return'<div class="grc-section">'+sectionHead(L('complianceDashboard'),L('complianceDesc'))+cards+'<div class="grc-chart-grid cols-1">'+barChart(L('requirementsByAuthority'),items)+'</div></div>';}
   function complianceBackButton(){
@@ -3892,8 +3950,7 @@
   function _grcAssessmentPersist(kind){assessmentSaveLocalCache();if(kind&&isGrcAdmin())persistAssessmentKind(kind).catch(function(err){try{console.error('[GRC Assessment Sync]',err);}catch(_e){}});}
   function _grcAssessmentModalRow(kind,index){var base=kind==='cbahi'?CBAHI_FMS_ROWS:JCI_FMS_ROWS,rows=assessmentRows(kind,base);return rows[Number(index)]||null;}
   window._grcOpenAssessmentModal=function(kind,action,selectedIndex){
-    if(!isGrcAdmin())return;
-    if(action==='edit'){assessmentUiMode[kind]='edit';render();return;}kind=kind==='jci'?'jci':'cbahi';action=action==='delete'?'delete':(action==='edit'?'edit':'add');var rows=assessmentRows(kind,kind==='cbahi'?CBAHI_FMS_ROWS:JCI_FMS_ROWS),index=selectedIndex!==undefined&&selectedIndex!==null&&selectedIndex!==''?Number(selectedIndex):0;
+    if(!isGrcAdmin())return;kind=kind==='jci'?'jci':'cbahi';if(action==='edit'){assessmentUiMode[kind]='edit';render();return;}action=action==='delete'?'delete':'add';var rows=assessmentRows(kind,kind==='cbahi'?CBAHI_FMS_ROWS:JCI_FMS_ROWS),index=selectedIndex!==undefined&&selectedIndex!==null&&selectedIndex!==''?Number(selectedIndex):0;
     var old=document.getElementById('_grcAssessmentModal');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcAssessmentModal';ov.className='grc-modal-backdrop';
     var picker=(action==='edit'||action==='delete')?'<div class="grc-report-upload-field full"><label>'+(action==='delete'?(isAr()?'اختر المتطلب المراد حذفه':'Select requirement to delete'):(isAr()?'اختر المتطلب المراد تعديله':'Select requirement to edit'))+'</label><select id="_grcAssessmentPicker">'+rows.map(function(r,i){var code=kind==='cbahi'?String(r[5]||r[3]||r[1]||''):String(r[3]||r[1]||'');var desc=kind==='cbahi'?String(r[6]||r[4]||r[2]||''):String(r[4]||r[2]||'');return'<option value="'+i+'" '+(i===index?'selected':'')+'>'+esc((code||('#'+(i+1)))+' — '+desc.slice(0,110))+'</option>';}).join('')+'</select></div>':'';
     ov.innerHTML='<div class="grc-modal wide grc-assessment-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(action==='add'?L('assessmentAdd'):(action==='delete'?L('delete'):L('assessmentEdit')))+' · '+kind.toUpperCase()+'</div><div class="grc-modal-sub">'+(isAr()?'جميع الحقول تظهر هنا، وعند التعديل تنعكس بيانات السجل المختار تلقائياً.':'All fields are shown here; edit mode automatically loads the selected record.')+'</div></div><button class="grc-modal-close" type="button" onclick="document.getElementById(\'_grcAssessmentModal\').remove()">×</button></div><form novalidate class="grc-modal-body" id="_grcAssessmentForm" data-assessment-kind="'+kind+'"><div class="grc-report-upload-grid">'+picker+'<div id="_grcAssessmentFields" class="grc-assessment-form-grid full"></div></div><div class="grc-upload-status" id="_grcAssessmentStatus"></div><div class="grc-modal-actions"><button type="button" class="grc-btn ghost" onclick="document.getElementById(\'_grcAssessmentModal\').remove()">'+L('cancel')+'</button><button type="submit" class="grc-btn '+(action==='delete'?'danger':'primary')+'">'+(action==='delete'?L('delete'):(isAr()?'حفظ':'Save'))+'</button></div></form></div>';document.body.appendChild(ov);
@@ -3913,7 +3970,7 @@
     if(action==='edit'||action==='delete'){var pickerEl=document.getElementById('_grcAssessmentPicker');pickerEl.addEventListener('change',function(){index=Number(this.value);renderFields();});}renderFields();
     document.getElementById('_grcAssessmentForm').addEventListener('submit',function(e){e.preventDefault();var form=e.target;if(action==='delete'){var selected=_grcAssessmentModalRow(kind,index);if(!selected||!window.confirm(isAr()?'هل تريد حذف هذا التقييم؟':'Delete this assessment?'))return;if(!assessmentEdits[kind]._deleted)assessmentEdits[kind]._deleted={};assessmentEdits[kind]._deleted[selected._sourceIndex!=null?selected._sourceIndex:index]=true;_grcAssessmentPersist(kind);ov.remove();render();return;}var defs=_grcAssessmentFieldDefs(kind),row=new Array(15).fill('');defs.forEach(function(d){row[d[0]]=String(form.elements['c'+d[0]]&&form.elements['c'+d[0]].value||'').trim();});row=cleanAssessmentRowCodes(row);var status=row[8];row[9]=status==='Fully Met'?2:(status==='Partially Met'?1:0);var specific=String(row[6]||row[4]||'').trim(),dChoice=document.getElementById('_grcDTrigger'),startsD=(dChoice&&dChoice.value==='yes')||(dChoice&&dChoice.value!=='no'&&/^D(?:\s|\b)/.test(specific)),notMet=status==='Not Met',evidenceReq=kind==='jci'&&startsD&&status==='Fully Met',gapEl=form.elements.c12,capEl=form.elements.c13,evidenceEl=form.elements.c11;[[gapEl,notMet],[capEl,notMet],[evidenceEl,evidenceReq]].forEach(function(pair){if(pair[0])pair[0].required=pair[1];});var allMissing=[];Array.prototype.forEach.call(form.querySelectorAll('input,textarea,select'),function(el){var miss=el.required&&!String(el.value||'').trim(),label=el.closest('label');el.classList.toggle('grc-input-invalid',miss);if(label)label.classList.toggle('required-missing',miss);if(miss)allMissing.push(el);});if(allMissing.length){document.getElementById('_grcAssessmentStatus').textContent=isAr()?'يرجى تعبئة جميع الحقول المحددة باللون الأحمر؛ جميعها مطلوبة قبل الحفظ.':'Complete every field highlighted in red before saving.';return;}if(!assessmentEdits[kind])assessmentEdits[kind]={};if(action==='add'){if(!assessmentEdits[kind]._added)assessmentEdits[kind]._added=[];assessmentEdits[kind]._added.push(row);}else{if(!assessmentEdits[kind][index])assessmentEdits[kind][index]={};for(var c=0;c<15;c++)assessmentEdits[kind][index][c]=row[c];}_grcAssessmentPersist(kind);ov.remove();render();});
   };
-  window._grcOpenAdminControlPanel=function(){if(!isGrcAdmin())return;var old=document.getElementById('_grcAdminControl');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcAdminControl';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal wide grc-admin-control-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(isAr()?'إدارة السجلات':'Record Management')+'</div><div class="grc-modal-sub">'+(isAr()?'إدارة السجلات الخاصة بالملفات والتقييمات':'Manage specialized file and assessment records')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcAdminControl\').remove()">×</button></div><div class="grc-modal-body"><div class="grc-admin-control-grid"><label>'+L('page')+'<select id="_grcAdminPage">'+_grcAdminPageOptions().map(function(x){return'<option value="'+x[0]+'">'+x[1]+'</option>';}).join('')+'</select></label><label>'+(isAr()?'الإجراء':'Action')+'<select id="_grcAdminAction"><option value="add">'+(isAr()?'إضافة':'Add')+'</option><option value="edit">'+(isAr()?'تعديل':'Edit')+'</option><option value="delete">'+(isAr()?'حذف':'Delete')+'</option></select></label><label>'+(isAr()?'نوع البيانات':'Data Type')+'<select id="_grcAdminType"></select></label><label id="_grcAdminDeptWrap">'+L('department')+'<select id="_grcAdminDept">'+deptOptions().map(function(x){return'<option value="'+x[0]+'">'+x[1]+'</option>';}).join('')+'</select></label><label id="_grcAdminScopeWrap" style="display:none">'+(isAr()?'تصنيف النموذج':'Form Section')+'<select id="_grcAdminScope"><option value="internal">'+L('internalForms')+'</option><option value="external">'+L('externalForms')+'</option></select></label><label id="_grcAdminRecordWrap" class="full" style="display:none">'+(isAr()?'السجل الموجود':'Existing Record')+'<select id="_grcAdminRecord"></select></label></div><div class="grc-modal-actions"><button class="grc-btn ghost" onclick="document.getElementById(\'_grcAdminControl\').remove()">'+L('cancel')+'</button><button class="grc-btn primary" onclick="window._grcAdminContinue()">'+(isAr()?'متابعة':'Continue')+'</button></div></div></div>';document.body.appendChild(ov);var page=document.getElementById('_grcAdminPage'),action=document.getElementById('_grcAdminAction'),type=document.getElementById('_grcAdminType'),dept=document.getElementById('_grcAdminDept');function refreshTypes(){type.innerHTML=_grcAdminTypes(page.value).map(function(x){return'<option value="'+x[0]+'">'+x[1]+'</option>';}).join('');refreshRecord();}function refreshRecord(){var t=type.value,a=action.value,wrap=document.getElementById('_grcAdminRecordWrap'),scope=document.getElementById('_grcAdminScopeWrap'),deptWrap=document.getElementById('_grcAdminDeptWrap');scope.style.display=t==='form'?'flex':'none';deptWrap.style.display=(page.value==='governance'||page.value==='risk')?'flex':'none';wrap.style.display=(a==='edit'||a==='delete')&&t!=='cbahi'&&t!=='jci'?'flex':'none';if(a!=='edit'&&a!=='delete')return;var sel=document.getElementById('_grcAdminRecord'),arr=[];if(t==='report')arr=REPORT_LIBRARY.filter(function(r){return r.group==='annual'||r.group==='quarterly';});else if(t==='guide')arr=guideRecords();else if(t==='cbahi'||t==='jci'){return;}else{arr=state[_grcTypeCollection(t)]||[];if(dept.value)arr=arr.filter(function(r){return String(r.department||'')===String(dept.value);});}sel.innerHTML=arr.map(function(r,i){return'<option value="'+esc(r.id||i)+'">'+esc((r.code||r.id||'')+' — '+recordName(r))+'</option>';}).join('')||'<option value="">'+L('noRecords')+'</option>';}page.addEventListener('change',refreshTypes);action.addEventListener('change',refreshRecord);type.addEventListener('change',refreshRecord);dept.addEventListener('change',refreshRecord);refreshTypes();};
+  window._grcOpenAdminControlPanel=function(){if(!isGrcAdmin())return;var old=document.getElementById('_grcAdminControl');if(old)old.remove();var ov=document.createElement('div');ov.id='_grcAdminControl';ov.className='grc-modal-backdrop';ov.innerHTML='<div class="grc-modal wide grc-admin-control-modal"><div class="grc-modal-head"><div><div class="grc-modal-title">'+(isAr()?'إدارة السجلات':'Record Management')+'</div><div class="grc-modal-sub">'+(isAr()?'إدارة السجلات الخاصة بالملفات والتقييمات':'Manage specialized file and assessment records')+'</div></div><button class="grc-modal-close" onclick="document.getElementById(\'_grcAdminControl\').remove()">×</button></div><div class="grc-modal-body"><div class="grc-admin-control-grid"><label>'+L('page')+'<select id="_grcAdminPage">'+_grcAdminPageOptions().map(function(x){return'<option value="'+x[0]+'">'+x[1]+'</option>';}).join('')+'</select></label><label>'+(isAr()?'الإجراء':'Action')+'<select id="_grcAdminAction"><option value="add">'+(isAr()?'إضافة':'Add')+'</option><option value="edit">'+(isAr()?'تعديل':'Edit')+'</option><option value="delete">'+(isAr()?'حذف':'Delete')+'</option></select></label><label>'+(isAr()?'نوع البيانات':'Data Type')+'<select id="_grcAdminType"></select></label><label id="_grcAdminDeptWrap">'+L('department')+'<select id="_grcAdminDept">'+deptOptions().map(function(x){return'<option value="'+x[0]+'">'+x[1]+'</option>';}).join('')+'</select></label><label id="_grcAdminScopeWrap" style="display:none">'+(isAr()?'تصنيف النموذج':'Form Section')+'<select id="_grcAdminScope"><option value="internal">'+L('internalForms')+'</option><option value="external">'+L('externalForms')+'</option></select></label><label id="_grcAdminRecordWrap" class="full" style="display:none">'+(isAr()?'السجل الموجود':'Existing Record')+'<select id="_grcAdminRecord"></select></label></div><div class="grc-modal-actions"><button class="grc-btn ghost" onclick="document.getElementById(\'_grcAdminControl\').remove()">'+L('cancel')+'</button><button class="grc-btn primary" onclick="window._grcAdminContinue()">'+(isAr()?'متابعة':'Continue')+'</button></div></div></div>';document.body.appendChild(ov);var page=document.getElementById('_grcAdminPage'),action=document.getElementById('_grcAdminAction'),type=document.getElementById('_grcAdminType'),dept=document.getElementById('_grcAdminDept');function refreshTypes(){type.innerHTML=_grcAdminTypes(page.value).map(function(x){return'<option value="'+x[0]+'">'+x[1]+'</option>';}).join('');refreshRecord();}function refreshRecord(){var t=type.value,a=action.value,wrap=document.getElementById('_grcAdminRecordWrap'),scope=document.getElementById('_grcAdminScopeWrap'),deptWrap=document.getElementById('_grcAdminDeptWrap');scope.style.display=t==='form'?'flex':'none';deptWrap.style.display=(page.value==='governance'||page.value==='risk')?'flex':'none';wrap.style.display=(a==='delete'||(a==='edit'&&t!=='cbahi'&&t!=='jci'))?'flex':'none';if(a!=='edit'&&a!=='delete')return;if(a==='edit'&&(t==='cbahi'||t==='jci'))return;var sel=document.getElementById('_grcAdminRecord'),arr=[];if(t==='report')arr=REPORT_LIBRARY.filter(function(r){return r.group==='annual'||r.group==='quarterly';});else if(t==='guide')arr=guideRecords();else if(t==='cbahi'||t==='jci'){arr=assessmentRows(t,t==='cbahi'?CBAHI_FMS_ROWS:JCI_FMS_ROWS);sel.innerHTML=arr.map(function(r,i){var code=t==='cbahi'?String(r[5]||r[3]||r[1]||''):String(r[3]||r[1]||'');var desc=t==='cbahi'?String(r[6]||r[4]||r[2]||''):String(r[4]||r[2]||'');return'<option value="'+i+'">'+esc((code||('#'+(i+1)))+' — '+desc.slice(0,90))+'</option>';}).join('')||'<option value="">'+L('noRecords')+'</option>';return;}else{arr=state[_grcTypeCollection(t)]||[];if(dept.value)arr=arr.filter(function(r){return String(r.department||'')===String(dept.value);});}sel.innerHTML=arr.map(function(r,i){return'<option value="'+esc(r.id||i)+'">'+esc((r.code||r.id||'')+' — '+recordName(r))+'</option>';}).join('')||'<option value="">'+L('noRecords')+'</option>';}page.addEventListener('change',refreshTypes);action.addEventListener('change',refreshRecord);type.addEventListener('change',refreshRecord);dept.addEventListener('change',refreshRecord);refreshTypes();};
   window._grcOpenAdminControl=function(page,action,type){
     if(!isGrcAdmin())return;
     window._grcOpenAdminControlPanel();
@@ -4359,10 +4416,10 @@
     var add='',edit='',del='';
     if(map.special==='cbahi'||map.special==='jci'){
       add="window._grcOpenAssessmentModal('"+map.special+"','add')";
-      edit="window._grcAssessmentToggleEdit('"+map.special+"')";
+      edit="window._grcOpenAssessmentModal('"+map.special+"','edit')";
       del="window._grcOpenAssessmentModal('"+map.special+"','delete')";
       return '<button type="button" class="grc-btn primary" onclick="'+add+'">＋ '+(isAr()?'إضافة':'Add')+'</button>'+
-        '<button type="button" class="grc-btn ghost" onclick="'+edit+'">'+(assessmentUiMode[map.special]==='edit'?(isAr()?'✓ إنهاء التعديل':'✓ Done Editing'):'✎ '+(isAr()?'تعديل':'Edit'))+'</button>'+
+        '<button type="button" class="grc-btn ghost" onclick="'+edit+'">✎ '+(isAr()?'تعديل':'Edit')+'</button>'+
         '<button type="button" class="grc-btn danger" onclick="'+del+'">⌫ '+(isAr()?'حذف':'Delete')+'</button>';
     }
     if(map.special==='report'){
