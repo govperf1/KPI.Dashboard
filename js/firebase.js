@@ -867,6 +867,22 @@ window._selectPortal=async portal=>{
       try{await window._recordAuditDirect('GRC_USER_REQUEST_SUBMIT','Submitted GRC user request: '+String(requestType||'General GRC Request'),null,{requestId:ref.id,requestType:String(requestType||'General GRC Request')},{portal:'grc'});}catch(_){}
       return ref.id;
     };
+    /* Pre-launch history hide: requests created before this moment are test data.
+       They stay in Firestore but are no longer shown in My Requests or in
+       Risk & Incident Registers. Anything created from this moment on shows normally. */
+    window.__GRC_HISTORY_CUTOFF_MS=Date.parse('2026-11-19T00:00:00+03:00');
+    window.__grcIsPreLaunchHistory=function(r){
+      if(!r)return false;
+      var ms=0;
+      try{
+        var v=r.createdAt;
+        if(v&&typeof v.toMillis==='function')ms=v.toMillis();
+        else if(v&&typeof v.seconds==='number')ms=v.seconds*1000;
+        else if(v)ms=new Date(v).getTime()||0;
+        if(!ms&&r.createdAtIso)ms=new Date(r.createdAtIso).getTime()||0;
+      }catch(_){ms=0;}
+      return ms>0&&ms<window.__GRC_HISTORY_CUTOFF_MS;
+    };
     window._grcRequestsGetMine=async function(){
       if(!window._fbUser||!db) return [];
       const uid=(auth.currentUser&&auth.currentUser.uid)||'';
@@ -879,7 +895,7 @@ window._selectPortal=async portal=>{
         if(email)attempts.push(getDocs(query(col,where('userEmail','==',email))).then(function(s){return s.docs.map(function(d){return Object.assign({id:d.id},d.data());});}).catch(function(e){console.warn('[GRC Requests] email lookup failed:',e&&e.code||e);return [];}));
         const groups=await Promise.all(attempts);rows=groups.reduce(function(all,group){return all.concat(group||[]);},[]);
         const seen={};
-        rows=rows.filter(function(r){const k=String(r.id||'');if(!k||seen[k])return false;seen[k]=1;return true;});
+        rows=rows.filter(function(r){const k=String(r.id||'');if(!k||seen[k])return false;seen[k]=1;return !window.__grcIsPreLaunchHistory(r);});
         rows.sort(function(a,b){return ((b.updatedAt&&b.updatedAt.seconds)||(b.createdAt&&b.createdAt.seconds)||0)-((a.updatedAt&&a.updatedAt.seconds)||(a.createdAt&&a.createdAt.seconds)||0);});
         return rows;
       }catch(e){console.warn('[GRC Requests] getMine:',e&&e.message);return [];}
@@ -1265,8 +1281,8 @@ window._selectPortal=async portal=>{
         const historyFailures=settled.slice(2).filter(function(x){return x.status==='rejected';});
         if(historyFailures.length===historyQueries.length)result.errors.push('Risk / Incident history: '+String(historyFailures[0].reason&&historyFailures[0].reason.message||historyFailures[0].reason));
         if(settled[0].status==='fulfilled')settled[0].value.forEach(function(d){const item=d.data()||{},snap=item.snapshot||{};if(String(snap.workflowStage||item.workflowStage||'')!=='pending_department_manager')return;if(_grcIsCurrentManagerOwnRequest(item,snap,fresh))return;const out=_advNormalizeRow(String(item.requestId||d.id),snap,'advisory_requests');out._managerAssigned=true;result.review.push(out);});
-        if(settled[1].status==='fulfilled')settled[1].value.forEach(function(d){const item=d.data()||{},snap=item.snapshot||{},status=String(snap.status||item.status||'').toLowerCase();if(_grcIsCurrentManagerOwnRequest(item,snap,fresh))return;if(!['pending_manager','returned_manager'].includes(status))return;const data=_grcRiskRequestData({id:String(item.requestId||d.id),exists:function(){return true;},data:function(){return snap;}});if(data){data._managerAssigned=true;result.risk.push(data);}});
-        settled.slice(2).forEach(function(group){if(group.status!=='fulfilled')return;group.value.forEach(function(d){const data=_grcRiskRequestData(d);if(!data)return;if(_grcIsCurrentManagerOwnRequest({},data,fresh))return;result.riskAll.push(data);});});
+        if(settled[1].status==='fulfilled')settled[1].value.forEach(function(d){const item=d.data()||{},snap=item.snapshot||{},status=String(snap.status||item.status||'').toLowerCase();if(_grcIsCurrentManagerOwnRequest(item,snap,fresh))return;if(!['pending_manager','returned_manager'].includes(status))return;const data=_grcRiskRequestData({id:String(item.requestId||d.id),exists:function(){return true;},data:function(){return snap;}});if(data&&!window.__grcIsPreLaunchHistory(data)){data._managerAssigned=true;result.risk.push(data);}});
+        settled.slice(2).forEach(function(group){if(group.status!=='fulfilled')return;group.value.forEach(function(d){const data=_grcRiskRequestData(d);if(!data||window.__grcIsPreLaunchHistory(data))return;if(_grcIsCurrentManagerOwnRequest({},data,fresh))return;result.riskAll.push(data);});});
         // Queue snapshots help legacy requests that were routed before the
         // authoritative department history query was introduced. Merge by ID,
         // with authoritative documents taking precedence over snapshots.
@@ -2058,7 +2074,7 @@ window._selectPortal=async portal=>{
       try{await window._recordAuditDirect('GRC_SUPER_ADMIN_APPROVAL_'+String(action||'action').toUpperCase(),'Super Admin '+String(action||'action')+' · '+String(r.requestCode||requestId),{status:r.status},{status:status,note:String(note||'')},{portal:'grc',dept:r.department,recordType:r.recordType||'risk'});}catch(_){}
       return true;
     };
-    async function _grcRiskRead(queryRef){const snap=await getDocs(queryRef),rows=[];snap.forEach(d=>rows.push(_grcRiskRequestData(d)));return _grcRiskSort(rows);}
+    async function _grcRiskRead(queryRef){const snap=await getDocs(queryRef),rows=[];snap.forEach(d=>{const r=_grcRiskRequestData(d);if(!window.__grcIsPreLaunchHistory(r))rows.push(r);});return _grcRiskSort(rows);}
     function _grcRiskMergeRows(groups){const map={};(groups||[]).forEach(rows=>(rows||[]).forEach(r=>{if(r&&r.id)map[r.id]=r;}));return _grcRiskSort(Object.keys(map).map(id=>map[id]));}
     async function _grcRiskReadMany(qrefs){const groups=await Promise.all((qrefs||[]).map(async qref=>{try{return await _grcRiskRead(qref);}catch(err){console.warn('[GRC Risk Requests] scoped read failed',err&&err.code||err);return[];}}));return _grcRiskMergeRows(groups);}
     window._grcRiskRequestsGetMine=async function(){
@@ -2114,7 +2130,7 @@ window._selectPortal=async portal=>{
         callback(rows);
       }
       qrefs.forEach((qref,i)=>{unsubs.push(onSnapshot(qref,{includeMetadataChanges:true},snap=>{
-        const rows=[];snap.forEach(d=>{if(d.metadata&&d.metadata.hasPendingWrites)return;const row=_grcRiskRequestData(d);if(row)rows.push(row);});sources[i]=rows;delete failed[i];successCount++;emit();
+        const rows=[];snap.forEach(d=>{if(d.metadata&&d.metadata.hasPendingWrites)return;const row=_grcRiskRequestData(d);if(row&&!window.__grcIsPreLaunchHistory(row))rows.push(row);});sources[i]=rows;delete failed[i];successCount++;emit();
       },err=>{failed[i]=err;console.warn('[GRC Risk Requests] listener '+i+' failed',err&&err.code||err);if(Object.keys(failed).length===qrefs.length&&successCount===0)callback([],err);}));});
       _grcRiskRequestUnsub=function(){unsubs.forEach(u=>{try{u();}catch(_){}});};return _grcRiskRequestUnsub;
     };
