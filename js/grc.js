@@ -4928,7 +4928,7 @@
   window._grcAdminLoadRequests=function(){
     var page=document.getElementById('_grcAcPageRequests');if(!page)return;page.innerHTML='<div class="grc-ac-empty">'+(isAr()?'جاري تحميل الطلبات…':'Loading requests…')+'</div>';
     if(typeof window._grcRequestsGetAll!=='function'){page.innerHTML='<div class="grc-ac-empty">GRC request service is not available.</div>';return;}
-    window._grcRequestsGetAll().then(function(rows){if(!document.getElementById('_grcAdminCenterOv'))return;window._grcAdminRenderRequests(rows||[]);}).catch(function(err){page.innerHTML='<div class="grc-ac-empty">'+esc(String(err&&err.message||err))+'</div>';});
+    window._grcRequestsGetAll().then(function(rows){if(!document.getElementById('_grcAdminCenterOv'))return;window._grcAdminRenderRequests((rows||[]).filter(function(r){return !(typeof window.__grcIsPreLaunchHistory==='function'&&window.__grcIsPreLaunchHistory(r));}));}).catch(function(err){page.innerHTML='<div class="grc-ac-empty">'+esc(String(err&&err.message||err))+'</div>';});
   };
   window._grcAdminRenderRequests=function(rows){
     var page=document.getElementById('_grcAcPageRequests');if(!page)return;
